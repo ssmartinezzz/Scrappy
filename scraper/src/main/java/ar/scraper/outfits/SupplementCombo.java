@@ -16,19 +16,18 @@ import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
 
 /**
  * Supplements are a different domain from clothing that happened to live inside a class named
  * OutfitService: they have their own catalogue categories, their own subtype keyword matching and
  * their own brand preference order, and share none of the slot/style machinery.
  */
+@RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 public class SupplementCombo {
 
     private final RecommendationService recommendationService;
-
-    SupplementCombo(RecommendationService recommendationService) {
-        this.recommendationService = recommendationService;
-    }
 
     /**
      * Los estáticos se inicializan en orden de declaración, y varios de los que siguen normalizan
@@ -752,19 +751,19 @@ public class SupplementCombo {
     }
 
     private static String urlDe(Product p) {
-        return p.url() != null ? p.url() : "";
+        return StringUtils.defaultString(p.url());
     }
 
     private OutfitService.SupplementPick toSupplementPick(String tipo, Product p) {
-        String img = p.imagenUrl() != null ? p.imagenUrl() : "";
+        String img = StringUtils.defaultString(p.imagenUrl());
         if (img.startsWith("//")) img = "https:" + img;
         return new OutfitService.SupplementPick(
                 tipo,
-                p.sitio() != null ? p.sitio() : "",
-                p.nombre() != null ? p.nombre() : "",
+                StringUtils.defaultString(p.sitio()),
+                StringUtils.defaultString(p.nombre()),
                 p.precio(),
-                p.url() != null ? p.url() : "",
+                StringUtils.defaultString(p.url()),
                 img,
-                p.marca() != null ? p.marca() : "");
+                StringUtils.defaultString(p.marca()));
     }
 }

@@ -1,11 +1,7 @@
 package ar.scraper.pcs.specs;
 
-import ar.scraper.pcs.Certificacion;
-import ar.scraper.pcs.Gama;
 import ar.scraper.pcs.TechSpecs;
-import ar.scraper.pcs.TipoAlmacenamiento;
 
-import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -21,25 +17,14 @@ public final class MotherboardSpecsReader implements LectorDeSpecs {
     public TechSpecs leer(Tokens tokens) {
         String chipsetToken = chipsetToken(tokens);
         String socket = motherboardSocket(tokens, chipsetToken);
-        return new TechSpecs(
-                socket,
-                ddr(tokens),
-                motherboardFormFactor(tokens, chipsetToken),
-                0, 0, "",
-                Gama.DESCONOCIDA, Certificacion.NINGUNA,
-                0, TipoAlmacenamiento.DESCONOCIDO, List.of(),
-                marcaChip(socket), 0, tierChipset(chipsetToken), 0, wifi(tokens));
-    }
-
-    private static String explicitSocket(Tokens tokens) {
-        if (tokens.has("am5")) return "AM5";
-        if (tokens.has("am4")) return "AM4";
-        if (tokens.has("am3")) return "AM3";
-        if (tokens.has("lga1851") || tokens.has("1851")) return "LGA1851";
-        if (tokens.has("lga1700") || tokens.has("1700")) return "LGA1700";
-        if (tokens.has("lga1200") || tokens.has("1200") || tokens.has("s1200")) return "LGA1200";
-        if (tokens.has("lga1151") || tokens.has("1151") || tokens.has("s1151")) return "LGA1151";
-        return "";
+        return TechSpecs.builder()
+                .socket(socket)
+                .ddr(ddr(tokens))
+                .formFactor(motherboardFormFactor(tokens, chipsetToken))
+                .marcaChip(marcaChip(socket))
+                .tierChipset(tierChipset(chipsetToken))
+                .wifi(wifi(tokens))
+                .build();
     }
 
     private static final Map<String, String> CHIPSET_SOCKET = Map.ofEntries(
@@ -64,7 +49,7 @@ public final class MotherboardSpecsReader implements LectorDeSpecs {
     }
 
     private static String motherboardSocket(Tokens tokens, String chipsetToken) {
-        String explicit = explicitSocket(tokens);
+        String explicit = tokens.socketExplicito();
         if (!explicit.isEmpty()) return explicit;
         if (chipsetToken == null) return "";
         return CHIPSET_SOCKET.getOrDefault(chipsetToken.substring(0, 4), "");
@@ -77,22 +62,12 @@ public final class MotherboardSpecsReader implements LectorDeSpecs {
         return m.find() ? "DDR" + m.group(1) : "";
     }
 
-    private static String explicitFormFactor(String padded) {
-        if (padded.contains(" itx ")) return "ITX";
-        if (padded.contains(" matx ") || padded.contains(" m atx ") || padded.contains(" micro atx ")) {
-            return "MATX";
-        }
-        if (padded.contains(" eatx ") || padded.contains(" e atx ")) return "EATX";
-        if (padded.contains(" atx ")) return "ATX";
-        return "";
-    }
-
     private static String motherboardFormFactor(Tokens tokens, String chipsetToken) {
         String suffix = (chipsetToken != null && chipsetToken.length() > 4) ? chipsetToken.substring(4) : "";
         if (suffix.indexOf('i') >= 0) return "ITX";
         if (suffix.indexOf('m') >= 0) return "MATX";
 
-        String explicit = explicitFormFactor(tokens.padded());
+        String explicit = tokens.formFactorExplicito();
         if (!explicit.isEmpty()) return explicit;
         // A recognized chipset with no size suffix (bare, or an "e"-only Extreme tier) and no
         // explicit form-factor word is a full-size board — the modal default in this catalog.

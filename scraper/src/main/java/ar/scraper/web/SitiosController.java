@@ -12,18 +12,15 @@ import org.springframework.web.bind.annotation.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api")
+@RequiredArgsConstructor
 public class SitiosController {
 
     private final ScraperService service;
     private final ScraperConfig config;
-
-    public SitiosController(ScraperService service, ScraperConfig config) {
-        this.service = service;
-        this.config = config;
-    }
 
     @GetMapping("/sitios")
     public ResponseEntity<ApiResponse<ScrapeDtos.Sitios>> getSitios() {

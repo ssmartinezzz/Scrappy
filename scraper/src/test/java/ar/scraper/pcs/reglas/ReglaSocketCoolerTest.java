@@ -18,10 +18,8 @@ class ReglaSocketCoolerTest {
     @DisplayName("vetoes when both sides parsed and the mother's socket is not in the cooler's list")
     void vetaCuandoAmbosParsearonYNoCruzan() {
         ContextoDeArmado contexto = ContextoDeArmado.inicial(450)
-                .conMother(new TechSpecs("AM5", "", "", 0, 0, ""));
-        TechSpecs cooler = new TechSpecs("", "", "", 0, 0, "", ar.scraper.pcs.Gama.DESCONOCIDA,
-                ar.scraper.pcs.Certificacion.NINGUNA, 0, ar.scraper.pcs.TipoAlmacenamiento.DESCONOCIDO,
-                List.of("AM4"));
+                .conMother(TechSpecs.builder().socket("AM5").build());
+        TechSpecs cooler = TechSpecs.builder().socketsSoportados(List.of("AM4")).build();
 
         assertThat(regla.permite(cooler, contexto)).isFalse();
     }
@@ -30,10 +28,8 @@ class ReglaSocketCoolerTest {
     @DisplayName("does not veto when the mother's socket is in the cooler's list")
     void noVetaCuandoElSocketEstaEnLaLista() {
         ContextoDeArmado contexto = ContextoDeArmado.inicial(450)
-                .conMother(new TechSpecs("AM5", "", "", 0, 0, ""));
-        TechSpecs cooler = new TechSpecs("", "", "", 0, 0, "", ar.scraper.pcs.Gama.DESCONOCIDA,
-                ar.scraper.pcs.Certificacion.NINGUNA, 0, ar.scraper.pcs.TipoAlmacenamiento.DESCONOCIDO,
-                List.of("AM4", "AM5"));
+                .conMother(TechSpecs.builder().socket("AM5").build());
+        TechSpecs cooler = TechSpecs.builder().socketsSoportados(List.of("AM4", "AM5")).build();
 
         assertThat(regla.permite(cooler, contexto)).isTrue();
     }
@@ -42,7 +38,7 @@ class ReglaSocketCoolerTest {
     @DisplayName("abstains when the cooler names no socket at all")
     void abstieneCuandoElCoolerNoNombraSocket() {
         ContextoDeArmado contexto = ContextoDeArmado.inicial(450)
-                .conMother(new TechSpecs("AM5", "", "", 0, 0, ""));
+                .conMother(TechSpecs.builder().socket("AM5").build());
 
         assertThat(regla.permite(TechSpecs.EMPTY, contexto)).isTrue();
     }
@@ -51,9 +47,7 @@ class ReglaSocketCoolerTest {
     @DisplayName("abstains when the mother's socket did not parse")
     void abstieneCuandoLaMotherNoDeclaraSocket() {
         ContextoDeArmado contexto = ContextoDeArmado.inicial(450).conMother(TechSpecs.EMPTY);
-        TechSpecs cooler = new TechSpecs("", "", "", 0, 0, "", ar.scraper.pcs.Gama.DESCONOCIDA,
-                ar.scraper.pcs.Certificacion.NINGUNA, 0, ar.scraper.pcs.TipoAlmacenamiento.DESCONOCIDO,
-                List.of("AM4"));
+        TechSpecs cooler = TechSpecs.builder().socketsSoportados(List.of("AM4")).build();
 
         assertThat(regla.permite(cooler, contexto)).isTrue();
     }

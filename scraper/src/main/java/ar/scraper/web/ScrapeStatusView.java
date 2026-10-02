@@ -7,15 +7,13 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import lombok.RequiredArgsConstructor;
 
 @Component
+@RequiredArgsConstructor
 public class ScrapeStatusView {
 
     private final ScraperService service;
-
-    public ScrapeStatusView(ScraperService service) {
-        this.service = service;
-    }
 
     public ScrapeDtos.Status snapshot() {
         var b = ScrapeDtos.Status.builder()

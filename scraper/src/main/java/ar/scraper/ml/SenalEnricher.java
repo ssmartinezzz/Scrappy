@@ -16,6 +16,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import org.apache.commons.lang3.StringUtils;
+import lombok.RequiredArgsConstructor;
 
 /**
  * Batch-loads price history for the whole product list in a single DB round-trip (avoiding the N+1
@@ -24,17 +25,13 @@ import org.apache.commons.lang3.StringUtils;
  * pure {@link SenalCalculator}.
  */
 @Component
+@RequiredArgsConstructor
 public class SenalEnricher {
 
     private static final Logger LOG = LoggerFactory.getLogger(SenalEnricher.class);
 
     private final HistorialPort historial;
     private final IndiceService indiceService;
-
-    public SenalEnricher(HistorialPort historial, IndiceService indiceService) {
-        this.historial = historial;
-        this.indiceService = indiceService;
-    }
 
     public List<Product> enriquecer(List<Product> productos) {
         if (productos == null || productos.isEmpty()) return productos;
@@ -86,7 +83,7 @@ public class SenalEnricher {
         return p.toBuilder()
                 .rubro(p.rubro() != null ? p.rubro() : "indumentaria")
                 .senal(senal)
-                .subCategoria(p.subCategoria() != null ? p.subCategoria() : "")
+                .subCategoria(StringUtils.defaultString(p.subCategoria()))
                 .build();
     }
 }

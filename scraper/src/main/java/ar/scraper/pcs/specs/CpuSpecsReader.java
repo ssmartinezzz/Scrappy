@@ -1,12 +1,8 @@
 package ar.scraper.pcs.specs;
 
-import ar.scraper.pcs.Certificacion;
 import ar.scraper.pcs.Gama;
 import ar.scraper.pcs.TechSpecs;
-import ar.scraper.pcs.TipoAlmacenamiento;
-import ar.scraper.pcs.TipoCooler;
 
-import java.util.List;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -20,20 +16,13 @@ public final class CpuSpecsReader implements LectorDeSpecs {
 
     @Override
     public TechSpecs leer(Tokens tokens) {
-        return new TechSpecs(cpuSocket(tokens), "", "", 0, 0, "", gama(tokens), Certificacion.NINGUNA,
-                0, TipoAlmacenamiento.DESCONOCIDO, List.of(),
-                marcaChip(tokens), generacion(tokens), 0, 0, false, TipoCooler.DESCONOCIDO, nivel(tokens));
-    }
-
-    private static String explicitSocket(Tokens tokens) {
-        if (tokens.has("am5")) return "AM5";
-        if (tokens.has("am4")) return "AM4";
-        if (tokens.has("am3")) return "AM3";
-        if (tokens.has("lga1851") || tokens.has("1851")) return "LGA1851";
-        if (tokens.has("lga1700") || tokens.has("1700")) return "LGA1700";
-        if (tokens.has("lga1200") || tokens.has("1200") || tokens.has("s1200")) return "LGA1200";
-        if (tokens.has("lga1151") || tokens.has("1151") || tokens.has("s1151")) return "LGA1151";
-        return "";
+        return TechSpecs.builder()
+                .socket(cpuSocket(tokens))
+                .gama(gama(tokens))
+                .marcaChip(marcaChip(tokens))
+                .generacion(generacion(tokens))
+                .nivel(nivel(tokens))
+                .build();
     }
 
     private static final Pattern RYZEN_MODEL = Pattern.compile("ryzen \\d+ ([3-9])\\d{3}\\w*");
@@ -50,7 +39,7 @@ public final class CpuSpecsReader implements LectorDeSpecs {
             Set.of("3000g", "200ge", "220ge", "240ge", "300ge", "320ge");
 
     private static String cpuSocket(Tokens tokens) {
-        String explicit = explicitSocket(tokens);
+        String explicit = tokens.socketExplicito();
         if (!explicit.isEmpty()) return explicit;
 
         String padded = tokens.padded();

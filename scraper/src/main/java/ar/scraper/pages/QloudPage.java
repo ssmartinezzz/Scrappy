@@ -12,7 +12,7 @@ import org.apache.commons.lang3.StringUtils;
  * Qloud is a multi-tenant platform, not a single store — this page generalizes to any Argentine
  * store on it, same argument as {@link VaypolPage}.
  */
-public class QloudPage extends BasePage implements CatalogPage {
+public class QloudPage extends StorePage implements CatalogPage {
 
     private static final Logger log = LoggerFactory.getLogger(QloudPage.class);
 
@@ -30,18 +30,10 @@ public class QloudPage extends BasePage implements CatalogPage {
 
     private static final int MAX_PAGES = 30;
 
-    private final String sitio;
-    private final String baseUrl;
-    private final double precioMin;
-    private final double precioMax;
 
     public QloudPage(Page page, int timeoutMs, String sitio, String baseUrl,
                       double precioMin, double precioMax) {
-        super(page, timeoutMs);
-        this.sitio = sitio;
-        this.baseUrl = baseUrl.replaceAll("/+$", "");
-        this.precioMin = precioMin;
-        this.precioMax = precioMax;
+        super(page, timeoutMs, sitio, sinBarraFinal(baseUrl), precioMin, precioMax);
     }
 
     public List<Product> scrapeAll() {
@@ -68,26 +60,10 @@ public class QloudPage extends BasePage implements CatalogPage {
 
     /** Returns true if the slug never yielded anything. */
     private boolean crawlCategory(String slug, String categoriaHint, Set<String> vistas, List<Product> result) {
-        boolean neverYielded = true;
-        for (int p = 1; p <= MAX_PAGES; p++) {
-            String url = baseUrl + "/" + slug + "/" + (p > 1 ? "?page=" + p : "");
-            try {
-                navigateTo(url);
-                String html = page.content();
-                List<Product> pagina = parseListing(html, sitio, baseUrl, categoriaHint, precioMin, precioMax);
-
-                List<Product> nuevos = pagina.stream()
-                        .filter(prod -> vistas.add(prod.url()))
-                        .toList();
-                if (nuevos.isEmpty()) break;
-                result.addAll(nuevos);
-                neverYielded = false;
-            } catch (Exception e) {
-                log.debug("[{}] slug={} p={}: {}", sitio, slug, p, e.getMessage());
-                break;
-            }
-        }
-        return neverYielded;
+        return !crawlPaginas(MAX_PAGES, "slug=" + slug,
+                p -> baseUrl + "/" + slug + "/" + (p > 1 ? "?page=" + p : ""),
+                html -> parseListing(html, sitio, baseUrl, categoriaHint, precioMin, precioMax),
+                vistas, result);
     }
 
     /**
@@ -130,11 +106,7 @@ public class QloudPage extends BasePage implements CatalogPage {
         // Split on the card wrapper's opening tag, NOT on the "<!--Card-->" HTML comment: the real
         // markup also emits "<!--Card image-->"/"<!--Card content-->" sub-comments inside the SAME
         // card, which would fragment one product's title/price across different split pieces.
-        String[] cards = html.split("<div class=\"card card-ecommerce");
-        // cards[0] is whatever precedes the first card — not a card.
-        for (int i = 1; i < cards.length; i++) {
-            String card = cards[i];
-
+        for (String card : cards(html, "<div class=\"card card-ecommerce")) {
             var mTitleUrl = TITLE_URL.matcher(card);
             if (!mTitleUrl.find()) continue;
             String url = mTitleUrl.group(1);
@@ -151,10 +123,7 @@ public class QloudPage extends BasePage implements CatalogPage {
             }
             if (precio <= 0 || precio < precioMin || precio > precioMax) continue;
 
-            String img = "";
-            var mImg = IMG.matcher(card);
-            if (mImg.find()) img = mImg.group(1);
-            img = ImageUrl.absolutize(img, baseUrl);
+            String img = ImageUrl.primera(IMG, card, baseUrl);
 
             Double precioOriginal = null;
             var mTachado = TACHADO.matcher(card);
@@ -168,21 +137,7 @@ public class QloudPage extends BasePage implements CatalogPage {
                 }
             }
 
-            result.add(Product.builder()
-                    .sitio(sitio)
-                    .nombre(nombre)
-                    .precio(precio)
-                    .precioOriginal(precioOriginal)
-                    .url(url)
-                    .imagenUrl(img)
-                    .categoria(categoriaHint)
-                    .genero("")
-                    .talles(List.of())
-                    .ml(Product.MlScore.EMPTY)
-                    .marca("")
-                    .rubro("tecnologia")
-                    .gymrat(false)
-                    .build());
+            result.add(tecnologia(sitio, nombre, precio, precioOriginal, url, img, categoriaHint));
         }
         return result;
     }

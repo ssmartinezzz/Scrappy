@@ -3,7 +3,6 @@ package ar.scraper.pcs;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -23,9 +22,12 @@ class TechSpecsFase9Test {
 
     @Test
     void elConstructorCanonicoSeteaLosDosCamposNuevos() {
-        TechSpecs t = new TechSpecs("", "", "ATX", 0, 0, "", Gama.DESCONOCIDA, Certificacion.NINGUNA,
-                0, TipoAlmacenamiento.DESCONOCIDO, List.of(), "", 0, 0, 0, false,
-                TipoCooler.LIQUIDO, 0, TamanioGabinete.FULL, 360);
+        TechSpecs t = TechSpecs.builder()
+                .formFactor("ATX")
+                .tipoCooler(TipoCooler.LIQUIDO)
+                .tamanioGabinete(TamanioGabinete.FULL)
+                .radiadorMm(360)
+                .build();
 
         assertThat(t.tamanioGabinete()).isEqualTo(TamanioGabinete.FULL);
         assertThat(t.radiadorMm()).isEqualTo(360);
@@ -35,9 +37,19 @@ class TechSpecsFase9Test {
     void laFormaDe18ArgsDeFase8DefaulteaLosDosNuevosAAbstencion() {
         // Forma canonical de pc-builder-top-tier T1 (18 args): todo caller
         // existente sigue compilando sin tocarse — CODE-2.
-        TechSpecs t = new TechSpecs("AM5", "DDR5", "MATX", 0, 0, "", Gama.ALTA, Certificacion.NINGUNA,
-                0, TipoAlmacenamiento.DESCONOCIDO, List.of(), "AMD", 9, 1, 2, true,
-                TipoCooler.AIRE, 9);
+        TechSpecs t = TechSpecs.builder()
+                .socket("AM5")
+                .ddr("DDR5")
+                .formFactor("MATX")
+                .gama(Gama.ALTA)
+                .marcaChip("AMD")
+                .generacion(9)
+                .tierChipset(1)
+                .modulos(2)
+                .wifi(true)
+                .tipoCooler(TipoCooler.AIRE)
+                .nivel(9)
+                .build();
 
         assertThat(t.tamanioGabinete()).isEqualTo(TamanioGabinete.DESCONOCIDO);
         assertThat(t.radiadorMm()).isZero();

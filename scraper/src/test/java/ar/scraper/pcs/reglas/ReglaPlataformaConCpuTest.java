@@ -25,7 +25,7 @@ class ReglaPlataformaConCpuTest {
     @Test
     @DisplayName("vetoes a mother whose socket has no eligible CPU in the pool")
     void vetaCuandoElSocketNoTieneCpuElegible() {
-        TechSpecs mother = new TechSpecs("AM5", "", "", 0, 0, "");
+        TechSpecs mother = TechSpecs.builder().socket("AM5").build();
 
         assertThat(regla.permite(mother, contextoCon(Set.of("LGA1700")))).isFalse();
     }
@@ -33,7 +33,7 @@ class ReglaPlataformaConCpuTest {
     @Test
     @DisplayName("does not veto a mother whose socket does have an eligible CPU")
     void noVetaCuandoElSocketTieneCpuElegible() {
-        TechSpecs mother = new TechSpecs("AM5", "", "", 0, 0, "");
+        TechSpecs mother = TechSpecs.builder().socket("AM5").build();
 
         assertThat(regla.permite(mother, contextoCon(Set.of("AM5", "LGA1700")))).isTrue();
     }
@@ -41,7 +41,7 @@ class ReglaPlataformaConCpuTest {
     @Test
     @DisplayName("no platform qualifies (empty set) — falls back to unrestricted, never vetoes")
     void noVetaCuandoNingunaPlataformaCalifica() {
-        TechSpecs mother = new TechSpecs("AM5", "", "", 0, 0, "");
+        TechSpecs mother = TechSpecs.builder().socket("AM5").build();
 
         assertThat(regla.permite(mother, contextoCon(Set.of()))).isTrue();
     }

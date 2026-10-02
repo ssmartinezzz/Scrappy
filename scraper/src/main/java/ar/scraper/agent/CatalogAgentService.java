@@ -13,6 +13,7 @@ import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import lombok.RequiredArgsConstructor;
 
 /**
  * Bounded, non-streaming, READ-ONLY tool-use loop (llm-catalog-nlp, design
@@ -65,6 +66,7 @@ import java.util.Map;
  * follow-up costs one extra round-trip instead of failing.</p>
  */
 @Component
+@RequiredArgsConstructor
 public class CatalogAgentService {
 
     private static final Logger LOG = LoggerFactory.getLogger(CatalogAgentService.class);
@@ -98,11 +100,6 @@ public class CatalogAgentService {
 
     private final ChatProvider provider;
     private final ToolRegistry registry;
-
-    public CatalogAgentService(ChatProvider provider, ToolRegistry registry) {
-        this.provider = provider;
-        this.registry = registry;
-    }
 
     public AgentChatResponse run(List<ConversationTurn> conversation, String model) {
         String lastUserText = lastUserText(conversation);

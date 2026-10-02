@@ -1,13 +1,8 @@
 package ar.scraper.pcs.specs;
 
-import ar.scraper.pcs.Certificacion;
-import ar.scraper.pcs.Gama;
 import ar.scraper.pcs.TamanioGabinete;
 import ar.scraper.pcs.TechSpecs;
-import ar.scraper.pcs.TipoAlmacenamiento;
-import ar.scraper.pcs.TipoCooler;
 
-import java.util.List;
 
 public final class GabineteSpecsReader implements LectorDeSpecs {
 
@@ -18,20 +13,10 @@ public final class GabineteSpecsReader implements LectorDeSpecs {
 
     @Override
     public TechSpecs leer(Tokens tokens) {
-        return new TechSpecs("", "", formFactor(tokens.padded()), 0, 0, "",
-                Gama.DESCONOCIDA, Certificacion.NINGUNA, 0, TipoAlmacenamiento.DESCONOCIDO,
-                List.of(), "", 0, 0, 0, false, TipoCooler.DESCONOCIDO, 0,
-                tamanio(tokens), 0);
-    }
-
-    private static String formFactor(String padded) {
-        if (padded.contains(" itx ")) return "ITX";
-        if (padded.contains(" matx ") || padded.contains(" m atx ") || padded.contains(" micro atx ")) {
-            return "MATX";
-        }
-        if (padded.contains(" eatx ") || padded.contains(" e atx ")) return "EATX";
-        if (padded.contains(" atx ")) return "ATX";
-        return "";
+        return TechSpecs.builder()
+                .formFactor(tokens.formFactorExplicito())
+                .tamanioGabinete(tamanio(tokens))
+                .build();
     }
 
     private static TamanioGabinete tamanio(Tokens tokens) {

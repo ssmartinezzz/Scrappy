@@ -1,7 +1,5 @@
 package ar.scraper.pcs.specs;
 
-import ar.scraper.pcs.Certificacion;
-import ar.scraper.pcs.Gama;
 import ar.scraper.pcs.TechSpecs;
 import ar.scraper.pcs.TipoAlmacenamiento;
 
@@ -27,8 +25,7 @@ public final class AlmacenamientoSpecsReader implements LectorDeSpecs {
 
     @Override
     public TechSpecs leer(Tokens tokens) {
-        return new TechSpecs("", "", "", 0, capacidadGb(tokens), "",
-                Gama.DESCONOCIDA, Certificacion.NINGUNA, 0, tipo(tokens));
+        return TechSpecs.builder().capacidadGb(capacidadGb(tokens)).tipoAlmacenamiento(tipo(tokens)).build();
     }
 
     /**

@@ -2,14 +2,12 @@ package ar.scraper.pcs.reglas;
 
 import ar.scraper.pcs.ContextoDeArmado;
 import ar.scraper.pcs.TechSpecs;
+import lombok.RequiredArgsConstructor;
 
+@RequiredArgsConstructor
 public class ReglaMarcaChip implements ReglaCompatibilidad {
 
     private final String marcaPedida;
-
-    public ReglaMarcaChip(String marcaPedida) {
-        this.marcaPedida = marcaPedida;
-    }
 
     @Override
     public boolean permite(TechSpecs candidato, ContextoDeArmado contexto) {

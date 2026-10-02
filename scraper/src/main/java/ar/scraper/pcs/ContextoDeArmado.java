@@ -1,11 +1,14 @@
 package ar.scraper.pcs;
 
 import java.util.Set;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
 
 /**
  * What the build already decided while walking the slots: the chosen motherboard's specs, its
  * derived DDR generation, and the watts floor for this build.
  */
+@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 public final class ContextoDeArmado {
 
     private final TechSpecs motherSpecs;
@@ -16,19 +19,6 @@ public final class ContextoDeArmado {
     private final PreferenciasDeArmado preferencias;
     private final Set<String> socketsConCpuElegible;
     private final boolean sinPresupuesto;
-
-    private ContextoDeArmado(TechSpecs motherSpecs, String motherDdr, int wattsMin,
-            Gama gamaPedida, Certificacion certificacionMinima, PreferenciasDeArmado preferencias,
-            Set<String> socketsConCpuElegible, boolean sinPresupuesto) {
-        this.motherSpecs = motherSpecs;
-        this.motherDdr = motherDdr;
-        this.wattsMin = wattsMin;
-        this.gamaPedida = gamaPedida;
-        this.certificacionMinima = certificacionMinima;
-        this.preferencias = preferencias;
-        this.socketsConCpuElegible = socketsConCpuElegible;
-        this.sinPresupuesto = sinPresupuesto;
-    }
 
     public static ContextoDeArmado inicial(int wattsMin) {
         return inicial(wattsMin, null, Certificacion.NINGUNA, PreferenciasDeArmado.NINGUNA);

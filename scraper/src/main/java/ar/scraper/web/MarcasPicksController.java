@@ -9,18 +9,15 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api")
+@RequiredArgsConstructor
 public class MarcasPicksController {
 
     private final ScraperService service;
     private final CatalogoDerivadoCache derivados;
-
-    public MarcasPicksController(ScraperService service, CatalogoDerivadoCache derivados) {
-        this.service = service;
-        this.derivados = derivados;
-    }
 
     @GetMapping("/marcas-browser")
     public ResponseEntity<ApiResponse<List<MarcasPicksDtos.Marca>>> marcasBrowser(@RequestParam(required = false) String rubro,

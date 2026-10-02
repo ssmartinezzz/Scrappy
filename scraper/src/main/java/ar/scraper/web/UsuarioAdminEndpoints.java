@@ -25,10 +25,12 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.apache.commons.lang3.StringUtils;
+import lombok.RequiredArgsConstructor;
 
 /** Born gated: these routes ship AFTER enforcement. */
 @RestController
 @RequestMapping("/api/usuarios")
+@RequiredArgsConstructor
 public class UsuarioAdminEndpoints {
 
     private static final Logger LOG = LoggerFactory.getLogger(UsuarioAdminEndpoints.class);
@@ -38,14 +40,6 @@ public class UsuarioAdminEndpoints {
     private final UsuarioRepository usuarios;
     private final PasswordHasher hasher;
     private final ActorResolver actorResolver;
-
-    public UsuarioAdminEndpoints(UsuarioRepository usuarios,
-                                 PasswordHasher hasher,
-                                 ActorResolver actorResolver) {
-        this.usuarios = usuarios;
-        this.hasher = hasher;
-        this.actorResolver = actorResolver;
-    }
 
     @GetMapping
     public ResponseEntity<ApiResponse<List<UsuariosDtos.Usuario>>> listar() {

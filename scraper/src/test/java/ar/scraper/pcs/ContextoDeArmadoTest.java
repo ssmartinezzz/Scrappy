@@ -23,7 +23,7 @@ class ContextoDeArmadoTest {
     @Test
     @DisplayName("keeps the board's own ddr when it parsed")
     void preservaLaDdrPropiaDeLaMother() {
-        TechSpecs mother = new TechSpecs("AM5", "DDR5", "MATX", 0, 0, "");
+        TechSpecs mother = TechSpecs.builder().socket("AM5").ddr("DDR5").formFactor("MATX").build();
 
         ContextoDeArmado contexto = ContextoDeArmado.inicial(450).conMother(mother);
 
@@ -33,7 +33,7 @@ class ContextoDeArmadoTest {
     @Test
     @DisplayName("derives DDR5 from an AM5 socket when the board states no ddr")
     void derivaDdr5DeAm5() {
-        TechSpecs mother = new TechSpecs("AM5", "", "MATX", 0, 0, "");
+        TechSpecs mother = TechSpecs.builder().socket("AM5").formFactor("MATX").build();
 
         ContextoDeArmado contexto = ContextoDeArmado.inicial(450).conMother(mother);
 
@@ -43,7 +43,7 @@ class ContextoDeArmadoTest {
     @Test
     @DisplayName("derives DDR5 from an LGA1851 socket when the board states no ddr")
     void derivaDdr5DeLga1851() {
-        TechSpecs mother = new TechSpecs("LGA1851", "", "MATX", 0, 0, "");
+        TechSpecs mother = TechSpecs.builder().socket("LGA1851").formFactor("MATX").build();
 
         ContextoDeArmado contexto = ContextoDeArmado.inicial(450).conMother(mother);
 
@@ -53,7 +53,7 @@ class ContextoDeArmadoTest {
     @Test
     @DisplayName("derives DDR4 from an AM4 socket when the board states no ddr")
     void derivaDdr4DeAm4() {
-        TechSpecs mother = new TechSpecs("AM4", "", "MATX", 0, 0, "");
+        TechSpecs mother = TechSpecs.builder().socket("AM4").formFactor("MATX").build();
 
         ContextoDeArmado contexto = ContextoDeArmado.inicial(450).conMother(mother);
 
@@ -63,7 +63,7 @@ class ContextoDeArmadoTest {
     @Test
     @DisplayName("abstains on LGA1700 — mixed platform, phase-1 finding")
     void abstieneEnLga1700() {
-        TechSpecs mother = new TechSpecs("LGA1700", "", "MATX", 0, 0, "");
+        TechSpecs mother = TechSpecs.builder().socket("LGA1700").formFactor("MATX").build();
 
         ContextoDeArmado contexto = ContextoDeArmado.inicial(450).conMother(mother);
 
@@ -73,7 +73,7 @@ class ContextoDeArmadoTest {
     @Test
     @DisplayName("derives DDR4 from an LGA1200 socket — unambiguous, 10th/11th gen is DDR4-only")
     void derivaDdr4DeLga1200() {
-        TechSpecs mother = new TechSpecs("LGA1200", "", "MATX", 0, 0, "");
+        TechSpecs mother = TechSpecs.builder().socket("LGA1200").formFactor("MATX").build();
 
         ContextoDeArmado contexto = ContextoDeArmado.inicial(450).conMother(mother);
 
@@ -83,7 +83,7 @@ class ContextoDeArmadoTest {
     @Test
     @DisplayName("abstains on LGA1151 — DDR3 and DDR4 boards both exist for that socket")
     void abstieneEnLga1151() {
-        TechSpecs mother = new TechSpecs("LGA1151", "", "MATX", 0, 0, "");
+        TechSpecs mother = TechSpecs.builder().socket("LGA1151").formFactor("MATX").build();
 
         ContextoDeArmado contexto = ContextoDeArmado.inicial(450).conMother(mother);
 
@@ -93,7 +93,7 @@ class ContextoDeArmadoTest {
     @Test
     @DisplayName("abstains on AM3")
     void abstieneEnAm3() {
-        TechSpecs mother = new TechSpecs("AM3", "", "ATX", 0, 0, "");
+        TechSpecs mother = TechSpecs.builder().socket("AM3").formFactor("ATX").build();
 
         ContextoDeArmado contexto = ContextoDeArmado.inicial(450).conMother(mother);
 
@@ -141,7 +141,7 @@ class ContextoDeArmadoTest {
     @DisplayName("conMother preserves gamaPedida and certificacionMinima across the mother transition")
     void conMotherPreservaGamaPedidaYCertificacionMinima() {
         ContextoDeArmado contexto = ContextoDeArmado.inicial(750, Gama.ALTA, Certificacion.GOLD)
-                .conMother(new TechSpecs("AM5", "", "MATX", 0, 0, ""));
+                .conMother(TechSpecs.builder().socket("AM5").formFactor("MATX").build());
 
         assertThat(contexto.gamaPedida()).isEqualTo(Gama.ALTA);
         assertThat(contexto.certificacionMinima()).isEqualTo(Certificacion.GOLD);
@@ -180,7 +180,7 @@ class ContextoDeArmadoTest {
     void conMotherPreservaPreferencias() {
         PreferenciasDeArmado prefs = new PreferenciasDeArmado("DDR5", "AMD", null, null, null, null);
         ContextoDeArmado contexto = ContextoDeArmado.inicial(450, Gama.ALTA, Certificacion.GOLD, prefs)
-                .conMother(new TechSpecs("AM5", "", "MATX", 0, 0, ""));
+                .conMother(TechSpecs.builder().socket("AM5").formFactor("MATX").build());
 
         assertThat(contexto.preferencias()).isEqualTo(prefs);
     }
@@ -218,7 +218,7 @@ class ContextoDeArmadoTest {
     void conMotherPreservaSocketsConCpuElegible() {
         ContextoDeArmado contexto = ContextoDeArmado.inicial(450, Gama.BAJA, Certificacion.NINGUNA,
                 PreferenciasDeArmado.NINGUNA, Set.of("AM4"))
-                .conMother(new TechSpecs("AM4", "", "MATX", 0, 0, ""));
+                .conMother(TechSpecs.builder().socket("AM4").formFactor("MATX").build());
 
         assertThat(contexto.socketsConCpuElegible()).containsExactly("AM4");
     }
@@ -250,7 +250,7 @@ class ContextoDeArmadoTest {
     void conMotherPreservaSinPresupuesto() {
         ContextoDeArmado contexto = ContextoDeArmado.inicial(450, Gama.ALTA, Certificacion.GOLD,
                 PreferenciasDeArmado.NINGUNA, Set.of(), true)
-                .conMother(new TechSpecs("AM5", "", "MATX", 0, 0, ""));
+                .conMother(TechSpecs.builder().socket("AM5").formFactor("MATX").build());
 
         assertThat(contexto.sinPresupuesto()).isTrue();
     }

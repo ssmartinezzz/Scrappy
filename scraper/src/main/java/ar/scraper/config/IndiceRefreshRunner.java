@@ -5,16 +5,14 @@ import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import lombok.RequiredArgsConstructor;
 
 // ApplicationRunner, not @PostConstruct:
 @Component
+@RequiredArgsConstructor
 public class IndiceRefreshRunner implements ApplicationRunner {
 
     private final IndiceRefreshJob job;
-
-    public IndiceRefreshRunner(IndiceRefreshJob job) {
-        this.job = job;
-    }
 
     @Override
     public void run(ApplicationArguments args) {

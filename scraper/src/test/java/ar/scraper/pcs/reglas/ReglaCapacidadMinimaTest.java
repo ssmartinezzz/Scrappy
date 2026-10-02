@@ -1,8 +1,6 @@
 package ar.scraper.pcs.reglas;
 
-import ar.scraper.pcs.Certificacion;
 import ar.scraper.pcs.ContextoDeArmado;
-import ar.scraper.pcs.Gama;
 import ar.scraper.pcs.TechSpecs;
 import ar.scraper.pcs.TipoAlmacenamiento;
 import org.junit.jupiter.api.DisplayName;
@@ -16,8 +14,7 @@ class ReglaCapacidadMinimaTest {
     private final ContextoDeArmado contexto = ContextoDeArmado.inicial(450);
 
     private static TechSpecs conCapacidad(int gb) {
-        return new TechSpecs("", "", "", 0, gb, "", Gama.DESCONOCIDA, Certificacion.NINGUNA,
-                0, TipoAlmacenamiento.NVME);
+        return TechSpecs.builder().capacidadGb(gb).tipoAlmacenamiento(TipoAlmacenamiento.NVME).build();
     }
 
     @Test

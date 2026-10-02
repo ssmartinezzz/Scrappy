@@ -33,9 +33,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.apache.commons.lang3.StringUtils;
+import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api")
+@RequiredArgsConstructor
 public class AgentController {
 
     private static final int AGENT_MAX_TRACE_STEPS = 8;
@@ -55,20 +57,6 @@ public class AgentController {
     private final CatalogAgentService catalogAgentService;
     private final AgentConfig agentConfig;
     private final ActorResolver actorResolver;
-
-    public AgentController(ScraperService service,
-                   RubroResolver rubroResolver,
-                   ar.scraper.catalog.ProductPort productos,
-                   CatalogAgentService catalogAgentService,
-                   AgentConfig agentConfig,
-                   ActorResolver actorResolver) {
-        this.service = service;
-        this.rubroResolver = rubroResolver;
-        this.productos = productos;
-        this.catalogAgentService = catalogAgentService;
-        this.agentConfig = agentConfig;
-        this.actorResolver = actorResolver;
-    }
 
     @PostMapping("/agent/chat")
     public ResponseEntity<ApiResponse<AgentChatResponse>> agentChat(@RequestBody Map<String, Object> body) {
@@ -226,10 +214,10 @@ public class AgentController {
     private ApiException conflictoStale(Optional<Product> dbProducto) {
         Map<String, Object> actual = new LinkedHashMap<>();
         dbProducto.ifPresent(p -> {
-            actual.put("categoria", p.categoria() != null ? p.categoria() : "");
-            actual.put("marca", p.marca() != null ? p.marca() : "");
-            actual.put("genero", p.genero() != null ? p.genero() : "");
-            actual.put("subCategoria", p.subCategoria() != null ? p.subCategoria() : "");
+            actual.put("categoria", StringUtils.defaultString(p.categoria()));
+            actual.put("marca", StringUtils.defaultString(p.marca()));
+            actual.put("genero", StringUtils.defaultString(p.genero()));
+            actual.put("subCategoria", StringUtils.defaultString(p.subCategoria()));
         });
         return new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "conflicto_stale",
                 "El producto cambió desde que se generó esta propuesta — volvé a consultar.",

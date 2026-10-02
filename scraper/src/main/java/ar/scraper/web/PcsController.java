@@ -26,16 +26,17 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
+import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api")
+@RequiredArgsConstructor
 public class PcsController {
 
     private final ScraperService service;
@@ -43,17 +44,6 @@ public class PcsController {
     private final SavedPcsPort pcsGuardadas;
     private final PreferenciaArmadorPort preferenciaArmador;
     private final ar.scraper.security.ActorResolver actorResolver;
-
-    public PcsController(ScraperService service, PcBuilder pcBuilder, SavedPcsPort pcsGuardadas,
-                 PreferenciaArmadorPort preferenciaArmador, ar.scraper.security.ActorResolver actorResolver) {
-        this.service = service;
-        this.pcBuilder = pcBuilder;
-        this.pcsGuardadas = pcsGuardadas;
-        this.preferenciaArmador = preferenciaArmador;
-        this.actorResolver = actorResolver;
-    }
-
-    private String safe(String s) { return s != null ? s : ""; }
 
     ResponseEntity<ApiResponse<ObjectNode>> builder(double presupuesto, boolean conGpu, String excluir, String gama) {
         return builder(presupuesto, conGpu, excluir, gama, "", "", "", "", null, null);
@@ -107,12 +97,7 @@ public class PcsController {
         AggregatedResult r = service.getLastResult();
         if (r == null) return ResponseEntity.noContent().build();
 
-        Set<String> excluirUrls = StringUtils.isBlank(excluir)
-                ? Set.of()
-                : Arrays.stream(excluir.split(","))
-                        .map(String::strip)
-                        .filter(s -> !s.isBlank())
-                        .collect(Collectors.toSet());
+        Set<String> excluirUrls = Params.setOrEmpty(excluir);
 
         PcBuild build = pcBuilder.armar(r.productos(), presupuesto, conGpu, excluirUrls, gamaPedida, prefs, usoPedido);
         return ResponseEntity.ok(ApiResponse.ok(PcBuildJson.toJson(build)));
@@ -225,9 +210,11 @@ public class PcsController {
             if (url.isBlank() || "null".equals(url)) continue;
             Object specsRaw = m.get("specs");
             TechSpecs specs = specsRaw instanceof Map<?, ?> s
-                    ? new TechSpecs(
-                        safeStr(s.get("socket")), safeStr(s.get("ddr")), safeStr(s.get("formFactor")),
-                        asInt(s.get("watts")), asInt(s.get("capacidadGb")), safeStr(s.get("tipoMemoria")))
+                    ? TechSpecs.builder()
+                        .socket(safeStr(s.get("socket"))).ddr(safeStr(s.get("ddr")))
+                        .formFactor(safeStr(s.get("formFactor")))
+                        .watts(asInt(s.get("watts"))).capacidadGb(asInt(s.get("capacidadGb")))
+                        .tipoMemoria(safeStr(s.get("tipoMemoria"))).build()
                     : TechSpecs.EMPTY;
             picks.add(new PcPick(
                     safeStr(m.get("slot")), safeStr(m.get("sitio")), safeStr(m.get("nombre")),
@@ -236,7 +223,7 @@ public class PcsController {
         return picks;
     }
 
-    private String safeStr(Object o) { return o != null ? String.valueOf(o) : ""; }
+    private String safeStr(Object o) { return Objects.toString(o, ""); }
 
     private double asDouble(Object o) {
         if (o == null) return 0.0;
@@ -269,10 +256,7 @@ public class PcsController {
     @PatchMapping("/pcs/saved/{id}/nombre")
     public ResponseEntity<ApiResponse<OpResult>> renameSavedPc(@PathVariable int id,
             @RequestBody Map<String, Object> body) {
-        String nombre = String.valueOf(body.getOrDefault("nombre", "")).trim();
-        if (nombre.isBlank()) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "solicitud_invalida", "nombre es obligatorio");
-        }
+        String nombre = Params.nombreObligatorio(body);
         if (!pcsGuardadas.renombrarPc(Sujeto.de(actorResolver), id, nombre)) {
             throw new ApiException(HttpStatus.NOT_FOUND, "no_encontrado", "PC no encontrado");
         }

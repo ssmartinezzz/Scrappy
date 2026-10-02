@@ -23,7 +23,7 @@ class PcBuildJsonTest {
     @DisplayName("null pick/spec strings serialize as empty strings, specs block nested")
     void nullStringsBecomeEmpty() {
         PcPick pick = new PcPick("mother", null, "Board X", 100_000, null, null, null,
-                new TechSpecs("AM5", "DDR5", "MATX", 0, 0, ""));
+                TechSpecs.builder().socket("AM5").ddr("DDR5").formFactor("MATX").build());
         PcBuild build = new PcBuild(List.of(pick), List.of("gpu"), List.of("cpu"), 500_000, 100_000);
 
         ObjectNode json = PcBuildJson.toJson(build);
@@ -60,7 +60,12 @@ class PcBuildJsonTest {
     @DisplayName("specs block includes gama, certificacion, velocidadMhz and tipoAlmacenamiento (pc-builder-gama T6)")
     void specsIncludesTheFourNewFields() {
         PcPick pick = new PcPick("cpu", "Sitio", "CPU X", 400_000, "https://t/cpu", "https://img/x.jpg", "Marca",
-                new TechSpecs("", "", "", 0, 0, "", Gama.ALTA, Certificacion.GOLD, 6000, TipoAlmacenamiento.NVME));
+                TechSpecs.builder()
+                        .gama(Gama.ALTA)
+                        .certificacion(Certificacion.GOLD)
+                        .velocidadMhz(6000)
+                        .tipoAlmacenamiento(TipoAlmacenamiento.NVME)
+                        .build());
         PcBuild build = new PcBuild(List.of(pick), List.of(), List.of(), 0, 400_000);
 
         ObjectNode specs = (ObjectNode) PcBuildJson.toJson(build).get("picks").get(0).get("specs");
@@ -75,8 +80,17 @@ class PcBuildJsonTest {
     @DisplayName("specs block includes marcaChip, generacion, tierChipset, modulos and wifi (pc-builder-deep-taxonomy T3c)")
     void specsIncludesTheFiveNewFields() {
         PcPick pick = new PcPick("mother", "Sitio", "Mother X", 200_000, "https://t/m", "https://img/m.jpg", "Marca",
-                new TechSpecs("AM5", "DDR5", "MATX", 0, 0, "", Gama.DESCONOCIDA, Certificacion.NINGUNA,
-                        0, TipoAlmacenamiento.DESCONOCIDO, java.util.List.of(), "AMD", 5, 1, 2, true));
+                TechSpecs.builder()
+                        .socket("AM5")
+                        .ddr("DDR5")
+                        .formFactor("MATX")
+                        .socketsSoportados(java.util.List.of())
+                        .marcaChip("AMD")
+                        .generacion(5)
+                        .tierChipset(1)
+                        .modulos(2)
+                        .wifi(true)
+                        .build());
         PcBuild build = new PcBuild(List.of(pick), List.of(), List.of(), 0, 200_000);
 
         ObjectNode specs = (ObjectNode) PcBuildJson.toJson(build).get("picks").get(0).get("specs");
@@ -92,9 +106,7 @@ class PcBuildJsonTest {
     @DisplayName("specs block includes tipoCooler (pc-builder-deep-taxonomy T4d-2)")
     void specsIncludesTipoCooler() {
         PcPick pick = new PcPick("cooler", "Sitio", "Cooler X", 30_000, "https://t/c", "https://img/c.jpg", "Marca",
-                new TechSpecs("", "", "", 0, 0, "", Gama.DESCONOCIDA, Certificacion.NINGUNA,
-                        0, TipoAlmacenamiento.DESCONOCIDO, java.util.List.of(), "", 0, 0, 0, false,
-                        TipoCooler.LIQUIDO));
+                TechSpecs.builder().socketsSoportados(java.util.List.of()).tipoCooler(TipoCooler.LIQUIDO).build());
         PcBuild build = new PcBuild(List.of(pick), List.of(), List.of(), 0, 30_000);
 
         ObjectNode specs = (ObjectNode) PcBuildJson.toJson(build).get("picks").get(0).get("specs");

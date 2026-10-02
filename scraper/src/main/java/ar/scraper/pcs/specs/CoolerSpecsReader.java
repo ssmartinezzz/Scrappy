@@ -50,12 +50,13 @@ public final class CoolerSpecsReader implements LectorDeSpecs {
 
     @Override
     public TechSpecs leer(Tokens tokens) {
-        return new TechSpecs("", "", "", 0, 0, "",
-                ar.scraper.pcs.Gama.DESCONOCIDA, ar.scraper.pcs.Certificacion.NINGUNA,
-                0, ar.scraper.pcs.TipoAlmacenamiento.DESCONOCIDO, socketsSoportados(tokens),
-                "", 0, 0, 0, false, tipoCooler(tokens), 0,
-                ar.scraper.pcs.TamanioGabinete.DESCONOCIDO, radiadorMm(tokens),
-                claseDisipador(tokens), heatpipes(tokens));
+        return TechSpecs.builder()
+                .socketsSoportados(socketsSoportados(tokens))
+                .tipoCooler(tipoCooler(tokens))
+                .radiadorMm(radiadorMm(tokens))
+                .claseDisipador(claseDisipador(tokens))
+                .heatpipes(heatpipes(tokens))
+                .build();
     }
 
     private static List<String> socketsSoportados(Tokens tokens) {
