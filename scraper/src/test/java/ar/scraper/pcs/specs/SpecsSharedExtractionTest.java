@@ -44,4 +44,11 @@ class SpecsSharedExtractionTest {
         assertThat(new MiniPcSpecsReader().leer(Tokens.de(nombre)).capacidadGb()).isEqualTo(gb);
         assertThat(new GpuSpecsReader().leer(Tokens.de(nombre)).capacidadGb()).isEqualTo(gb);
     }
+
+    @ParameterizedTest(name = "[{index}] {0} -> {1}")
+    @CsvSource({"Ram X 16Gb, 16", "Ram X 2x8Gb, 16", "Ram X 0Gb 2x8Gb, 0", "Ram X 8Gb 2x8Gb, 8"})
+    @DisplayName("RAM prefers the standalone NNGb token (even 0) over the kit multiplier")
+    void ramPrefersStandaloneGb(String nombre, int gb) {
+        assertThat(new RamSpecsReader().leer(Tokens.de(nombre)).capacidadGb()).isEqualTo(gb);
+    }
 }
