@@ -1,12 +1,11 @@
 package ar.scraper.indices;
 
+import lombok.RequiredArgsConstructor;
+
+@RequiredArgsConstructor
 public class IndiceRefreshJob {
 
     private final IndiceService service;
-
-    public IndiceRefreshJob(IndiceService service) {
-        this.service = service;
-    }
 
     public void alArrancar() {
         service.cargarDesdeDB();

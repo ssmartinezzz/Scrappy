@@ -8,12 +8,14 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import lombok.RequiredArgsConstructor;
 
 /**
  * The only entry point consumers ({@code ml/}, {@code web/}) use to read a macro index. Holds the
  * loaded {@link Serie} per {@link Indice} in a volatile map so a read never blocks on a network
  * refresh;
  */
+@RequiredArgsConstructor
 public class IndiceService {
 
     private static final Logger LOG = LoggerFactory.getLogger(IndiceService.class);
@@ -24,11 +26,6 @@ public class IndiceService {
 
     private volatile Map<Indice, Serie> series = Map.of();
     private volatile String ultimaActualizacion = "sin datos";
-
-    public IndiceService(IndicePort indicePort, Map<Indice, FuenteIndicePort> fuentesPorIndice) {
-        this.indicePort = indicePort;
-        this.fuentesPorIndice = fuentesPorIndice;
-    }
 
     public void cargarDesdeDB() {
         Map<Indice, Serie> cargadas = new EnumMap<>(Indice.class);
