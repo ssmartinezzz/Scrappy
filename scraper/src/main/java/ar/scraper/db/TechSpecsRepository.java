@@ -9,11 +9,12 @@ import ar.scraper.pcs.TipoAlmacenamiento;
 import ar.scraper.pcs.TipoCooler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 import javax.sql.DataSource;
-import java.sql.Connection;
 import java.sql.PreparedStatement;
+import java.sql.SQLException;
 import java.sql.Types;
 import java.util.List;
 import org.apache.commons.lang3.StringUtils;
@@ -86,28 +87,23 @@ class TechSpecsRepository implements TechSpecsPort {
         };
     }
 
-    private final DataSource dataSource;
+    private final JdbcTemplate jdbc;
 
     TechSpecsRepository(DataSource dataSource) {
-        this.dataSource = dataSource;
+        this.jdbc = new JdbcTemplate(dataSource);
     }
 
     @Override
     public void upsertSpecs(List<SpecsDeProducto> specs) {
         if (specs == null || specs.isEmpty()) return;
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement(SQL)) {
-            for (SpecsDeProducto s : specs) {
-                bind(ps, s.url(), s.categoria(), s.specs());
-                ps.addBatch();
-            }
-            ps.executeBatch();
+        try {
+            jdbc.batchUpdate(SQL, specs, specs.size(), (ps, s) -> bind(ps, s.url(), s.categoria(), s.specs()));
         } catch (Exception e) {
             LOG.warn("[DB] Error guardando {} fila(s) de tech specs: {}", specs.size(), e.getMessage());
         }
     }
 
-    private void bind(PreparedStatement ps, String url, String categoria, TechSpecs specs) throws java.sql.SQLException {
+    private void bind(PreparedStatement ps, String url, String categoria, TechSpecs specs) throws SQLException {
         ps.setString(1, url);
         setNullableString(ps, 2, blank(specs.socket()));
         setNullableString(ps, 3, blank(specs.ddr()));
@@ -141,7 +137,7 @@ class TechSpecsRepository implements TechSpecsPort {
         return StringUtils.isBlank(valor) ? null : valor;
     }
 
-    private static void setNullableString(PreparedStatement ps, int index, String value) throws java.sql.SQLException {
+    private static void setNullableString(PreparedStatement ps, int index, String value) throws SQLException {
         if (value == null) {
             ps.setNull(index, Types.VARCHAR);
         } else {
@@ -150,7 +146,7 @@ class TechSpecsRepository implements TechSpecsPort {
     }
 
     /** {@code 0} is TechSpecs's own abstention centinela — never written as a value. */
-    private static void setNullableInt(PreparedStatement ps, int index, int value) throws java.sql.SQLException {
+    private static void setNullableInt(PreparedStatement ps, int index, int value) throws SQLException {
         if (value == 0) {
             ps.setNull(index, Types.INTEGER);
         } else {
