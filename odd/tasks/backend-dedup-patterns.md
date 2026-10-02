@@ -234,6 +234,13 @@ boilerplate comments.
       in 30 files, mechanical (assertion grep = 0 lines, counts identical), 450abda legacy ctors deleted (canonical kept;
       no @JsonCreator/reflection on TechSpecs). Plus a `safeStr` ternary → `Objects.toString(o, "")`
       (`ObjectUtils.toString` is deprecated in lang3 3.13). Suite 3393/0/0/7. CPD 50t 25/212 → 17/110.
+- [x] D8 Perf A/B, master 92fac5d jar vs HEAD 7457973 jar, same session, order old → new → new → old, crons 3,4
+      disabled then restored, scrape_run unchanged (39). Boots 4.1/3.6/3.6/3.7 s, only WARN = generated-password notice.
+      JMeter smoke ×3 per boot (6 runs/jar pooled), p95 old→new ms: data 22→24, data_filtrado 38→38, pcs_builder 38→34,
+      recomendados 70→68, status 5→8 (in-memory: noise floor), rest ±2. Locust baseline+login (mean of 2 boots/jar):
+      data 22.5→20.5, data_filtrado 34→37.5, pcs_builder 34.5→31, recomendados 65→66.5, login 41.5→41, rest ±1.
+      All within ±4 ms with no consistent sign across the two tools: no measurable change. 0 errors; all budgets green.
+      Raw: scratchpad 0be4898e…/{old,new,new2,old2}-N.jtl, locust-*.log, perf-ab.sh.
       Totals master → HEAD (after D7): CPD 50t 62/649 → 17/110; 80t 13/204 → 0.
 
 ## Progress
@@ -263,3 +270,4 @@ boilerplate comments.
 - 2026-10-02: f90babe gender fix (male words whole-word), 3329/0/0/7. Next: live smoke for D1, then D2.
 - 2026-10-02: D2–D6 done on the same branch (18 commits after b1ca0b4, unpushed), 3390/0/0/7, CPD 25/212, 80t 0. PR #284 open, merge stopped by user. Open: TechSpecs builder (CODE-2 exception). Next: push + update PR body when the user says.
 - 2026-10-02: D7 TechSpecs builder done (98f7374, f8736fa, 450abda + safeStr), 3393/0/0/7, CPD 17/110. Next: push + update PR #284 body (merge only on user go).
+- 2026-10-02: D8 perf A/B done (JMeter + Locust, both orders): no measurable change, 0 errors. Next: push + update PR #284 (user asked for perf before pushing).
