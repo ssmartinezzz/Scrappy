@@ -14,6 +14,9 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataAccessException;
+import org.springframework.jdbc.core.ConnectionCallback;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionStatus;
@@ -26,7 +29,6 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Statement;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -45,6 +47,7 @@ class ProductRepository implements ProductPort {
     private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     private final DataSource dataSource;
+    private final JdbcTemplate jdbc;
     private final RubroResolver rubroResolver;
     private final SiteRegistry siteRegistry;
     private final TransactionTemplate tx;
@@ -53,6 +56,7 @@ class ProductRepository implements ProductPort {
                       PlatformTransactionManager txManager) {
         this.tx = new TransactionTemplate(txManager);
         this.dataSource = dataSource;
+        this.jdbc = new JdbcTemplate(dataSource);
         this.rubroResolver = rubroResolver;
         this.siteRegistry = siteRegistry;
     }
@@ -103,11 +107,11 @@ class ProductRepository implements ProductPort {
             // scraper se rompió llega con 0 productos, y no hay que confundir "se rompió" con "se
             // vació".
             Alcance alcance = corrida != null
-                    ? alcanceDelRun(c, corrida)
+                    ? alcanceDelRun(corrida)
                     : alcanceDelBatch(productos);
             int desactivados = softDeleteAusentes(c, alcance.urls(), now, alcance.sitios());
 
-            purgarHistorialViejo(c);
+            purgarHistorialViejo();
 
             LOG.info("[DB] Upsert: {} nuevos / {} precio cambió / {} sin cambio / {} desactivados",
                     nuevos, actualizados, sinCambios, desactivados);
@@ -173,8 +177,7 @@ class ProductRepository implements ProductPort {
      * Read inside the caller's transaction and after {@code sp_upsert_run}, so this batch's own
      * rows are already stamped and included.
      */
-    private Alcance alcanceDelRun(Connection c, ar.scraper.scrape.CorridaEnCurso corrida)
-            throws SQLException {
+    private Alcance alcanceDelRun(ar.scraper.scrape.CorridaEnCurso corrida) {
         Set<String> urls   = new LinkedHashSet<>();
         Set<String> sitios = new LinkedHashSet<>();
         // One query still, so p_urls and p_sitios cannot widen apart.
@@ -184,22 +187,19 @@ class ProductRepository implements ProductPort {
                    + "   AND EXISTS (SELECT 1 FROM scrape_run_site s"
                    + "                WHERE s.scrape_run_id = ?"
                    + "                  AND s.sitio_key = p.sitio_key)";
-        try (PreparedStatement ps = c.prepareStatement(sql)) {
+        jdbc.query(sql, ps -> {
             // Bound as a parameter at UTC: a formatted literal would be read in the session zone,
             // which pgjdbc takes from the JVM, making the predicate depend on the machine the
             // backend runs on.
             ps.setObject(1, corrida.startedAt().truncatedTo(ChronoUnit.SECONDS)
                     .atOffset(ZoneOffset.UTC));
             ps.setLong(2, corrida.runId());
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    String url   = rs.getString(1);
-                    String sitio = rs.getString(2);
-                    if (StringUtils.isNotBlank(url)) urls.add(url);
-                    if (StringUtils.isNotBlank(sitio)) sitios.add(sitio);
-                }
-            }
-        }
+        }, rs -> {
+            String url   = rs.getString(1);
+            String sitio = rs.getString(2);
+            if (StringUtils.isNotBlank(url)) urls.add(url);
+            if (StringUtils.isNotBlank(sitio)) sitios.add(sitio);
+        });
         return new Alcance(urls, sitios);
     }
 
@@ -228,15 +228,13 @@ class ProductRepository implements ProductPort {
         }
     }
 
-    private void purgarHistorialViejo(Connection c) throws SQLException {
+    private void purgarHistorialViejo() {
         LocalDate cutoff = LocalDate.now().minusDays(MAX_HIST_DAYS);
-        try (PreparedStatement ps = c.prepareStatement(
+        int deleted = jdbc.update(
                 "DELETE FROM precio_historico WHERE fecha < ? " +
-                "AND url NOT IN (SELECT url FROM favoritos)")) {
-            ps.setObject(1, cutoff);
-            int deleted = ps.executeUpdate();
-            if (deleted > 0) LOG.debug("[DB] Purged {} entradas historial > 90 dias", deleted);
-        }
+                "AND url NOT IN (SELECT url FROM favoritos)",
+                ps -> ps.setObject(1, cutoff));
+        if (deleted > 0) LOG.debug("[DB] Purged {} entradas historial > 90 dias", deleted);
     }
 
     /** NUNCA hace soft-delete — solo inserta/actualiza los productos dados. */
@@ -270,19 +268,15 @@ class ProductRepository implements ProductPort {
     @Override
     public List<Product> cargarProductos() {
         List<Product> result = new ArrayList<>();
-        try (Connection c = dataSource.getConnection()) {
-            Map<String, List<String>> tallesPorUrl = cargarMultivalor(c, "producto_talle", "talle");
-            Map<String, List<String>> badgesPorUrl = cargarMultivalor(c, "producto_badge", "badge");
-            try (Statement st = c.createStatement();
-                 ResultSet rs = st.executeQuery(
-                         ProductRowMapper.COLUMNAS + " WHERE activo ORDER BY precio ASC")) {
-                while (rs.next()) {
-                    String url = rs.getString("url");
-                    result.add(ProductRowMapper.map(rs,
-                            tallesPorUrl.getOrDefault(url, List.of()),
-                            badgesPorUrl.getOrDefault(url, List.of()), siteRegistry));
-                }
-            }
+        try {
+            Map<String, List<String>> tallesPorUrl = cargarMultivalor("producto_talle", "talle");
+            Map<String, List<String>> badgesPorUrl = cargarMultivalor("producto_badge", "badge");
+            jdbc.query(ProductRowMapper.COLUMNAS + " WHERE activo ORDER BY precio ASC", rs -> {
+                String url = rs.getString("url");
+                result.add(ProductRowMapper.map(rs,
+                        tallesPorUrl.getOrDefault(url, List.of()),
+                        badgesPorUrl.getOrDefault(url, List.of()), siteRegistry));
+            });
             LOG.info("[DB] Cargados {} productos activos", result.size());
         } catch (Exception e) {
             LOG.error("[DB] Error cargando productos: {}", e.getMessage(), e);
@@ -298,14 +292,11 @@ class ProductRepository implements ProductPort {
     @Override
     public java.util.Optional<Product> obtenerProductoPorKey(String key) {
         if (StringUtils.isBlank(key)) return java.util.Optional.empty();
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement(
-                     "SELECT url FROM productos WHERE producto_key = ?")) {
-            ps.setString(1, key);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (!rs.next()) return java.util.Optional.empty();
-                return obtenerProducto(rs.getString(1));
-            }
+        try {
+            String url = jdbc.query("SELECT url FROM productos WHERE producto_key = ?",
+                    ps -> ps.setString(1, key), rs -> rs.next() ? rs.getString(1) : null);
+            if (url == null) return java.util.Optional.empty();
+            return obtenerProducto(url);
         } catch (Exception e) {
             LOG.error("[DB] Error resolviendo producto_key {}: {}", key, e.getMessage(), e);
             return java.util.Optional.empty();
@@ -314,32 +305,31 @@ class ProductRepository implements ProductPort {
 
     @Override
     public java.util.Optional<Product> obtenerProducto(String url) {
-        try (Connection c = dataSource.getConnection()) {
-            try (PreparedStatement ps = c.prepareStatement(ProductRowMapper.COLUMNAS + " WHERE url=?")) {
-                ps.setString(1, url);
-                try (ResultSet rs = ps.executeQuery()) {
-                    if (!rs.next()) return java.util.Optional.empty();
-                    return java.util.Optional.of(ProductRowMapper.map(rs,
-                            cargarMultivalor(c, "producto_talle", "talle", url),
-                            cargarMultivalor(c, "producto_badge", "badge", url), siteRegistry));
+        try {
+            // One connection across the row and its two child lookups, as before: a nested
+            // JdbcTemplate call would check a second connection out while the first is still held.
+            return jdbc.execute((ConnectionCallback<java.util.Optional<Product>>) c -> {
+                try (PreparedStatement ps = c.prepareStatement(ProductRowMapper.COLUMNAS + " WHERE url=?")) {
+                    ps.setString(1, url);
+                    try (ResultSet rs = ps.executeQuery()) {
+                        if (!rs.next()) return java.util.Optional.empty();
+                        return java.util.Optional.of(ProductRowMapper.map(rs,
+                                cargarMultivalor(c, "producto_talle", "talle", url),
+                                cargarMultivalor(c, "producto_badge", "badge", url), siteRegistry));
+                    }
                 }
-            }
+            });
         } catch (Exception e) {
             LOG.error("[DB] Error obteniendo producto {}: {}", url, e.getMessage(), e);
             return java.util.Optional.empty();
         }
     }
 
-    private Map<String, List<String>> cargarMultivalor(Connection c, String tabla, String columna)
-            throws SQLException {
+    private Map<String, List<String>> cargarMultivalor(String tabla, String columna) {
         Map<String, List<String>> porUrl = new HashMap<>();
-        try (Statement st = c.createStatement();
-             ResultSet rs = st.executeQuery(
-                     "SELECT url," + columna + " FROM " + tabla + " ORDER BY url, posicion")) {
-            while (rs.next()) {
-                porUrl.computeIfAbsent(rs.getString(1), k -> new ArrayList<>()).add(rs.getString(2));
-            }
-        }
+        jdbc.query("SELECT url," + columna + " FROM " + tabla + " ORDER BY url, posicion", rs -> {
+            porUrl.computeIfAbsent(rs.getString(1), k -> new ArrayList<>()).add(rs.getString(2));
+        });
         return porUrl;
     }
 
@@ -361,19 +351,16 @@ class ProductRepository implements ProductPort {
     @Override
     public Map<String, ClasificacionBloqueada> cargarClasificacionBloqueada() {
         Map<String, ClasificacionBloqueada> result = new LinkedHashMap<>();
-        try (Connection c = dataSource.getConnection();
-             Statement st = c.createStatement();
-             ResultSet rs = st.executeQuery(
-                "SELECT url,categoria,sub_categoria,marca,genero,rubro FROM productos "
-                        + "WHERE bloqueado_por IS NOT NULL")) {
-            while (rs.next()) {
+        try {
+            jdbc.query("SELECT url,categoria,sub_categoria,marca,genero,rubro FROM productos "
+                       + "WHERE bloqueado_por IS NOT NULL", rs -> {
                 result.put(rs.getString("url"), new ClasificacionBloqueada(
                         rs.getString("categoria"),
                         rs.getString("sub_categoria"),
                         rs.getString("marca"),
                         rs.getString("genero"),
                         rs.getString("rubro")));
-            }
+            });
         } catch (Exception e) {
             LOG.error("[DB] Error cargando clasificaciones bloqueadas: {}", e.getMessage(), e);
         }
@@ -388,12 +375,11 @@ class ProductRepository implements ProductPort {
     @Override
     public void actualizarCategoria(String url, String nuevaCategoria) {
         if (url == null || nuevaCategoria == null) return;
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement(
-                "UPDATE productos SET categoria=? WHERE url=? AND bloqueado_por IS NULL")) {
-            ps.setString(1, nuevaCategoria);
-            ps.setString(2, url);
-            ps.executeUpdate();
+        try {
+            jdbc.update("UPDATE productos SET categoria=? WHERE url=? AND bloqueado_por IS NULL", ps -> {
+                ps.setString(1, nuevaCategoria);
+                ps.setString(2, url);
+            });
         } catch (Exception e) {
             LOG.warn("[DB] Error actualizando categoria: {}", e.getMessage());
         }
@@ -404,21 +390,20 @@ class ProductRepository implements ProductPort {
      * sentencia de clasificación — {@code false} para el camino humano (una segunda confirmación
      * debe poder re-lockear un producto ya bloqueado), {@code true} para el de máquina.
      */
-    private int updateNormalizacion(Connection c, String url, String categoria, String marca,
+    private int updateNormalizacion(String url, String categoria, String marca,
                                      String genero, List<String> talles, String subCategoria,
-                                     boolean respectLock) throws Exception {
-        reemplazarTalles(c, url, talles);
+                                     boolean respectLock) {
+        reemplazarTalles(url, talles);
         String sql = "UPDATE productos SET categoria=?, marca=?, genero=?, sub_categoria=? WHERE url=?"
                 + (respectLock ? " AND bloqueado_por IS NULL" : "");
-        try (PreparedStatement ps = c.prepareStatement(sql)) {
+        return jdbc.update(sql, ps -> {
             ps.setString(1, categoria != null ? categoria : "");
             if (StringUtils.isBlank(marca)) ps.setNull(2, java.sql.Types.VARCHAR);
             else ps.setString(2, marca);
             ps.setString(3, genero != null ? genero : "");
             ps.setString(4, subCategoria != null ? subCategoria : "");
             ps.setString(5, url);
-            return ps.executeUpdate();
-        }
+        });
     }
 
     /**
@@ -426,24 +411,18 @@ class ProductRepository implements ProductPort {
      * filas viejas atrás — es exactamente lo que significaba que {@code talles} fuera OVERWRITTEN y
      * no fill-only.
      */
-    private void reemplazarTalles(Connection c, String url, List<String> talles) throws SQLException {
-        try (PreparedStatement ps = c.prepareStatement("DELETE FROM producto_talle WHERE url=?")) {
-            ps.setString(1, url);
-            ps.executeUpdate();
-        }
+    private void reemplazarTalles(String url, List<String> talles) {
+        jdbc.update("DELETE FROM producto_talle WHERE url=?", url);
         if (talles == null || talles.isEmpty()) return;
-        try (PreparedStatement ps = c.prepareStatement(
-                "INSERT INTO producto_talle (url, posicion, talle) VALUES (?,?,?)")) {
-            short posicion = 1;
-            for (String talle : talles) {
-                if (StringUtils.isBlank(talle)) continue;
-                ps.setString(1, url);
-                ps.setShort(2, posicion++);
-                ps.setString(3, talle);
-                ps.addBatch();
-            }
-            ps.executeBatch();
-        }
+        List<String> noVacios = talles.stream().filter(StringUtils::isNotBlank).toList();
+        if (noVacios.isEmpty()) return;
+        short[] posicion = {1};
+        jdbc.batchUpdate("INSERT INTO producto_talle (url, posicion, talle) VALUES (?,?,?)",
+                noVacios, noVacios.size(), (ps, talle) -> {
+                    ps.setString(1, url);
+                    ps.setShort(2, posicion[0]++);
+                    ps.setString(3, talle);
+                });
     }
 
     /**
@@ -454,8 +433,8 @@ class ProductRepository implements ProductPort {
     public int actualizarNormalizacion(String url, String categoria, String marca,
                                         String genero, List<String> talles, String subCategoria) {
         if (url == null) return 0;
-        try (Connection c = dataSource.getConnection()) {
-            return updateNormalizacion(c, url, categoria, marca, genero, talles, subCategoria, true);
+        try {
+            return updateNormalizacion(url, categoria, marca, genero, talles, subCategoria, true);
         } catch (Exception e) {
             LOG.warn("[DB] Error actualizando normalizacion: {}", e.getMessage());
             Sql.marcarRollback();
@@ -478,26 +457,24 @@ class ProductRepository implements ProductPort {
         String rubro = rubroResolver.resolver(sitioKey, categoria, rubroPrevio);
         java.time.OffsetDateTime ahora = Timestamps.now();
 
-        try (Connection c = dataSource.getConnection()) {
-            int rows = updateNormalizacion(c, url, categoria, marca, genero, talles, subCategoria, false);
+        try {
+            int rows = updateNormalizacion(url, categoria, marca, genero, talles, subCategoria, false);
             if (rows != 1) {
                 Sql.marcarRollback();
                 return false;
             }
-            try (PreparedStatement ps = c.prepareStatement(
-                    "UPDATE productos SET rubro=?, bloqueado_por=?, bloqueado_at=? WHERE url=?")) {
+            jdbc.update("UPDATE productos SET rubro=?, bloqueado_por=?, bloqueado_at=? WHERE url=?", ps -> {
                 ps.setString(1, rubro != null ? rubro : "indumentaria");
                 ps.setString(2, StringUtils.isNotBlank(actor) ? actor : "local");
                 ps.setObject(3, ahora);
                 ps.setString(4, url);
-                ps.executeUpdate();
-            }
-            try (PreparedStatement ps = c.prepareStatement(
+            });
+            jdbc.update(
                     "INSERT INTO agent_reclassify_audit " +
                     "(url, categoria_antes, categoria_despues, marca_antes, marca_despues, " +
                     "genero_antes, genero_despues, sub_categoria_antes, sub_categoria_despues, " +
                     "applied_at, applied_by) " +
-                    "VALUES (?,?,?,?,?,?,?,?,?,?,?)")) {
+                    "VALUES (?,?,?,?,?,?,?,?,?,?,?)", ps -> {
                 ps.setString(1, url);
                 ps.setString(2, previo != null && previo.categoria() != null ? previo.categoria() : "");
                 ps.setString(3, categoria != null ? categoria : "");
@@ -509,8 +486,7 @@ class ProductRepository implements ProductPort {
                 ps.setString(9, subCategoria != null ? subCategoria : "");
                 ps.setObject(10, ahora);
                 ps.setString(11, StringUtils.isNotBlank(actor) ? actor : "local");
-                ps.executeUpdate();
-            }
+            });
             return true;
         } catch (Exception e) {
             LOG.error("[DB] Error en aplicarReclasificacionAuditada, rollback: {}", e.getMessage(), e);
@@ -521,11 +497,9 @@ class ProductRepository implements ProductPort {
 
     @Override
     public long contarEmbeddings() {
-        try (Connection c = dataSource.getConnection();
-             Statement st = c.createStatement();
-             ResultSet rs = st.executeQuery("SELECT COUNT(*) FROM image_embeddings")) {
-            return rs.next() ? rs.getLong(1) : 0L;
-        } catch (SQLException e) {
+        try {
+            return jdbc.query("SELECT COUNT(*) FROM image_embeddings", rs -> rs.next() ? rs.getLong(1) : 0L);
+        } catch (DataAccessException e) {
             LOG.error("[DB] Error al contar image_embeddings", e);
             return 0L;
         }
@@ -533,11 +507,8 @@ class ProductRepository implements ProductPort {
 
     @Override
     public void marcarDescontinuado(String url) {
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement(
-                "UPDATE productos SET activo=false WHERE url=?")) {
-            ps.setString(1, url);
-            ps.executeUpdate();
+        try {
+            jdbc.update("UPDATE productos SET activo=false WHERE url=?", url);
         } catch (Exception e) {
             LOG.warn("[DB] Error marcando descontinuado: {}", e.getMessage());
         }
@@ -545,13 +516,9 @@ class ProductRepository implements ProductPort {
 
     @Override
     public boolean estaBloqueado(String url) {
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement(
-                "SELECT 1 FROM productos WHERE url=? AND bloqueado_por IS NOT NULL")) {
-            ps.setString(1, url);
-            try (ResultSet rs = ps.executeQuery()) {
-                return rs.next();
-            }
+        try {
+            return jdbc.query("SELECT 1 FROM productos WHERE url=? AND bloqueado_por IS NOT NULL",
+                    ps -> ps.setString(1, url), ResultSet::next);
         } catch (Exception e) {
             LOG.warn("[DB] Error consultando bloqueo de {}: {}", url, e.getMessage());
             return false;
@@ -560,13 +527,9 @@ class ProductRepository implements ProductPort {
 
     @Override
     public boolean esProductoActivo(String url) {
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement(
-                "SELECT activo FROM productos WHERE url=?")) {
-            ps.setString(1, url);
-            try (ResultSet rs = ps.executeQuery()) {
-                return rs.next() && rs.getBoolean(1);
-            }
+        try {
+            return jdbc.query("SELECT activo FROM productos WHERE url=?",
+                    ps -> ps.setString(1, url), rs -> rs.next() && rs.getBoolean(1));
         } catch (Exception e) {
             LOG.warn("[DB] Error consultando activo: {}", e.getMessage());
             return false;
@@ -579,20 +542,17 @@ class ProductRepository implements ProductPort {
         Sql.traducir(() -> limpiarProductosSql());
     }
 
-    private void limpiarProductosSql() throws SQLException {
-        try (Connection c = dataSource.getConnection();
-             var st = c.createStatement()) {
-            try (ResultSet rs = st.executeQuery(
-                    "SELECT COUNT(*) FROM favoritos f JOIN productos p ON p.url = f.url")) {
-                rs.next();
-                long bloqueantes = rs.getLong(1);
-                if (bloqueantes > 0) {
-                    throw new FavoritosProtegidosException(bloqueantes);
-                }
-            }
-            st.execute("DELETE FROM productos");
-            st.execute("DELETE FROM categoria_stats");
-            LOG.info("[DB] Catálogo, historial y stats de categorías eliminados.");
+    private void limpiarProductosSql() {
+        Long bloqueantes = jdbc.query("SELECT COUNT(*) FROM favoritos f JOIN productos p ON p.url = f.url",
+                rs -> {
+                    rs.next();
+                    return rs.getLong(1);
+                });
+        if (bloqueantes != null && bloqueantes > 0) {
+            throw new FavoritosProtegidosException(bloqueantes);
         }
+        jdbc.update("DELETE FROM productos");
+        jdbc.update("DELETE FROM categoria_stats");
+        LOG.info("[DB] Catálogo, historial y stats de categorías eliminados.");
     }
 }
