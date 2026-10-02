@@ -5,33 +5,27 @@ import ar.scraper.pcs.GamaWire;
 import ar.scraper.pcs.PcPick;
 import ar.scraper.pcs.SavedPcsPort;
 import ar.scraper.pcs.TechSpecs;
+import org.apache.commons.lang3.StringUtils;
+import org.springframework.jdbc.core.BatchPreparedStatementSetter;
+import org.springframework.jdbc.core.RowCallbackHandler;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import javax.sql.DataSource;
-import java.sql.Connection;
 import java.sql.PreparedStatement;
-import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.Types;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.UUID;
 import java.util.Map;
-import org.apache.commons.lang3.StringUtils;
+import java.util.UUID;
 
 @Repository
-class SavedPcsRepository implements SavedPcsPort {
-
-    private static final Logger LOG = LoggerFactory.getLogger(SavedPcsRepository.class);
-
-    private final DataSource dataSource;
+class SavedPcsRepository extends SavedBuildRepository implements SavedPcsPort {
 
     SavedPcsRepository(DataSource dataSource) {
-        this.dataSource = dataSource;
+        super(dataSource, "saved_pcs", "PC");
     }
 
     /**
@@ -42,37 +36,25 @@ class SavedPcsRepository implements SavedPcsPort {
     @Transactional(rollbackFor = Exception.class)
     public int guardarPc(UUID usuarioId, String nombre, List<PcPick> picks, double presupuesto,
                          boolean conGpu, double totalEstimado, Gama gama) {
-        try (Connection c = dataSource.getConnection()) {
-            int id;
-            try (PreparedStatement ps = c.prepareStatement("""
+        return guardar(c -> {
+            PreparedStatement ps = c.prepareStatement("""
                     INSERT INTO saved_pcs (usuario_id, nombre, presupuesto, con_gpu, total_estimado, created_at, gama_id)
                     VALUES (?, ?, ?, ?, ?, ?, (SELECT id FROM gama WHERE nombre = ?))
-                    """, java.sql.Statement.RETURN_GENERATED_KEYS)) {
-                ps.setObject(1, usuarioId);
-                ps.setString(2, nombre != null ? nombre : "PC");
-                ps.setDouble(3, presupuesto);
-                ps.setBoolean(4, conGpu);
-                ps.setDouble(5, totalEstimado);
-                ps.setObject(6, Timestamps.now());
-                String gamaNombre = gamaNombreOrNull(gama);
-                if (gamaNombre == null) {
-                    ps.setNull(7, Types.VARCHAR);
-                } else {
-                    ps.setString(7, gamaNombre);
-                }
-                ps.executeUpdate();
-                try (ResultSet keys = ps.getGeneratedKeys()) {
-                    if (!keys.next()) { Sql.marcarRollback(); return -1; }
-                    id = keys.getInt(1);
-                }
+                    """, new String[] {"id"});
+            ps.setObject(1, usuarioId);
+            ps.setString(2, nombre != null ? nombre : "PC");
+            ps.setDouble(3, presupuesto);
+            ps.setBoolean(4, conGpu);
+            ps.setDouble(5, totalEstimado);
+            ps.setObject(6, Timestamps.now());
+            String gamaNombre = gamaNombreOrNull(gama);
+            if (gamaNombre == null) {
+                ps.setNull(7, Types.VARCHAR);
+            } else {
+                ps.setString(7, gamaNombre);
             }
-            insertarItems(c, id, picks);
-            return id;
-        } catch (Exception e) {
-            LOG.warn("[DB] Error guardando PC, rollback: {}", e.getMessage());
-            Sql.marcarRollback();
-            return -1;
-        }
+            return ps;
+        }, id -> insertarItems(id, picks));
     }
 
     /**
@@ -84,20 +66,21 @@ class SavedPcsRepository implements SavedPcsPort {
     }
 
     /** Un pick sin url se descarta — sin ella la fila no apunta a nada. */
-    private void insertarItems(Connection c, int pcId, List<PcPick> picks) throws Exception {
+    private void insertarItems(int pcId, List<PcPick> picks) {
         if (picks == null || picks.isEmpty()) return;
-        try (PreparedStatement ps = c.prepareStatement("""
+        List<PcPick> conUrl = picks.stream().filter(p -> StringUtils.isNotBlank(p.url())).toList();
+        jdbc.batchUpdate("""
                 INSERT INTO saved_pc_item
                     (pc_id, posicion, slot, url, sitio, nombre, precio, img, marca,
                      socket, ddr, form_factor, watts, capacidad_gb, tipo_memoria)
                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-                """)) {
-            short posicion = 1;
-            for (PcPick pick : picks) {
-                if (StringUtils.isBlank(pick.url())) continue;
+                """, new BatchPreparedStatementSetter() {
+            @Override
+            public void setValues(PreparedStatement ps, int i) throws SQLException {
+                PcPick pick = conUrl.get(i);
                 TechSpecs specs = pick.specs() != null ? pick.specs() : TechSpecs.EMPTY;
                 ps.setInt(1, pcId);
-                ps.setShort(2, posicion++);
+                ps.setShort(2, (short) (i + 1));
                 ps.setString(3, pick.slot());
                 ps.setString(4, pick.url());
                 ps.setString(5, pick.sitio());
@@ -111,26 +94,27 @@ class SavedPcsRepository implements SavedPcsPort {
                 ps.setInt(13, specs.watts());
                 ps.setInt(14, specs.capacidadGb());
                 ps.setString(15, specs.tipoMemoria());
-                ps.addBatch();
             }
-            ps.executeBatch();
-        }
+
+            @Override
+            public int getBatchSize() {
+                return conUrl.size();
+            }
+        });
     }
 
     @Override
     public List<Map<String, Object>> obtenerPcsGuardadas(UUID usuarioId) {
-        List<Map<String, Object>> result = new ArrayList<>();
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement("""
+        // Los ítems se cargan sólo para los PCs ya filtrados por dueño, así que heredan el
+        // scope del padre sin repetir el WHERE.
+        return listar(usuarioId, """
                 SELECT sp.id, sp.nombre, sp.presupuesto, sp.con_gpu, sp.total_estimado, sp.created_at,
                        g.nombre AS gama_nombre
                 FROM saved_pcs sp
                 LEFT JOIN gama g ON g.id = sp.gama_id
                 WHERE sp.usuario_id=? ORDER BY sp.created_at DESC
-                """)) {
-            ps.setObject(1, usuarioId);
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
+                """,
+                (rs, i) -> {
                     Map<String, Object> row = new LinkedHashMap<>();
                     row.put("id",            rs.getInt("id"));
                     row.put("nombre",        rs.getString("nombre"));
@@ -141,59 +125,49 @@ class SavedPcsRepository implements SavedPcsPort {
                     String gamaNombre = rs.getString("gama_nombre");
                     row.put("gama", gamaNombre != null ? GamaWire.wire(GamaMapeo.gamaDeNombre(gamaNombre)) : null);
                     row.put("picks", List.of());
-                    result.add(row);
-                }
-            }
-            // Los ítems se cargan sólo para los PCs ya filtrados por dueño, así que heredan el
-            // scope del padre sin repetir el WHERE.
-            cargarItems(c, result);
-        } catch (Exception e) {
-            LOG.warn("[DB] Error obteniendo PCs guardadas: {}", e.getMessage());
-        }
-        return result;
+                    return row;
+                },
+                this::cargarItems);
     }
 
     /**
      * Los ítems de TODOS los PCs en una sola consulta, mergeados por id — nunca una consulta por
      * PC.
      */
-    private void cargarItems(Connection c, List<Map<String, Object>> pcs) throws Exception {
+    private void cargarItems(List<Map<String, Object>> pcs) {
         Map<Integer, List<Map<String, Object>>> porPc = new LinkedHashMap<>();
-        try (java.sql.Statement st = c.createStatement();
-             ResultSet rs = st.executeQuery("""
-                     SELECT i.pc_id, i.slot, i.url, i.sitio, i.nombre, i.precio, i.img, i.marca,
-                            i.socket, i.ddr, i.form_factor, i.watts, i.capacidad_gb, i.tipo_memoria,
-                            p.precio AS precio_actual, p.producto_key
-                     FROM saved_pc_item i
-                     LEFT JOIN productos p ON p.url = i.url
-                     ORDER BY i.pc_id, i.posicion
-                     """)) {
-            while (rs.next()) {
-                Map<String, Object> item = new LinkedHashMap<>();
-                item.put("slot",   rs.getString("slot"));
-                item.put("sitio",  rs.getString("sitio"));
-                item.put("nombre", rs.getString("nombre"));
-                item.put("precio", rs.getDouble("precio"));
-                item.put("url",    rs.getString("url"));
-                item.put("img",    rs.getString("img"));
-                item.put("marca",  rs.getString("marca"));
-                Map<String, Object> specs = new LinkedHashMap<>();
-                specs.put("socket",      rs.getString("socket"));
-                specs.put("ddr",         rs.getString("ddr"));
-                specs.put("formFactor",  rs.getString("form_factor"));
-                specs.put("watts",       rs.getInt("watts"));
-                specs.put("capacidadGb", rs.getInt("capacidad_gb"));
-                specs.put("tipoMemoria", rs.getString("tipo_memoria"));
-                item.put("specs", specs);
-                double precioActual = rs.getDouble("precio_actual");
-                item.put("precioActual", rs.wasNull() ? null : precioActual);
-                // Mismo motivo que en SavedOutfitsRepository: el handle corto es lo único que el
-                // cliente no puede derivar solo, y es lo que le permite al panel de detalle pedir
-                // la fila entera.
-                item.put("key", rs.getString("producto_key"));
-                porPc.computeIfAbsent(rs.getInt("pc_id"), k -> new ArrayList<>()).add(item);
-            }
-        }
+        jdbc.query("""
+                SELECT i.pc_id, i.slot, i.url, i.sitio, i.nombre, i.precio, i.img, i.marca,
+                       i.socket, i.ddr, i.form_factor, i.watts, i.capacidad_gb, i.tipo_memoria,
+                       p.precio AS precio_actual, p.producto_key
+                FROM saved_pc_item i
+                LEFT JOIN productos p ON p.url = i.url
+                ORDER BY i.pc_id, i.posicion
+                """, (RowCallbackHandler) rs -> {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("slot",   rs.getString("slot"));
+            item.put("sitio",  rs.getString("sitio"));
+            item.put("nombre", rs.getString("nombre"));
+            item.put("precio", rs.getDouble("precio"));
+            item.put("url",    rs.getString("url"));
+            item.put("img",    rs.getString("img"));
+            item.put("marca",  rs.getString("marca"));
+            Map<String, Object> specs = new LinkedHashMap<>();
+            specs.put("socket",      rs.getString("socket"));
+            specs.put("ddr",         rs.getString("ddr"));
+            specs.put("formFactor",  rs.getString("form_factor"));
+            specs.put("watts",       rs.getInt("watts"));
+            specs.put("capacidadGb", rs.getInt("capacidad_gb"));
+            specs.put("tipoMemoria", rs.getString("tipo_memoria"));
+            item.put("specs", specs);
+            double precioActual = rs.getDouble("precio_actual");
+            item.put("precioActual", rs.wasNull() ? null : precioActual);
+            // Mismo motivo que en SavedOutfitsRepository: el handle corto es lo único que el
+            // cliente no puede derivar solo, y es lo que le permite al panel de detalle pedir
+            // la fila entera.
+            item.put("key", rs.getString("producto_key"));
+            porPc.computeIfAbsent(rs.getInt("pc_id"), k -> new ArrayList<>()).add(item);
+        });
         for (Map<String, Object> pc : pcs) {
             int id = (Integer) pc.get("id");
             pc.put("picks", porPc.getOrDefault(id, List.of()));
@@ -202,31 +176,11 @@ class SavedPcsRepository implements SavedPcsPort {
 
     @Override
     public boolean eliminarPcGuardada(UUID usuarioId, int id) {
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement(
-                "DELETE FROM saved_pcs WHERE usuario_id=? AND id=?")) {
-            ps.setObject(1, usuarioId);
-            ps.setInt(2, id);
-            return ps.executeUpdate() > 0;
-        } catch (Exception e) {
-            LOG.warn("[DB] Error eliminando PC guardado {}: {}", id, e.getMessage());
-            return false;
-        }
+        return eliminar(usuarioId, id);
     }
 
     @Override
     public boolean renombrarPc(UUID usuarioId, int id, String nombre) {
-        if (StringUtils.isBlank(nombre)) return false;
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement(
-                "UPDATE saved_pcs SET nombre=? WHERE usuario_id=? AND id=?")) {
-            ps.setString(1, nombre.trim());
-            ps.setObject(2, usuarioId);
-            ps.setInt(3, id);
-            return ps.executeUpdate() > 0;
-        } catch (Exception e) {
-            LOG.warn("[DB] Error renombrando PC {}: {}", id, e.getMessage());
-            return false;
-        }
+        return renombrar(usuarioId, id, nombre);
     }
 }
