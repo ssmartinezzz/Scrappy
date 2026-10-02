@@ -2,18 +2,16 @@ package ar.scraper.pcs.reglas;
 
 import ar.scraper.pcs.ContextoDeArmado;
 import ar.scraper.pcs.TechSpecs;
+import lombok.RequiredArgsConstructor;
 
 /**
  * {@code 0} (abstención) vetoes when a floor was requested — from a name whose capacity could not
  * be read, nothing can be asserted about whether it reaches the floor.
  */
+@RequiredArgsConstructor
 public class ReglaCapacidadMinima implements ReglaCompatibilidad {
 
     private final Integer pedido;
-
-    public ReglaCapacidadMinima(Integer pedido) {
-        this.pedido = pedido;
-    }
 
     @Override
     public boolean permite(TechSpecs candidato, ContextoDeArmado contexto) {

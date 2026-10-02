@@ -3,14 +3,12 @@ package ar.scraper.pcs.reglas;
 import ar.scraper.pcs.ContextoDeArmado;
 import ar.scraper.pcs.TechSpecs;
 import ar.scraper.pcs.TipoAlmacenamiento;
+import lombok.RequiredArgsConstructor;
 
+@RequiredArgsConstructor
 public class ReglaTipoAlmacenamiento implements ReglaCompatibilidad {
 
     private final TipoAlmacenamiento pedido;
-
-    public ReglaTipoAlmacenamiento(TipoAlmacenamiento pedido) {
-        this.pedido = pedido;
-    }
 
     @Override
     public boolean permite(TechSpecs candidato, ContextoDeArmado contexto) {
