@@ -7,11 +7,10 @@ import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 import javax.sql.DataSource;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
 
 /**
  * {@code @Order(HIGHEST_PRECEDENCE)}: runs before anything else Spring schedules as a runner, so a
@@ -26,22 +25,17 @@ public class MarcaSeeder implements ApplicationRunner {
 
     private static final Logger LOG = LoggerFactory.getLogger(MarcaSeeder.class);
 
-    private final DataSource dataSource;
+    private final JdbcTemplate jdbc;
 
     public MarcaSeeder(DataSource dataSource) {
-        this.dataSource = dataSource;
+        this.jdbc = new JdbcTemplate(dataSource);
     }
 
     @Override
     public void run(ApplicationArguments args) {
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement(
-                     "INSERT INTO marca (nombre) VALUES (?) ON CONFLICT DO NOTHING")) {
-            for (String marca : BrandExtractor.MARCAS) {
-                ps.setString(1, marca);
-                ps.addBatch();
-            }
-            ps.executeBatch();
+        try {
+            jdbc.batchUpdate("INSERT INTO marca (nombre) VALUES (?) ON CONFLICT DO NOTHING",
+                    BrandExtractor.MARCAS, BrandExtractor.MARCAS.size(), (ps, marca) -> ps.setString(1, marca));
         } catch (Exception e) {
             LOG.warn("[MarcaSeeder] Error sembrando marca: {}", e.getMessage());
         }
