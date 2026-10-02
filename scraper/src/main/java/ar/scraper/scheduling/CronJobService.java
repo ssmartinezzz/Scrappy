@@ -15,11 +15,13 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import lombok.RequiredArgsConstructor;
 
 /**
  * El estado vive en SQLite ({@code cron_jobs.next_run_at}) — no hay registro en memoria de
  * {@code ScheduledFuture}s, así que un reinicio del proceso es transparente.
  */
+@RequiredArgsConstructor
 public class CronJobService {
 
     private static final Logger LOG = LoggerFactory.getLogger(CronJobService.class);
@@ -38,13 +40,6 @@ public class CronJobService {
 
     /** Evita disparar el mismo job dos veces si un tick tarda más que el intervalo. */
     private final Set<Long> inFlight = ConcurrentHashMap.newKeySet();
-
-    public CronJobService(CronPort db, CronJobRunner runner, Clock clock, CronSchedule schedule) {
-        this.db = db;
-        this.runner = runner;
-        this.clock = clock;
-        this.schedule = schedule;
-    }
 
     public String computeNextRun(String cronExpr, ZonedDateTime from) {
         ZonedDateTime next = schedule.nextRun(cronExpr, from);
