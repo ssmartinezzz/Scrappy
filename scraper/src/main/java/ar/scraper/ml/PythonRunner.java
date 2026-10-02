@@ -233,18 +233,10 @@ public class PythonRunner {
 
                 Path trainScript = extraerTrainScript(workDir);
 
-                var cmd = new java.util.ArrayList<String>();
-                cmd.add(python);
-                cmd.add(trainScript.toString());
-
-                boolean forceCpuProbe = forceCpuParaProbes(useGpuSnapshot);
-                boolean hasCuda  = useGpuSnapshot && tieneCuda(python, forceCpuProbe);
-                boolean hasTorch = hasCuda || tienePytorch(python, forceCpuProbe);
-                if (withImages && hasTorch) {
-                    cmd.add("--images");
-                    cmd.add("--epochs");
-                    cmd.add(String.valueOf(epochs));
-                    LOG.info("[ML-TRAIN] PyTorch detectado (CUDA:{}) — entrenando texto + imágenes", hasCuda);
+                SoporteTorch torch = detectarTorch(python, useGpuSnapshot);
+                var cmd = comandoEntrenamiento(python, trainScript, withImages && torch.torch(), epochs);
+                if (withImages && torch.torch()) {
+                    LOG.info("[ML-TRAIN] PyTorch detectado (CUDA:{}) — entrenando texto + imágenes", torch.cuda());
                 } else if (withImages) {
                     LOG.info("[ML-TRAIN] withImages=true pero PyTorch no disponible — solo texto");
                 } else {
@@ -560,18 +552,8 @@ public class PythonRunner {
             }
 
             Path trainScript = extraerTrainScript(workDir);
-            var cmd = new java.util.ArrayList<String>();
-            cmd.add(python);
-            cmd.add(trainScript.toString());
-
-            boolean forceCpuProbe = forceCpuParaProbes(useGpuSnapshot);
-            boolean hasCuda  = useGpuSnapshot && tieneCuda(python, forceCpuProbe);
-            boolean hasTorch = hasCuda || tienePytorch(python, forceCpuProbe);
-            if (withImages && hasTorch) {
-                cmd.add("--images");
-                cmd.add("--epochs");
-                cmd.add(String.valueOf(epochs));
-            }
+            boolean hasTorch = detectarTorch(python, useGpuSnapshot).torch();
+            var cmd = comandoEntrenamiento(python, trainScript, withImages && hasTorch, epochs);
 
             ProcessBuilder pb = construirProcessBuilderEntrenamiento(cmd, workDir, useGpuSnapshot);
             Process proc = pb.start();
@@ -762,6 +744,21 @@ public class PythonRunner {
      */
     boolean forceCpuParaProbes(boolean useGpuSnapshot) {
         return !useGpuSnapshot;
+    }
+
+    private record SoporteTorch(boolean cuda, boolean torch) {}
+
+    private SoporteTorch detectarTorch(String python, boolean useGpuSnapshot) {
+        boolean forceCpuProbe = forceCpuParaProbes(useGpuSnapshot);
+        boolean hasCuda = useGpuSnapshot && tieneCuda(python, forceCpuProbe);
+        return new SoporteTorch(hasCuda, hasCuda || tienePytorch(python, forceCpuProbe));
+    }
+
+    private static java.util.List<String> comandoEntrenamiento(String python, Path trainScript,
+            boolean conImagenes, int epochs) {
+        var cmd = new java.util.ArrayList<String>(java.util.List.of(python, trainScript.toString()));
+        if (conImagenes) cmd.addAll(java.util.List.of("--images", "--epochs", String.valueOf(epochs)));
+        return cmd;
     }
 
     private boolean tienePytorch(String python, boolean forceCpu) {
