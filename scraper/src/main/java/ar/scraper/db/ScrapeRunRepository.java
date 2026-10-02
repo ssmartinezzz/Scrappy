@@ -5,13 +5,11 @@ import ar.scraper.scrape.CorridaInterrumpida;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.sql.DataSource;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Types;
 import java.time.Instant;
@@ -42,10 +40,10 @@ class ScrapeRunRepository implements ScrapeRunPort {
     private static final String SITIO_KEY_SQL =
             "lower(regexp_replace(?, '[^a-zA-Z0-9]', '', 'g'))";
 
-    private final DataSource dataSource;
+    private final JdbcTemplate jdbc;
 
     ScrapeRunRepository(DataSource dataSource) {
-        this.dataSource = dataSource;
+        this.jdbc = new JdbcTemplate(dataSource);
     }
 
     /**
@@ -62,60 +60,48 @@ class ScrapeRunRepository implements ScrapeRunPort {
     private long crearSql(UUID scrapeUuid, Instant startedAt, UUID triggeredBy, Long cronJobId, Collection<String> sitios) throws SQLException {
         Instant arranque = truncarAlSegundo(startedAt);
 
-        try (Connection c = dataSource.getConnection()) {
-            long runId = insertarRun(c, scrapeUuid, arranque, triggeredBy, cronJobId);
-            for (String sitio : sitios) {
-                if (StringUtils.isBlank(sitio)) continue;
-                asegurarSitio(c, sitio);
-                enrolarSitio(c, runId, sitio);
-            }
-            return runId;
+        long runId = insertarRun(scrapeUuid, arranque, triggeredBy, cronJobId);
+        for (String sitio : sitios) {
+            if (StringUtils.isBlank(sitio)) continue;
+            asegurarSitio(sitio);
+            enrolarSitio(runId, sitio);
         }
+        return runId;
     }
 
-    private long insertarRun(Connection c, UUID scrapeUuid, Instant startedAt,
+    private long insertarRun(UUID scrapeUuid, Instant startedAt,
                              UUID triggeredBy, Long cronJobId) throws SQLException {
         String sql = """
             INSERT INTO scrape_run (scrape_uuid, started_at, triggered_by, cron_job_id, status)
             VALUES (?, ?, ?, ?, 'RUNNING')
             RETURNING id
             """;
-        try (PreparedStatement ps = c.prepareStatement(sql)) {
+        Long id = jdbc.query(sql, ps -> {
             ps.setObject(1, scrapeUuid);
             ps.setObject(2, enUtc(startedAt));
             if (triggeredBy != null) ps.setObject(3, triggeredBy); else ps.setNull(3, Types.OTHER);
             if (cronJobId != null) ps.setLong(4, cronJobId); else ps.setNull(4, Types.BIGINT);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (!rs.next()) throw new SQLException("scrape_run INSERT returned no id");
-                return rs.getLong(1);
-            }
-        }
+        }, rs -> rs.next() ? rs.getLong(1) : null);
+        if (id == null) throw new SQLException("scrape_run INSERT returned no id");
+        return id;
     }
 
-    private void asegurarSitio(Connection c, String sitio) throws SQLException {
+    private void asegurarSitio(String sitio) {
         String sql = """
             INSERT INTO sitio (nombre, sitio_key, plataforma, es_premium, rubro_forzado, origen)
             SELECT ?, %s, 'tiendanube', false, NULL, 'historico'
             ON CONFLICT DO NOTHING
             """.formatted(SITIO_KEY_SQL);
-        try (PreparedStatement ps = c.prepareStatement(sql)) {
-            ps.setString(1, sitio);
-            ps.setString(2, sitio);
-            ps.executeUpdate();
-        }
+        jdbc.update(sql, sitio, sitio);
     }
 
-    private void enrolarSitio(Connection c, long runId, String sitio) throws SQLException {
+    private void enrolarSitio(long runId, String sitio) {
         String sql = """
             INSERT INTO scrape_run_site (scrape_run_id, sitio_key, status)
             VALUES (?, %s, 'PENDING')
             ON CONFLICT (scrape_run_id, sitio_key) DO NOTHING
             """.formatted(SITIO_KEY_SQL);
-        try (PreparedStatement ps = c.prepareStatement(sql)) {
-            ps.setLong(1, runId);
-            ps.setString(2, sitio);
-            ps.executeUpdate();
-        }
+        jdbc.update(sql, runId, sitio);
     }
 
     @Override
@@ -123,18 +109,16 @@ class ScrapeRunRepository implements ScrapeRunPort {
         Sql.traducir(() -> marcarSitioEnCursoSql(runId, sitio, cuando));
     }
 
-    private void marcarSitioEnCursoSql(long runId, String sitio, Instant cuando) throws SQLException {
+    private void marcarSitioEnCursoSql(long runId, String sitio, Instant cuando) {
         String sql = """
             UPDATE scrape_run_site SET status = 'RUNNING', started_at = ?
             WHERE scrape_run_id = ? AND sitio_key = %s
             """.formatted(SITIO_KEY_SQL);
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement(sql)) {
+        jdbc.update(sql, ps -> {
             ps.setObject(1, enUtc(cuando));
             ps.setLong(2, runId);
             ps.setString(3, sitio);
-            ps.executeUpdate();
-        }
+        });
     }
 
     @Override
@@ -142,22 +126,20 @@ class ScrapeRunRepository implements ScrapeRunPort {
         Sql.traducir(() -> marcarSitioTerminadoSql(runId, sitio, status, productosCount, error, cuando));
     }
 
-    private void marcarSitioTerminadoSql(long runId, String sitio, String status, int productosCount, String error, Instant cuando) throws SQLException {
+    private void marcarSitioTerminadoSql(long runId, String sitio, String status, int productosCount, String error, Instant cuando) {
         String sql = """
             UPDATE scrape_run_site
                SET status = ?, productos_count = ?, error = ?, finished_at = ?
              WHERE scrape_run_id = ? AND sitio_key = %s
             """.formatted(SITIO_KEY_SQL);
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement(sql)) {
+        jdbc.update(sql, ps -> {
             ps.setString(1, status);
             ps.setInt(2, productosCount);
             ps.setString(3, error);
             ps.setObject(4, enUtc(cuando));
             ps.setLong(5, runId);
             ps.setString(6, sitio);
-            ps.executeUpdate();
-        }
+        });
     }
 
     /**
@@ -170,19 +152,17 @@ class ScrapeRunRepository implements ScrapeRunPort {
         Sql.traducir(() -> finalizarSql(runId, status, productosCount, finishedAt));
     }
 
-    private void finalizarSql(long runId, String status, int productosCount, Instant finishedAt) throws SQLException {
+    private void finalizarSql(long runId, String status, int productosCount, Instant finishedAt) {
         String sql = """
             UPDATE scrape_run SET status = ?, productos_count = ?, finished_at = ?
              WHERE id = ?
             """;
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement(sql)) {
+        jdbc.update(sql, ps -> {
             ps.setString(1, status);
             ps.setInt(2, productosCount);
             ps.setObject(3, enUtc(finishedAt));
             ps.setLong(4, runId);
-            ps.executeUpdate();
-        }
+        });
     }
 
     /**
@@ -194,20 +174,16 @@ class ScrapeRunRepository implements ScrapeRunPort {
         return Sql.traducir(() -> marcarInterrumpidosAlArrancarSql(cuando));
     }
 
-    private List<Long> marcarInterrumpidosAlArrancarSql(Instant cuando) throws SQLException {
+    private List<Long> marcarInterrumpidosAlArrancarSql(Instant cuando) {
         String sql = """
             UPDATE scrape_run SET status = 'INTERRUPTED', finished_at = ?
              WHERE status = 'RUNNING' AND finished_at IS NULL
             RETURNING id
             """;
         List<Long> ids = new ArrayList<>();
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement(sql)) {
-            ps.setObject(1, enUtc(cuando));
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) ids.add(rs.getLong(1));
-            }
-        }
+        jdbc.query(sql, ps -> ps.setObject(1, enUtc(cuando)), rs -> {
+            ids.add(rs.getLong(1));
+        });
         if (!ids.isEmpty()) {
             LOG.warn("[DB] {} corrida(s) quedaron abiertas por un proceso anterior: {}",
                     ids.size(), ids);
@@ -224,17 +200,15 @@ class ScrapeRunRepository implements ScrapeRunPort {
         return Sql.traducir(() -> ultimaInterrumpidaSql());
     }
 
-    private Optional<CorridaInterrumpida> ultimaInterrumpidaSql() throws SQLException {
+    private Optional<CorridaInterrumpida> ultimaInterrumpidaSql() {
         String sql = """
             SELECT id, scrape_uuid, started_at FROM scrape_run
              WHERE status = 'INTERRUPTED'
              ORDER BY started_at DESC, id DESC
              LIMIT 1
             """;
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement(sql);
-             ResultSet rs = ps.executeQuery()) {
-            if (!rs.next()) return Optional.empty();
+        return jdbc.query(sql, rs -> {
+            if (!rs.next()) return Optional.<CorridaInterrumpida>empty();
             long runId = rs.getLong(1);
             UUID uuid = (UUID) rs.getObject(2);
             Instant startedAt = rs.getObject(3, OffsetDateTime.class).toInstant();
@@ -243,25 +217,23 @@ class ScrapeRunRepository implements ScrapeRunPort {
                     sitiosEn(runId, "DONE", "ERROR"),
                     sitiosEn(runId, "PENDING", "RUNNING"),
                     sitiosEn(runId, "SKIPPED")));
-        }
+        });
     }
 
-    private List<String> sitiosEn(long runId, String... estados) throws SQLException {
+    private List<String> sitiosEn(long runId, String... estados) {
         String sql = """
             SELECT sitio_key FROM scrape_run_site
              WHERE scrape_run_id = ? AND status = ANY (?)
              ORDER BY sitio_key
             """;
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement(sql)) {
+        List<String> out = new ArrayList<>();
+        jdbc.query(sql, ps -> {
             ps.setLong(1, runId);
-            ps.setArray(2, c.createArrayOf("text", estados));
-            try (ResultSet rs = ps.executeQuery()) {
-                List<String> out = new ArrayList<>();
-                while (rs.next()) out.add(rs.getString(1));
-                return out;
-            }
-        }
+            ps.setArray(2, ps.getConnection().createArrayOf("text", estados));
+        }, rs -> {
+            out.add(rs.getString(1));
+        });
+        return out;
     }
 
     /**
@@ -275,21 +247,12 @@ class ScrapeRunRepository implements ScrapeRunPort {
         Sql.traducir(() -> reabrirSql(runId));
     }
 
-    private void reabrirSql(long runId) throws SQLException {
-        try (Connection c = dataSource.getConnection()) {
-            try (PreparedStatement ps = c.prepareStatement(
-                    "UPDATE scrape_run SET status = 'RUNNING', finished_at = NULL WHERE id = ?")) {
-                ps.setLong(1, runId);
-                ps.executeUpdate();
-            }
-            try (PreparedStatement ps = c.prepareStatement("""
-                    UPDATE scrape_run_site SET status = 'PENDING', started_at = NULL
-                     WHERE scrape_run_id = ? AND status = 'RUNNING'
-                    """)) {
-                ps.setLong(1, runId);
-                ps.executeUpdate();
-            }
-        }
+    private void reabrirSql(long runId) {
+        jdbc.update("UPDATE scrape_run SET status = 'RUNNING', finished_at = NULL WHERE id = ?", runId);
+        jdbc.update("""
+                UPDATE scrape_run_site SET status = 'PENDING', started_at = NULL
+                 WHERE scrape_run_id = ? AND status = 'RUNNING'
+                """, runId);
     }
 
     /**
@@ -303,30 +266,22 @@ class ScrapeRunRepository implements ScrapeRunPort {
         return Sql.traducir(() -> descartarInterrumpidasSql(cuando));
     }
 
-    private List<Long> descartarInterrumpidasSql(Instant cuando) throws SQLException {
+    private List<Long> descartarInterrumpidasSql(Instant cuando) {
         List<Long> ids = new ArrayList<>();
-        try (Connection c = dataSource.getConnection()) {
-            try (PreparedStatement ps = c.prepareStatement("""
-                    UPDATE scrape_run
-                       SET status = 'CANCELLED',
-                           finished_at = COALESCE(finished_at, ?)
-                     WHERE status = 'INTERRUPTED'
-                    RETURNING id
-                    """)) {
-                ps.setObject(1, enUtc(cuando));
-                try (ResultSet rs = ps.executeQuery()) {
-                    while (rs.next()) ids.add(rs.getLong(1));
-                }
-            }
-            for (long runId : ids) {
-                try (PreparedStatement ps = c.prepareStatement("""
-                        UPDATE scrape_run_site SET status = 'SKIPPED'
-                         WHERE scrape_run_id = ? AND status IN ('PENDING', 'RUNNING')
-                        """)) {
-                    ps.setLong(1, runId);
-                    ps.executeUpdate();
-                }
-            }
+        jdbc.query("""
+                UPDATE scrape_run
+                   SET status = 'CANCELLED',
+                       finished_at = COALESCE(finished_at, ?)
+                 WHERE status = 'INTERRUPTED'
+                RETURNING id
+                """, ps -> ps.setObject(1, enUtc(cuando)), rs -> {
+            ids.add(rs.getLong(1));
+        });
+        for (long runId : ids) {
+            jdbc.update("""
+                    UPDATE scrape_run_site SET status = 'SKIPPED'
+                     WHERE scrape_run_id = ? AND status IN ('PENDING', 'RUNNING')
+                    """, runId);
         }
         if (!ids.isEmpty()) LOG.warn("[RUN] {} corrida(s) interrumpida(s) descartadas: {}", ids.size(), ids);
         return ids;
@@ -341,7 +296,7 @@ class ScrapeRunRepository implements ScrapeRunPort {
         return Sql.traducir(() -> marcarAusentesDelRegistroSql(runId, nombresActuales));
     }
 
-    private List<String> marcarAusentesDelRegistroSql(long runId, java.util.Collection<String> nombresActuales) throws SQLException {
+    private List<String> marcarAusentesDelRegistroSql(long runId, java.util.Collection<String> nombresActuales) {
         String sql = """
             UPDATE scrape_run_site SET status = 'SKIPPED'
              WHERE scrape_run_id = ?
@@ -351,20 +306,18 @@ class ScrapeRunRepository implements ScrapeRunPort {
                        FROM unnest(?::text[]) AS n)
             RETURNING sitio_key
             """;
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement(sql)) {
+        List<String> out = new ArrayList<>();
+        jdbc.query(sql, ps -> {
             ps.setLong(1, runId);
-            ps.setArray(2, c.createArrayOf("text", nombresActuales.toArray()));
-            try (ResultSet rs = ps.executeQuery()) {
-                List<String> out = new ArrayList<>();
-                while (rs.next()) out.add(rs.getString(1));
-                if (!out.isEmpty()) {
-                    LOG.warn("[RUN] {} sitio(s) de la corrida interrumpida ya no están "
-                             + "en el registro, se marcan SKIPPED: {}", out.size(), out);
-                }
-                return out;
-            }
+            ps.setArray(2, ps.getConnection().createArrayOf("text", nombresActuales.toArray()));
+        }, rs -> {
+            out.add(rs.getString(1));
+        });
+        if (!out.isEmpty()) {
+            LOG.warn("[RUN] {} sitio(s) de la corrida interrumpida ya no están "
+                     + "en el registro, se marcan SKIPPED: {}", out.size(), out);
         }
+        return out;
     }
 
     /**
@@ -377,13 +330,9 @@ class ScrapeRunRepository implements ScrapeRunPort {
         return Sql.traducir(() -> existeCorridaCompletadaSql());
     }
 
-    private boolean existeCorridaCompletadaSql() throws SQLException {
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement(
-                     "SELECT EXISTS (SELECT 1 FROM scrape_run WHERE status = 'COMPLETED')");
-             ResultSet rs = ps.executeQuery()) {
-            return rs.next() && rs.getBoolean(1);
-        }
+    private boolean existeCorridaCompletadaSql() {
+        return jdbc.query("SELECT EXISTS (SELECT 1 FROM scrape_run WHERE status = 'COMPLETED')",
+                rs -> rs.next() && rs.getBoolean(1));
     }
 
     @Override
@@ -391,17 +340,13 @@ class ScrapeRunRepository implements ScrapeRunPort {
         return Sql.traducir(() -> startedAtDeSql(runId));
     }
 
-    private Optional<Instant> startedAtDeSql(long runId) throws SQLException {
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement(
-                     "SELECT started_at FROM scrape_run WHERE id = ?")) {
-            ps.setLong(1, runId);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (!rs.next()) return Optional.empty();
-                OffsetDateTime odt = rs.getObject(1, OffsetDateTime.class);
-                return Optional.ofNullable(odt).map(OffsetDateTime::toInstant);
-            }
-        }
+    private Optional<Instant> startedAtDeSql(long runId) {
+        return jdbc.query("SELECT started_at FROM scrape_run WHERE id = ?",
+                ps -> ps.setLong(1, runId), rs -> {
+            if (!rs.next()) return Optional.<Instant>empty();
+            OffsetDateTime odt = rs.getObject(1, OffsetDateTime.class);
+            return Optional.ofNullable(odt).map(OffsetDateTime::toInstant);
+        });
     }
 
     /**
