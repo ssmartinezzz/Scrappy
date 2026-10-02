@@ -11,7 +11,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -50,21 +49,13 @@ public class SuplementosController {
         AggregatedResult r = service.getLastResult();
         if (r == null) return ResponseEntity.noContent().build();
 
-        Set<String> tiposSet = Arrays.stream(tipos.split(","))
-                .map(String::strip)
-                .filter(s -> !s.isBlank())
-                .collect(Collectors.toSet());
+        Set<String> tiposSet = Params.tokens(tipos).collect(Collectors.toSet());
 
         if (tiposSet.isEmpty()) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "solicitud_invalida", "tipos is required");
         }
 
-        Set<String> excluirUrls = StringUtils.isBlank(excluir)
-                ? Set.of()
-                : Arrays.stream(excluir.split(","))
-                        .map(String::strip)
-                        .filter(s -> !s.isBlank())
-                        .collect(Collectors.toSet());
+        Set<String> excluirUrls = Params.setOrEmpty(excluir);
 
         List<OutfitService.SupplementPick> picks =
                 outfitService.armarComboSuplementos(r.productos(), presupuesto, tiposSet, excluirUrls);
