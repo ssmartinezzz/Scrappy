@@ -245,6 +245,19 @@ class PythonRunnerProcessLaunchTest {
     }
 
     @Test
+    @DisplayName("background training with images logs the PyTorch detection and passes --images --epochs")
+    void backgroundTrainingWithImages() throws Exception {
+        System.setProperty("PYTHON_EXE", fakePython("ok", "ok", "sleep 1\nexit 3").toString());
+
+        runner.entrenarEnBackground(true, true, 5);
+        esperar(() -> mensajes().contains("[ML-TRAIN] Proceso terminó con código 3"));
+
+        assertThat(mensajes()).contains(
+                "[ML-TRAIN] PyTorch detectado (CUDA:true) — entrenando texto + imágenes");
+        assertThat(argvRegistrado()).endsWith("ml_train.py --images --epochs 5");
+    }
+
+    @Test
     @DisplayName("background backfill logs stderr and progress as [ML-BACKFILL] and flags a degraded run")
     void backgroundBackfillLogsAndFlagsDegraded() throws Exception {
         System.setProperty("PYTHON_EXE", fakePython("no", "no", """
