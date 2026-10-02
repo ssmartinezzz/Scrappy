@@ -1,6 +1,5 @@
 package ar.scraper.pages;
 
-import ar.scraper.aggregator.text.PrecioParser;
 import ar.scraper.model.Product;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -8,29 +7,13 @@ import com.microsoft.playwright.Page;
 
 import java.util.*;
 
-public class ShopifyPage extends BasePage implements CatalogPage {
+public class ShopifyPage extends StorePage implements CatalogPage {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    private static final Set<String> PALABRAS_HOMBRE  = Set.of(
-            "hombre","hombres","masculino","masculina","men","man","male","caballero","varones");
-    private static final Set<String> PALABRAS_MUJER   = Set.of(
-            "mujer","mujeres","femenino","femenina","women","woman","female","dama","damas");
-    private static final Set<String> PALABRAS_UNISEX  = Set.of(
-            "unisex","unisexo","neutro");
-
-    private final String sitio;
-    private final String baseUrl;
-    private final double precioMin;
-    private final double precioMax;
-
     public ShopifyPage(Page page, int timeoutMs, String sitio, String baseUrl,
                        double precioMin, double precioMax) {
-        super(page, timeoutMs);
-        this.sitio    = sitio;
-        this.baseUrl  = baseUrl;
-        this.precioMin = precioMin;
-        this.precioMax = precioMax;
+        super(page, timeoutMs, sitio, baseUrl, precioMin, precioMax);
     }
 
     public List<Product> scrapeAll() {
@@ -77,31 +60,12 @@ public class ShopifyPage extends BasePage implements CatalogPage {
             if (!variants.isArray() || variants.isEmpty()) return Optional.empty();
             JsonNode v = variants.get(0);
 
-            Optional<Double> precio = parsePrecio(v.path("price").asText(""));
-            if (precio.isEmpty() || precio.get() < precioMin || precio.get() > precioMax) return Optional.empty();
+            Optional<Double> precio = precioEnRango(v.path("price").asText(""));
+            if (precio.isEmpty()) return Optional.empty();
 
-            String compareStr = v.path("compare_at_price").asText("");
-            if ("null".equals(compareStr)) compareStr = "";
-            OptionalDouble compareParsed = PrecioParser.parse(compareStr);
-            Double compare = compareParsed.isPresent() ? compareParsed.getAsDouble() : null;
-
-            String categoria = prod.path("product_type").asText("").trim();
-
-            String genero = detectarGenero(prod, nombre);
-
-            List<String> talles = extraerTalles(prod, variants);
-
-            return Optional.of(Product.builder()
-                    .sitio(sitio)
-                    .nombre(nombre)
-                    .precio(precio.get())
-                    .precioOriginal(compare)
-                    .url(url)
-                    .imagenUrl(img)
-                    .categoria(categoria)
-                    .genero(genero)
-                    .talles(talles)
-                    .build());
+            return Optional.of(producto(nombre, precio.get(), CatalogJson.precioComparado(v), url, img,
+                    prod.path("product_type").asText("").trim(), detectarGenero(prod, nombre),
+                    extraerTalles(prod, variants)));
         } catch (Exception e) { return Optional.empty(); }
     }
 
@@ -112,14 +76,8 @@ public class ShopifyPage extends BasePage implements CatalogPage {
                 String name = opt.path("name").asText("").toLowerCase();
                 if (esTalleOption(name)) {
                     JsonNode vals = opt.path("values");
-                    if (vals.isArray() && !vals.isEmpty()) {
-                        List<String> talles = new ArrayList<>();
-                        for (JsonNode val : vals) {
-                            String t = val.asText("").trim();
-                            if (!t.isBlank()) talles.add(t);
-                        }
-                        if (!talles.isEmpty()) return talles;
-                    }
+                    List<String> talles = CatalogJson.textosNoVacios(vals);
+                    if (!talles.isEmpty()) return talles;
                 }
             }
         }
@@ -137,14 +95,7 @@ public class ShopifyPage extends BasePage implements CatalogPage {
         if (options.isArray() && !options.isEmpty()) {
             JsonNode firstOpt = options.get(0);
             JsonNode vals = firstOpt.path("values");
-            if (vals.isArray() && !vals.isEmpty()) {
-                List<String> talles = new ArrayList<>();
-                for (JsonNode val : vals) {
-                    String t = val.asText("").trim();
-                    if (!t.isBlank()) talles.add(t);
-                }
-                return talles;
-            }
+            if (vals.isArray() && !vals.isEmpty()) return CatalogJson.textosNoVacios(vals);
         }
 
         return List.of();
@@ -159,26 +110,7 @@ public class ShopifyPage extends BasePage implements CatalogPage {
         List<String> fuentes = new ArrayList<>();
         fuentes.add(prod.path("product_type").asText("").toLowerCase());
         fuentes.add(nombre.toLowerCase());
-        JsonNode tags = prod.path("tags");
-        if (tags.isArray()) {
-            for (JsonNode t : tags) fuentes.add(t.asText("").toLowerCase());
-        } else if (tags.isTextual()) {
-            Arrays.stream(tags.asText("").split(","))
-                    .map(String::trim).map(String::toLowerCase)
-                    .forEach(fuentes::add);
-        }
-
-        for (String fuente : fuentes) {
-            if (PALABRAS_UNISEX.stream().anyMatch(fuente::contains)) return "unisex";
-        }
-        boolean esHombre = fuentes.stream().anyMatch(f ->
-                PALABRAS_HOMBRE.stream().anyMatch(f::contains));
-        boolean esMujer  = fuentes.stream().anyMatch(f ->
-                PALABRAS_MUJER.stream().anyMatch(f::contains));
-
-        if (esHombre && !esMujer)  return "hombre";
-        if (esMujer  && !esHombre) return "mujer";
-        if (esHombre && esMujer)   return "unisex";
-        return "";
+        CatalogJson.agregarTags(fuentes, prod.path("tags"));
+        return CatalogJson.genero(fuentes);
     }
 }
