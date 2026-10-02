@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * Invoked both from {@code ResultAggregator.agregar} (post-scrape) and from the {@code fromDB}
@@ -77,7 +78,7 @@ public class FinanciacionEnricher {
         return p.toBuilder()
                 .rubro(p.rubro() != null ? p.rubro() : "indumentaria")
                 .finan(finan)
-                .subCategoria(p.subCategoria() != null ? p.subCategoria() : "")
+                .subCategoria(StringUtils.defaultString(p.subCategoria()))
                 .build();
     }
 }

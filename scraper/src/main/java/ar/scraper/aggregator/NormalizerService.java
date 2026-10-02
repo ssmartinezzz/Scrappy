@@ -41,7 +41,7 @@ public class NormalizerService {
     }
 
     private Product normalizarProducto(Product p) {
-        String nombre = p.nombre() != null ? p.nombre() : "";
+        String nombre = StringUtils.defaultString(p.nombre());
         String cat    = categoryClassifier.normalizarCategoria(p.categoria(), nombre);
         String genero = genderResolver.resolver(p.genero(), nombre, cat);
         List<String> talles = sizeNormalizer.normalizar(p.talles());
