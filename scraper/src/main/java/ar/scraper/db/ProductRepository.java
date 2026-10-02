@@ -24,7 +24,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import javax.sql.DataSource;
-import java.sql.Array;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -46,7 +45,6 @@ class ProductRepository implements ProductPort {
     private static final DateTimeFormatter DT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
-    private final DataSource dataSource;
     private final JdbcTemplate jdbc;
     private final RubroResolver rubroResolver;
     private final SiteRegistry siteRegistry;
@@ -55,7 +53,6 @@ class ProductRepository implements ProductPort {
     ProductRepository(DataSource dataSource, SiteRegistry siteRegistry, RubroResolver rubroResolver,
                       PlatformTransactionManager txManager) {
         this.tx = new TransactionTemplate(txManager);
-        this.dataSource = dataSource;
         this.jdbc = new JdbcTemplate(dataSource);
         this.rubroResolver = rubroResolver;
         this.siteRegistry = siteRegistry;
@@ -86,21 +83,22 @@ class ProductRepository implements ProductPort {
         String now   = LocalDateTime.now().format(DT);
         String today = LocalDate.now().format(DATE);
 
-        try (Connection c = dataSource.getConnection()) {
+        try {
             String rowsJson = buildRowsJson(productos, now, today, true);
 
             int nuevos = 0, actualizados = 0, sinCambios = 0;
-            try (PreparedStatement ps = c.prepareStatement("SELECT sp_upsert_run(?::jsonb, ?)")) {
+            List<String> filas = new ArrayList<>();
+            jdbc.query("SELECT sp_upsert_run(?::jsonb, ?)", ps -> {
                 ps.setString(1, rowsJson);
                 ps.setBoolean(2, true);
-                try (ResultSet rs = ps.executeQuery()) {
-                    if (rs.next()) {
-                        JsonNode stats = MAPPER.readTree(rs.getString(1));
-                        nuevos       = stats.path("nuevos").asInt(0);
-                        actualizados = stats.path("actualizados").asInt(0);
-                        sinCambios   = stats.path("sinCambios").asInt(0);
-                    }
-                }
+            }, rs -> {
+                filas.add(rs.getString(1));
+            });
+            if (!filas.isEmpty()) {
+                JsonNode stats = MAPPER.readTree(filas.get(0));
+                nuevos       = stats.path("nuevos").asInt(0);
+                actualizados = stats.path("actualizados").asInt(0);
+                sinCambios   = stats.path("sinCambios").asInt(0);
             }
 
             // El alcance del soft-delete NO sale de la lista de sitios pedidos: un sitio cuyo
@@ -109,7 +107,7 @@ class ProductRepository implements ProductPort {
             Alcance alcance = corrida != null
                     ? alcanceDelRun(corrida)
                     : alcanceDelBatch(productos);
-            int desactivados = softDeleteAusentes(c, alcance.urls(), now, alcance.sitios());
+            int desactivados = softDeleteAusentes(alcance.urls(), now, alcance.sitios());
 
             purgarHistorialViejo();
 
@@ -214,18 +212,13 @@ class ProductRepository implements ProductPort {
         return new Alcance(urls, sitios);
     }
 
-    private int softDeleteAusentes(Connection c, Set<String> urlsPresentes, String now,
-                                   Set<String> sitiosPresentes) throws SQLException {
+    private int softDeleteAusentes(Set<String> urlsPresentes, String now, Set<String> sitiosPresentes) {
         if (sitiosPresentes.isEmpty()) return 0;
-        try (PreparedStatement ps = c.prepareStatement("SELECT sp_soft_delete_ausentes(?, ?, ?)")) {
-            Array urlArray = c.createArrayOf("text", urlsPresentes.toArray());
-            ps.setArray(1, urlArray);
+        return jdbc.query("SELECT sp_soft_delete_ausentes(?, ?, ?)", ps -> {
+            ps.setArray(1, ps.getConnection().createArrayOf("text", urlsPresentes.toArray()));
             ps.setString(2, now);
-            ps.setArray(3, c.createArrayOf("text", sitiosPresentes.toArray()));
-            try (ResultSet rs = ps.executeQuery()) {
-                return rs.next() ? rs.getInt(1) : 0;
-            }
-        }
+            ps.setArray(3, ps.getConnection().createArrayOf("text", sitiosPresentes.toArray()));
+        }, rs -> rs.next() ? rs.getInt(1) : 0);
     }
 
     private void purgarHistorialViejo() {
@@ -251,13 +244,13 @@ class ProductRepository implements ProductPort {
     private void upsertParcialEnTransaccion(List<Product> productos, TransactionStatus status) {
         String now   = LocalDateTime.now().format(DT);
         String today = LocalDate.now().format(DATE);
-        try (Connection c = dataSource.getConnection()) {
+        try {
             String rowsJson = buildRowsJson(productos, now, today, false);
-            try (PreparedStatement ps = c.prepareStatement("SELECT sp_upsert_run(?::jsonb, ?)")) {
+            jdbc.query("SELECT sp_upsert_run(?::jsonb, ?)", ps -> {
                 ps.setString(1, rowsJson);
                 ps.setBoolean(2, false);
-                ps.executeQuery().close();
-            }
+            }, rs -> {
+            });
         } catch (Exception e) {
             LOG.warn("[DB] Error en upsertParcial: {}", e.getMessage());
             status.setRollbackOnly();

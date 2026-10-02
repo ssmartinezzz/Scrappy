@@ -283,6 +283,14 @@ la excepción sale en vez del centinela.
 persistir aunque el job falle), los seeders de arranque y `PasswordResetService.despachar`
 (token + mail).
 
+**Acceso: `JdbcTemplate`, nunca `dataSource.getConnection()` a mano.** Cada adaptador de
+`db/` arma su `new JdbcTemplate(dataSource)` en el constructor, sobre el mismo proxy, así
+que entra en la transacción del llamador. `Sql.traducir` convierte tanto `SQLException`
+como `DataAccessException` en `PersistenciaException`. Las únicas conexiones crudas que
+quedan: `DbNotificationListener` (LISTEN/NOTIFY necesita un `PGConnection` dedicado) y
+`ProductRepository.obtenerProducto` (`jdbc.execute(ConnectionCallback)`: fila + dos hijas
+en una sola conexión). El porqué está en [`ARCHITECTURE.md`](./ARCHITECTURE.md).
+
 ### Lecturas
 
 **`/api/data` y `/api/facets` consultan SQL** desde `sql-catalog-filtering`:
