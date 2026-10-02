@@ -9,18 +9,17 @@ import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
 import java.util.StringJoiner;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
 
 /** Empties every snapshot-derived cache when the catalog readers are served changes. */
 @Component
+@RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 class CatalogCacheEvictor {
 
     private static final Logger LOG = LoggerFactory.getLogger(CatalogCacheEvictor.class);
 
     private final CacheManager cacheManager;
-
-    CatalogCacheEvictor(CacheManager cacheManager) {
-        this.cacheManager = cacheManager;
-    }
 
     @EventListener
     void alCambiarElCatalogo(CatalogoActualizado evento) {

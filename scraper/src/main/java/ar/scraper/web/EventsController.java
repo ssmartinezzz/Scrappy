@@ -12,20 +12,16 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api")
+@RequiredArgsConstructor
 public class EventsController {
 
     private final StatusStreams streams;
     private final ScrapeStatusView scrapeStatus;
     private final MlEstadoView mlEstado;
-
-    public EventsController(StatusStreams streams, ScrapeStatusView scrapeStatus, MlEstadoView mlEstado) {
-        this.streams = streams;
-        this.scrapeStatus = scrapeStatus;
-        this.mlEstado = mlEstado;
-    }
 
     @GetMapping(value = "/events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public ResponseEntity<SseEmitter> events(Authentication auth) {

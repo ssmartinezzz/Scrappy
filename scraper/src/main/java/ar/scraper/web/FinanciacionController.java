@@ -21,6 +21,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import lombok.RequiredArgsConstructor;
 
 /**
  * Activate/edit/delete of the active preset trigger a SYNCHRONOUS in-memory recompute (cheap O(n)
@@ -28,6 +29,7 @@ import java.util.Map;
  */
 @RestController
 @RequestMapping("/api")
+@RequiredArgsConstructor
 public class FinanciacionController {
 
     private final ScraperService service;
@@ -36,20 +38,6 @@ public class FinanciacionController {
     private final ar.scraper.catalog.HistorialPort historial;
     private final ar.scraper.catalog.ProductPort productos;
     private final ar.scraper.aggregator.ResultAggregator aggregator;
-
-    public FinanciacionController(ScraperService service,
-                          IndiceService indiceService,
-                          ar.scraper.financiacion.PresetPort presets,
-                          ar.scraper.catalog.HistorialPort historial,
-                          ar.scraper.catalog.ProductPort productos,
-                          ar.scraper.aggregator.ResultAggregator aggregator) {
-        this.service = service;
-        this.indiceService = indiceService;
-        this.presets = presets;
-        this.historial = historial;
-        this.productos = productos;
-        this.aggregator = aggregator;
-    }
 
     @GetMapping("/financiacion/presets")
     public ResponseEntity<ApiResponse<FinanciacionDtos.Presets>> listarPresets() {

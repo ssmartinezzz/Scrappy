@@ -9,20 +9,16 @@ import org.springframework.web.bind.annotation.*;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api")
+@RequiredArgsConstructor
 public class ScrapeController {
 
     private final ScraperService service;
     private final ScraperConfig config;
     private final ScrapeStatusView statusView;
-
-    public ScrapeController(ScraperService service, ScraperConfig config, ScrapeStatusView statusView) {
-        this.service = service;
-        this.config = config;
-        this.statusView = statusView;
-    }
 
     @GetMapping("/status")
     public ResponseEntity<ApiResponse<ScrapeDtos.Status>> status() {

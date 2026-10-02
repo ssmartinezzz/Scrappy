@@ -9,23 +9,17 @@ import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api")
+@RequiredArgsConstructor
 public class TendenciasController {
 
     private final ScraperService service;
     private final CategoriaStatsPort categoriaStats;
     private final HistorialPort historial;
     private final ar.scraper.aggregator.ResultAggregator aggregator;
-
-    public TendenciasController(ScraperService service, CategoriaStatsPort categoriaStats,
-                                HistorialPort historial, ar.scraper.aggregator.ResultAggregator aggregator) {
-        this.service = service;
-        this.categoriaStats = categoriaStats;
-        this.historial = historial;
-        this.aggregator = aggregator;
-    }
 
     @GetMapping("/tendencias")
     public ResponseEntity<ApiResponse<JsonNode>> tendencias() {

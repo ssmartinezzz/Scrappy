@@ -18,21 +18,16 @@ import ar.scraper.security.ActorResolver;
 import ar.scraper.security.Sujeto;
 
 import java.util.Map;
+import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api")
+@RequiredArgsConstructor
 public class FavoritosController {
 
     private final FavoritosPort favoritos;
     private final ProductPort productos;
     private final ActorResolver actorResolver;
-
-    public FavoritosController(FavoritosPort favoritos, ProductPort productos,
-                       ActorResolver actorResolver) {
-        this.favoritos = favoritos;
-        this.productos = productos;
-        this.actorResolver = actorResolver;
-    }
 
     @GetMapping("/favoritos")
     public ResponseEntity<ApiResponse<List<ObjectNode>>> getFavoritos() {

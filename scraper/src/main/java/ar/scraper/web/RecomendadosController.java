@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
+import lombok.RequiredArgsConstructor;
 
 /**
  * The shared taste signal lives in the outfit_feedback_item table (slot="catalog" here), which
@@ -30,22 +31,13 @@ import org.apache.commons.lang3.StringUtils;
  */
 @RestController
 @RequestMapping("/api")
+@RequiredArgsConstructor
 public class RecomendadosController {
 
     private final ScraperService service;
     private final ar.scraper.feedback.FeedbackPort feedback;
     private final RecommendationService recommendationService;
     private final ar.scraper.security.ActorResolver actorResolver;
-
-    public RecomendadosController(ScraperService service,
-                          ar.scraper.feedback.FeedbackPort feedback,
-                          RecommendationService recommendationService,
-                          ar.scraper.security.ActorResolver actorResolver) {
-        this.service = service;
-        this.feedback = feedback;
-        this.recommendationService = recommendationService;
-        this.actorResolver = actorResolver;
-    }
 
     /**
      * Duplicates the unisex-bridge + relaxation SHAPE of OutfitService.armar()/generoElegible() on

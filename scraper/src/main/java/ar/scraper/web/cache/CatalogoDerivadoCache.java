@@ -10,18 +10,15 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import lombok.RequiredArgsConstructor;
 
 /** Views derived from the in-memory snapshot, cached per snapshot version. */
 @Component
+@RequiredArgsConstructor
 public class CatalogoDerivadoCache {
 
     private final CatalogSnapshotPort snapshot;
     private final GroupingService grouping;
-
-    public CatalogoDerivadoCache(CatalogSnapshotPort snapshot, GroupingService grouping) {
-        this.snapshot = snapshot;
-        this.grouping = grouping;
-    }
 
     /**
      * {@code q}, {@code categoria} and {@code rubro} are lower-cased and blank-normalized, not

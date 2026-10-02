@@ -15,18 +15,15 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
+import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api")
+@RequiredArgsConstructor
 public class SuplementosController {
 
     private final ScraperService service;
     private final OutfitService outfitService;
-
-    public SuplementosController(ScraperService service, OutfitService outfitService) {
-        this.service = service;
-        this.outfitService = outfitService;
-    }
 
     /** Supplement subtypes in combo-assembly order. */
     @GetMapping("/suplementos/tipos")
