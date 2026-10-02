@@ -401,9 +401,17 @@ public class VtexPage extends BasePage implements CatalogPage {
             String genero = extraerGeneroVtex(prod, nombre);
             List<String> talles = extraerTallesVtex(prod);
 
-            return Optional.of(new Product(
-                    sitio, nombre, p, precioCompare,
-                    url, img, categoria, genero, talles));
+            return Optional.of(Product.builder()
+                    .sitio(sitio)
+                    .nombre(nombre)
+                    .precio(p)
+                    .precioOriginal(precioCompare)
+                    .url(url)
+                    .imagenUrl(img)
+                    .categoria(categoria)
+                    .genero(genero)
+                    .talles(talles)
+                    .build());
         } catch (Exception e) {
             return Optional.empty();
         }
@@ -467,9 +475,17 @@ public class VtexPage extends BasePage implements CatalogPage {
 
             List<String> talles = extraerTallesVtex(prod);
 
-            return Optional.of(new Product(
-                    sitio, nombre, p, precioCompare,
-                    url, img, categoria, genero, talles));
+            return Optional.of(Product.builder()
+                    .sitio(sitio)
+                    .nombre(nombre)
+                    .precio(p)
+                    .precioOriginal(precioCompare)
+                    .url(url)
+                    .imagenUrl(img)
+                    .categoria(categoria)
+                    .genero(genero)
+                    .talles(talles)
+                    .build());
         } catch (Exception e) {
             return Optional.empty();
         }

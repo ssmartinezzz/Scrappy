@@ -214,11 +214,27 @@ public class ResultAggregator {
                 result.add(p);
                 continue;
             }
-            result.add(new Product(
-                    p.sitio(), p.nombre(), p.precio(), p.precioOriginal(), p.url(), p.imagenUrl(),
-                    c.categoria(), c.genero(), p.talles(), p.ml(), c.marca(), c.rubro(),
-                    p.gymrat(), p.marcaPremium(), p.senal(), p.finan(), p.cantidadUnidades(),
-                    c.subCategoria(), p.visual()));
+            result.add(Product.builder()
+                    .sitio(p.sitio())
+                    .nombre(p.nombre())
+                    .precio(p.precio())
+                    .precioOriginal(p.precioOriginal())
+                    .url(p.url())
+                    .imagenUrl(p.imagenUrl())
+                    .categoria(c.categoria())
+                    .genero(c.genero())
+                    .talles(p.talles())
+                    .ml(p.ml())
+                    .marca(c.marca())
+                    .rubro(c.rubro())
+                    .gymrat(p.gymrat())
+                    .marcaPremium(p.marcaPremium())
+                    .senal(p.senal())
+                    .finan(p.finan())
+                    .cantidadUnidades(p.cantidadUnidades())
+                    .subCategoria(c.subCategoria())
+                    .visual(p.visual())
+                    .build());
         }
         return result;
     }
@@ -446,10 +462,26 @@ public class ResultAggregator {
 
     /** Copia un producto reemplazando solo sus dos señales derivadas. */
     private static Product conSenales(Product p, Product.SenalCompra senal, Product.SenalFinanciacion finan) {
-        return new Product(
-                p.sitio(), p.nombre(), p.precio(), p.precioOriginal(), p.url(), p.imagenUrl(),
-                p.categoria(), p.genero(), p.talles(), p.ml(), p.marca(), p.rubro(),
-                p.gymrat(), p.marcaPremium(), senal, finan,
-                p.cantidadUnidades(), p.subCategoria(), p.visual());
+        return Product.builder()
+                .sitio(p.sitio())
+                .nombre(p.nombre())
+                .precio(p.precio())
+                .precioOriginal(p.precioOriginal())
+                .url(p.url())
+                .imagenUrl(p.imagenUrl())
+                .categoria(p.categoria())
+                .genero(p.genero())
+                .talles(p.talles())
+                .ml(p.ml())
+                .marca(p.marca())
+                .rubro(p.rubro())
+                .gymrat(p.gymrat())
+                .marcaPremium(p.marcaPremium())
+                .senal(senal)
+                .finan(finan)
+                .cantidadUnidades(p.cantidadUnidades())
+                .subCategoria(p.subCategoria())
+                .visual(p.visual())
+                .build();
     }
 }

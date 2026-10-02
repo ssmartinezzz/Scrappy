@@ -272,17 +272,21 @@ public class InproPage extends BasePage implements CatalogPage {
         // compare_at_price == price en TODO el catálogo sin descuento.
         if (compare != null && compare > precio) precioOriginal = compare;
 
-        return Optional.of(new Product(
-                sitio, nombre, precio, precioOriginal,
-                base + "/productos/" + handle,
-                primeraImagen(n.path("images")),
-                categoriaCruda(n.path("categories")),
-                "",
-                List.of(),
-                Product.MlScore.EMPTY,
-                "",
-                "oficina",
-                false));
+        return Optional.of(Product.builder()
+                .sitio(sitio)
+                .nombre(nombre)
+                .precio(precio)
+                .precioOriginal(precioOriginal)
+                .url(base + "/productos/" + handle)
+                .imagenUrl(primeraImagen(n.path("images")))
+                .categoria(categoriaCruda(n.path("categories")))
+                .genero("")
+                .talles(List.of())
+                .ml(Product.MlScore.EMPTY)
+                .marca("")
+                .rubro("oficina")
+                .gymrat(false)
+                .build());
     }
 
     private static JsonNode mejorVariante(JsonNode variants) {

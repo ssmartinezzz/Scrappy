@@ -74,9 +74,26 @@ public class NormalizerService {
         int cantidadUnidades  = packQuantityDetector.detectar(nombre, cat);
         String subCategoria   = subcategoryResolver.resolver(nombre, cat);
 
-        return new Product(p.sitio(), nombre, p.precio(), p.precioOriginal(),
-                p.url(), p.imagenUrl(), cat, genero, talles,
-                p.ml(), marca, rubro, gymrat, marcaPremium, p.senal(),
-                p.finan(), cantidadUnidades, subCategoria, p.visual());
+        return Product.builder()
+                .sitio(p.sitio())
+                .nombre(nombre)
+                .precio(p.precio())
+                .precioOriginal(p.precioOriginal())
+                .url(p.url())
+                .imagenUrl(p.imagenUrl())
+                .categoria(cat)
+                .genero(genero)
+                .talles(talles)
+                .ml(p.ml())
+                .marca(marca)
+                .rubro(rubro)
+                .gymrat(gymrat)
+                .marcaPremium(marcaPremium)
+                .senal(p.senal())
+                .finan(p.finan())
+                .cantidadUnidades(cantidadUnidades)
+                .subCategoria(subCategoria)
+                .visual(p.visual())
+                .build();
     }
 }
