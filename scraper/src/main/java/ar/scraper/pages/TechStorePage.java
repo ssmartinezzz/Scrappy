@@ -16,26 +16,18 @@ import org.apache.commons.lang3.StringUtils;
  * (static.compragamer.com/productos), not scraped from the DOM MAXIMUS — ASP.NET custom, URL:
  * /Productos/{category}.aspx.
  */
-public class TechStorePage extends BasePage implements CatalogPage {
+public class TechStorePage extends StorePage implements CatalogPage {
 
     private static final Logger log = LoggerFactory.getLogger(TechStorePage.class);
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    private final String sitio;
-    private final String baseUrl;
-    private final double precioMin;
-    private final double precioMax;
     private final TechStoreType tipo;
 
     public enum TechStoreType { MAXIMUS, COMPRAGAMER, GENERIC }
 
     public TechStorePage(Page page, int timeoutMs, String sitio, String baseUrl,
                          double precioMin, double precioMax, TechStoreType tipo) {
-        super(page, timeoutMs);
-        this.sitio     = sitio;
-        this.baseUrl   = baseUrl.replaceAll("/+$", "");
-        this.precioMin = precioMin;
-        this.precioMax = precioMax;
+        super(page, timeoutMs, sitio, sinBarraFinal(baseUrl), precioMin, precioMax);
         this.tipo      = tipo;
     }
 
@@ -263,21 +255,8 @@ public class TechStorePage extends BasePage implements CatalogPage {
                 ? ""
                 : baseUrl + MAXIMUS_IMAGE_PATH + itemCode + MAXIMUS_IMAGE_SUFFIX;
 
-        return Optional.of(Product.builder()
-                .sitio(sitio)
-                .nombre(nombre)
-                .precio(precio)
-                .precioOriginal(precioOriginal)
-                .url(url)
-                .imagenUrl(img)
-                .categoria("")
-                .genero("")
-                .talles(List.of())
-                .ml(Product.MlScore.EMPTY)
-                .marca("")
-                .rubro("tecnologia")
-                .gymrat(false)
-                .build());
+        return Optional.of(tecnologia(sitio, nombre, precio, precioOriginal, url, img,
+                ""));
     }
 
     /**
@@ -442,21 +421,7 @@ public class TechStorePage extends BasePage implements CatalogPage {
         String base = baseUrl == null ? "" : baseUrl.replaceAll("/+$", "");
         String url = base + "/producto/" + slugCompraGamer(nombre) + "_" + idProducto;
 
-        return Optional.of(Product.builder()
-                .sitio(sitio)
-                .nombre(nombre)
-                .precio(precio)
-                .precioOriginal(precioOriginal)
-                .url(url)
-                .imagenUrl(img)
-                .categoria(categoria)
-                .genero("")
-                .talles(List.of())
-                .ml(Product.MlScore.EMPTY)
-                .marca("")
-                .rubro("tecnologia")
-                .gymrat(false)
-                .build());
+        return Optional.of(tecnologia(sitio, nombre, precio, precioOriginal, url, img, categoria));
     }
 
     /**
@@ -512,21 +477,8 @@ public class TechStorePage extends BasePage implements CatalogPage {
 
         String cat = normalizarCat(nombre);
 
-        return Optional.of(Product.builder()
-                .sitio(sitio)
-                .nombre(nombre)
-                .precio(precio.get())
-                .precioOriginal(precioOrig)
-                .url(url)
-                .imagenUrl(img)
-                .categoria(cat)
-                .genero("")
-                .talles(List.of())
-                .ml(Product.MlScore.EMPTY)
-                .marca("")
-                .rubro("tecnologia")
-                .gymrat(false)
-                .build());
+        return Optional.of(tecnologia(sitio, nombre, precio.get(), precioOrig, url, img,
+                cat));
     }
 
     static Optional<Double> parsePrecioTech(String raw) {

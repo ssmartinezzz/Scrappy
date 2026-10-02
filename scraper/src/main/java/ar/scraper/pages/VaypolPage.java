@@ -9,25 +9,17 @@ import com.microsoft.playwright.Page;
 import java.util.*;
 import org.apache.commons.lang3.StringUtils;
 
-public class VaypolPage extends BasePage implements CatalogPage {
+public class VaypolPage extends StorePage implements CatalogPage {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final int MAX_PAGES = 250;
     private static final int WAIT_MS   = 400;
 
-    private final String sitio;
-    private final String baseUrl;
-    private final double precioMin;
-    private final double precioMax;
 
     public VaypolPage(Page page, int timeoutMs,
                       String sitio, String baseUrl,
                       double precioMin, double precioMax) {
-        super(page, timeoutMs);
-        this.sitio     = sitio;
-        this.baseUrl   = baseUrl.replaceAll("/+$", "");
-        this.precioMin = precioMin;
-        this.precioMax = precioMax;
+        super(page, timeoutMs, sitio, sinBarraFinal(baseUrl), precioMin, precioMax);
     }
 
 
