@@ -168,10 +168,21 @@ public class QloudPage extends BasePage implements CatalogPage {
                 }
             }
 
-            result.add(new Product(
-                    sitio, nombre, precio, precioOriginal,
-                    url, img, categoriaHint, "",
-                    List.of(), Product.MlScore.EMPTY, "", "tecnologia", false));
+            result.add(Product.builder()
+                    .sitio(sitio)
+                    .nombre(nombre)
+                    .precio(precio)
+                    .precioOriginal(precioOriginal)
+                    .url(url)
+                    .imagenUrl(img)
+                    .categoria(categoriaHint)
+                    .genero("")
+                    .talles(List.of())
+                    .ml(Product.MlScore.EMPTY)
+                    .marca("")
+                    .rubro("tecnologia")
+                    .gymrat(false)
+                    .build());
         }
         return result;
     }

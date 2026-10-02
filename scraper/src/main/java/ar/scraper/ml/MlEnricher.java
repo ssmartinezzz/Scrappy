@@ -88,13 +88,27 @@ public class MlEnricher {
                     valorScoreOPrevio(s.path("color").asText(""), visualPrevio.colorDominante())
             );
 
-            Product enriched = new Product(
-                p.sitio(), p.nombre(), p.precio(), p.precioOriginal(),
-                p.url(), p.imagenUrl(), catFinal, generoFinal, p.talles(),
-                ml, p.marca(), p.rubro() != null ? p.rubro() : "indumentaria",
-                p.gymrat(), p.marcaPremium(), p.senal(), p.finan(), p.cantidadUnidades(),
-                p.subCategoria() != null ? p.subCategoria() : "", visual
-            );
+            Product enriched = Product.builder()
+                    .sitio(p.sitio())
+                    .nombre(p.nombre())
+                    .precio(p.precio())
+                    .precioOriginal(p.precioOriginal())
+                    .url(p.url())
+                    .imagenUrl(p.imagenUrl())
+                    .categoria(catFinal)
+                    .genero(generoFinal)
+                    .talles(p.talles())
+                    .ml(ml)
+                    .marca(p.marca())
+                    .rubro(p.rubro() != null ? p.rubro() : "indumentaria")
+                    .gymrat(p.gymrat())
+                    .marcaPremium(p.marcaPremium())
+                    .senal(p.senal())
+                    .finan(p.finan())
+                    .cantidadUnidades(p.cantidadUnidades())
+                    .subCategoria(p.subCategoria() != null ? p.subCategoria() : "")
+                    .visual(visual)
+                    .build();
             result.add(enriched);
             enriquecidos++;
         }

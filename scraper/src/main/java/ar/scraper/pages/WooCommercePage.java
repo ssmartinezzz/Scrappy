@@ -139,9 +139,17 @@ public class WooCommercePage extends BasePage implements CatalogPage {
                     precioOrig = pOrig.get();
             }
 
-            return Optional.of(new Product(
-                    sitio, nombre, precio.get(), precioOrig,
-                    url, img, categoria, genero, List.of()));
+            return Optional.of(Product.builder()
+                    .sitio(sitio)
+                    .nombre(nombre)
+                    .precio(precio.get())
+                    .precioOriginal(precioOrig)
+                    .url(url)
+                    .imagenUrl(img)
+                    .categoria(categoria)
+                    .genero(genero)
+                    .talles(List.of())
+                    .build());
 
         } catch (Exception e) {
             return Optional.empty();

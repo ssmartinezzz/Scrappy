@@ -323,13 +323,27 @@ public class ScraperService implements CatalogSnapshotPort {
         if (foto == null) return null;
         List<Product> parcheados = foto.productos().stream()
                 .map(p -> url.equals(p.url())
-                        ? new Product(p.sitio(), p.nombre(), p.precio(), p.precioOriginal(),
-                                p.url(), p.imagenUrl(),
-                                noVacio(categoria, p.categoria()), noVacio(genero, p.genero()),
-                                p.talles(), p.ml(), noVacio(marca, p.marca()), noVacio(rubro, p.rubro()),
-                                p.gymrat(), p.marcaPremium(), p.senal(), p.finan(),
-                                p.cantidadUnidades(), noVacio(subCategoria, p.subCategoria()),
-                                p.visual())
+                        ? Product.builder()
+                                .sitio(p.sitio())
+                                .nombre(p.nombre())
+                                .precio(p.precio())
+                                .precioOriginal(p.precioOriginal())
+                                .url(p.url())
+                                .imagenUrl(p.imagenUrl())
+                                .categoria(noVacio(categoria, p.categoria()))
+                                .genero(noVacio(genero, p.genero()))
+                                .talles(p.talles())
+                                .ml(p.ml())
+                                .marca(noVacio(marca, p.marca()))
+                                .rubro(noVacio(rubro, p.rubro()))
+                                .gymrat(p.gymrat())
+                                .marcaPremium(p.marcaPremium())
+                                .senal(p.senal())
+                                .finan(p.finan())
+                                .cantidadUnidades(p.cantidadUnidades())
+                                .subCategoria(noVacio(subCategoria, p.subCategoria()))
+                                .visual(p.visual())
+                                .build()
                         : p)
                 .toList();
         return new AggregatedResult(parcheados, foto.conteoPorSitio(), foto.erroresPorSitio(),

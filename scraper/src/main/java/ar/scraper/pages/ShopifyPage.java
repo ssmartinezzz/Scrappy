@@ -91,8 +91,17 @@ public class ShopifyPage extends BasePage implements CatalogPage {
 
             List<String> talles = extraerTalles(prod, variants);
 
-            return Optional.of(new Product(sitio, nombre, precio.get(), compare,
-                    url, img, categoria, genero, talles));
+            return Optional.of(Product.builder()
+                    .sitio(sitio)
+                    .nombre(nombre)
+                    .precio(precio.get())
+                    .precioOriginal(compare)
+                    .url(url)
+                    .imagenUrl(img)
+                    .categoria(categoria)
+                    .genero(genero)
+                    .talles(talles)
+                    .build());
         } catch (Exception e) { return Optional.empty(); }
     }
 

@@ -155,10 +155,21 @@ public class FullH4rdPage extends BasePage implements CatalogPage {
             var mMeta = META.matcher(card);
             if (mMeta.find()) categoria = decodeText(mMeta.group(1));
 
-            result.add(new Product(
-                    sitio, nombre, precio.get(), precioOriginal,
-                    url, img, categoria, "",
-                    List.of(), Product.MlScore.EMPTY, "", "tecnologia", false));
+            result.add(Product.builder()
+                    .sitio(sitio)
+                    .nombre(nombre)
+                    .precio(precio.get())
+                    .precioOriginal(precioOriginal)
+                    .url(url)
+                    .imagenUrl(img)
+                    .categoria(categoria)
+                    .genero("")
+                    .talles(List.of())
+                    .ml(Product.MlScore.EMPTY)
+                    .marca("")
+                    .rubro("tecnologia")
+                    .gymrat(false)
+                    .build());
         }
         return result;
     }

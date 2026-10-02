@@ -1,8 +1,10 @@
 package ar.scraper.model;
 
 import java.util.List;
+import lombok.Builder;
 import org.apache.commons.lang3.StringUtils;
 
+@Builder(toBuilder = true)
 public record Product(
         String sitio,
         String nombre,
@@ -28,6 +30,13 @@ public record Product(
                                // value is preserved (RELY-001; never wipe to "" on a run/backfill
                                // that didn't gate this product into image classification)
 ) implements Comparable<Product> {
+
+    public static ProductBuilder builder() {
+        return new ProductBuilder()
+                .ml(MlScore.EMPTY).marca("").rubro("indumentaria")
+                .senal(SenalCompra.EMPTY).finan(SenalFinanciacion.EMPTY)
+                .cantidadUnidades(1).subCategoria("").visual(VisualAttrs.EMPTY);
+    }
 
     public Product(String sitio, String nombre, double precio, Double precioOriginal,
                    String url, String imagenUrl, String categoria, String genero,

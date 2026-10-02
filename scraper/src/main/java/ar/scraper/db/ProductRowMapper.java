@@ -60,15 +60,26 @@ final class ProductRowMapper {
 
         Double precioOrig = rs.getObject("precio_orig", Double.class);
 
-        return new Product(
-                sitio, rs.getString("nombre"),
-                rs.getDouble("precio"), precioOrig,
-                rs.getString("url"), rs.getString("imagen_url"),
-                rs.getString("categoria"), rs.getString("genero"),
-                talles, ml, marca != null ? marca : "",
-                StringUtils.isNotBlank(rubro) ? rubro : "indumentaria",
-                gymrat, marcaPremium, Product.SenalCompra.EMPTY,
-                Product.SenalFinanciacion.EMPTY, cantidadUnidades,
-                subCategoria != null ? subCategoria : "", visual);
+        return Product.builder()
+                .sitio(sitio)
+                .nombre(rs.getString("nombre"))
+                .precio(rs.getDouble("precio"))
+                .precioOriginal(precioOrig)
+                .url(rs.getString("url"))
+                .imagenUrl(rs.getString("imagen_url"))
+                .categoria(rs.getString("categoria"))
+                .genero(rs.getString("genero"))
+                .talles(talles)
+                .ml(ml)
+                .marca(marca != null ? marca : "")
+                .rubro(StringUtils.isNotBlank(rubro) ? rubro : "indumentaria")
+                .gymrat(gymrat)
+                .marcaPremium(marcaPremium)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(Product.SenalFinanciacion.EMPTY)
+                .cantidadUnidades(cantidadUnidades)
+                .subCategoria(subCategoria != null ? subCategoria : "")
+                .visual(visual)
+                .build();
     }
 }
