@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @Epic("Domain Model")
 @Feature("Product")
@@ -46,5 +47,29 @@ class ProductBuilderTest {
 
         assertThat(full.toBuilder().build()).isEqualTo(full);
         assertThat(full.toBuilder().precio(1).build().precio()).isEqualTo(1);
+    }
+
+    @Test
+    void rejectsABlankSitio() {
+        assertThatThrownBy(() -> Product.builder().sitio("  ").nombre("Remera").build())
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> Product.builder().sitio("").nombre("Remera").build())
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void rejectsABlankNombre() {
+        assertThatThrownBy(() -> Product.builder().sitio("Sitio").nombre(" \t").build())
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> Product.builder().sitio("Sitio").nombre("").build())
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void rejectsANullSitioOrNombre() {
+        assertThatThrownBy(() -> Product.builder().nombre("Remera").build())
+                .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> Product.builder().sitio("Sitio").build())
+                .isInstanceOf(NullPointerException.class);
     }
 }

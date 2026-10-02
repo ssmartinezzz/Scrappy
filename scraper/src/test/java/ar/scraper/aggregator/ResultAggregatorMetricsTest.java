@@ -100,10 +100,10 @@ class ResultAggregatorMetricsTest {
     void mixedValidAndInvalid_statsCountsAndFilteredListAreCorrect() {
         Product valid    = product("Remera Basica", 1500, "http://test.com/1");
         Product zeroPr   = product("Zapatilla", 0,    "http://test.com/2");   // invalid: precio=0
-        Product blankNom = product("", 800,            "http://test.com/3");  // invalid: nombre blank
+        Product blankUrl = product("Campera", 800,     "");                   // invalid: url blank
 
         ScrapeResult scrapeResult = new ScrapeResult("TestSite",
-                List.of(valid, zeroPr, blankNom), null, 100);
+                List.of(valid, zeroPr, blankUrl), null, 100);
 
         ResultAggregator.AggregatedResult result =
                 aggregator.agregar(List.of(scrapeResult));
