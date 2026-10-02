@@ -12,9 +12,11 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.ArrayList;
 import java.util.List;
+import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api")
+@RequiredArgsConstructor
 public class ComparadorController {
 
     private static final org.slf4j.Logger LOG =
@@ -39,14 +41,6 @@ public class ComparadorController {
     private final ScraperService service;
     private final ar.scraper.catalog.PreciosExternosPort preciosExternos;
     private final CatalogoDerivadoCache derivados;
-
-    public ComparadorController(ScraperService service,
-                        ar.scraper.catalog.PreciosExternosPort preciosExternos,
-                        CatalogoDerivadoCache derivados) {
-        this.service = service;
-        this.preciosExternos = preciosExternos;
-        this.derivados = derivados;
-    }
 
     private String safe(String s) { return ProductJson.safe(s); }
 

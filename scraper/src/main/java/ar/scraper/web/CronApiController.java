@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
+import lombok.RequiredArgsConstructor;
 
 /**
  * A sibling of {@link ApiController} on purpose: adding collaborators to that constructor would
@@ -21,15 +22,11 @@ import java.util.Map;
  */
 @RestController
 @RequestMapping("/api/cron")
+@RequiredArgsConstructor
 public class CronApiController {
 
     private final CronJobService cronJobService;
     private final CronPort db;
-
-    public CronApiController(CronJobService cronJobService, CronPort db) {
-        this.cronJobService = cronJobService;
-        this.db = db;
-    }
 
     @GetMapping
     public ResponseEntity<ApiResponse<List<CronDtos.Job>>> listar() {

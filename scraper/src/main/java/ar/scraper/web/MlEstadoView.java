@@ -4,19 +4,15 @@ import ar.scraper.catalog.ProductPort;
 import ar.scraper.ml.PythonRunner;
 import ar.scraper.web.dto.MlDtos;
 import org.springframework.stereotype.Component;
+import lombok.RequiredArgsConstructor;
 
 @Component
+@RequiredArgsConstructor
 public class MlEstadoView {
 
     private final ScraperService service;
     private final ProductPort productos;
     private final PythonRunner pythonRunner;
-
-    public MlEstadoView(ScraperService service, ProductPort productos, PythonRunner pythonRunner) {
-        this.service = service;
-        this.productos = productos;
-        this.pythonRunner = pythonRunner;
-    }
 
     public MlDtos.Estado snapshot() {
         java.io.File modelsDir = new java.io.File("_models");

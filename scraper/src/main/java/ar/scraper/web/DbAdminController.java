@@ -8,25 +8,17 @@ import ar.scraper.web.dto.MensajeDto;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api")
+@RequiredArgsConstructor
 public class DbAdminController {
 
     private final ScraperService service;
     private final ar.scraper.ml.MlOutputPort mlOutput;
     private final ar.scraper.catalog.ProductPort productos;
     private final ar.scraper.aggregator.ResultAggregator aggregator;
-
-    public DbAdminController(ScraperService service,
-                     ar.scraper.ml.MlOutputPort mlOutput,
-                     ar.scraper.catalog.ProductPort productos,
-                     ar.scraper.aggregator.ResultAggregator aggregator) {
-        this.service = service;
-        this.mlOutput = mlOutput;
-        this.productos = productos;
-        this.aggregator = aggregator;
-    }
 
     @DeleteMapping("/db/productos")
     public ResponseEntity<ApiResponse<MensajeDto>> limpiarProductos() {

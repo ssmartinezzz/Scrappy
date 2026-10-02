@@ -33,9 +33,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.apache.commons.lang3.StringUtils;
+import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api")
+@RequiredArgsConstructor
 public class AgentController {
 
     private static final int AGENT_MAX_TRACE_STEPS = 8;
@@ -55,20 +57,6 @@ public class AgentController {
     private final CatalogAgentService catalogAgentService;
     private final AgentConfig agentConfig;
     private final ActorResolver actorResolver;
-
-    public AgentController(ScraperService service,
-                   RubroResolver rubroResolver,
-                   ar.scraper.catalog.ProductPort productos,
-                   CatalogAgentService catalogAgentService,
-                   AgentConfig agentConfig,
-                   ActorResolver actorResolver) {
-        this.service = service;
-        this.rubroResolver = rubroResolver;
-        this.productos = productos;
-        this.catalogAgentService = catalogAgentService;
-        this.agentConfig = agentConfig;
-        this.actorResolver = actorResolver;
-    }
 
     @PostMapping("/agent/chat")
     public ResponseEntity<ApiResponse<AgentChatResponse>> agentChat(@RequestBody Map<String, Object> body) {

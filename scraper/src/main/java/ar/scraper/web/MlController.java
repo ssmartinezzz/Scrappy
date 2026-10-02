@@ -11,9 +11,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
+import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api")
+@RequiredArgsConstructor
 public class MlController {
 
     private static final org.slf4j.Logger LOG =
@@ -25,17 +27,6 @@ public class MlController {
     private final ar.scraper.aggregator.ResultAggregator aggregator;
     private final PythonRunner pythonRunner;
     private final MlEstadoView estadoView;
-
-    public MlController(ScraperService service, MlOutputPort mlOutput, ProductPort productos,
-                        ar.scraper.aggregator.ResultAggregator aggregator, PythonRunner pythonRunner,
-                        MlEstadoView estadoView) {
-        this.service = service;
-        this.mlOutput = mlOutput;
-        this.productos = productos;
-        this.aggregator = aggregator;
-        this.pythonRunner = pythonRunner;
-        this.estadoView = estadoView;
-    }
 
     /**
      * Re-applies the ML pipeline over the in-memory catalog in the background. Scoring is not

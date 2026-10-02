@@ -22,11 +22,13 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
+import lombok.RequiredArgsConstructor;
 
 import static org.apache.commons.lang3.StringUtils.defaultString;
 
 @RestController
 @RequestMapping("/api")
+@RequiredArgsConstructor
 public class OutfitsController {
 
     private final ScraperService service;
@@ -34,18 +36,6 @@ public class OutfitsController {
     private final ar.scraper.outfits.SavedOutfitsPort outfitsGuardados;
     private final OutfitService outfitService;
     private final ar.scraper.security.ActorResolver actorResolver;
-
-    public OutfitsController(ScraperService service,
-                     ar.scraper.feedback.FeedbackPort feedback,
-                     ar.scraper.outfits.SavedOutfitsPort outfitsGuardados,
-                     OutfitService outfitService,
-                     ar.scraper.security.ActorResolver actorResolver) {
-        this.service = service;
-        this.feedback = feedback;
-        this.outfitsGuardados = outfitsGuardados;
-        this.outfitService = outfitService;
-        this.actorResolver = actorResolver;
-    }
 
     private OutfitService.FeedbackModel feedbackModel(AggregatedResult r, String estilo) {
         java.util.UUID sujeto = Sujeto.de(actorResolver);

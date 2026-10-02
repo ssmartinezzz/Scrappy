@@ -31,9 +31,11 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import org.apache.commons.lang3.StringUtils;
+import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api")
+@RequiredArgsConstructor
 public class PcsController {
 
     private final ScraperService service;
@@ -41,15 +43,6 @@ public class PcsController {
     private final SavedPcsPort pcsGuardadas;
     private final PreferenciaArmadorPort preferenciaArmador;
     private final ar.scraper.security.ActorResolver actorResolver;
-
-    public PcsController(ScraperService service, PcBuilder pcBuilder, SavedPcsPort pcsGuardadas,
-                 PreferenciaArmadorPort preferenciaArmador, ar.scraper.security.ActorResolver actorResolver) {
-        this.service = service;
-        this.pcBuilder = pcBuilder;
-        this.pcsGuardadas = pcsGuardadas;
-        this.preferenciaArmador = preferenciaArmador;
-        this.actorResolver = actorResolver;
-    }
 
     ResponseEntity<ApiResponse<ObjectNode>> builder(double presupuesto, boolean conGpu, String excluir, String gama) {
         return builder(presupuesto, conGpu, excluir, gama, "", "", "", "", null, null);
