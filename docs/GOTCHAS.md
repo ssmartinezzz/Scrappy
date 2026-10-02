@@ -436,6 +436,13 @@ catálogo filtrado en **cada** request, paginación incluida — nada se cachea 
 páginas. Ignora a propósito acentos en mayúscula y circunflejo/cedilla/tilde;
 ampliarlo cambiaría la clasificación de productos, no solo la velocidad.
 
+**El género de las pages matchea las palabras de hombre como palabra entera.**
+`CatalogJson.tienePalabra` parte el texto en letras; un `contains()` leía "men" en
+*femenina*/*women*, "male" en *female* y "man" en *manga*, y la ropa de mujer salía
+`unisex` u `hombre`. Una palabra de hombre nueva va con su plural explícito
+(`caballeros`, `masculinos`): el substring ya no los cubre. Las de mujer y unisex
+siguen siendo substring.
+
 **En la taxonomía de categorías, el ESPACIO es el word boundary — y un keyword
 sin él se come palabras enteras en silencio.** `GarmentTaxonomy.anyMatch` es un
 `contains()` pelado sobre un texto que `CategoryClassifier` ya padeó con
