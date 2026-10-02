@@ -19,7 +19,6 @@ class TechSpecsBuilderTest {
     @Test
     void emptyBuilderIsTheAbstentionInstance() {
         assertThat(TechSpecs.builder().build()).isEqualTo(TechSpecs.EMPTY);
-        assertThat(TechSpecs.builder().build()).isEqualTo(new TechSpecs("", "", "", 0, 0, ""));
     }
 
     @Test
@@ -48,81 +47,6 @@ class TechSpecsBuilderTest {
         assertThat(s.radiadorMm()).isZero();
         assertThat(s.claseDisipador()).isEqualTo(ClaseDisipador.DESCONOCIDA);
         assertThat(s.heatpipes()).isZero();
-    }
-
-    private static TechSpecs.TechSpecsBuilder base() {
-        return TechSpecs.builder().socket("AM5").ddr("DDR5").formFactor("ATX")
-                .watts(650).capacidadGb(32).tipoMemoria("UDIMM");
-    }
-
-    @Test
-    void sixArgConstructorEqualsItsBuilder() {
-        assertThat(new TechSpecs("AM5", "DDR5", "ATX", 650, 32, "UDIMM")).isEqualTo(base().build());
-    }
-
-    @Test
-    void eightArgConstructorEqualsItsBuilder() {
-        assertThat(new TechSpecs("AM5", "DDR5", "ATX", 650, 32, "UDIMM", Gama.ALTA, Certificacion.GOLD))
-                .isEqualTo(base().gama(Gama.ALTA).certificacion(Certificacion.GOLD).build());
-    }
-
-    @Test
-    void tenArgConstructorEqualsItsBuilder() {
-        assertThat(new TechSpecs("AM5", "DDR5", "ATX", 650, 32, "UDIMM", Gama.ALTA, Certificacion.GOLD,
-                6000, TipoAlmacenamiento.NVME))
-                .isEqualTo(base().gama(Gama.ALTA).certificacion(Certificacion.GOLD)
-                        .velocidadMhz(6000).tipoAlmacenamiento(TipoAlmacenamiento.NVME).build());
-    }
-
-    @Test
-    void elevenArgConstructorEqualsItsBuilder() {
-        assertThat(new TechSpecs("AM5", "DDR5", "ATX", 650, 32, "UDIMM", Gama.ALTA, Certificacion.GOLD,
-                6000, TipoAlmacenamiento.NVME, SOCKETS))
-                .isEqualTo(base().gama(Gama.ALTA).certificacion(Certificacion.GOLD)
-                        .velocidadMhz(6000).tipoAlmacenamiento(TipoAlmacenamiento.NVME)
-                        .socketsSoportados(SOCKETS).build());
-    }
-
-    @Test
-    void sixteenArgConstructorEqualsItsBuilder() {
-        assertThat(new TechSpecs("AM5", "DDR5", "ATX", 650, 32, "UDIMM", Gama.ALTA, Certificacion.GOLD,
-                6000, TipoAlmacenamiento.NVME, SOCKETS, "AMD", 4, 7, 2, true))
-                .isEqualTo(base().gama(Gama.ALTA).certificacion(Certificacion.GOLD)
-                        .velocidadMhz(6000).tipoAlmacenamiento(TipoAlmacenamiento.NVME)
-                        .socketsSoportados(SOCKETS).marcaChip("AMD").generacion(4).tierChipset(7)
-                        .modulos(2).wifi(true).build());
-    }
-
-    @Test
-    void seventeenArgConstructorEqualsItsBuilder() {
-        assertThat(new TechSpecs("AM5", "DDR5", "ATX", 650, 32, "UDIMM", Gama.ALTA, Certificacion.GOLD,
-                6000, TipoAlmacenamiento.NVME, SOCKETS, "AMD", 4, 7, 2, true, TipoCooler.AIRE))
-                .isEqualTo(base().gama(Gama.ALTA).certificacion(Certificacion.GOLD)
-                        .velocidadMhz(6000).tipoAlmacenamiento(TipoAlmacenamiento.NVME)
-                        .socketsSoportados(SOCKETS).marcaChip("AMD").generacion(4).tierChipset(7)
-                        .modulos(2).wifi(true).tipoCooler(TipoCooler.AIRE).build());
-    }
-
-    @Test
-    void eighteenArgConstructorEqualsItsBuilder() {
-        assertThat(new TechSpecs("AM5", "DDR5", "ATX", 650, 32, "UDIMM", Gama.ALTA, Certificacion.GOLD,
-                6000, TipoAlmacenamiento.NVME, SOCKETS, "AMD", 4, 7, 2, true, TipoCooler.AIRE, 3))
-                .isEqualTo(base().gama(Gama.ALTA).certificacion(Certificacion.GOLD)
-                        .velocidadMhz(6000).tipoAlmacenamiento(TipoAlmacenamiento.NVME)
-                        .socketsSoportados(SOCKETS).marcaChip("AMD").generacion(4).tierChipset(7)
-                        .modulos(2).wifi(true).tipoCooler(TipoCooler.AIRE).nivel(3).build());
-    }
-
-    @Test
-    void twentyArgConstructorEqualsItsBuilder() {
-        assertThat(new TechSpecs("AM5", "DDR5", "ATX", 650, 32, "UDIMM", Gama.ALTA, Certificacion.GOLD,
-                6000, TipoAlmacenamiento.NVME, SOCKETS, "AMD", 4, 7, 2, true, TipoCooler.AIRE, 3,
-                TamanioGabinete.FULL, 360))
-                .isEqualTo(base().gama(Gama.ALTA).certificacion(Certificacion.GOLD)
-                        .velocidadMhz(6000).tipoAlmacenamiento(TipoAlmacenamiento.NVME)
-                        .socketsSoportados(SOCKETS).marcaChip("AMD").generacion(4).tierChipset(7)
-                        .modulos(2).wifi(true).tipoCooler(TipoCooler.AIRE).nivel(3)
-                        .tamanioGabinete(TamanioGabinete.FULL).radiadorMm(360).build());
     }
 
     @Test
