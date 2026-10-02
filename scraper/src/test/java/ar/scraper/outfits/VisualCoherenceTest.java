@@ -29,11 +29,27 @@ import static org.assertj.core.api.Assertions.within;
 class VisualCoherenceTest {
 
     private Product prenda(String categoria, String fit, String estampado, String color) {
-        return new Product("TestSitio", categoria + "-" + fit + estampado + color, 20000, null,
-                "https://test/" + categoria + fit + estampado + color, "https://img/t.jpg",
-                categoria, "hombre", List.of(), Product.MlScore.EMPTY, "Marca", "indumentaria",
-                true, false, Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY, 1, "",
-                new Product.VisualAttrs(fit, estampado, "", color));
+        return Product.builder()
+                .sitio("TestSitio")
+                .nombre(categoria + "-" + fit + estampado + color)
+                .precio(20000)
+                .precioOriginal(null)
+                .url("https://test/" + categoria + fit + estampado + color)
+                .imagenUrl("https://img/t.jpg")
+                .categoria(categoria)
+                .genero("hombre")
+                .talles(List.of())
+                .ml(Product.MlScore.EMPTY)
+                .marca("Marca")
+                .rubro("indumentaria")
+                .gymrat(true)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(Product.SenalFinanciacion.EMPTY)
+                .cantidadUnidades(1)
+                .subCategoria("")
+                .visual(new Product.VisualAttrs(fit, estampado, "", color))
+                .build();
     }
 
     private double coherencia(String slot, Product candidato, Map<String, Product> elegidos) {

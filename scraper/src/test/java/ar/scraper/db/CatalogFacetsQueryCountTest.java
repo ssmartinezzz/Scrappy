@@ -100,9 +100,26 @@ class CatalogFacetsQueryCountTest extends PostgresTestBase {
     private Product producto(String url, String nombre, String sitio, String categoria,
                              String genero, String marca, String subCategoria) {
         Product.MlScore ml = new Product.MlScore(70, List.of(), false, "estable", 50, 0.0, "standard");
-        return new Product(sitio, nombre, 1000, null, url, "http://img.example/x.jpg",
-                categoria, genero, List.of("M"), ml, marca, "indumentaria", false, false,
-                Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY, 1, subCategoria,
-                new Product.VisualAttrs("regular", "", "", ""));
+        return Product.builder()
+                .sitio(sitio)
+                .nombre(nombre)
+                .precio(1000)
+                .precioOriginal(null)
+                .url(url)
+                .imagenUrl("http://img.example/x.jpg")
+                .categoria(categoria)
+                .genero(genero)
+                .talles(List.of("M"))
+                .ml(ml)
+                .marca(marca)
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(Product.SenalFinanciacion.EMPTY)
+                .cantidadUnidades(1)
+                .subCategoria(subCategoria)
+                .visual(new Product.VisualAttrs("regular", "", "", ""))
+                .build();
     }
 }

@@ -24,9 +24,26 @@ class FacetCalculatorTest {
 
     private Product product(String nombre, double precio, String categoria, String genero,
                              List<String> talles, String marca, Product.MlScore ml, String subCategoria) {
-        return new Product("TestSite", nombre, precio, null, "http://test.com/" + nombre.hashCode(),
-                "", categoria, genero, talles, ml, marca, "indumentaria", false, false,
-                Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY, 1, subCategoria);
+        return Product.builder()
+                .sitio("TestSite")
+                .nombre(nombre)
+                .precio(precio)
+                .precioOriginal(null)
+                .url("http://test.com/" + nombre.hashCode())
+                .imagenUrl("")
+                .categoria(categoria)
+                .genero(genero)
+                .talles(talles)
+                .ml(ml)
+                .marca(marca)
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(Product.SenalFinanciacion.EMPTY)
+                .cantidadUnidades(1)
+                .subCategoria(subCategoria)
+                .build();
     }
 
     @Test
@@ -105,9 +122,27 @@ class FacetCalculatorTest {
     // (blank values excluded, non-blank values counted).
 
     private Product productoConVisual(String nombre, Product.VisualAttrs visual) {
-        return new Product("TestSite", nombre, 100, null, "http://test.com/" + nombre.hashCode(),
-                "", "Remera", "", List.of(), Product.MlScore.EMPTY, "", "indumentaria", false, false,
-                Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY, 1, "", visual);
+        return Product.builder()
+                .sitio("TestSite")
+                .nombre(nombre)
+                .precio(100)
+                .precioOriginal(null)
+                .url("http://test.com/" + nombre.hashCode())
+                .imagenUrl("")
+                .categoria("Remera")
+                .genero("")
+                .talles(List.of())
+                .ml(Product.MlScore.EMPTY)
+                .marca("")
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(Product.SenalFinanciacion.EMPTY)
+                .cantidadUnidades(1)
+                .subCategoria("")
+                .visual(visual)
+                .build();
     }
 
     @Test

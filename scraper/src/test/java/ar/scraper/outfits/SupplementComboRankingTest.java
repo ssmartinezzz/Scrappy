@@ -157,9 +157,18 @@ class SupplementComboRankingTest {
     }
 
     private Product suplemento(String nombre, double precio, String marca, int scoreP) {
-        return new Product("Sitio", nombre, precio, null,
-                "https://test.com/" + nombre.replace(" ", "-"),
-                "img.jpg", "Suplemento", "", List.of(),
-                new Product.MlScore(scoreP, "", false, "estable", 50), marca);
+        return Product.builder()
+                .sitio("Sitio")
+                .nombre(nombre)
+                .precio(precio)
+                .precioOriginal(null)
+                .url("https://test.com/" + nombre.replace(" ", "-"))
+                .imagenUrl("img.jpg")
+                .categoria("Suplemento")
+                .genero("")
+                .talles(List.of())
+                .ml(new Product.MlScore(scoreP, "", false, "estable", 50))
+                .marca(marca)
+                .build();
     }
 }

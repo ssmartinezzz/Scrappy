@@ -32,9 +32,24 @@ class CatalogAgentSearchAnswerTest {
     @BeforeEach
     void setUp() {
         ScraperService scraper = mock(ScraperService.class);
-        Product p = new Product("Compragamer", "Zapatilla SAD Adidas", 264400, 300000.0, "https://a.com/1",
-                "img", "Zapatilla Running", "hombre", List.of(), Product.MlScore.EMPTY, "Adidas",
-                "indumentaria", false, false, Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY);
+        Product p = Product.builder()
+                .sitio("Compragamer")
+                .nombre("Zapatilla SAD Adidas")
+                .precio(264400)
+                .precioOriginal(300000.0)
+                .url("https://a.com/1")
+                .imagenUrl("img")
+                .categoria("Zapatilla Running")
+                .genero("hombre")
+                .talles(List.of())
+                .ml(Product.MlScore.EMPTY)
+                .marca("Adidas")
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(Product.SenalFinanciacion.EMPTY)
+                .build();
         var facets = new Facets(Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
         when(scraper.getLastResult()).thenReturn(new AggregatedResult(List.of(p), Map.of(), Map.of(), facets, 0, 0));
         registry = new ToolRegistry(new SearchProductsTool(scraper), new ViewProductTool(scraper),

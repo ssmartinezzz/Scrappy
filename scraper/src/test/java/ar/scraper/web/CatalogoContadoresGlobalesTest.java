@@ -88,10 +88,27 @@ class CatalogoContadoresGlobalesTest extends ar.scraper.db.support.PostgresTestB
     }
 
     private Product producto(String url, double precio, String rubro, boolean gymrat, int unidades) {
-        return new Product("Sitio", "Producto " + url, precio, null, url, "img",
-                "Remera", "unisex", List.of("M"), Product.MlScore.EMPTY, "Nike",
-                rubro, gymrat, false, Product.SenalCompra.EMPTY,
-                Product.SenalFinanciacion.EMPTY, unidades, "", Product.VisualAttrs.EMPTY);
+        return Product.builder()
+                .sitio("Sitio")
+                .nombre("Producto " + url)
+                .precio(precio)
+                .precioOriginal(null)
+                .url(url)
+                .imagenUrl("img")
+                .categoria("Remera")
+                .genero("unisex")
+                .talles(List.of("M"))
+                .ml(Product.MlScore.EMPTY)
+                .marca("Nike")
+                .rubro(rubro)
+                .gymrat(gymrat)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(Product.SenalFinanciacion.EMPTY)
+                .cantidadUnidades(unidades)
+                .subCategoria("")
+                .visual(Product.VisualAttrs.EMPTY)
+                .build();
     }
 
     private void publicar(Product... productos) {

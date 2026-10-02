@@ -87,9 +87,27 @@ class CatalogoVisualAttrsTest extends ar.scraper.db.support.PostgresTestBase {
     }
 
     private Product producto(String url, VisualAttrs visual) {
-        return new Product("Sitio", "Producto " + url, 10000.0, null, url, "img",
-                "Remera", "unisex", List.of(), Product.MlScore.EMPTY, "Nike", "indumentaria",
-                false, false, Product.SenalCompra.EMPTY, SenalFinanciacion.EMPTY, 1, "", visual);
+        return Product.builder()
+                .sitio("Sitio")
+                .nombre("Producto " + url)
+                .precio(10000.0)
+                .precioOriginal(null)
+                .url(url)
+                .imagenUrl("img")
+                .categoria("Remera")
+                .genero("unisex")
+                .talles(List.of())
+                .ml(Product.MlScore.EMPTY)
+                .marca("Nike")
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(SenalFinanciacion.EMPTY)
+                .cantidadUnidades(1)
+                .subCategoria("")
+                .visual(visual)
+                .build();
     }
 
     private AggregatedResult resultFor(Product... productos) {

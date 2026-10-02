@@ -151,16 +151,44 @@ class RecomendadosDismissMarcasTest {
     }
 
     private Product producto(String nombre, String url, String marca) {
-        return new Product("Sporting", nombre, 10000.0, null, url, "img",
-                "Zapatilla", "unisex", List.of(), Product.MlScore.EMPTY, marca,
-                "indumentaria", false, false,
-                Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY);
+        return Product.builder()
+                .sitio("Sporting")
+                .nombre(nombre)
+                .precio(10000.0)
+                .precioOriginal(null)
+                .url(url)
+                .imagenUrl("img")
+                .categoria("Zapatilla")
+                .genero("unisex")
+                .talles(List.of())
+                .ml(Product.MlScore.EMPTY)
+                .marca(marca)
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(Product.SenalFinanciacion.EMPTY)
+                .build();
     }
 
     private Product productWithRubro(String nombre, String url, String marca, String rubro) {
-        return new Product("Sporting", nombre, 10000.0, null, url, "img",
-                "Zapatilla", "unisex", List.of(), Product.MlScore.EMPTY, marca,
-                rubro, false, false,
-                Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY);
+        return Product.builder()
+                .sitio("Sporting")
+                .nombre(nombre)
+                .precio(10000.0)
+                .precioOriginal(null)
+                .url(url)
+                .imagenUrl("img")
+                .categoria("Zapatilla")
+                .genero("unisex")
+                .talles(List.of())
+                .ml(Product.MlScore.EMPTY)
+                .marca(marca)
+                .rubro(rubro)
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(Product.SenalFinanciacion.EMPTY)
+                .build();
     }
 }

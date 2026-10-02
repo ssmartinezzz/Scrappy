@@ -18,8 +18,21 @@ import static org.assertj.core.api.Assertions.assertThat;
 class CriterioPorEjesTecnicosTest {
 
     private Product ram(String nombre, double precio, String url) {
-        return new Product("TestSitio", nombre, precio, null, url, "https://img/test.jpg",
-                "RAM", "", List.of(), Product.MlScore.EMPTY, "", "tecnologia", false);
+        return Product.builder()
+                .sitio("TestSitio")
+                .nombre(nombre)
+                .precio(precio)
+                .precioOriginal(null)
+                .url(url)
+                .imagenUrl("https://img/test.jpg")
+                .categoria("RAM")
+                .genero("")
+                .talles(List.of())
+                .ml(Product.MlScore.EMPTY)
+                .marca("")
+                .rubro("tecnologia")
+                .gymrat(false)
+                .build();
     }
 
     @Test
@@ -62,12 +75,36 @@ class CriterioPorEjesTecnicosTest {
     @DisplayName("with the gabinete axis (empty), only price/url ever decides")
     void gabineteSinEjesSoloDecidePrecio() {
         CriterioDeSeleccion criterio = new CriterioPorEjesTecnicos(EjesTecnicos.GABINETE);
-        Product grande = new Product("TestSitio", "Gabinete Corsair 4000D ATX", 90_000, null,
-                "https://t/atx", "https://img/test.jpg", "Gabinete", "", List.of(),
-                Product.MlScore.EMPTY, "", "tecnologia", false);
-        Product chico = new Product("TestSitio", "Gabinete NR200P ITX", 70_000, null,
-                "https://t/itx", "https://img/test.jpg", "Gabinete", "", List.of(),
-                Product.MlScore.EMPTY, "", "tecnologia", false);
+        Product grande = Product.builder()
+                .sitio("TestSitio")
+                .nombre("Gabinete Corsair 4000D ATX")
+                .precio(90_000)
+                .precioOriginal(null)
+                .url("https://t/atx")
+                .imagenUrl("https://img/test.jpg")
+                .categoria("Gabinete")
+                .genero("")
+                .talles(List.of())
+                .ml(Product.MlScore.EMPTY)
+                .marca("")
+                .rubro("tecnologia")
+                .gymrat(false)
+                .build();
+        Product chico = Product.builder()
+                .sitio("TestSitio")
+                .nombre("Gabinete NR200P ITX")
+                .precio(70_000)
+                .precioOriginal(null)
+                .url("https://t/itx")
+                .imagenUrl("https://img/test.jpg")
+                .categoria("Gabinete")
+                .genero("")
+                .talles(List.of())
+                .ml(Product.MlScore.EMPTY)
+                .marca("")
+                .rubro("tecnologia")
+                .gymrat(false)
+                .build();
 
         Product elegido = criterio.elegir(List.of(grande, chico), ContextoDeArmado.inicial(0));
 
@@ -77,8 +114,21 @@ class CriterioPorEjesTecnicosTest {
     // ── D9, T4c: el ctor por Function<ContextoDeArmado, Comparator> lee la gama del contexto ──
 
     private Product mother(String nombre, double precio, String url) {
-        return new Product("TestSitio", nombre, precio, null, url, "https://img/test.jpg",
-                "Motherboard", "", List.of(), Product.MlScore.EMPTY, "", "tecnologia", false);
+        return Product.builder()
+                .sitio("TestSitio")
+                .nombre(nombre)
+                .precio(precio)
+                .precioOriginal(null)
+                .url(url)
+                .imagenUrl("https://img/test.jpg")
+                .categoria("Motherboard")
+                .genero("")
+                .talles(List.of())
+                .ml(Product.MlScore.EMPTY)
+                .marca("")
+                .rubro("tecnologia")
+                .gymrat(false)
+                .build();
     }
 
     @Test
@@ -129,12 +179,36 @@ class CriterioPorEjesTecnicosTest {
     @DisplayName("T18: sin presupuesto, el gabinete (sin ejes) pasa a elegir el más caro")
     void sinPresupuestoElGabineteEligeElMasCaro() {
         CriterioDeSeleccion criterio = new CriterioPorEjesTecnicos(EjesTecnicos.GABINETE);
-        Product grande = new Product("TestSitio", "Gabinete Corsair 4000D ATX", 90_000, null,
-                "https://t/atx", "https://img/test.jpg", "Gabinete", "", List.of(),
-                Product.MlScore.EMPTY, "", "tecnologia", false);
-        Product chico = new Product("TestSitio", "Gabinete NR200P ITX", 70_000, null,
-                "https://t/itx", "https://img/test.jpg", "Gabinete", "", List.of(),
-                Product.MlScore.EMPTY, "", "tecnologia", false);
+        Product grande = Product.builder()
+                .sitio("TestSitio")
+                .nombre("Gabinete Corsair 4000D ATX")
+                .precio(90_000)
+                .precioOriginal(null)
+                .url("https://t/atx")
+                .imagenUrl("https://img/test.jpg")
+                .categoria("Gabinete")
+                .genero("")
+                .talles(List.of())
+                .ml(Product.MlScore.EMPTY)
+                .marca("")
+                .rubro("tecnologia")
+                .gymrat(false)
+                .build();
+        Product chico = Product.builder()
+                .sitio("TestSitio")
+                .nombre("Gabinete NR200P ITX")
+                .precio(70_000)
+                .precioOriginal(null)
+                .url("https://t/itx")
+                .imagenUrl("https://img/test.jpg")
+                .categoria("Gabinete")
+                .genero("")
+                .talles(List.of())
+                .ml(Product.MlScore.EMPTY)
+                .marca("")
+                .rubro("tecnologia")
+                .gymrat(false)
+                .build();
 
         Product elegido = criterio.elegir(List.of(chico, grande),
                 ContextoDeArmado.inicial(0, null, Certificacion.NINGUNA, PreferenciasDeArmado.NINGUNA,

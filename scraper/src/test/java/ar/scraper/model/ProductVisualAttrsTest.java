@@ -48,10 +48,27 @@ class ProductVisualAttrsTest {
     @Test
     void canonicalConstructorSetsVisualAttrs() {
         VisualAttrs visual = new VisualAttrs("regular", "liso", "en v", "negro");
-        Product p = new Product("Sitio", "Remera básica", 5000, null,
-                "http://x", "http://img", "Remera", "hombre", TALLES,
-                MlScore.EMPTY, "Nike", "indumentaria", false, false,
-                SenalCompra.EMPTY, SenalFinanciacion.EMPTY, 1, "", visual);
+        Product p = Product.builder()
+                .sitio("Sitio")
+                .nombre("Remera básica")
+                .precio(5000)
+                .precioOriginal(null)
+                .url("http://x")
+                .imagenUrl("http://img")
+                .categoria("Remera")
+                .genero("hombre")
+                .talles(TALLES)
+                .ml(MlScore.EMPTY)
+                .marca("Nike")
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(SenalCompra.EMPTY)
+                .finan(SenalFinanciacion.EMPTY)
+                .cantidadUnidades(1)
+                .subCategoria("")
+                .visual(visual)
+                .build();
 
         assertThat(p.visual()).isEqualTo(visual);
         assertThat(p.visual().colorDominante()).isEqualTo("negro");
@@ -59,18 +76,43 @@ class ProductVisualAttrsTest {
 
     @Test
     void legacyEighteenArgConstructorDefaultsVisualToEmpty() {
-        Product p = new Product("Sitio", "Remera básica", 5000, null,
-                "http://x", "http://img", "Remera", "hombre", TALLES,
-                MlScore.EMPTY, "Nike", "indumentaria", false, false,
-                SenalCompra.EMPTY, SenalFinanciacion.EMPTY, 1, "");
+        Product p = Product.builder()
+                .sitio("Sitio")
+                .nombre("Remera básica")
+                .precio(5000)
+                .precioOriginal(null)
+                .url("http://x")
+                .imagenUrl("http://img")
+                .categoria("Remera")
+                .genero("hombre")
+                .talles(TALLES)
+                .ml(MlScore.EMPTY)
+                .marca("Nike")
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(SenalCompra.EMPTY)
+                .finan(SenalFinanciacion.EMPTY)
+                .cantidadUnidades(1)
+                .subCategoria("")
+                .build();
 
         assertThat(p.visual()).isEqualTo(VisualAttrs.EMPTY);
     }
 
     @Test
     void legacyNineArgConstructorDefaultsVisualToEmpty() {
-        Product p = new Product("Sitio", "Remera", 5000, null,
-                "http://x", "http://img", "Remera", "hombre", TALLES);
+        Product p = Product.builder()
+                .sitio("Sitio")
+                .nombre("Remera")
+                .precio(5000)
+                .precioOriginal(null)
+                .url("http://x")
+                .imagenUrl("http://img")
+                .categoria("Remera")
+                .genero("hombre")
+                .talles(TALLES)
+                .build();
 
         assertThat(p.visual()).isEqualTo(VisualAttrs.EMPTY);
     }

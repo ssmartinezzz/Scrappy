@@ -45,10 +45,25 @@ class DateRoundTripTest extends PostgresTestBase {
     }
 
     private Product producto(String url) {
-        return new Product("Sitio", "Producto", 1000.0, null, url, "http://img.example/x.jpg",
-                "Remera", "unisex", List.of("M"), Product.MlScore.EMPTY, "Nike",
-                "indumentaria", false, false, Product.SenalCompra.EMPTY,
-                Product.SenalFinanciacion.EMPTY, 1);
+        return Product.builder()
+                .sitio("Sitio")
+                .nombre("Producto")
+                .precio(1000.0)
+                .precioOriginal(null)
+                .url(url)
+                .imagenUrl("http://img.example/x.jpg")
+                .categoria("Remera")
+                .genero("unisex")
+                .talles(List.of("M"))
+                .ml(Product.MlScore.EMPTY)
+                .marca("Nike")
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(Product.SenalFinanciacion.EMPTY)
+                .cantidadUnidades(1)
+                .build();
     }
 
     @Test
@@ -105,10 +120,25 @@ class DateRoundTripTest extends PostgresTestBase {
     void reUpsertKeepsFechaOnEachHistoryRow() {
         String url = "https://site.com/date-roundtrip-reupsert";
         db.upsertProductos(List.of(producto(url)));
-        db.upsertProductos(List.of(new Product("Sitio", "Producto", 2000.0, null, url,
-                "http://img.example/x.jpg", "Remera", "unisex", List.of("M"), Product.MlScore.EMPTY,
-                "Nike", "indumentaria", false, false, Product.SenalCompra.EMPTY,
-                Product.SenalFinanciacion.EMPTY, 1)));
+        db.upsertProductos(List.of(Product.builder()
+                .sitio("Sitio")
+                .nombre("Producto")
+                .precio(2000.0)
+                .precioOriginal(null)
+                .url(url)
+                .imagenUrl("http://img.example/x.jpg")
+                .categoria("Remera")
+                .genero("unisex")
+                .talles(List.of("M"))
+                .ml(Product.MlScore.EMPTY)
+                .marca("Nike")
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(Product.SenalFinanciacion.EMPTY)
+                .cantidadUnidades(1)
+                .build()));
 
         List<HistorialEntry> historial = db.getHistorialPrecios(url);
 

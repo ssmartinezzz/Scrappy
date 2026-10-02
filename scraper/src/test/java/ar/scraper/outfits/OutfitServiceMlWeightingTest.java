@@ -37,9 +37,21 @@ class OutfitServiceMlWeightingTest {
 
     private Product producto(String nombre, double precio, String categoria, String marca,
                              Product.MlScore ml) {
-        return new Product("TestSitio", nombre, precio, null,
-                "https://test/" + nombre.replace(" ", "-"), "https://img/test.jpg",
-                categoria, "hombre", List.of(), ml, marca, "indumentaria", true);
+        return Product.builder()
+                .sitio("TestSitio")
+                .nombre(nombre)
+                .precio(precio)
+                .precioOriginal(null)
+                .url("https://test/" + nombre.replace(" ", "-"))
+                .imagenUrl("https://img/test.jpg")
+                .categoria(categoria)
+                .genero("hombre")
+                .talles(List.of())
+                .ml(ml)
+                .marca(marca)
+                .rubro("indumentaria")
+                .gymrat(true)
+                .build();
     }
 
     /** scoreP only, no badges → baseMlScore == 100 - scoreP. */

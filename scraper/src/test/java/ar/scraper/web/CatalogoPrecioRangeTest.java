@@ -88,16 +88,47 @@ class CatalogoPrecioRangeTest extends ar.scraper.db.support.PostgresTestBase {
     }
 
     private Product producto(String url, double precio) {
-        return new Product("Sitio", "Producto " + url, precio, null, url, "img",
-                "Remera", "unisex", List.of(), Product.MlScore.EMPTY, "Nike", "indumentaria",
-                false, false, Product.SenalCompra.EMPTY, SenalFinanciacion.EMPTY);
+        return Product.builder()
+                .sitio("Sitio")
+                .nombre("Producto " + url)
+                .precio(precio)
+                .precioOriginal(null)
+                .url(url)
+                .imagenUrl("img")
+                .categoria("Remera")
+                .genero("unisex")
+                .talles(List.of())
+                .ml(Product.MlScore.EMPTY)
+                .marca("Nike")
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(SenalFinanciacion.EMPTY)
+                .build();
     }
 
     /** Pack/combo product — {@code precioTotal} is the bundle price, not the per-unit price. */
     private Product productoPack(String url, double precioTotal, int cantidadUnidades) {
-        return new Product("Sitio", "Producto " + url, precioTotal, null, url, "img",
-                "Remera", "unisex", List.of(), Product.MlScore.EMPTY, "Nike", "indumentaria",
-                false, false, Product.SenalCompra.EMPTY, SenalFinanciacion.EMPTY, cantidadUnidades);
+        return Product.builder()
+                .sitio("Sitio")
+                .nombre("Producto " + url)
+                .precio(precioTotal)
+                .precioOriginal(null)
+                .url(url)
+                .imagenUrl("img")
+                .categoria("Remera")
+                .genero("unisex")
+                .talles(List.of())
+                .ml(Product.MlScore.EMPTY)
+                .marca("Nike")
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(SenalFinanciacion.EMPTY)
+                .cantidadUnidades(cantidadUnidades)
+                .build();
     }
 
     private AggregatedResult resultFor(Product... productos) {

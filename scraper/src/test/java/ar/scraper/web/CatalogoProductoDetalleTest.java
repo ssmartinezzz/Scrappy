@@ -71,10 +71,25 @@ class CatalogoProductoDetalleTest {
     }
 
     private Product producto() {
-        return new Product("Freres", "Remera Negra", 15990, 19990.0, URL,
-                "https://img.example/r.jpg", "Remera", "hombre", List.of("M", "L"),
-                Product.MlScore.EMPTY, "Nike", "indumentaria", false, false,
-                Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY, 1);
+        return Product.builder()
+                .sitio("Freres")
+                .nombre("Remera Negra")
+                .precio(15990)
+                .precioOriginal(19990.0)
+                .url(URL)
+                .imagenUrl("https://img.example/r.jpg")
+                .categoria("Remera")
+                .genero("hombre")
+                .talles(List.of("M", "L"))
+                .ml(Product.MlScore.EMPTY)
+                .marca("Nike")
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(Product.SenalFinanciacion.EMPTY)
+                .cantidadUnidades(1)
+                .build();
     }
 
     private static Map<String, Object> punto(String fecha, double precio) {

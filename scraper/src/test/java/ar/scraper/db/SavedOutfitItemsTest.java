@@ -162,10 +162,25 @@ class SavedOutfitItemsTest extends PostgresTestBase {
     }
 
     private Product producto(String url, String categoria, double precio) {
-        return new Product("Sitio", "Producto", precio, null, url, "http://img.example/x.jpg",
-                categoria, "unisex", List.of("M"), Product.MlScore.EMPTY, "Nike",
-                "indumentaria", false, false, Product.SenalCompra.EMPTY,
-                Product.SenalFinanciacion.EMPTY, 1);
+        return Product.builder()
+                .sitio("Sitio")
+                .nombre("Producto")
+                .precio(precio)
+                .precioOriginal(null)
+                .url(url)
+                .imagenUrl("http://img.example/x.jpg")
+                .categoria(categoria)
+                .genero("unisex")
+                .talles(List.of("M"))
+                .ml(Product.MlScore.EMPTY)
+                .marca("Nike")
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(Product.SenalFinanciacion.EMPTY)
+                .cantidadUnidades(1)
+                .build();
     }
 
     /**
