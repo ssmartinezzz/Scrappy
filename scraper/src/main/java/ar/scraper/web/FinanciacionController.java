@@ -67,12 +67,9 @@ public class FinanciacionController {
     @PostMapping("/financiacion/presets")
     public ResponseEntity<ApiResponse<OpResult>> crearPreset(@RequestBody Map<String, Object> body) {
         rechazarSiHayScraping();
-        String label = String.valueOf(body.getOrDefault("label", "")).trim();
-        Double recargoPct = parseDoubleOrNull(body.get("recargoPct"));
-        Integer cuotas = parseIntOrNull(body.get("cuotas"));
-        validar(label, recargoPct, cuotas);
+        PresetInput in = presetValidado(body);
 
-        int id = presets.crearPreset(label, recargoPct, cuotas);
+        int id = presets.crearPreset(in.label(), in.recargoPct(), in.cuotas());
         if (id < 0) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "solicitud_invalida", "No se pudo crear el preset");
         }
@@ -93,16 +90,13 @@ public class FinanciacionController {
     public ResponseEntity<ApiResponse<OpResult>> editarPreset(@PathVariable int id,
             @RequestBody Map<String, Object> body) {
         rechazarSiHayScraping();
-        String label = String.valueOf(body.getOrDefault("label", "")).trim();
-        Double recargoPct = parseDoubleOrNull(body.get("recargoPct"));
-        Integer cuotas = parseIntOrNull(body.get("cuotas"));
-        validar(label, recargoPct, cuotas);
+        PresetInput in = presetValidado(body);
 
         // Editing does not change which preset is active, only its label/recargoPct/cuotas.
         boolean eraActivo = presets.cargarPresetActivo()
                 .map(p -> p.id() == id).orElse(false);
 
-        if (!presets.editarPreset(id, label, recargoPct, cuotas)) {
+        if (!presets.editarPreset(id, in.label(), in.recargoPct(), in.cuotas())) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "solicitud_invalida",
                     "Preset no encontrado o datos inválidos");
         }
@@ -130,6 +124,16 @@ public class FinanciacionController {
             throw new ApiException(HttpStatus.CONFLICT, "scrape_en_curso",
                     "Hay un scraping en curso. Esperá a que termine.");
         }
+    }
+
+    private record PresetInput(String label, Double recargoPct, Integer cuotas) {}
+
+    private PresetInput presetValidado(Map<String, Object> body) {
+        String label = String.valueOf(body.getOrDefault("label", "")).trim();
+        Double recargoPct = parseDoubleOrNull(body.get("recargoPct"));
+        Integer cuotas = parseIntOrNull(body.get("cuotas"));
+        validar(label, recargoPct, cuotas);
+        return new PresetInput(label, recargoPct, cuotas);
     }
 
     private static void validar(String label, Double recargoPct, Integer cuotas) {
