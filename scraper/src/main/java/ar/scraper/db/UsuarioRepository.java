@@ -372,20 +372,7 @@ public class UsuarioRepository {
             throw new DatabaseException("no se pudo sembrar la cuenta '" + username + "'", e);
         }
 
-        try {
-            jdbc.update("""
-                    INSERT INTO usuario_rol (usuario_id, rol_id)
-                    SELECT u.id, r.id
-                    FROM usuario u, rol r
-                    WHERE u.username = ? AND r.nombre = ?
-                    ON CONFLICT DO NOTHING
-                    """, ps -> {
-                ps.setString(1, username);
-                ps.setString(2, rol);
-            });
-        } catch (Exception e) {
-            throw new DatabaseException("no se pudo asignar el rol " + rol + " a '" + username + "'", e);
-        }
+        asignarRol(username, rol);
 
         UUID id;
         try {
