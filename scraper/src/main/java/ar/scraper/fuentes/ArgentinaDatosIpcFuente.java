@@ -24,13 +24,7 @@ class ArgentinaDatosIpcFuente implements FuenteIndicePort {
 
     @Override
     public List<PuntoIndice> descargar(Indice indice) throws FuenteIndiceException {
-        try {
-            return parsear(HttpJson.get(URL));
-        } catch (FuenteIndiceException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new FuenteIndiceException("ArgentinaDatosIpcFuente: " + e.getMessage(), e);
-        }
+        return FuenteHttp.descargar(ArgentinaDatosIpcFuente.class, URL, ArgentinaDatosIpcFuente::parsear);
     }
 
     static List<PuntoIndice> parsear(String body) throws FuenteIndiceException {
