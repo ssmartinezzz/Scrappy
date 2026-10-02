@@ -15,7 +15,7 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 /** . fullh4rd.com.ar after its redesign: */
-public class FullH4rdPage extends BasePage {
+public class FullH4rdPage extends BasePage implements CatalogPage {
 
     private static final Logger log = LoggerFactory.getLogger(FullH4rdPage.class);
 

@@ -8,7 +8,7 @@ import com.microsoft.playwright.Page;
 
 import java.util.*;
 
-public class ShopifyPage extends BasePage {
+public class ShopifyPage extends BasePage implements CatalogPage {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
