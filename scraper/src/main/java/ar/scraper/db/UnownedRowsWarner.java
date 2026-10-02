@@ -5,12 +5,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.core.annotation.Order;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 import javax.sql.DataSource;
-import java.sql.Connection;
-import java.sql.ResultSet;
-import java.sql.Statement;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -28,10 +26,10 @@ public class UnownedRowsWarner implements ApplicationRunner {
     private static final List<String> TABLAS =
             List.of("favoritos", "saved_outfits", "outfit_feedback_item", "categoria_dismiss");
 
-    private final DataSource dataSource;
+    private final JdbcTemplate jdbc;
 
     public UnownedRowsWarner(DataSource dataSource) {
-        this.dataSource = dataSource;
+        this.jdbc = new JdbcTemplate(dataSource);
     }
 
     @Override
@@ -61,14 +59,12 @@ public class UnownedRowsWarner implements ApplicationRunner {
 
     Map<String, Integer> contar() {
         Map<String, Integer> resultado = new LinkedHashMap<>();
-        try (Connection c = dataSource.getConnection();
-             Statement st = c.createStatement()) {
+        try {
             for (String tabla : TABLAS) {
-                try (ResultSet rs = st.executeQuery(
-                        "SELECT count(*) FROM " + tabla + " WHERE usuario_id IS NULL")) {
-                    if (rs.next() && rs.getInt(1) > 0) {
-                        resultado.put(tabla, rs.getInt(1));
-                    }
+                Integer n = jdbc.queryForObject(
+                        "SELECT count(*) FROM " + tabla + " WHERE usuario_id IS NULL", Integer.class);
+                if (n != null && n > 0) {
+                    resultado.put(tabla, n);
                 }
             }
         } catch (Exception e) {
