@@ -29,13 +29,11 @@ final class MarcasPicksView {
             ));
 
         var entries = new java.util.ArrayList<>(byMarca.entrySet());
+        java.util.function.ToDoubleFunction<java.util.Map.Entry<String, List<Product>>> precioMedio =
+            e -> e.getValue().stream().mapToDouble(Product::precio).average().orElse(0);
         entries.sort(switch (sort) {
-            case "precio_asc"  -> java.util.Comparator.comparingDouble(
-                (java.util.Map.Entry<String,java.util.List<Product>> e) ->
-                    e.getValue().stream().mapToDouble(Product::precio).average().orElse(0));
-            case "precio_desc" -> java.util.Comparator.comparingDouble(
-                (java.util.Map.Entry<String,java.util.List<Product>> e) ->
-                    e.getValue().stream().mapToDouble(Product::precio).average().orElse(0)).reversed();
+            case "precio_asc"  -> java.util.Comparator.comparingDouble(precioMedio);
+            case "precio_desc" -> java.util.Comparator.comparingDouble(precioMedio).reversed();
             default -> java.util.Comparator.comparingInt(
                 (java.util.Map.Entry<String,java.util.List<Product>> e) ->
                     e.getValue().size()).reversed();
