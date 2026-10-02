@@ -10,7 +10,7 @@ import java.util.stream.Collectors;
 import java.util.*;
 import org.apache.commons.lang3.StringUtils;
 
-public class TiendanubePage extends BasePage {
+public class TiendanubePage extends BasePage implements CatalogPage {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 

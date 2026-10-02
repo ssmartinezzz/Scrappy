@@ -9,7 +9,7 @@ import com.microsoft.playwright.Page;
 import java.util.*;
 import org.apache.commons.lang3.StringUtils;
 
-public class VaypolPage extends BasePage {
+public class VaypolPage extends BasePage implements CatalogPage {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final int MAX_PAGES = 250;
