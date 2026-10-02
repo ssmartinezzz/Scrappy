@@ -9,12 +9,11 @@ import ar.scraper.catalog.Facets;
 import ar.scraper.model.Product;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 import javax.sql.DataSource;
-import java.sql.Connection;
 import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -37,11 +36,11 @@ class CatalogQueryRepository implements CatalogQueryPort {
 
     private static final Logger LOG = LoggerFactory.getLogger(CatalogQueryRepository.class);
 
-    private final DataSource dataSource;
+    private final JdbcTemplate jdbc;
     private final SiteRegistry siteRegistry;
 
     CatalogQueryRepository(DataSource dataSource, SiteRegistry siteRegistry) {
-        this.dataSource = dataSource;
+        this.jdbc = new JdbcTemplate(dataSource);
         this.siteRegistry = siteRegistry;
     }
 
@@ -53,12 +52,12 @@ class CatalogQueryRepository implements CatalogQueryPort {
     @Override
     public CatalogPage buscar(CatalogFilter filtro, String orden, int page, int size, Optional<Instant> desde) {
         Where where = construirWhere(filtro, cotaDe(desde));
-        try (Connection c = dataSource.getConnection()) {
-            int total = contar(c, where);
+        try {
+            int total = contar(where);
             int paginaClamped = Math.max(page, 1);
             int offset = (int) Math.min((long) (paginaClamped - 1) * size, Math.max(total, 0));
 
-            List<Product> productos = leerPagina(c, where, orden, size, offset);
+            List<Product> productos = leerPagina(where, orden, size, offset);
             return new CatalogPage(productos, total);
         } catch (Exception e) {
             LOG.error("[DB] Error consultando el catálogo: {}", e.getMessage(), e);
@@ -79,12 +78,12 @@ class CatalogQueryRepository implements CatalogQueryPort {
     @Override
     public Facets facetas(Optional<Instant> desde) {
         Cota cota = cotaDe(desde);
-        try (Connection c = dataSource.getConnection()) {
+        try {
             Map<String, Long> talles = ar.scraper.catalog.TalleOrder.sortTalles(
-                    contarHija(c, "producto_talle", "talle", cota));
-            Map<String, Long> badges = contarHija(c, "producto_badge", "badge", cota);
+                    contarHija("producto_talle", "talle", cota));
+            Map<String, Long> badges = contarHija("producto_badge", "badge", cota);
 
-            List<Map<String, Long>> filas = contarProductosPorFaceta(c, cota);
+            List<Map<String, Long>> filas = contarProductosPorFaceta(cota);
 
             Map<String, Long> generos = filas.get(0);
             Map<String, Long> categorias = filas.get(1);
@@ -111,7 +110,7 @@ class CatalogQueryRepository implements CatalogQueryPort {
      * {@code productos} — en UNA: un {@code GROUPING SETS} de un solo scan. El orden de
      * {@link #FACET_EXPRS} es el índice:
      */
-    private List<Map<String, Long>> contarProductosPorFaceta(Connection c, Cota cota) throws SQLException {
+    private List<Map<String, Long>> contarProductosPorFaceta(Cota cota) {
         String[] exprs = FACET_EXPRS;
         StringBuilder select = new StringBuilder("SELECT ");
         StringBuilder groupingSets = new StringBuilder();
@@ -135,23 +134,18 @@ class CatalogQueryRepository implements CatalogQueryPort {
         List<List<Map.Entry<String, Long>>> porFaceta = new ArrayList<>(exprs.length);
         for (int i = 0; i < exprs.length; i++) porFaceta.add(new ArrayList<>());
 
-        try (PreparedStatement ps = c.prepareStatement(sql)) {
-            cota.bind(ps, 1);
-            try (ResultSet rs = ps.executeQuery()) {
-                int cntCol = exprs.length * 2 + 1;
-                while (rs.next()) {
-                    for (int i = 0; i < exprs.length; i++) {
-                        int gCol = i * 2 + 1;
-                        int kCol = i * 2 + 2;
-                        if (rs.getInt(gCol) != 0) continue; // no es la faceta activa de esta fila
-                        String clave = rs.getString(kCol);
-                        if (StringUtils.isBlank(clave)) break;
-                        porFaceta.get(i).add(Map.entry(clave, rs.getLong(cntCol)));
-                        break;
-                    }
-                }
+        int cntCol = exprs.length * 2 + 1;
+        jdbc.query(sql, ps -> cota.bind(ps, 1), rs -> {
+            for (int i = 0; i < exprs.length; i++) {
+                int gCol = i * 2 + 1;
+                int kCol = i * 2 + 2;
+                if (rs.getInt(gCol) != 0) continue; // no es la faceta activa de esta fila
+                String clave = rs.getString(kCol);
+                if (StringUtils.isBlank(clave)) break;
+                porFaceta.get(i).add(Map.entry(clave, rs.getLong(cntCol)));
+                break;
             }
-        }
+        });
         for (int i = 0; i < exprs.length; i++) {
             List<Map.Entry<String, Long>> entradas = porFaceta.get(i);
             entradas.sort(Comparator
@@ -197,41 +191,42 @@ class CatalogQueryRepository implements CatalogQueryPort {
         int total = 0;
         Map<String, Long> porSitio = new java.util.LinkedHashMap<>();
         Map<String, Long> rubros = new java.util.LinkedHashMap<>();
-        try (Connection c = dataSource.getConnection()) {
-            try (PreparedStatement ps = c.prepareStatement(
+        try {
+            Agregado agregado = jdbc.query(
                     "SELECT coalesce(min(precio),0), coalesce(max(precio),0), COUNT(*), "
                             + "count(*) FILTER (WHERE gymrat), count(*) FILTER (WHERE cantidad_unidades > 1) "
-                            + "FROM productos WHERE activo" + cota.sqlAnd(""))) {
-                cota.bind(ps, 1);
-                ResultSet rs = ps.executeQuery();
-                if (rs.next()) {
-                    min = rs.getDouble(1);
-                    max = rs.getDouble(2);
-                    total = rs.getInt(3);
-                    conteoGymrat = rs.getLong(4);
-                    conteoPacks = rs.getLong(5);
-                }
+                            + "FROM productos WHERE activo" + cota.sqlAnd(""),
+                    ps -> cota.bind(ps, 1),
+                    rs -> rs.next()
+                            ? new Agregado(rs.getDouble(1), rs.getDouble(2), rs.getInt(3), rs.getLong(4), rs.getLong(5))
+                            : null);
+            if (agregado != null) {
+                min = agregado.min();
+                max = agregado.max();
+                total = agregado.total();
+                conteoGymrat = agregado.gymrat();
+                conteoPacks = agregado.packs();
             }
-            porSitio = contar(c, "sitio", cota);
-            rubros = contar(c, "coalesce(nullif(btrim(rubro),''),'indumentaria')", cota);
+            porSitio = contar("sitio", cota);
+            rubros = contar("coalesce(nullif(btrim(rubro),''),'indumentaria')", cota);
         } catch (Exception e) {
             LOG.error("[DB] Error calculando el resumen del catálogo: {}", e.getMessage(), e);
         }
         return new CatalogResumen(min, max, porSitio, rubros, conteoGymrat, conteoPacks, total);
     }
 
-    private Map<String, Long> contar(Connection c, String expresion, Cota cota) throws SQLException {
+    private record Agregado(double min, double max, int total, long gymrat, long packs) {
+    }
+
+    private Map<String, Long> contar(String expresion, Cota cota) {
         Map<String, Long> conteo = new java.util.LinkedHashMap<>();
         String sql = "SELECT " + expresion + " AS clave, COUNT(*) FROM productos "
                 + "WHERE activo AND coalesce(btrim(" + expresion + "), '') <> ''"
                 + cota.sqlAnd("")
                 + " GROUP BY 1 ORDER BY 2 DESC, 1 ASC";
-        try (PreparedStatement ps = c.prepareStatement(sql)) {
-            cota.bind(ps, 1);
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) conteo.put(rs.getString(1), rs.getLong(2));
-            }
-        }
+        jdbc.query(sql, ps -> cota.bind(ps, 1), rs -> {
+            conteo.put(rs.getString(1), rs.getLong(2));
+        });
         return conteo;
     }
 
@@ -239,8 +234,7 @@ class CatalogQueryRepository implements CatalogQueryPort {
      * Igual pero sobre una tabla hija: un producto cuenta UNA VEZ POR VALOR que tiene, no una sola
      * vez — es la semántica multi-badge que la spec pide.
      */
-    private Map<String, Long> contarHija(Connection c, String tabla, String columna, Cota cota)
-            throws SQLException {
+    private Map<String, Long> contarHija(String tabla, String columna, Cota cota) {
         Map<String, Long> conteo = new java.util.LinkedHashMap<>();
         // Leaving this one unbounded is invisible from `buscar` — the page shrinks correctly while
         // the talles and badges filters keep offering values only the held-back products carry.
@@ -249,12 +243,9 @@ class CatalogQueryRepository implements CatalogQueryPort {
                 + "WHERE p.activo AND btrim(h." + columna + ") <> ''"
                 + cota.sqlAnd("p.")
                 + " GROUP BY 1 ORDER BY 2 DESC, 1 ASC";
-        try (PreparedStatement ps = c.prepareStatement(sql)) {
-            cota.bind(ps, 1);
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) conteo.put(rs.getString(1), rs.getLong(2));
-            }
-        }
+        jdbc.query(sql, ps -> cota.bind(ps, 1), rs -> {
+            conteo.put(rs.getString(1), rs.getLong(2));
+        });
         return conteo;
     }
 
@@ -409,50 +400,40 @@ class CatalogQueryRepository implements CatalogQueryPort {
 
     private static final String PCT_DESCUENTO = "((p.precio_orig - p.precio) / p.precio_orig)";
 
-    private int contar(Connection c, Where where) throws SQLException {
+    private int contar(Where where) {
         String sql = "SELECT COUNT(*) FROM productos p WHERE " + where.sql();
-        try (PreparedStatement ps = c.prepareStatement(sql)) {
-            bind(c, ps, where.params());
-            try (ResultSet rs = ps.executeQuery()) {
-                return rs.next() ? rs.getInt(1) : 0;
-            }
-        }
+        return jdbc.query(sql, ps -> bind(ps, where.params()), rs -> rs.next() ? rs.getInt(1) : 0);
     }
 
     /**
      * Cuatro sentencias por página, TODAS constantes en el tamaño del catálogo: las urls de la
      * página (con el filtro y el orden), los productos de esas urls, y sus dos tablas hijas.
      */
-    private List<Product> leerPagina(Connection c, Where where, String orden, int size, int offset)
-            throws SQLException {
+    private List<Product> leerPagina(Where where, String orden, int size, int offset) {
         List<String> urls = new ArrayList<>();
         String sqlUrls = "SELECT p.url FROM productos p WHERE " + where.sql()
                 + "\n" + orderBy(orden) + "\nLIMIT ? OFFSET ?";
-        try (PreparedStatement ps = c.prepareStatement(sqlUrls)) {
-            int i = bind(c, ps, where.params());
+        jdbc.query(sqlUrls, ps -> {
+            int i = bind(ps, where.params());
             ps.setInt(i++, size);
             ps.setInt(i, offset);
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) urls.add(rs.getString(1));
-            }
-        }
+        }, rs -> {
+            urls.add(rs.getString(1));
+        });
         if (urls.isEmpty()) return List.of();
 
-        Map<String, List<String>> talles = multivalor(c, "producto_talle", "talle", urls);
-        Map<String, List<String>> badges = multivalor(c, "producto_badge", "badge", urls);
+        Map<String, List<String>> talles = multivalor("producto_talle", "talle", urls);
+        Map<String, List<String>> badges = multivalor("producto_badge", "badge", urls);
 
         Map<String, Product> porUrl = new HashMap<>();
-        try (PreparedStatement ps = c.prepareStatement(ProductRowMapper.COLUMNAS + " p WHERE p.url = ANY(?)")) {
-            ps.setArray(1, c.createArrayOf("text", urls.toArray()));
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
+        jdbc.query(ProductRowMapper.COLUMNAS + " p WHERE p.url = ANY(?)",
+                ps -> ps.setArray(1, ps.getConnection().createArrayOf("text", urls.toArray())),
+                rs -> {
                     String url = rs.getString("url");
                     porUrl.put(url, ProductRowMapper.map(rs,
                             talles.getOrDefault(url, List.of()),
                             badges.getOrDefault(url, List.of()), siteRegistry));
-                }
-            }
-        }
+                });
 
         List<Product> pagina = new ArrayList<>(urls.size());
         for (String url : urls) {
@@ -462,29 +443,24 @@ class CatalogQueryRepository implements CatalogQueryPort {
         return pagina;
     }
 
-    private Map<String, List<String>> multivalor(Connection c, String tabla, String columna, List<String> urls)
-            throws SQLException {
+    private Map<String, List<String>> multivalor(String tabla, String columna, List<String> urls) {
         Map<String, List<String>> porUrl = new HashMap<>();
-        try (PreparedStatement ps = c.prepareStatement(
-                "SELECT url," + columna + " FROM " + tabla + " WHERE url = ANY(?) ORDER BY url, posicion")) {
-            ps.setArray(1, c.createArrayOf("text", urls.toArray()));
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
+        jdbc.query("SELECT url," + columna + " FROM " + tabla + " WHERE url = ANY(?) ORDER BY url, posicion",
+                ps -> ps.setArray(1, ps.getConnection().createArrayOf("text", urls.toArray())),
+                rs -> {
                     porUrl.computeIfAbsent(rs.getString(1), k -> new ArrayList<>()).add(rs.getString(2));
-                }
-            }
-        }
+                });
         return porUrl;
     }
 
     private record TextArray(List<String> valores) {
     }
 
-    private int bind(Connection c, PreparedStatement ps, List<Object> params) throws SQLException {
+    private int bind(PreparedStatement ps, List<Object> params) throws SQLException {
         int i = 1;
         for (Object p : params) {
             if (p instanceof TextArray arr) {
-                ps.setArray(i++, c.createArrayOf("text", arr.valores().toArray()));
+                ps.setArray(i++, ps.getConnection().createArrayOf("text", arr.valores().toArray()));
             } else {
                 ps.setObject(i++, p);
             }
