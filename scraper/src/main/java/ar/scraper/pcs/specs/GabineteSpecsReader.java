@@ -18,20 +18,10 @@ public final class GabineteSpecsReader implements LectorDeSpecs {
 
     @Override
     public TechSpecs leer(Tokens tokens) {
-        return new TechSpecs("", "", formFactor(tokens.padded()), 0, 0, "",
+        return new TechSpecs("", "", tokens.formFactorExplicito(), 0, 0, "",
                 Gama.DESCONOCIDA, Certificacion.NINGUNA, 0, TipoAlmacenamiento.DESCONOCIDO,
                 List.of(), "", 0, 0, 0, false, TipoCooler.DESCONOCIDO, 0,
                 tamanio(tokens), 0);
-    }
-
-    private static String formFactor(String padded) {
-        if (padded.contains(" itx ")) return "ITX";
-        if (padded.contains(" matx ") || padded.contains(" m atx ") || padded.contains(" micro atx ")) {
-            return "MATX";
-        }
-        if (padded.contains(" eatx ") || padded.contains(" e atx ")) return "EATX";
-        if (padded.contains(" atx ")) return "ATX";
-        return "";
     }
 
     private static TamanioGabinete tamanio(Tokens tokens) {
