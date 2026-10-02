@@ -28,6 +28,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import org.apache.commons.lang3.StringUtils;
@@ -222,7 +223,7 @@ public class PcsController {
         return picks;
     }
 
-    private String safeStr(Object o) { return o != null ? String.valueOf(o) : ""; }
+    private String safeStr(Object o) { return Objects.toString(o, ""); }
 
     private double asDouble(Object o) {
         if (o == null) return 0.0;
