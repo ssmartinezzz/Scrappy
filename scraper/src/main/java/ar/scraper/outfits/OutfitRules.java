@@ -93,16 +93,16 @@ final class OutfitRules {
     }
 
     static OutfitService.SlotPick toSlotPick(String slot, Product p) {
-        String img = p.imagenUrl() != null ? p.imagenUrl() : "";
+        String img = StringUtils.defaultString(p.imagenUrl());
         if (img.startsWith("//")) img = "https:" + img;
         return new OutfitService.SlotPick(
                 slot,
-                p.sitio() != null ? p.sitio() : "",
-                p.nombre() != null ? p.nombre() : "",
+                StringUtils.defaultString(p.sitio()),
+                StringUtils.defaultString(p.nombre()),
                 p.precio(),
-                p.url() != null ? p.url() : "",
+                StringUtils.defaultString(p.url()),
                 img,
-                p.categoria() != null ? p.categoria() : "",
-                p.marca() != null ? p.marca() : "");
+                StringUtils.defaultString(p.categoria()),
+                StringUtils.defaultString(p.marca()));
     }
 }
