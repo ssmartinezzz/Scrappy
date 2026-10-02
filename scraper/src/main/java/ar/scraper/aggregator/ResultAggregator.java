@@ -19,8 +19,10 @@ import org.springframework.stereotype.Component;
 import java.util.*;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
+import lombok.RequiredArgsConstructor;
 
 @Component
+@RequiredArgsConstructor
 public class ResultAggregator {
 
     private static final Logger LOG = LoggerFactory.getLogger(ResultAggregator.class);
@@ -41,24 +43,6 @@ public class ResultAggregator {
     // Estado del último run — leído por ScraperService sin inyección circular
     private volatile JsonNode lastMlOutput     = null;
     private volatile int      lastCatRefinadas = 0;
-
-    public ResultAggregator(NormalizerService    normalizer,
-                            PythonRunner         pythonRunner,
-                            MlEnricher           mlEnricher,
-                            SenalEnricher        senalEnricher,
-                            FinanciacionEnricher financiacionEnricher,
-                            MlOutputPort         mlOutput,
-                            CategoriaStatsPort   categoriaStats,
-                            ProductPort          productos) {
-        this.normalizer          = normalizer;
-        this.pythonRunner        = pythonRunner;
-        this.mlEnricher          = mlEnricher;
-        this.senalEnricher       = senalEnricher;
-        this.financiacionEnricher = financiacionEnricher;
-        this.mlOutput            = mlOutput;
-        this.categoriaStats      = categoriaStats;
-        this.productos           = productos;
-    }
 
     public JsonNode             getLastMlOutput()    { return lastMlOutput; }
     public void                 setLastMlOutput(JsonNode n) { lastMlOutput = n; }

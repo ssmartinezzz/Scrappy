@@ -15,11 +15,13 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
+import lombok.RequiredArgsConstructor;
 
 import static ar.scraper.classification.SiteClassification.sitioKey;
 
 /** Normalización profunda post-scraping — orquestador puro. */
 @Component
+@RequiredArgsConstructor
 public class NormalizerService {
 
     private final PackQuantityDetector packQuantityDetector;
@@ -31,26 +33,6 @@ public class NormalizerService {
     private final RubroResolver rubroResolver;
     private final GymratTagger gymratTagger;
     private final SiteRegistry siteRegistry;
-
-    public NormalizerService(PackQuantityDetector packQuantityDetector,
-                              CategoryClassifier categoryClassifier,
-                              BrandExtractor brandExtractor,
-                              GenderResolver genderResolver,
-                              SizeNormalizer sizeNormalizer,
-                              SubcategoryResolver subcategoryResolver,
-                              RubroResolver rubroResolver,
-                              GymratTagger gymratTagger,
-                              SiteRegistry siteRegistry) {
-        this.packQuantityDetector = packQuantityDetector;
-        this.categoryClassifier = categoryClassifier;
-        this.brandExtractor = brandExtractor;
-        this.genderResolver = genderResolver;
-        this.sizeNormalizer = sizeNormalizer;
-        this.subcategoryResolver = subcategoryResolver;
-        this.rubroResolver = rubroResolver;
-        this.gymratTagger = gymratTagger;
-        this.siteRegistry = siteRegistry;
-    }
 
     public List<Product> normalizar(List<Product> productos) {
         return productos.stream()
