@@ -143,8 +143,17 @@ public class VaypolPage extends BasePage implements CatalogPage {
         return productos.stream().map(p -> {
             String img = imgMap.get(p.url());
             if (StringUtils.isNotBlank(img))
-                return new Product(p.sitio(), p.nombre(), p.precio(), p.precioOriginal(),
-                        p.url(), img, p.categoria(), p.genero(), p.talles());
+                return Product.builder()
+                        .sitio(p.sitio())
+                        .nombre(p.nombre())
+                        .precio(p.precio())
+                        .precioOriginal(p.precioOriginal())
+                        .url(p.url())
+                        .imagenUrl(img)
+                        .categoria(p.categoria())
+                        .genero(p.genero())
+                        .talles(p.talles())
+                        .build();
             return p;
         }).collect(java.util.stream.Collectors.toList());
     }
@@ -388,9 +397,17 @@ public class VaypolPage extends BasePage implements CatalogPage {
 
             List<String> talles = extraerTalles(p);
 
-            return Optional.of(new Product(
-                    sitio, nombre.trim(), precio, precioOrig,
-                    url, img, categoria, genero, talles));
+            return Optional.of(Product.builder()
+                    .sitio(sitio)
+                    .nombre(nombre.trim())
+                    .precio(precio)
+                    .precioOriginal(precioOrig)
+                    .url(url)
+                    .imagenUrl(img)
+                    .categoria(categoria)
+                    .genero(genero)
+                    .talles(talles)
+                    .build());
 
         } catch (Exception e) {
             return Optional.empty();
@@ -461,8 +478,17 @@ public class VaypolPage extends BasePage implements CatalogPage {
                 String url     = href.startsWith("http") ? href : base + href;
                 String genero  = normalizarGenero(n.path("genero").asText(""));
                 String img     = imgPorSlug.getOrDefault(slugDeUrl(url), "");
-                result.add(new Product(sitio, nombre, precio.get(), precioOrig,
-                        url, img, "", genero, List.of()));
+                result.add(Product.builder()
+                        .sitio(sitio)
+                        .nombre(nombre)
+                        .precio(precio.get())
+                        .precioOriginal(precioOrig)
+                        .url(url)
+                        .imagenUrl(img)
+                        .categoria("")
+                        .genero(genero)
+                        .talles(List.of())
+                        .build());
             }
             long conImg = result.stream()
                     .filter(p -> StringUtils.isNotBlank(p.imagenUrl())).count();

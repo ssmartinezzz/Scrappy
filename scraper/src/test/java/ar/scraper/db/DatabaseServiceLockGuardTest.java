@@ -49,9 +49,24 @@ class DatabaseServiceLockGuardTest extends PostgresTestBase {
     }
 
     private Product producto(String url, String categoria, String marca, String genero) {
-        return new Product("freres", "Producto", 15000.0, null, url, "http://img.example/x.jpg",
-                categoria, genero, List.of("M"), Product.MlScore.EMPTY, marca,
-                "indumentaria", false, false, Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY);
+        return Product.builder()
+                .sitio("freres")
+                .nombre("Producto")
+                .precio(15000.0)
+                .precioOriginal(null)
+                .url(url)
+                .imagenUrl("http://img.example/x.jpg")
+                .categoria(categoria)
+                .genero(genero)
+                .talles(List.of("M"))
+                .ml(Product.MlScore.EMPTY)
+                .marca(marca)
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(Product.SenalFinanciacion.EMPTY)
+                .build();
     }
 
     private void lockProduct(String url, String actor) throws Exception {

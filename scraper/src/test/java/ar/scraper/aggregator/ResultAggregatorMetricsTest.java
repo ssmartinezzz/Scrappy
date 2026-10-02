@@ -81,8 +81,17 @@ class ResultAggregatorMetricsTest {
 
     /** Convenience: create a minimal Product using the 9-arg legacy constructor. */
     private Product product(String nombre, double precio, String url) {
-        return new Product("TestSite", nombre, precio, null, url, "",
-                "Remera", "", List.of());
+        return Product.builder()
+                .sitio("TestSite")
+                .nombre(nombre)
+                .precio(precio)
+                .precioOriginal(null)
+                .url(url)
+                .imagenUrl("")
+                .categoria("Remera")
+                .genero("")
+                .talles(List.of())
+                .build();
     }
 
     // ── Scenario (a): mixed valid/invalid ────────────────────────────────────
@@ -91,10 +100,10 @@ class ResultAggregatorMetricsTest {
     void mixedValidAndInvalid_statsCountsAndFilteredListAreCorrect() {
         Product valid    = product("Remera Basica", 1500, "http://test.com/1");
         Product zeroPr   = product("Zapatilla", 0,    "http://test.com/2");   // invalid: precio=0
-        Product blankNom = product("", 800,            "http://test.com/3");  // invalid: nombre blank
+        Product blankUrl = product("Campera", 800,     "");                   // invalid: url blank
 
         ScrapeResult scrapeResult = new ScrapeResult("TestSite",
-                List.of(valid, zeroPr, blankNom), null, 100);
+                List.of(valid, zeroPr, blankUrl), null, 100);
 
         ResultAggregator.AggregatedResult result =
                 aggregator.agregar(List.of(scrapeResult));
@@ -195,12 +204,30 @@ class ResultAggregatorMetricsTest {
         Product raw = product("Zapatilla Running", 3000, "http://test.com/cat");
         ScrapeResult scrapeResult = new ScrapeResult("TestSite", List.of(raw), null, 10);
 
-        Product normalizado = new Product("TestSite", "Zapatilla Running", 3000, null,
-                "http://test.com/cat", "", "Zapatilla", "", List.of());
+        Product normalizado = Product.builder()
+                .sitio("TestSite")
+                .nombre("Zapatilla Running")
+                .precio(3000)
+                .precioOriginal(null)
+                .url("http://test.com/cat")
+                .imagenUrl("")
+                .categoria("Zapatilla")
+                .genero("")
+                .talles(List.of())
+                .build();
         when(normalizer.normalizar(anyList())).thenReturn(List.of(normalizado));
 
-        Product enriquecido = new Product("TestSite", "Zapatilla Running", 3000, null,
-                "http://test.com/cat", "", "Calzado Deportivo", "", List.of());
+        Product enriquecido = Product.builder()
+                .sitio("TestSite")
+                .nombre("Zapatilla Running")
+                .precio(3000)
+                .precioOriginal(null)
+                .url("http://test.com/cat")
+                .imagenUrl("")
+                .categoria("Calzado Deportivo")
+                .genero("")
+                .talles(List.of())
+                .build();
         when(mlEnricher.enriquecer(anyList(), any())).thenReturn(List.of(enriquecido));
 
         aggregator.agregar(List.of(scrapeResult));
@@ -214,12 +241,30 @@ class ResultAggregatorMetricsTest {
         Product raw = product("Zapatilla Running", 3000, "http://test.com/cat2");
         ScrapeResult scrapeResult = new ScrapeResult("TestSite", List.of(raw), null, 10);
 
-        Product normalizado = new Product("TestSite", "Zapatilla Running", 3000, null,
-                "http://test.com/cat2", "", "Zapatilla", "", List.of());
+        Product normalizado = Product.builder()
+                .sitio("TestSite")
+                .nombre("Zapatilla Running")
+                .precio(3000)
+                .precioOriginal(null)
+                .url("http://test.com/cat2")
+                .imagenUrl("")
+                .categoria("Zapatilla")
+                .genero("")
+                .talles(List.of())
+                .build();
         when(normalizer.normalizar(anyList())).thenReturn(List.of(normalizado));
 
-        Product enriquecido = new Product("TestSite", "Zapatilla Running", 3000, null,
-                "http://test.com/cat2", "", "Zapatilla", "", List.of());
+        Product enriquecido = Product.builder()
+                .sitio("TestSite")
+                .nombre("Zapatilla Running")
+                .precio(3000)
+                .precioOriginal(null)
+                .url("http://test.com/cat2")
+                .imagenUrl("")
+                .categoria("Zapatilla")
+                .genero("")
+                .talles(List.of())
+                .build();
         when(mlEnricher.enriquecer(anyList(), any())).thenReturn(List.of(enriquecido));
 
         aggregator.agregar(List.of(scrapeResult));
@@ -238,10 +283,27 @@ class ResultAggregatorMetricsTest {
         ScrapeResult scrapeResult = new ScrapeResult("TestSite", List.of(raw), null, 10);
 
         Product.VisualAttrs visual = new Product.VisualAttrs("oversize", "estampado", "capucha", "gris");
-        Product mlEnriquecido = new Product(
-                "TestSite", "Buzo con visual", 20000, null, "http://test.com/visual-e2e",
-                "", "Buzo", "unisex", List.of(), Product.MlScore.EMPTY, "", "indumentaria",
-                false, false, Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY, 1, "", visual);
+        Product mlEnriquecido = Product.builder()
+                .sitio("TestSite")
+                .nombre("Buzo con visual")
+                .precio(20000)
+                .precioOriginal(null)
+                .url("http://test.com/visual-e2e")
+                .imagenUrl("")
+                .categoria("Buzo")
+                .genero("unisex")
+                .talles(List.of())
+                .ml(Product.MlScore.EMPTY)
+                .marca("")
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(Product.SenalFinanciacion.EMPTY)
+                .cantidadUnidades(1)
+                .subCategoria("")
+                .visual(visual)
+                .build();
         when(mlEnricher.enriquecer(anyList(), any())).thenReturn(List.of(mlEnriquecido));
 
         // Real (not mocked) SenalEnricher + FinanciacionEnricher — the concrete

@@ -60,10 +60,25 @@ class ProductKeyParityTest extends PostgresTestBase {
             "https://site.com/emoji-👕-producto");
 
     private Product producto(String url, int i) {
-        return new Product("Sitio", "Producto " + i, 1000 + i, null, url,
-                "http://img.example/x.jpg", "Remera", "unisex", List.of(),
-                Product.MlScore.EMPTY, "Nike", "indumentaria", false, false,
-                Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY, 1);
+        return Product.builder()
+                .sitio("Sitio")
+                .nombre("Producto " + i)
+                .precio(1000 + i)
+                .precioOriginal(null)
+                .url(url)
+                .imagenUrl("http://img.example/x.jpg")
+                .categoria("Remera")
+                .genero("unisex")
+                .talles(List.of())
+                .ml(Product.MlScore.EMPTY)
+                .marca("Nike")
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(Product.SenalFinanciacion.EMPTY)
+                .cantidadUnidades(1)
+                .build();
     }
 
     @Test

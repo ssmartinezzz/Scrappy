@@ -145,11 +145,25 @@ class CatalogoFinanciacionDataTest extends PostgresTestBase {
     @Test
     @DisplayName("Los campos ML se serializan desde las columnas persistidas")
     void camposMlDesdeLasColumnas() {
-        Product p = new Product("Sitio", "Producto ML", 10000, null, "https://site.com/ml", "img",
-                "Remera", "unisex", List.of("M"),
-                new Product.MlScore(80, List.of("all_time_low"), true, "bajando", 12, 0.5, "premium"),
-                "Nike", "indumentaria", false, false,
-                Product.SenalCompra.EMPTY, SenalFinanciacion.EMPTY, 1);
+        Product p = Product.builder()
+                .sitio("Sitio")
+                .nombre("Producto ML")
+                .precio(10000)
+                .precioOriginal(null)
+                .url("https://site.com/ml")
+                .imagenUrl("img")
+                .categoria("Remera")
+                .genero("unisex")
+                .talles(List.of("M"))
+                .ml(new Product.MlScore(80, List.of("all_time_low"), true, "bajando", 12, 0.5, "premium"))
+                .marca("Nike")
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(SenalFinanciacion.EMPTY)
+                .cantidadUnidades(1)
+                .build();
         sembrar(p);
 
         JsonNode ml = primerProducto(pedirData()).path("ml");
@@ -260,14 +274,45 @@ class CatalogoFinanciacionDataTest extends PostgresTestBase {
     }
 
     private Product producto(String url, double precio) {
-        return new Product("Sitio", "Producto " + url, precio, null, url, "img",
-                "Remera", "unisex", List.of(), Product.MlScore.EMPTY, "Nike", "indumentaria",
-                false, false, Product.SenalCompra.EMPTY, SenalFinanciacion.EMPTY);
+        return Product.builder()
+                .sitio("Sitio")
+                .nombre("Producto " + url)
+                .precio(precio)
+                .precioOriginal(null)
+                .url(url)
+                .imagenUrl("img")
+                .categoria("Remera")
+                .genero("unisex")
+                .talles(List.of())
+                .ml(Product.MlScore.EMPTY)
+                .marca("Nike")
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(SenalFinanciacion.EMPTY)
+                .build();
     }
 
     private Product pack(String url, double precioTotal, int unidades) {
-        return new Product("Sitio", "Producto " + url, precioTotal, null, url, "img",
-                "Remera", "unisex", List.of(), Product.MlScore.EMPTY, "Nike", "indumentaria",
-                false, false, Product.SenalCompra.EMPTY, SenalFinanciacion.EMPTY, unidades);
+        return Product.builder()
+                .sitio("Sitio")
+                .nombre("Producto " + url)
+                .precio(precioTotal)
+                .precioOriginal(null)
+                .url(url)
+                .imagenUrl("img")
+                .categoria("Remera")
+                .genero("unisex")
+                .talles(List.of())
+                .ml(Product.MlScore.EMPTY)
+                .marca("Nike")
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(SenalFinanciacion.EMPTY)
+                .cantidadUnidades(unidades)
+                .build();
     }
 }

@@ -23,8 +23,21 @@ class TechSpecsIndexerTest {
     private final TechSpecsIndexer indexer = new TechSpecsIndexer(port);
 
     private Product producto(String nombre, String categoria, String rubro, String url) {
-        return new Product("TestSitio", nombre, 1000, null, url, "https://img/test.jpg",
-                categoria, "", List.of(), Product.MlScore.EMPTY, "", rubro, false);
+        return Product.builder()
+                .sitio("TestSitio")
+                .nombre(nombre)
+                .precio(1000)
+                .precioOriginal(null)
+                .url(url)
+                .imagenUrl("https://img/test.jpg")
+                .categoria(categoria)
+                .genero("")
+                .talles(List.of())
+                .ml(Product.MlScore.EMPTY)
+                .marca("")
+                .rubro(rubro)
+                .gymrat(false)
+                .build();
     }
 
     @Test

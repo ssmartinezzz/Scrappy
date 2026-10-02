@@ -53,10 +53,26 @@ class RecomendadosPackFieldsTest extends PostgresTestBase {
     private RecomendadosController controller;
 
     private Product packProducto(String url, double precio, int cantidadUnidades) {
-        return new Product("Sitio", "Producto " + url, precio, null, url, "img",
-                "Medias", "hombre", List.of(), MlScore.EMPTY, "Marca", "indumentaria",
-                false, false, Product.SenalCompra.EMPTY, SenalFinanciacion.EMPTY,
-                cantidadUnidades, "");
+        return Product.builder()
+                .sitio("Sitio")
+                .nombre("Producto " + url)
+                .precio(precio)
+                .precioOriginal(null)
+                .url(url)
+                .imagenUrl("img")
+                .categoria("Medias")
+                .genero("hombre")
+                .talles(List.of())
+                .ml(MlScore.EMPTY)
+                .marca("Marca")
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(SenalFinanciacion.EMPTY)
+                .cantidadUnidades(cantidadUnidades)
+                .subCategoria("")
+                .build();
     }
 
     private AggregatedResult resultWith(Product p) {

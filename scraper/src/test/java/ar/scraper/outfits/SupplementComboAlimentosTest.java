@@ -35,9 +35,21 @@ class SupplementComboAlimentosTest {
     private final SupplementCombo combo = new SupplementCombo(new RecommendationService());
 
     private Product p(String categoria, String nombre) {
-        return new Product("entreno", nombre, 10000, null,
-                "https://test/" + Math.abs(nombre.hashCode()), "https://img/x.jpg",
-                categoria, "unisex", List.of(), Product.MlScore.EMPTY, "Marca", "suplementos", false);
+        return Product.builder()
+                .sitio("entreno")
+                .nombre(nombre)
+                .precio(10000)
+                .precioOriginal(null)
+                .url("https://test/" + Math.abs(nombre.hashCode()))
+                .imagenUrl("https://img/x.jpg")
+                .categoria(categoria)
+                .genero("unisex")
+                .talles(List.of())
+                .ml(Product.MlScore.EMPTY)
+                .marca("Marca")
+                .rubro("suplementos")
+                .gymrat(false)
+                .build();
     }
 
     /** The subtype this product lands in when classified on its own, or "" for none. */

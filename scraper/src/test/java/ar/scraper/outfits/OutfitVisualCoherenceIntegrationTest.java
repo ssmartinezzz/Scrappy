@@ -30,13 +30,27 @@ class OutfitVisualCoherenceIntegrationTest {
 
     private Product prenda(String nombre, String categoria, double precio, int scoreP,
                            String fit, String estampado, String color) {
-        return new Product("TestSitio", nombre, precio, null,
-                "https://test/" + nombre.replace(" ", "-"), "https://img/t.jpg",
-                categoria, "hombre", List.of(),
-                new Product.MlScore(scoreP, "", false, "estable", 50),
-                "Marca", "indumentaria", true, false,
-                Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY, 1, "",
-                new Product.VisualAttrs(fit, estampado, "", color));
+        return Product.builder()
+                .sitio("TestSitio")
+                .nombre(nombre)
+                .precio(precio)
+                .precioOriginal(null)
+                .url("https://test/" + nombre.replace(" ", "-"))
+                .imagenUrl("https://img/t.jpg")
+                .categoria(categoria)
+                .genero("hombre")
+                .talles(List.of())
+                .ml(new Product.MlScore(scoreP, "", false, "estable", 50))
+                .marca("Marca")
+                .rubro("indumentaria")
+                .gymrat(true)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(Product.SenalFinanciacion.EMPTY)
+                .cantidadUnidades(1)
+                .subCategoria("")
+                .visual(new Product.VisualAttrs(fit, estampado, "", color))
+                .build();
     }
 
     private String urlDelSlot(OutfitService.Outfit outfit, String slot) {

@@ -94,9 +94,26 @@ class ResultAggregatorRefrescoParcialTest {
 
     @Step("Build product {url} from site {sitio} at price {precio}")
     private static Product producto(String sitio, String url, double precio, String categoria) {
-        return new Product(sitio, "Producto " + url, precio, null, url, "",
-                categoria, "unisex", List.of("M"), Product.MlScore.EMPTY, "Marca", "indumentaria",
-                false, false, Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY, 1, "");
+        return Product.builder()
+                .sitio(sitio)
+                .nombre("Producto " + url)
+                .precio(precio)
+                .precioOriginal(null)
+                .url(url)
+                .imagenUrl("")
+                .categoria(categoria)
+                .genero("unisex")
+                .talles(List.of("M"))
+                .ml(Product.MlScore.EMPTY)
+                .marca("Marca")
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(Product.SenalFinanciacion.EMPTY)
+                .cantidadUnidades(1)
+                .subCategoria("")
+                .build();
     }
 
     /** Stamps a buy signal derived from the product, tagged with {@code pasada}. */
@@ -120,10 +137,27 @@ class ResultAggregatorRefrescoParcialTest {
     }
 
     private static Product conSenales(Product p, Product.SenalCompra senal, Product.SenalFinanciacion finan) {
-        return new Product(p.sitio(), p.nombre(), p.precio(), p.precioOriginal(), p.url(),
-                p.imagenUrl(), p.categoria(), p.genero(), p.talles(), p.ml(), p.marca(),
-                p.rubro(), p.gymrat(), p.marcaPremium(), senal, finan,
-                p.cantidadUnidades(), p.subCategoria(), p.visual());
+        return Product.builder()
+                .sitio(p.sitio())
+                .nombre(p.nombre())
+                .precio(p.precio())
+                .precioOriginal(p.precioOriginal())
+                .url(p.url())
+                .imagenUrl(p.imagenUrl())
+                .categoria(p.categoria())
+                .genero(p.genero())
+                .talles(p.talles())
+                .ml(p.ml())
+                .marca(p.marca())
+                .rubro(p.rubro())
+                .gymrat(p.gymrat())
+                .marcaPremium(p.marcaPremium())
+                .senal(senal)
+                .finan(finan)
+                .cantidadUnidades(p.cantidadUnidades())
+                .subCategoria(p.subCategoria())
+                .visual(p.visual())
+                .build();
     }
 
     /** The catalog as {@code cargarProductos()} returns it: active rows, price ascending. */

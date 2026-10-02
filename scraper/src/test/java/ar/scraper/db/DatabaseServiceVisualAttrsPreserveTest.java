@@ -51,11 +51,27 @@ class DatabaseServiceVisualAttrsPreserveTest extends PostgresTestBase {
 
 
     private Product productoConVisual(String url, Product.VisualAttrs visual) {
-        return new Product(
-                "Sitio", "Remera con visual", 15000.0, null, url, "http://img.example/x.jpg",
-                "Remera", "unisex", List.of("M", "L"), Product.MlScore.EMPTY, "Nike",
-                "indumentaria", false, false, Product.SenalCompra.EMPTY,
-                Product.SenalFinanciacion.EMPTY, 1, "", visual);
+        return Product.builder()
+                .sitio("Sitio")
+                .nombre("Remera con visual")
+                .precio(15000.0)
+                .precioOriginal(null)
+                .url(url)
+                .imagenUrl("http://img.example/x.jpg")
+                .categoria("Remera")
+                .genero("unisex")
+                .talles(List.of("M", "L"))
+                .ml(Product.MlScore.EMPTY)
+                .marca("Nike")
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(Product.SenalFinanciacion.EMPTY)
+                .cantidadUnidades(1)
+                .subCategoria("")
+                .visual(visual)
+                .build();
     }
 
     @Test

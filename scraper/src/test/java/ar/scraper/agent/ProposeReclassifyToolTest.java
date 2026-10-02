@@ -151,9 +151,23 @@ class ProposeReclassifyToolTest {
     }
 
     private Product producto(String url, String nombre, String categoria, String marca) {
-        return new Product("Sitio", nombre, 1000, null, url, "img",
-                categoria, "unisex", List.of(), Product.MlScore.EMPTY, marca,
-                "indumentaria", false, false,
-                Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY);
+        return Product.builder()
+                .sitio("Sitio")
+                .nombre(nombre)
+                .precio(1000)
+                .precioOriginal(null)
+                .url(url)
+                .imagenUrl("img")
+                .categoria(categoria)
+                .genero("unisex")
+                .talles(List.of())
+                .ml(Product.MlScore.EMPTY)
+                .marca(marca)
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(Product.SenalFinanciacion.EMPTY)
+                .build();
     }
 }

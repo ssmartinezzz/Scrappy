@@ -35,8 +35,17 @@ class FinanciacionEnricherTest {
 
     @Step("Build product fixture: {nombre} @ {precio}")
     private Product producto(String nombre, double precio) {
-        return new Product("Sitio", nombre, precio, null, "https://site.com/" + nombre,
-                "", "Remera", "unisex", List.of());
+        return Product.builder()
+                .sitio("Sitio")
+                .nombre(nombre)
+                .precio(precio)
+                .precioOriginal(null)
+                .url("https://site.com/" + nombre)
+                .imagenUrl("")
+                .categoria("Remera")
+                .genero("unisex")
+                .talles(List.of())
+                .build();
     }
 
     @Test
@@ -104,10 +113,24 @@ class FinanciacionEnricherTest {
 
         Product.SenalCompra senalOriginal =
                 new Product.SenalCompra("comprar_ahora", 95, ar.scraper.indices.Confianza.OBSERVADO);
-        Product withSenal = new Product(
-                "Sitio", "p6", 100000, null, "https://site.com/p6", "",
-                "Remera", "unisex", List.of(), Product.MlScore.EMPTY, "", "indumentaria",
-                false, false, senalOriginal, Product.SenalFinanciacion.EMPTY);
+        Product withSenal = Product.builder()
+                .sitio("Sitio")
+                .nombre("p6")
+                .precio(100000)
+                .precioOriginal(null)
+                .url("https://site.com/p6")
+                .imagenUrl("")
+                .categoria("Remera")
+                .genero("unisex")
+                .talles(List.of())
+                .ml(Product.MlScore.EMPTY)
+                .marca("")
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(senalOriginal)
+                .finan(Product.SenalFinanciacion.EMPTY)
+                .build();
 
         FinanciacionEnricher enricher = new FinanciacionEnricher(presets, indices);
         List<Product> result = enricher.enriquecer(List.of(withSenal));
@@ -138,10 +161,25 @@ class FinanciacionEnricherTest {
         when(presets.cargarPresetActivo()).thenReturn(Optional.of(preset));
         when(indices.variacionMensual(Indice.IPC)).thenReturn(Optional.of(3.5));
 
-        Product pack = new Product(
-                "Sitio", "Combo x2 Buzo + Pantalon", 100000.0, null, "https://site.com/combo",
-                "", "Conjunto", "unisex", List.of(), Product.MlScore.EMPTY, "", "indumentaria",
-                false, false, Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY, 2);
+        Product pack = Product.builder()
+                .sitio("Sitio")
+                .nombre("Combo x2 Buzo + Pantalon")
+                .precio(100000.0)
+                .precioOriginal(null)
+                .url("https://site.com/combo")
+                .imagenUrl("")
+                .categoria("Conjunto")
+                .genero("unisex")
+                .talles(List.of())
+                .ml(Product.MlScore.EMPTY)
+                .marca("")
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(Product.SenalFinanciacion.EMPTY)
+                .cantidadUnidades(2)
+                .build();
 
         FinanciacionEnricher enricher = new FinanciacionEnricher(presets, indices);
         List<Product> result = enricher.enriquecer(List.of(pack));
@@ -164,10 +202,27 @@ class FinanciacionEnricherTest {
         when(indices.variacionMensual(Indice.IPC)).thenReturn(Optional.of(3.5));
 
         Product.VisualAttrs visual = new Product.VisualAttrs("entallado", "liso", "en v", "negro");
-        Product conVisual = new Product(
-                "Sitio", "Remera con visual", 100000.0, null, "https://site.com/visual-finan",
-                "", "Remera", "unisex", List.of(), Product.MlScore.EMPTY, "", "indumentaria",
-                false, false, Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY, 1, "", visual);
+        Product conVisual = Product.builder()
+                .sitio("Sitio")
+                .nombre("Remera con visual")
+                .precio(100000.0)
+                .precioOriginal(null)
+                .url("https://site.com/visual-finan")
+                .imagenUrl("")
+                .categoria("Remera")
+                .genero("unisex")
+                .talles(List.of())
+                .ml(Product.MlScore.EMPTY)
+                .marca("")
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(Product.SenalFinanciacion.EMPTY)
+                .cantidadUnidades(1)
+                .subCategoria("")
+                .visual(visual)
+                .build();
 
         FinanciacionEnricher enricher = new FinanciacionEnricher(presets, indices);
         List<Product> result = enricher.enriquecer(List.of(conVisual));

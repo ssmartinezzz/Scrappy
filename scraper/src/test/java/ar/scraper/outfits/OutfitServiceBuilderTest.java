@@ -62,9 +62,21 @@ class OutfitServiceBuilderTest {
     private Product product(String nombre, double precio, String categoria,
                              String genero, String marca, int scoreP) {
         Product.MlScore ml = new Product.MlScore(scoreP, "", false, "estable", 50);
-        return new Product("TestSitio", nombre, precio, null,
-                "https://test/" + nombre.replace(" ", "-"), "https://img/test.jpg",
-                categoria, genero, List.of(), ml, marca, "indumentaria", true); // gymrat=true
+        return Product.builder()
+                .sitio("TestSitio")
+                .nombre(nombre)
+                .precio(precio)
+                .precioOriginal(null)
+                .url("https://test/" + nombre.replace(" ", "-"))
+                .imagenUrl("https://img/test.jpg")
+                .categoria(categoria)
+                .genero(genero)
+                .talles(List.of())
+                .ml(ml)
+                .marca(marca)
+                .rubro("indumentaria")
+                .gymrat(true)
+                .build(); // gymrat=true
     }
 
     /**
@@ -73,9 +85,21 @@ class OutfitServiceBuilderTest {
     private Product nonGymratProduct(String nombre, double precio, String categoria,
                                       String genero, String marca, int scoreP) {
         Product.MlScore ml = new Product.MlScore(scoreP, "", false, "estable", 50);
-        return new Product("TestSitio", nombre, precio, null,
-                "https://test/" + nombre.replace(" ", "-"), "https://img/test.jpg",
-                categoria, genero, List.of(), ml, marca, "indumentaria", false); // gymrat=false
+        return Product.builder()
+                .sitio("TestSitio")
+                .nombre(nombre)
+                .precio(precio)
+                .precioOriginal(null)
+                .url("https://test/" + nombre.replace(" ", "-"))
+                .imagenUrl("https://img/test.jpg")
+                .categoria(categoria)
+                .genero(genero)
+                .talles(List.of())
+                .ml(ml)
+                .marca(marca)
+                .rubro("indumentaria")
+                .gymrat(false)
+                .build(); // gymrat=false
     }
 
     // ── 2.1 Full outfit assembled — totalEstimado ≤ presupuesto invariant ────

@@ -39,9 +39,19 @@ class GroupingServiceCharacterizationTest {
     /** Fixture builder: fills non-essential {@link Product} args with neutral defaults. */
     private static Product product(String sitio, String nombre, String marca, String categoria,
                                      double precio, String imagenUrl) {
-        return new Product(sitio, nombre, precio, null,
-                "https://" + sitio + "/" + nombre.toLowerCase().replace(" ", "-"), imagenUrl,
-                categoria, "", List.of(), Product.MlScore.EMPTY, marca);
+        return Product.builder()
+                .sitio(sitio)
+                .nombre(nombre)
+                .precio(precio)
+                .precioOriginal(null)
+                .url("https://" + sitio + "/" + nombre.toLowerCase().replace(" ", "-"))
+                .imagenUrl(imagenUrl)
+                .categoria(categoria)
+                .genero("")
+                .talles(List.of())
+                .ml(Product.MlScore.EMPTY)
+                .marca(marca)
+                .build();
     }
 
     // ── (a) single-site product → passthrough group ────────────────────────

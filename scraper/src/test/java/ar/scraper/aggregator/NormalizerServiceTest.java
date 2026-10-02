@@ -41,11 +41,25 @@ class NormalizerServiceTest {
 
     @Test
     void productLegacyConstructorDefaultsSubCategoriaToEmpty() {
-        Product p = new Product("Sitio", "Nombre", 1000.0, null,
-                "http://url", "http://img", "Remera", "hombre",
-                List.of(), Product.MlScore.EMPTY, "", "indumentaria",
-                false, false, Product.SenalCompra.EMPTY,
-                Product.SenalFinanciacion.EMPTY, 1);
+        Product p = Product.builder()
+                .sitio("Sitio")
+                .nombre("Nombre")
+                .precio(1000.0)
+                .precioOriginal(null)
+                .url("http://url")
+                .imagenUrl("http://img")
+                .categoria("Remera")
+                .genero("hombre")
+                .talles(List.of())
+                .ml(Product.MlScore.EMPTY)
+                .marca("")
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(Product.SenalFinanciacion.EMPTY)
+                .cantidadUnidades(1)
+                .build();
         assertThat(p.subCategoria()).isEqualTo("");
     }
 
@@ -59,9 +73,19 @@ class NormalizerServiceTest {
 
     @Step("Normalize product: {nombre} / {marca} / {categoria}")
     private Product normalizarUno(String nombre, String marca, String categoria) {
-        Product in = new Product("Freres", nombre, 1000.0, null,
-                "http://url", "http://img", categoria, "hombre",
-                List.of(), Product.MlScore.EMPTY, marca);
+        Product in = Product.builder()
+                .sitio("Freres")
+                .nombre(nombre)
+                .precio(1000.0)
+                .precioOriginal(null)
+                .url("http://url")
+                .imagenUrl("http://img")
+                .categoria(categoria)
+                .genero("hombre")
+                .talles(List.of())
+                .ml(Product.MlScore.EMPTY)
+                .marca(marca)
+                .build();
         return service.normalizar(List.of(in)).get(0);
     }
 
@@ -91,10 +115,27 @@ class NormalizerServiceTest {
         // previously rebuilt Product via the 18-arg legacy constructor, silently
         // resetting visual to VisualAttrs.EMPTY.
         Product.VisualAttrs visual = new Product.VisualAttrs("oversize", "liso", "cuello redondo", "blanco");
-        Product in = new Product(
-                "Freres", "Remera con visual", 1000.0, null, "http://url", "http://img",
-                "Remera", "hombre", List.of(), Product.MlScore.EMPTY, "Nike", "indumentaria",
-                false, false, Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY, 1, "", visual);
+        Product in = Product.builder()
+                .sitio("Freres")
+                .nombre("Remera con visual")
+                .precio(1000.0)
+                .precioOriginal(null)
+                .url("http://url")
+                .imagenUrl("http://img")
+                .categoria("Remera")
+                .genero("hombre")
+                .talles(List.of())
+                .ml(Product.MlScore.EMPTY)
+                .marca("Nike")
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(Product.SenalFinanciacion.EMPTY)
+                .cantidadUnidades(1)
+                .subCategoria("")
+                .visual(visual)
+                .build();
 
         Product out = service.normalizar(List.of(in)).get(0);
 

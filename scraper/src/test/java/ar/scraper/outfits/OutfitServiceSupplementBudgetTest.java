@@ -21,10 +21,21 @@ class OutfitServiceSupplementBudgetTest {
     private final OutfitService service = new OutfitService(new RecommendationService());
 
     private Product suplemento(String nombre, double precio, String marca) {
-        return new Product("TestSitio", nombre, precio, null,
-                "https://test/" + nombre.replace(" ", "-"), "https://img/test.jpg",
-                "Suplemento", "unisex", List.of(), Product.MlScore.EMPTY, marca, "suplementos",
-                false);
+        return Product.builder()
+                .sitio("TestSitio")
+                .nombre(nombre)
+                .precio(precio)
+                .precioOriginal(null)
+                .url("https://test/" + nombre.replace(" ", "-"))
+                .imagenUrl("https://img/test.jpg")
+                .categoria("Suplemento")
+                .genero("unisex")
+                .talles(List.of())
+                .ml(Product.MlScore.EMPTY)
+                .marca(marca)
+                .rubro("suplementos")
+                .gymrat(false)
+                .build();
     }
 
     @Test

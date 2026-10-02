@@ -42,9 +42,24 @@ class DatabaseServiceClasificacionBloqueadaTest extends PostgresTestBase {
     }
 
     private Product producto(String url) {
-        return new Product("freres", "Producto", 15000.0, null, url, "http://img.example/x.jpg",
-                "Remera", "hombre", List.of("M"), Product.MlScore.EMPTY, "Nike",
-                "indumentaria", false, false, Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY);
+        return Product.builder()
+                .sitio("freres")
+                .nombre("Producto")
+                .precio(15000.0)
+                .precioOriginal(null)
+                .url(url)
+                .imagenUrl("http://img.example/x.jpg")
+                .categoria("Remera")
+                .genero("hombre")
+                .talles(List.of("M"))
+                .ml(Product.MlScore.EMPTY)
+                .marca("Nike")
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(Product.SenalFinanciacion.EMPTY)
+                .build();
     }
 
     private void lockProduct(String url, String actor, String categoria, String subCategoria,

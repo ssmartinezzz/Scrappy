@@ -323,13 +323,13 @@ public class ScraperService implements CatalogSnapshotPort {
         if (foto == null) return null;
         List<Product> parcheados = foto.productos().stream()
                 .map(p -> url.equals(p.url())
-                        ? new Product(p.sitio(), p.nombre(), p.precio(), p.precioOriginal(),
-                                p.url(), p.imagenUrl(),
-                                noVacio(categoria, p.categoria()), noVacio(genero, p.genero()),
-                                p.talles(), p.ml(), noVacio(marca, p.marca()), noVacio(rubro, p.rubro()),
-                                p.gymrat(), p.marcaPremium(), p.senal(), p.finan(),
-                                p.cantidadUnidades(), noVacio(subCategoria, p.subCategoria()),
-                                p.visual())
+                        ? p.toBuilder()
+                                .categoria(noVacio(categoria, p.categoria()))
+                                .genero(noVacio(genero, p.genero()))
+                                .marca(noVacio(marca, p.marca()))
+                                .rubro(noVacio(rubro, p.rubro()))
+                                .subCategoria(noVacio(subCategoria, p.subCategoria()))
+                                .build()
                         : p)
                 .toList();
         return new AggregatedResult(parcheados, foto.conteoPorSitio(), foto.erroresPorSitio(),

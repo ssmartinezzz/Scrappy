@@ -246,8 +246,24 @@ class CatalogSqlEquivalenceTest extends PostgresTestBase {
                              int unidades, String segment) {
         Product.MlScore ml = new Product.MlScore(
                 70, badges, false, "estable", 50, 0.0, segment);
-        return new Product(sitio, nombre, precio, null, url, "http://img.example/x.jpg",
-                categoria, genero, talles, ml, marca, "indumentaria", false, false,
-                Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY, unidades);
+        return Product.builder()
+                .sitio(sitio)
+                .nombre(nombre)
+                .precio(precio)
+                .precioOriginal(null)
+                .url(url)
+                .imagenUrl("http://img.example/x.jpg")
+                .categoria(categoria)
+                .genero(genero)
+                .talles(talles)
+                .ml(ml)
+                .marca(marca)
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(Product.SenalFinanciacion.EMPTY)
+                .cantidadUnidades(unidades)
+                .build();
     }
 }

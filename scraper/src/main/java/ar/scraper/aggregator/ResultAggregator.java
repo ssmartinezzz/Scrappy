@@ -87,8 +87,7 @@ public class ResultAggregator {
     }
 
     private static boolean isValid(Product p) {
-        return StringUtils.isNotBlank(p.nombre())
-                && p.precio() > 0
+        return p.precio() > 0
                 && StringUtils.isNotBlank(p.url());
     }
 
@@ -214,11 +213,13 @@ public class ResultAggregator {
                 result.add(p);
                 continue;
             }
-            result.add(new Product(
-                    p.sitio(), p.nombre(), p.precio(), p.precioOriginal(), p.url(), p.imagenUrl(),
-                    c.categoria(), c.genero(), p.talles(), p.ml(), c.marca(), c.rubro(),
-                    p.gymrat(), p.marcaPremium(), p.senal(), p.finan(), p.cantidadUnidades(),
-                    c.subCategoria(), p.visual()));
+            result.add(p.toBuilder()
+                    .categoria(c.categoria())
+                    .genero(c.genero())
+                    .marca(c.marca())
+                    .rubro(c.rubro())
+                    .subCategoria(c.subCategoria())
+                    .build());
         }
         return result;
     }
@@ -446,10 +447,9 @@ public class ResultAggregator {
 
     /** Copia un producto reemplazando solo sus dos señales derivadas. */
     private static Product conSenales(Product p, Product.SenalCompra senal, Product.SenalFinanciacion finan) {
-        return new Product(
-                p.sitio(), p.nombre(), p.precio(), p.precioOriginal(), p.url(), p.imagenUrl(),
-                p.categoria(), p.genero(), p.talles(), p.ml(), p.marca(), p.rubro(),
-                p.gymrat(), p.marcaPremium(), senal, finan,
-                p.cantidadUnidades(), p.subCategoria(), p.visual());
+        return p.toBuilder()
+                .senal(senal)
+                .finan(finan)
+                .build();
     }
 }

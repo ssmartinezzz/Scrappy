@@ -145,10 +145,25 @@ class TransactionalUnitsRollbackTest extends PostgresTestBase {
     @Test
     @DisplayName("guardarPreciosExternos keeps today's rows when re-inserting fails")
     void guardarPreciosExternosKeepsPreviousRows() throws Exception {
-        db.upsertProductos(List.of(new ar.scraper.model.Product("Sitio", "Producto", 1000.0, null, "https://p/1",
-                "http://img.example/x.jpg", "Remera", "unisex", List.of("M"), ar.scraper.model.Product.MlScore.EMPTY,
-                "Nike", "indumentaria", false, false, ar.scraper.model.Product.SenalCompra.EMPTY,
-                ar.scraper.model.Product.SenalFinanciacion.EMPTY, 1)));
+        db.upsertProductos(List.of(ar.scraper.model.Product.builder()
+                .sitio("Sitio")
+                .nombre("Producto")
+                .precio(1000.0)
+                .precioOriginal(null)
+                .url("https://p/1")
+                .imagenUrl("http://img.example/x.jpg")
+                .categoria("Remera")
+                .genero("unisex")
+                .talles(List.of("M"))
+                .ml(ar.scraper.model.Product.MlScore.EMPTY)
+                .marca("Nike")
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(ar.scraper.model.Product.SenalCompra.EMPTY)
+                .finan(ar.scraper.model.Product.SenalFinanciacion.EMPTY)
+                .cantidadUnidades(1)
+                .build()));
         var row = List.of(java.util.Map.<String, Object>of("titulo", "A", "precio", 10.0, "url", "https://e/a"));
         db.guardarPreciosExternos("https://p/1", "MercadoLibre", row);
         try (var fault = FaultInjection.raiseOn(dataSource(), "precios_externos", "INSERT", null)) {
@@ -226,10 +241,25 @@ class TransactionalUnitsRollbackTest extends PostgresTestBase {
     }
 
     private ar.scraper.model.Product producto(String url, double precio) {
-        return new ar.scraper.model.Product("Freres", "Producto", precio, null, url, "http://img.example/x.jpg",
-                "Remera", "unisex", List.of("M"), ar.scraper.model.Product.MlScore.EMPTY, "Nike",
-                "indumentaria", false, false, ar.scraper.model.Product.SenalCompra.EMPTY,
-                ar.scraper.model.Product.SenalFinanciacion.EMPTY, 1);
+        return ar.scraper.model.Product.builder()
+                .sitio("Freres")
+                .nombre("Producto")
+                .precio(precio)
+                .precioOriginal(null)
+                .url(url)
+                .imagenUrl("http://img.example/x.jpg")
+                .categoria("Remera")
+                .genero("unisex")
+                .talles(List.of("M"))
+                .ml(ar.scraper.model.Product.MlScore.EMPTY)
+                .marca("Nike")
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(ar.scraper.model.Product.SenalCompra.EMPTY)
+                .finan(ar.scraper.model.Product.SenalFinanciacion.EMPTY)
+                .cantidadUnidades(1)
+                .build();
     }
 
     @Test

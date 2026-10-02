@@ -736,10 +736,24 @@ class AgentControllerTest {
     }
 
     private Product producto(String url, String categoria, String marca, String genero, List<String> talles) {
-        return new Product("Sitio", "Producto", 1000, null, url, "img",
-                categoria, genero, talles, Product.MlScore.EMPTY, marca,
-                "indumentaria", false, false,
-                Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY);
+        return Product.builder()
+                .sitio("Sitio")
+                .nombre("Producto")
+                .precio(1000)
+                .precioOriginal(null)
+                .url(url)
+                .imagenUrl("img")
+                .categoria(categoria)
+                .genero(genero)
+                .talles(talles)
+                .ml(Product.MlScore.EMPTY)
+                .marca(marca)
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(Product.SenalFinanciacion.EMPTY)
+                .build();
     }
 
     private ReclassifyProposal proposal(String url, String categoriaActual, String categoriaPropuesta) {

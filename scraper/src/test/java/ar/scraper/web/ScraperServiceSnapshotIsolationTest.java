@@ -41,10 +41,27 @@ class ScraperServiceSnapshotIsolationTest {
     private ResultAggregator aggregator;
 
     private Product producto(String url, String categoria) {
-        return new Product("Sitio", "Producto", 1000, null, url, "",
-                categoria, "unisex", List.of("M"), Product.MlScore.EMPTY, "Marca",
-                "indumentaria", false, false, Product.SenalCompra.EMPTY,
-                Product.SenalFinanciacion.EMPTY, 1, "Sub", null);
+        return Product.builder()
+                .sitio("Sitio")
+                .nombre("Producto")
+                .precio(1000)
+                .precioOriginal(null)
+                .url(url)
+                .imagenUrl("")
+                .categoria(categoria)
+                .genero("unisex")
+                .talles(List.of("M"))
+                .ml(Product.MlScore.EMPTY)
+                .marca("Marca")
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(Product.SenalFinanciacion.EMPTY)
+                .cantidadUnidades(1)
+                .subCategoria("Sub")
+                .visual(null)
+                .build();
     }
 
     private AggregatedResult catalogo(Product... productos) {

@@ -48,7 +48,17 @@ class V3ManualClassificationLockConstraintTest extends PostgresTestBase {
     }
 
     private Product producto(String url) {
-        return new Product("Sitio", "Producto", 1000.0, null, url, "", "Remera", "hombre", List.of());
+        return Product.builder()
+                .sitio("Sitio")
+                .nombre("Producto")
+                .precio(1000.0)
+                .precioOriginal(null)
+                .url(url)
+                .imagenUrl("")
+                .categoria("Remera")
+                .genero("hombre")
+                .talles(List.of())
+                .build();
     }
 
     @Test
