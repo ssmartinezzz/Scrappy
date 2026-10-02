@@ -213,26 +213,12 @@ public class ResultAggregator {
                 result.add(p);
                 continue;
             }
-            result.add(Product.builder()
-                    .sitio(p.sitio())
-                    .nombre(p.nombre())
-                    .precio(p.precio())
-                    .precioOriginal(p.precioOriginal())
-                    .url(p.url())
-                    .imagenUrl(p.imagenUrl())
+            result.add(p.toBuilder()
                     .categoria(c.categoria())
                     .genero(c.genero())
-                    .talles(p.talles())
-                    .ml(p.ml())
                     .marca(c.marca())
                     .rubro(c.rubro())
-                    .gymrat(p.gymrat())
-                    .marcaPremium(p.marcaPremium())
-                    .senal(p.senal())
-                    .finan(p.finan())
-                    .cantidadUnidades(p.cantidadUnidades())
                     .subCategoria(c.subCategoria())
-                    .visual(p.visual())
                     .build());
         }
         return result;
@@ -461,26 +447,9 @@ public class ResultAggregator {
 
     /** Copia un producto reemplazando solo sus dos señales derivadas. */
     private static Product conSenales(Product p, Product.SenalCompra senal, Product.SenalFinanciacion finan) {
-        return Product.builder()
-                .sitio(p.sitio())
-                .nombre(p.nombre())
-                .precio(p.precio())
-                .precioOriginal(p.precioOriginal())
-                .url(p.url())
-                .imagenUrl(p.imagenUrl())
-                .categoria(p.categoria())
-                .genero(p.genero())
-                .talles(p.talles())
-                .ml(p.ml())
-                .marca(p.marca())
-                .rubro(p.rubro())
-                .gymrat(p.gymrat())
-                .marcaPremium(p.marcaPremium())
+        return p.toBuilder()
                 .senal(senal)
                 .finan(finan)
-                .cantidadUnidades(p.cantidadUnidades())
-                .subCategoria(p.subCategoria())
-                .visual(p.visual())
                 .build();
     }
 }
