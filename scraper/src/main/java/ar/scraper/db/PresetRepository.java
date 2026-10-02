@@ -4,15 +4,15 @@ import ar.scraper.financiacion.Preset;
 import ar.scraper.financiacion.PresetPort;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataAccessException;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.support.GeneratedKeyHolder;
+import org.springframework.jdbc.support.KeyHolder;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.sql.DataSource;
-import java.sql.Connection;
 import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -31,10 +31,10 @@ class PresetRepository implements PresetPort {
     private static final double PRESET_ILUSTRATIVO_RECARGO_PCT = 40.0;
     private static final int    PRESET_ILUSTRATIVO_CUOTAS      = 12;
 
-    private final DataSource dataSource;
+    private final JdbcTemplate jdbc;
 
     PresetRepository(DataSource dataSource) {
-        this.dataSource = dataSource;
+        this.jdbc = new JdbcTemplate(dataSource);
     }
 
     /**
@@ -44,52 +44,45 @@ class PresetRepository implements PresetPort {
      */
     @Override
     public void seedPresetIlustrativoSiVacio() {
-        Sql.traducir(() -> seedPresetIlustrativoSiVacioSql());
-    }
-
-    private void seedPresetIlustrativoSiVacioSql() throws SQLException {
-        try (Connection c = dataSource.getConnection();
-             Statement st = c.createStatement();
-             ResultSet rs = st.executeQuery("SELECT COUNT(*) FROM financiacion_presets")) {
-            if (rs.next() && rs.getInt(1) == 0) {
-                crearPresetInterno(c, PRESET_ILUSTRATIVO_LABEL, PRESET_ILUSTRATIVO_RECARGO_PCT,
+        Sql.traducir(() -> {
+            Integer total = jdbc.queryForObject("SELECT COUNT(*) FROM financiacion_presets", Integer.class);
+            if (total != null && total == 0) {
+                crearPresetInterno(PRESET_ILUSTRATIVO_LABEL, PRESET_ILUSTRATIVO_RECARGO_PCT,
                         PRESET_ILUSTRATIVO_CUOTAS, true);
                 LOG.info("[DB] Preset ilustrativo creado y activado (tabla vacía).");
             }
-        }
+        });
     }
 
-    private int crearPresetInterno(Connection c, String label, double recargoPct, int cuotas, boolean activo)
-            throws SQLException {
-        try (PreparedStatement ps = c.prepareStatement("""
-                INSERT INTO financiacion_presets (label, recargo_pct, cuotas, activo, created_at)
-                VALUES (?, ?, ?, ?, ?)
-                """, Statement.RETURN_GENERATED_KEYS)) {
+    private int crearPresetInterno(String label, double recargoPct, int cuotas, boolean activo) {
+        KeyHolder keys = new GeneratedKeyHolder();
+        jdbc.update(c -> {
+            PreparedStatement ps = c.prepareStatement("""
+                    INSERT INTO financiacion_presets (label, recargo_pct, cuotas, activo, created_at)
+                    VALUES (?, ?, ?, ?, ?)
+                    """, new String[]{"id"});
             ps.setString(1, label);
             ps.setDouble(2, recargoPct);
             ps.setInt(3, cuotas);
             ps.setBoolean(4, activo);
             ps.setObject(5, Timestamps.now());
-            ps.executeUpdate();
-            try (ResultSet keys = ps.getGeneratedKeys()) {
-                return keys.next() ? keys.getInt(1) : -1;
-            }
-        }
+            return ps;
+        }, keys);
+        Number key = keys.getKey();
+        return key != null ? key.intValue() : -1;
     }
 
     @Override
     public List<Preset> listarPresets() {
         List<Preset> result = new ArrayList<>();
-        try (Connection c = dataSource.getConnection();
-             Statement st = c.createStatement();
-             ResultSet rs = st.executeQuery(
-                "SELECT id, label, recargo_pct, cuotas, activo FROM financiacion_presets ORDER BY created_at, id")) {
-            while (rs.next()) {
-                result.add(new Preset(
-                        rs.getInt("id"), rs.getString("label"),
-                        rs.getDouble("recargo_pct"), rs.getInt("cuotas"),
-                        rs.getBoolean("activo")));
-            }
+        try {
+            jdbc.query("SELECT id, label, recargo_pct, cuotas, activo FROM financiacion_presets ORDER BY created_at, id",
+                    rs -> {
+                        result.add(new Preset(
+                                rs.getInt("id"), rs.getString("label"),
+                                rs.getDouble("recargo_pct"), rs.getInt("cuotas"),
+                                rs.getBoolean("activo")));
+                    });
         } catch (Exception e) {
             LOG.warn("[DB] Error listando presets: {}", e.getMessage());
         }
@@ -98,15 +91,13 @@ class PresetRepository implements PresetPort {
 
     @Override
     public Optional<Preset> cargarPresetActivo() {
-        try (Connection c = dataSource.getConnection();
-             Statement st = c.createStatement();
-             ResultSet rs = st.executeQuery(
-                "SELECT id, label, recargo_pct, cuotas, activo FROM financiacion_presets WHERE activo LIMIT 1")) {
-            if (rs.next()) {
-                return Optional.of(new Preset(
-                        rs.getInt("id"), rs.getString("label"),
-                        rs.getDouble("recargo_pct"), rs.getInt("cuotas"), true));
-            }
+        try {
+            return jdbc.query("SELECT id, label, recargo_pct, cuotas, activo FROM financiacion_presets WHERE activo LIMIT 1",
+                    rs -> rs.next()
+                            ? Optional.of(new Preset(
+                                    rs.getInt("id"), rs.getString("label"),
+                                    rs.getDouble("recargo_pct"), rs.getInt("cuotas"), true))
+                            : Optional.<Preset>empty());
         } catch (Exception e) {
             LOG.warn("[DB] Error cargando preset activo: {}", e.getMessage());
         }
@@ -119,8 +110,8 @@ class PresetRepository implements PresetPort {
             LOG.warn("[DB] crearPreset rechazado: cuotas={} recargoPct={} inválidos", cuotas, recargoPct);
             return -1;
         }
-        try (Connection c = dataSource.getConnection()) {
-            return crearPresetInterno(c, label, recargoPct, cuotas, false);
+        try {
+            return crearPresetInterno(label, recargoPct, cuotas, false);
         } catch (Exception e) {
             LOG.warn("[DB] Error creando preset: {}", e.getMessage());
             return -1;
@@ -133,15 +124,15 @@ class PresetRepository implements PresetPort {
             LOG.warn("[DB] editarPreset rechazado: cuotas={} recargoPct={} inválidos", cuotas, recargoPct);
             return false;
         }
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement("""
+        try {
+            int filasEditadas = jdbc.update("""
                     UPDATE financiacion_presets SET label=?, recargo_pct=?, cuotas=? WHERE id=?
-                    """)) {
-            ps.setString(1, label);
-            ps.setDouble(2, recargoPct);
-            ps.setInt(3, cuotas);
-            ps.setInt(4, id);
-            int filasEditadas = ps.executeUpdate();
+                    """, ps -> {
+                ps.setString(1, label);
+                ps.setDouble(2, recargoPct);
+                ps.setInt(3, cuotas);
+                ps.setInt(4, id);
+            });
             if (filasEditadas == 0) {
                 LOG.warn("[DB] editarPreset: id {} no existe.", id);
                 return false;
@@ -157,20 +148,15 @@ class PresetRepository implements PresetPort {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public boolean activarPreset(int id) {
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement psOff = c.prepareStatement(
-                "UPDATE financiacion_presets SET activo=false WHERE activo");
-             PreparedStatement psOn = c.prepareStatement(
-                "UPDATE financiacion_presets SET activo=true WHERE id=?")) {
-            psOff.executeUpdate();
-            psOn.setInt(1, id);
-            if (psOn.executeUpdate() == 0) {
+        try {
+            jdbc.update("UPDATE financiacion_presets SET activo=false WHERE activo");
+            if (jdbc.update("UPDATE financiacion_presets SET activo=true WHERE id=?", id) == 0) {
                 LOG.warn("[DB] activarPreset: id {} no existe, se revierte desactivación.", id);
                 Sql.marcarRollback();
                 return false;
             }
             return true;
-        } catch (SQLException e) {
+        } catch (DataAccessException e) {
             LOG.warn("[DB] Error activando preset {}: {}", id, e.getMessage());
             Sql.marcarRollback();
             return false;
@@ -184,22 +170,14 @@ class PresetRepository implements PresetPort {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public boolean eliminarPreset(int id) {
-        try (Connection c = dataSource.getConnection()) {
-            int total;
-            try (Statement st = c.createStatement();
-                 ResultSet rs = st.executeQuery("SELECT COUNT(*) FROM financiacion_presets")) {
-                total = rs.next() ? rs.getInt(1) : 0;
-            }
+        try {
+            Integer cuenta = jdbc.queryForObject("SELECT COUNT(*) FROM financiacion_presets", Integer.class);
+            int total = cuenta != null ? cuenta : 0;
 
-            int filasBorradas;
-            try (PreparedStatement ps = c.prepareStatement(
-                    "DELETE FROM financiacion_presets WHERE id=?")) {
-                ps.setInt(1, id);
-                filasBorradas = ps.executeUpdate();
-            }
+            int filasBorradas = jdbc.update("DELETE FROM financiacion_presets WHERE id=?", id);
 
             if (filasBorradas > 0 && (total - filasBorradas) <= 0) {
-                crearPresetInterno(c, PRESET_ILUSTRATIVO_LABEL, PRESET_ILUSTRATIVO_RECARGO_PCT,
+                crearPresetInterno(PRESET_ILUSTRATIVO_LABEL, PRESET_ILUSTRATIVO_RECARGO_PCT,
                         PRESET_ILUSTRATIVO_CUOTAS, true);
                 LOG.info("[DB] Último preset eliminado: preset ilustrativo recreado y activado.");
             }
