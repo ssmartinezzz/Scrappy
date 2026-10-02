@@ -143,15 +143,10 @@ public class PythonRunner {
                     python, scriptPath, prodPath, outPath, histPath, workDir, useGpuSnapshot);
             Process proc = pb.start();
 
-            Thread.ofVirtual().start(() -> {
-                try (var br = new BufferedReader(new InputStreamReader(proc.getErrorStream()))) {
-                    String line;
-                    while ((line = br.readLine()) != null) {
-                        LOG.info("[ML] {}", line);
-                        stderrTail.addLast(line);
-                        while (stderrTail.size() > 50) stderrTail.pollFirst();
-                    }
-                } catch (Exception ignored) {}
+            drenarEnHilo(proc.getErrorStream(), line -> {
+                LOG.info("[ML] {}", line);
+                stderrTail.addLast(line);
+                while (stderrTail.size() > 50) stderrTail.pollFirst();
             });
 
             if (!proc.waitFor(TIMEOUT_SEC, TimeUnit.SECONDS)) {
@@ -259,12 +254,7 @@ public class PythonRunner {
                 ProcessBuilder pb = construirProcessBuilderEntrenamiento(cmd, workDir, useGpuSnapshot);
                 Process proc = pb.start();
 
-                Thread.ofVirtual().start(() -> {
-                    try (var br = new BufferedReader(new InputStreamReader(proc.getErrorStream()))) {
-                        String line;
-                        while ((line = br.readLine()) != null) LOG.info("[ML-TRAIN] {}", line);
-                    } catch (Exception ignored) {}
-                });
+                drenarEnHilo(proc.getErrorStream(), line -> LOG.info("[ML-TRAIN] {}", line));
 
                 var sb = new StringBuilder();
                 try (var br = new BufferedReader(new InputStreamReader(proc.getInputStream()))) {
@@ -464,22 +454,12 @@ public class PythonRunner {
     ResultadoEspera esperarConDrain(Process proc, long timeout, TimeUnit unit, String fase,
             java.util.function.Consumer<String> stdoutLineHandler,
             java.util.function.Consumer<String> stderrLineHandler) {
-        Thread stdoutThread = Thread.ofVirtual().start(() -> {
-            try (var br = new BufferedReader(new InputStreamReader(proc.getInputStream()))) {
-                String line;
-                while ((line = br.readLine()) != null) {
-                    setTraining(parsearLineaProgreso(line, fase, trainingStatus.get()));
-                    if (stdoutLineHandler != null) stdoutLineHandler.accept(line);
-                }
-            } catch (Exception ignored) {}
+        Thread stdoutThread = drenarEnHilo(proc.getInputStream(), line -> {
+            setTraining(parsearLineaProgreso(line, fase, trainingStatus.get()));
+            if (stdoutLineHandler != null) stdoutLineHandler.accept(line);
         });
-        Thread stderrThread = Thread.ofVirtual().start(() -> {
-            try (var br = new BufferedReader(new InputStreamReader(proc.getErrorStream()))) {
-                String line;
-                while ((line = br.readLine()) != null) {
-                    if (stderrLineHandler != null) stderrLineHandler.accept(line);
-                }
-            } catch (Exception ignored) {}
+        Thread stderrThread = drenarEnHilo(proc.getErrorStream(), line -> {
+            if (stderrLineHandler != null) stderrLineHandler.accept(line);
         });
 
         boolean finished;
@@ -496,6 +476,15 @@ public class PythonRunner {
         joinDrainThread(stdoutThread);
         joinDrainThread(stderrThread);
         return new ResultadoEspera(true, proc.exitValue());
+    }
+
+    private static Thread drenarEnHilo(InputStream in, java.util.function.Consumer<String> porLinea) {
+        return Thread.ofVirtual().start(() -> {
+            try (var br = new BufferedReader(new InputStreamReader(in))) {
+                String line;
+                while ((line = br.readLine()) != null) porLinea.accept(line);
+            } catch (Exception ignored) {}
+        });
     }
 
     /**
@@ -687,14 +676,9 @@ public class PythonRunner {
                     var filasProcesadas = new java.util.concurrent.atomic.AtomicInteger(-1);
                     var filasSinSenal = new java.util.concurrent.atomic.AtomicInteger(0);
 
-                    Thread stderrThread = Thread.ofVirtual().start(() -> {
-                        try (var br = new BufferedReader(new InputStreamReader(proc.getErrorStream()))) {
-                            String line;
-                            while ((line = br.readLine()) != null) {
-                                LOG.info("[ML-BACKFILL] {}", line);
-                                if (line.contains(BACKFILL_SIN_SENAL_MARKER)) filasSinSenal.incrementAndGet();
-                            }
-                        } catch (Exception ignored) {}
+                    Thread stderrThread = drenarEnHilo(proc.getErrorStream(), line -> {
+                        LOG.info("[ML-BACKFILL] {}", line);
+                        if (line.contains(BACKFILL_SIN_SENAL_MARKER)) filasSinSenal.incrementAndGet();
                     });
 
                     try (var br = new BufferedReader(new InputStreamReader(proc.getInputStream()))) {
@@ -781,29 +765,22 @@ public class PythonRunner {
     }
 
     private boolean tienePytorch(String python, boolean forceCpu) {
-        try {
-            ProcessBuilder pb = construirProcessBuilderProbe(python, "import torch; print('ok')", forceCpu);
-            Process proc = pb.start();
-            if (!proc.waitFor(10, TimeUnit.SECONDS)) {
-                proc.destroyForcibly();
-                return false;
-            }
-            String out = new String(proc.getInputStream().readAllBytes()).trim();
-            return out.contains("ok");
-        } catch (Exception e) { return false; }
+        return probeResponde(python, "import torch; print('ok')", forceCpu);
     }
 
     private boolean tieneCuda(String python, boolean forceCpu) {
+        return probeResponde(python, "import torch; print('ok' if torch.cuda.is_available() else 'no')",
+                forceCpu);
+    }
+
+    private boolean probeResponde(String python, String codigoPython, boolean forceCpu) {
         try {
-            ProcessBuilder pb = construirProcessBuilderProbe(python,
-                    "import torch; print('ok' if torch.cuda.is_available() else 'no')", forceCpu);
-            Process proc = pb.start();
+            Process proc = construirProcessBuilderProbe(python, codigoPython, forceCpu).start();
             if (!proc.waitFor(10, TimeUnit.SECONDS)) {
                 proc.destroyForcibly();
                 return false;
             }
-            String out = new String(proc.getInputStream().readAllBytes()).trim();
-            return out.contains("ok");
+            return new String(proc.getInputStream().readAllBytes()).trim().contains("ok");
         } catch (Exception e) { return false; }
     }
 
@@ -821,9 +798,14 @@ public class PythonRunner {
         // UTF-8 evita el mojibake en los logs (estad�sticas → estadísticas) y PYTHONUNBUFFERED hace
         // que stderr se vacíe línea a línea, así un crash nativo (ej. exit 0xC0000409) no se traga
         // las últimas líneas y podemos ver dónde murió.
+        return configurarEnv(pb, workDir, useGpuSnapshot, true);
+    }
+
+    private ProcessBuilder configurarEnv(ProcessBuilder pb, Path workDir, boolean useGpuSnapshot,
+            boolean unbuffered) {
         pb.environment().put("PYTHONIOENCODING", "utf-8");
         pb.environment().put("PYTHONUTF8", "1");
-        pb.environment().put("PYTHONUNBUFFERED", "1");
+        if (unbuffered) pb.environment().put("PYTHONUNBUFFERED", "1");
         aplicarEnvBaseDatosYModelos(pb, workDir);
         if (!useGpuSnapshot) {
             pb.environment().put("CUDA_VISIBLE_DEVICES", "-1");
@@ -836,13 +818,7 @@ public class PythonRunner {
         ProcessBuilder pb = new ProcessBuilder(cmd)
                 .directory(workDir.toFile())
                 .redirectErrorStream(false);
-        pb.environment().put("PYTHONIOENCODING", "utf-8");
-        pb.environment().put("PYTHONUTF8", "1");
-        aplicarEnvBaseDatosYModelos(pb, workDir);
-        if (!useGpuSnapshot) {
-            pb.environment().put("CUDA_VISIBLE_DEVICES", "-1");
-        }
-        return pb;
+        return configurarEnv(pb, workDir, useGpuSnapshot, false);
     }
 
     ProcessBuilder construirProcessBuilderBackfill(String python, String scriptPath,
@@ -858,14 +834,7 @@ public class PythonRunner {
         ProcessBuilder pb = new ProcessBuilder(cmd)
                 .directory(workDir.toFile())
                 .redirectErrorStream(false);
-        pb.environment().put("PYTHONIOENCODING", "utf-8");
-        pb.environment().put("PYTHONUTF8", "1");
-        pb.environment().put("PYTHONUNBUFFERED", "1");
-        aplicarEnvBaseDatosYModelos(pb, workDir);
-        if (!useGpuSnapshot) {
-            pb.environment().put("CUDA_VISIBLE_DEVICES", "-1");
-        }
-        return pb;
+        return configurarEnv(pb, workDir, useGpuSnapshot, true);
     }
 
     /**
