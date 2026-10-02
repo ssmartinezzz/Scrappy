@@ -26,7 +26,7 @@ public class VtexPage extends StorePage implements CatalogPage {
     private static final int PROFUNDIDAD_ARBOL = 3;
 
     private static final Set<String> PALABRAS_HOMBRE = Set.of(
-            "hombre","hombres","masculino","men","man","male","caballero");
+            "hombre","hombres","masculino","masculinos","men","man","male","caballero","caballeros");
     private static final Set<String> PALABRAS_MUJER = Set.of(
             "mujer","mujeres","femenino","women","woman","female","dama","damas");
     private static final Set<String> PALABRAS_UNISEX = Set.of(
@@ -531,7 +531,7 @@ public class VtexPage extends StorePage implements CatalogPage {
 
     private String mapearGenero(String val) {
         if (PALABRAS_UNISEX.stream().anyMatch(val::contains)) return "unisex";
-        if (PALABRAS_HOMBRE.stream().anyMatch(val::contains)) return "hombre";
+        if (CatalogJson.tienePalabra(val, PALABRAS_HOMBRE)) return "hombre";
         if (PALABRAS_MUJER.stream().anyMatch(val::contains))  return "mujer";
         return "";
     }
