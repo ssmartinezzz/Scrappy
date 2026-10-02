@@ -5,15 +5,14 @@ import ar.scraper.model.Product;
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
 
 /** Budget-aware outfit builder: the MCKP solver and its greedy fallback. */
+@RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 class OutfitBudgetBuilder {
 
     private final RecommendationService recommendationService;
-
-    OutfitBudgetBuilder(RecommendationService recommendationService) {
-        this.recommendationService = recommendationService;
-    }
 
     private static final int BUILDER_POOL_K = 20;
 
