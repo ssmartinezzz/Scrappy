@@ -59,7 +59,14 @@ class TransactionalUnitsRollbackTest extends PostgresTestBase {
 
     private PcPick pick(String url) {
         return new PcPick("mother", "TestSitio", "Parte de prueba", 100000.0, url, "https://img/x.jpg",
-                "MarcaTest", new TechSpecs("AM5", "DDR5", "ATX", 650, 32, "DIMM"));
+                "MarcaTest", TechSpecs.builder()
+                        .socket("AM5")
+                        .ddr("DDR5")
+                        .formFactor("ATX")
+                        .watts(650)
+                        .capacidadGb(32)
+                        .tipoMemoria("DIMM")
+                        .build());
     }
 
     @Test

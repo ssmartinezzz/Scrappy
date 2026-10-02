@@ -15,7 +15,7 @@ import org.apache.commons.lang3.StringUtils;
  * from each top category's landing page — the landing page itself shows 12 unrepresentative items
  * and is never treated as a yield source, only as a source of leaf links.
  */
-public class OsCommercePage extends BasePage implements CatalogPage {
+public class OsCommercePage extends StorePage implements CatalogPage {
 
     private static final Logger log = LoggerFactory.getLogger(OsCommercePage.class);
     private static final int MAX_PAGES = 40;
@@ -23,18 +23,10 @@ public class OsCommercePage extends BasePage implements CatalogPage {
     private static final Set<String> DENYLIST = Set.of(
             "carrito", "mi-cuenta", "checkout", "login", "registro", "contacto", "productos");
 
-    private final String sitio;
-    private final String baseUrl;
-    private final double precioMin;
-    private final double precioMax;
 
     public OsCommercePage(Page page, int timeoutMs, String sitio, String baseUrl,
                            double precioMin, double precioMax) {
-        super(page, timeoutMs);
-        this.sitio = sitio;
-        this.baseUrl = baseUrl.replaceAll("/+$", "");
-        this.precioMin = precioMin;
-        this.precioMax = precioMax;
+        super(page, timeoutMs, sitio, sinBarraFinal(baseUrl), precioMin, precioMax);
     }
 
     public List<Product> scrapeAll() {
@@ -65,26 +57,9 @@ public class OsCommercePage extends BasePage implements CatalogPage {
 
     List<Product> crawlLeafCategory(String leafUrl, String categoriaHint) {
         List<Product> result = new ArrayList<>();
-        Set<String> vistas = new HashSet<>();
-        for (int p = 1; p <= MAX_PAGES; p++) {
-            String url = leafUrl + (p > 1 ? "?page=" + p : "");
-            try {
-                navigateTo(url);
-                String html = page.content();
-                List<Product> pagina = parseListing(html, sitio, baseUrl, categoriaHint, precioMin, precioMax);
-
-                List<Product> nuevos = pagina.stream()
-                        .filter(prod -> vistas.add(prod.url()))
-                        .toList();
-                // Venex nunca devuelve vacío pasado el final real, repite indefinidamente la última
-                // página).
-                if (nuevos.isEmpty()) break;
-                result.addAll(nuevos);
-            } catch (Exception e) {
-                log.debug("[{}] leaf={} p={}: {}", sitio, leafUrl, p, e.getMessage());
-                break;
-            }
-        }
+        crawlPaginas(MAX_PAGES, "leaf=" + leafUrl, p -> leafUrl + (p > 1 ? "?page=" + p : ""),
+                html -> parseListing(html, sitio, baseUrl, categoriaHint, precioMin, precioMax),
+                new HashSet<>(), result);
         return result;
     }
 
@@ -167,10 +142,7 @@ public class OsCommercePage extends BasePage implements CatalogPage {
 
         List<Product> result = new ArrayList<>();
         Set<String> vistasEnPagina = new HashSet<>();
-        String[] cards = html.split("<div class=\"product-box\"");
-        for (int i = 1; i < cards.length; i++) {
-            String card = cards[i];
-
+        for (String card : cards(html, "<div class=\"product-box\"")) {
             var mUrl = PRODUCT_URL.matcher(card);
             if (!mUrl.find()) continue;
             String url = mUrl.group(1);
@@ -197,28 +169,11 @@ public class OsCommercePage extends BasePage implements CatalogPage {
             }
             if (precio <= 0 || precio < precioMin || precio > precioMax) continue;
 
-            String img = "";
-            var mImg = IMG.matcher(card);
-            if (mImg.find()) img = mImg.group(1);
-            img = ImageUrl.absolutize(img, baseUrl);
+            String img = ImageUrl.primera(IMG, card, baseUrl);
 
             String categoria = !categoriaJson.isBlank() ? categoriaJson : categoriaHint;
 
-            result.add(Product.builder()
-                    .sitio(sitio)
-                    .nombre(nombre)
-                    .precio(precio)
-                    .precioOriginal(null)
-                    .url(url)
-                    .imagenUrl(img)
-                    .categoria(categoria)
-                    .genero("")
-                    .talles(List.of())
-                    .ml(Product.MlScore.EMPTY)
-                    .marca("")
-                    .rubro("tecnologia")
-                    .gymrat(false)
-                    .build());
+            result.add(tecnologia(sitio, nombre, precio, null, url, img, categoria));
         }
         return result;
     }

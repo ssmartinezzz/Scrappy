@@ -10,16 +10,9 @@ import java.util.stream.Collectors;
 import java.util.*;
 import org.apache.commons.lang3.StringUtils;
 
-public class TiendanubePage extends BasePage implements CatalogPage {
+public class TiendanubePage extends StorePage implements CatalogPage {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
-
-    private static final Set<String> PALABRAS_HOMBRE = Set.of(
-            "hombre","hombres","masculino","masculina","men","man","male","caballero","varones");
-    private static final Set<String> PALABRAS_MUJER  = Set.of(
-            "mujer","mujeres","femenino","femenina","women","woman","female","dama","damas");
-    private static final Set<String> PALABRAS_UNISEX = Set.of(
-            "unisex","unisexo","neutro");
 
     /**
      * {@code ScraperConfig.getMaxPaginas} no lo conoce, lo recibe como fallback del scraper, que es
@@ -27,10 +20,6 @@ public class TiendanubePage extends BasePage implements CatalogPage {
      */
     public static final int MAX_PAGINAS_DEFAULT = 60;
 
-    private final String sitio;
-    private final String baseUrl;
-    private final double precioMin;
-    private final double precioMax;
     private final List<String> extraUrls;
     private final int maxPaginas;
 
@@ -47,11 +36,7 @@ public class TiendanubePage extends BasePage implements CatalogPage {
     public TiendanubePage(Page page, int timeoutMs, String sitio, String baseUrl,
                           double precioMin, double precioMax, List<String> extraUrls,
                           int maxPaginas) {
-        super(page, timeoutMs);
-        this.sitio      = sitio;
-        this.baseUrl    = baseUrl;
-        this.precioMin  = precioMin;
-        this.precioMax  = precioMax;
+        super(page, timeoutMs, sitio, baseUrl, precioMin, precioMax);
         this.extraUrls  = extraUrls != null ? extraUrls : List.of();
         this.maxPaginas = maxPaginas >= 1 ? maxPaginas : MAX_PAGINAS_DEFAULT;
     }
@@ -192,13 +177,8 @@ public class TiendanubePage extends BasePage implements CatalogPage {
             if (!variants.isArray() || variants.isEmpty()) return Optional.empty();
             JsonNode v = variants.get(0);
 
-            Optional<Double> precio = parsePrecio(v.path("price").asText(""));
-            if (precio.isEmpty() || precio.get() < precioMin || precio.get() > precioMax) return Optional.empty();
-
-            String compareStr = v.path("compare_at_price").asText("");
-            if ("null".equals(compareStr)) compareStr = "";
-            OptionalDouble compareParsed = PrecioParser.parse(compareStr);
-            Double compare = compareParsed.isPresent() ? compareParsed.getAsDouble() : null;
+            Optional<Double> precio = precioEnRango(v.path("price").asText(""));
+            if (precio.isEmpty()) return Optional.empty();
 
             String categoria = "";
             JsonNode cats = prod.path("categories");
@@ -206,21 +186,8 @@ public class TiendanubePage extends BasePage implements CatalogPage {
                 categoria = cats.get(0).path("name").asText("").trim();
             }
 
-            String genero = detectarGeneroApi(prod, nombre);
-
-            List<String> talles = extraerTallesApi(prod, variants);
-
-            return Optional.of(Product.builder()
-                    .sitio(sitio)
-                    .nombre(nombre)
-                    .precio(precio.get())
-                    .precioOriginal(compare)
-                    .url(url)
-                    .imagenUrl(img)
-                    .categoria(categoria)
-                    .genero(genero)
-                    .talles(talles)
-                    .build());
+            return Optional.of(producto(nombre, precio.get(), CatalogJson.precioComparado(v), url, img,
+                    categoria, detectarGeneroApi(prod, nombre), extraerTallesApi(prod, variants)));
         } catch (Exception e) { return Optional.empty(); }
     }
 
@@ -231,14 +198,8 @@ public class TiendanubePage extends BasePage implements CatalogPage {
                 String attrName = attr.path("name").asText("").toLowerCase();
                 if (esTalleAttr(attrName)) {
                     JsonNode vals = attr.path("values");
-                    if (vals.isArray() && !vals.isEmpty()) {
-                        List<String> talles = new ArrayList<>();
-                        for (JsonNode val : vals) {
-                            String t = val.asText("").trim();
-                            if (!t.isBlank()) talles.add(t);
-                        }
-                        if (!talles.isEmpty()) return talles;
-                    }
+                    List<String> talles = CatalogJson.textosNoVacios(vals);
+                    if (!talles.isEmpty()) return talles;
                 }
             }
         }
@@ -292,27 +253,8 @@ public class TiendanubePage extends BasePage implements CatalogPage {
         if (cats.isArray()) {
             for (JsonNode c : cats) fuentes.add(c.path("name").asText("").toLowerCase());
         }
-        JsonNode tags = prod.path("tags");
-        if (tags.isTextual()) {
-            Arrays.stream(tags.asText("").split(","))
-                    .map(String::trim).map(String::toLowerCase)
-                    .forEach(fuentes::add);
-        } else if (tags.isArray()) {
-            for (JsonNode t : tags) fuentes.add(t.asText("").toLowerCase());
-        }
-
-        for (String f : fuentes) {
-            if (PALABRAS_UNISEX.stream().anyMatch(f::contains)) return "unisex";
-        }
-        boolean esHombre = fuentes.stream().anyMatch(f ->
-                PALABRAS_HOMBRE.stream().anyMatch(f::contains));
-        boolean esMujer  = fuentes.stream().anyMatch(f ->
-                PALABRAS_MUJER.stream().anyMatch(f::contains));
-
-        if (esHombre && !esMujer)  return "hombre";
-        if (esMujer  && !esHombre) return "mujer";
-        if (esHombre && esMujer)   return "unisex";
-        return "";
+        CatalogJson.agregarTags(fuentes, prod.path("tags"));
+        return CatalogJson.genero(fuentes);
     }
 
     private List<Product> scrapeJs(String startUrl) {
@@ -385,35 +327,18 @@ public class TiendanubePage extends BasePage implements CatalogPage {
         try {
             String nombre = n.path("nombre").asText("").trim();
             if (nombre.isBlank()) return Optional.empty();
-            Optional<Double> precio = parsePrecio(n.path("precio").asText(""));
-            if (precio.isEmpty() || precio.get() < precioMin || precio.get() > precioMax) return Optional.empty();
+            Optional<Double> precio = precioEnRango(n.path("precio").asText(""));
+            if (precio.isEmpty()) return Optional.empty();
             OptionalDouble compareParsed = PrecioParser.parse(n.path("compare").asText("").trim());
             Double compare = compareParsed.isPresent() ? compareParsed.getAsDouble() : null;
             String url     = absoluteUrl(n.path("url").asText(""), baseUrl);
             String img     = n.path("img").asText("").trim();
             if (img.startsWith("//")) img = "https:" + img;
 
-            List<String> talles = new ArrayList<>();
-            JsonNode jstalles = n.path("talles");
-            if (jstalles.isArray()) {
-                for (JsonNode t : jstalles) {
-                    String tv = t.asText("").trim();
-                    if (!tv.isBlank()) talles.add(tv);
-                }
-            }
             String genero = n.path("genero").asText("").trim();
 
-            return Optional.of(Product.builder()
-                    .sitio(sitio)
-                    .nombre(nombre)
-                    .precio(precio.get())
-                    .precioOriginal(compare)
-                    .url(url)
-                    .imagenUrl(img)
-                    .categoria("")
-                    .genero(genero)
-                    .talles(talles)
-                    .build());
+            return Optional.of(producto(nombre, precio.get(), compare, url, img, "", genero,
+                    CatalogJson.textosNoVacios(n.path("talles"))));
         } catch (Exception e) { return Optional.empty(); }
     }
 

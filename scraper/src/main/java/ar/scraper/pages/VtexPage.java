@@ -11,7 +11,7 @@ import java.util.*;
 import org.apache.commons.lang3.StringUtils;
 
 /** Si no está, se hace heurística sobre nombre + categorías. */
-public class VtexPage extends BasePage implements CatalogPage {
+public class VtexPage extends StorePage implements CatalogPage {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final int PAGE_SIZE = 50;
@@ -26,25 +26,16 @@ public class VtexPage extends BasePage implements CatalogPage {
     private static final int PROFUNDIDAD_ARBOL = 3;
 
     private static final Set<String> PALABRAS_HOMBRE = Set.of(
-            "hombre","hombres","masculino","men","man","male","caballero");
+            "hombre","hombres","masculino","masculinos","men","man","male","caballero","caballeros");
     private static final Set<String> PALABRAS_MUJER = Set.of(
             "mujer","mujeres","femenino","women","woman","female","dama","damas");
     private static final Set<String> PALABRAS_UNISEX = Set.of(
             "unisex","unisexo","neutro");
 
-    private final String sitio;
-    private final String baseUrl;
-    private final double precioMin;
-    private final double precioMax;
-
     public VtexPage(Page page, int timeoutMs,
                     String sitio, String baseUrl,
                     double precioMin, double precioMax) {
-        super(page, timeoutMs);
-        this.sitio    = sitio;
-        this.baseUrl  = baseUrl;
-        this.precioMin = precioMin;
-        this.precioMax = precioMax;
+        super(page, timeoutMs, sitio, baseUrl, precioMin, precioMax);
     }
 
     public List<Product> scrapeAll() {
@@ -340,155 +331,78 @@ public class VtexPage extends BasePage implements CatalogPage {
 
     /** La estructura es similar a Legacy pero con algunas diferencias en imágenes y specs. */
     private Optional<Product> fromVtexIO(JsonNode prod, String dom) {
+        return toProduct(prod, dom, prod.path("productName").asText("").trim(), true);
+    }
+
+    private Optional<Product> fromVtex(JsonNode prod, String dom) {
+        String nombre = prod.path("productName").asText("").trim();
+        if (nombre.isBlank()) nombre = prod.path("name").asText("").trim();
+        return toProduct(prod, dom, nombre, false);
+    }
+
+    /** IO also drops the image query string and falls back to categoryTree for the category. */
+    private Optional<Product> toProduct(JsonNode prod, String dom, String nombre, boolean io) {
         try {
-            String nombre = prod.path("productName").asText("").trim();
             if (nombre.isBlank()) return Optional.empty();
 
             String linkText = prod.path("linkText").asText("");
             String url = linkText.isBlank() ? "" : dom + "/" + linkText + "/p";
 
-            String img = "";
             JsonNode items = prod.path("items");
-            if (items.isArray() && !items.isEmpty()) {
-                JsonNode images = items.get(0).path("images");
-                if (images.isArray() && !images.isEmpty()) {
-                    img = images.get(0).path("imageUrl").asText("");
-                    if (img.contains("?")) img = img.substring(0, img.indexOf("?"));
-                }
-            }
+            String img = primeraImagen(items);
+            if (io) img = StringUtils.substringBefore(img, "?");
 
-            OptionalDouble precio = OptionalDouble.empty();
-            Double precioCompare = null;
-            if (items.isArray() && !items.isEmpty()) {
-                for (JsonNode item : items) {
-                    JsonNode sellers = item.path("sellers");
-                    if (!sellers.isArray()) continue;
-                    for (JsonNode seller : sellers) {
-                        JsonNode offer = seller.path("commertialOffer");
-                        double p = offer.path("Price").asDouble(0);
-                        double pOrig = offer.path("ListPrice").asDouble(0);
-                        if (p > 0) {
-                            precio = OptionalDouble.of(p);
-                            if (pOrig > p) precioCompare = pOrig;
-                            break;
-                        }
-                    }
-                    if (precio.isPresent()) break;
-                }
-            }
+            Optional<Oferta> oferta = primeraOferta(items);
+            if (oferta.isEmpty()) return Optional.empty();
+            double p = oferta.get().precio();
+            if (fueraDeRango(p)) return Optional.empty();
 
-            if (precio.isEmpty()) return Optional.empty();
-            double p = precio.getAsDouble();
-            if (p < precioMin || p > precioMax) return Optional.empty();
-
-            String categoria = "";
-            JsonNode cats = prod.path("categories");
-            if (cats.isArray() && !cats.isEmpty()) {
-                String rawCat = cats.get(cats.size() - 1).asText("").trim();
-                String[] parts = rawCat.split("/");
-                for (int i = parts.length - 1; i >= 0; i--) {
-                    if (!parts[i].isBlank()) { categoria = parts[i]; break; }
-                }
-            }
-
-            if (categoria.isBlank()) {
+            String categoria = ultimoSegmento(prod.path("categories"));
+            if (io && categoria.isBlank()) {
                 JsonNode catTree = prod.path("categoryTree");
                 if (catTree.isArray() && !catTree.isEmpty()) {
                     categoria = catTree.get(catTree.size() - 1).path("name").asText("").trim();
                 }
             }
 
-            String genero = extraerGeneroVtex(prod, nombre);
-            List<String> talles = extraerTallesVtex(prod);
-
-            return Optional.of(Product.builder()
-                    .sitio(sitio)
-                    .nombre(nombre)
-                    .precio(p)
-                    .precioOriginal(precioCompare)
-                    .url(url)
-                    .imagenUrl(img)
-                    .categoria(categoria)
-                    .genero(genero)
-                    .talles(talles)
-                    .build());
+            return Optional.of(producto(nombre, p, oferta.get().original(), url, img, categoria,
+                    extraerGeneroVtex(prod, nombre), extraerTallesVtex(prod)));
         } catch (Exception e) {
             return Optional.empty();
         }
     }
 
-    private Optional<Product> fromVtex(JsonNode prod, String dom) {
-        try {
-            String nombre = prod.path("productName").asText("").trim();
-            if (nombre.isBlank()) nombre = prod.path("name").asText("").trim();
-            if (nombre.isBlank()) return Optional.empty();
+    private record Oferta(double precio, Double original) {}
 
-            String linkText = prod.path("linkText").asText("");
-            String url = linkText.isBlank() ? "" : dom + "/" + linkText + "/p";
+    private static String primeraImagen(JsonNode items) {
+        if (!items.isArray() || items.isEmpty()) return "";
+        JsonNode images = items.get(0).path("images");
+        if (!images.isArray() || images.isEmpty()) return "";
+        return images.get(0).path("imageUrl").asText("");
+    }
 
-            String img = "";
-            JsonNode items = prod.path("items");
-            if (items.isArray() && !items.isEmpty()) {
-                JsonNode firstItem = items.get(0);
-                JsonNode images = firstItem.path("images");
-                if (images.isArray() && !images.isEmpty()) {
-                    img = images.get(0).path("imageUrl").asText("");
-                }
+    private static Optional<Oferta> primeraOferta(JsonNode items) {
+        if (!items.isArray()) return Optional.empty();
+        for (JsonNode item : items) {
+            JsonNode sellers = item.path("sellers");
+            if (!sellers.isArray()) continue;
+            for (JsonNode seller : sellers) {
+                JsonNode offer = seller.path("commertialOffer");
+                double p = offer.path("Price").asDouble(0);
+                double pOrig = offer.path("ListPrice").asDouble(0);
+                if (p > 0) return Optional.of(new Oferta(p, pOrig > p ? pOrig : null));
             }
-
-            OptionalDouble precio = OptionalDouble.empty();
-            Double precioCompare = null;
-
-            if (items.isArray() && !items.isEmpty()) {
-                for (JsonNode item : items) {
-                    JsonNode sellers = item.path("sellers");
-                    if (!sellers.isArray()) continue;
-                    for (JsonNode seller : sellers) {
-                        JsonNode offer = seller.path("commertialOffer");
-                        double p = offer.path("Price").asDouble(0);
-                        double pOrig = offer.path("ListPrice").asDouble(0);
-                        if (p > 0) {
-                            precio = OptionalDouble.of(p);
-                            if (pOrig > p) precioCompare = pOrig;
-                            break;
-                        }
-                    }
-                    if (precio.isPresent()) break;
-                }
-            }
-
-            if (precio.isEmpty()) return Optional.empty();
-            double p = precio.getAsDouble();
-            if (p < precioMin || p > precioMax) return Optional.empty();
-
-            String categoria = "";
-            JsonNode cats = prod.path("categories");
-            if (cats.isArray() && !cats.isEmpty()) {
-                String rawCat = cats.get(cats.size() - 1).asText("").trim();
-                String[] parts = rawCat.split("/");
-                for (int i = parts.length - 1; i >= 0; i--) {
-                    if (!parts[i].isBlank()) { categoria = parts[i]; break; }
-                }
-            }
-
-            String genero = extraerGeneroVtex(prod, nombre);
-
-            List<String> talles = extraerTallesVtex(prod);
-
-            return Optional.of(Product.builder()
-                    .sitio(sitio)
-                    .nombre(nombre)
-                    .precio(p)
-                    .precioOriginal(precioCompare)
-                    .url(url)
-                    .imagenUrl(img)
-                    .categoria(categoria)
-                    .genero(genero)
-                    .talles(talles)
-                    .build());
-        } catch (Exception e) {
-            return Optional.empty();
         }
+        return Optional.empty();
+    }
+
+    private static String ultimoSegmento(JsonNode cats) {
+        if (!cats.isArray() || cats.isEmpty()) return "";
+        String[] parts = cats.get(cats.size() - 1).asText("").trim().split("/");
+        for (int i = parts.length - 1; i >= 0; i--) {
+            if (!parts[i].isBlank()) return parts[i];
+        }
+        return "";
     }
 
     private List<String> extraerTallesVtex(JsonNode prod) {
@@ -497,15 +411,8 @@ public class VtexPage extends BasePage implements CatalogPage {
             for (JsonNode spec : skuSpecs) {
                 String fname = spec.path("field").path("name").asText("").toLowerCase();
                 if (esTalleField(fname)) {
-                    JsonNode values = spec.path("values");
-                    if (values.isArray() && !values.isEmpty()) {
-                        List<String> talles = new ArrayList<>();
-                        for (JsonNode v : values) {
-                            String t = v.path("name").asText("").trim();
-                            if (!t.isBlank()) talles.add(t);
-                        }
-                        if (!talles.isEmpty()) return talles;
-                    }
+                    List<String> talles = CatalogJson.textosNoVacios(spec.path("values"), "name");
+                    if (!talles.isEmpty()) return talles;
                 }
             }
         }
@@ -515,15 +422,8 @@ public class VtexPage extends BasePage implements CatalogPage {
             for (JsonNode s : allSpecs) {
                 String name = s.asText("").toLowerCase();
                 if (esTalleField(name)) {
-                    JsonNode vals = prod.path(s.asText(""));
-                    if (vals.isArray() && !vals.isEmpty()) {
-                        List<String> talles = new ArrayList<>();
-                        for (JsonNode v : vals) {
-                            String t = v.asText("").trim();
-                            if (!t.isBlank()) talles.add(t);
-                        }
-                        if (!talles.isEmpty()) return talles;
-                    }
+                    List<String> talles = CatalogJson.textosNoVacios(prod.path(s.asText("")));
+                    if (!talles.isEmpty()) return talles;
                 }
             }
         }
@@ -626,20 +526,12 @@ public class VtexPage extends BasePage implements CatalogPage {
             for (JsonNode c : cats) fuentes.add(c.asText("").toLowerCase());
         }
 
-        for (String f : fuentes) {
-            if (PALABRAS_UNISEX.stream().anyMatch(f::contains)) return "unisex";
-        }
-        boolean esH = fuentes.stream().anyMatch(f -> PALABRAS_HOMBRE.stream().anyMatch(f::contains));
-        boolean esM = fuentes.stream().anyMatch(f -> PALABRAS_MUJER.stream().anyMatch(f::contains));
-        if (esH && !esM) return "hombre";
-        if (esM && !esH) return "mujer";
-        if (esH)         return "unisex";
-        return "";
+        return CatalogJson.genero(fuentes, PALABRAS_HOMBRE, PALABRAS_MUJER, PALABRAS_UNISEX);
     }
 
     private String mapearGenero(String val) {
         if (PALABRAS_UNISEX.stream().anyMatch(val::contains)) return "unisex";
-        if (PALABRAS_HOMBRE.stream().anyMatch(val::contains)) return "hombre";
+        if (CatalogJson.tienePalabra(val, PALABRAS_HOMBRE)) return "hombre";
         if (PALABRAS_MUJER.stream().anyMatch(val::contains))  return "mujer";
         return "";
     }

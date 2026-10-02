@@ -3,7 +3,6 @@ package ar.scraper.pcs;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -18,17 +17,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 class EjesTecnicosHomelabTest {
 
     private static TechSpecs conRam(String ddr, int mhz, int gb) {
-        return new TechSpecs("", ddr, "", 0, gb, "", Gama.DESCONOCIDA, Certificacion.NINGUNA, mhz,
-                TipoAlmacenamiento.DESCONOCIDO);
+        return TechSpecs.builder().ddr(ddr).capacidadGb(gb).velocidadMhz(mhz).build();
     }
 
     private static TechSpecs conTipoAlmacenamiento(TipoAlmacenamiento tipo, int gb) {
-        return new TechSpecs("", "", "", 0, gb, "", Gama.DESCONOCIDA, Certificacion.NINGUNA, 0, tipo);
+        return TechSpecs.builder().capacidadGb(gb).tipoAlmacenamiento(tipo).build();
     }
 
     private static TechSpecs conMiniPc(Gama gama, int nivel, int gb) {
-        return new TechSpecs("", "", "", 0, gb, "", gama, Certificacion.NINGUNA,
-                0, TipoAlmacenamiento.DESCONOCIDO, List.of(), "", 0, 0, 0, false, TipoCooler.DESCONOCIDO, nivel);
+        return TechSpecs.builder().capacidadGb(gb).gama(gama).nivel(nivel).build();
     }
 
     // ── RAM_HOMELAB: capacidad manda, antes que DDR ─────────────────────

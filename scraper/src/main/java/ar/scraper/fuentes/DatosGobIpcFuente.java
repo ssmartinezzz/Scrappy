@@ -22,13 +22,7 @@ class DatosGobIpcFuente implements FuenteIndicePort {
 
     @Override
     public List<PuntoIndice> descargar(Indice indice) throws FuenteIndiceException {
-        try {
-            return parsear(HttpJson.get(URL));
-        } catch (FuenteIndiceException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new FuenteIndiceException("DatosGobIpcFuente: " + e.getMessage(), e);
-        }
+        return FuenteHttp.descargar(DatosGobIpcFuente.class, URL, DatosGobIpcFuente::parsear);
     }
 
     static List<PuntoIndice> parsear(String body) throws FuenteIndiceException {

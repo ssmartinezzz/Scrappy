@@ -2,14 +2,12 @@ package ar.scraper.pcs.reglas;
 
 import ar.scraper.pcs.ContextoDeArmado;
 import ar.scraper.pcs.TechSpecs;
+import lombok.RequiredArgsConstructor;
 
+@RequiredArgsConstructor
 public class ReglaDdrPedidaMother implements ReglaCompatibilidad {
 
     private final String pedida;
-
-    public ReglaDdrPedidaMother(String pedida) {
-        this.pedida = pedida;
-    }
 
     @Override
     public boolean permite(TechSpecs candidato, ContextoDeArmado contexto) {

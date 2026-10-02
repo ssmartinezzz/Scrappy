@@ -13,6 +13,8 @@ import org.springframework.stereotype.Component;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import lombok.RequiredArgsConstructor;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * Invoked both from {@code ResultAggregator.agregar} (post-scrape) and from the {@code fromDB}
@@ -20,17 +22,13 @@ import java.util.Optional;
  * scrape run.
  */
 @Component
+@RequiredArgsConstructor
 public class FinanciacionEnricher {
 
     private static final Logger LOG = LoggerFactory.getLogger(FinanciacionEnricher.class);
 
     private final PresetPort presets;
     private final IndiceService indiceService;
-
-    public FinanciacionEnricher(PresetPort presets, IndiceService indiceService) {
-        this.presets = presets;
-        this.indiceService = indiceService;
-    }
 
     public List<Product> enriquecer(List<Product> productos) {
         if (productos == null || productos.isEmpty()) return productos;
@@ -80,7 +78,7 @@ public class FinanciacionEnricher {
         return p.toBuilder()
                 .rubro(p.rubro() != null ? p.rubro() : "indumentaria")
                 .finan(finan)
-                .subCategoria(p.subCategoria() != null ? p.subCategoria() : "")
+                .subCategoria(StringUtils.defaultString(p.subCategoria()))
                 .build();
     }
 }

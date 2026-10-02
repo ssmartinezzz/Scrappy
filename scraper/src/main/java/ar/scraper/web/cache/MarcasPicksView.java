@@ -29,13 +29,11 @@ final class MarcasPicksView {
             ));
 
         var entries = new java.util.ArrayList<>(byMarca.entrySet());
+        java.util.function.ToDoubleFunction<java.util.Map.Entry<String, List<Product>>> precioMedio =
+            e -> e.getValue().stream().mapToDouble(Product::precio).average().orElse(0);
         entries.sort(switch (sort) {
-            case "precio_asc"  -> java.util.Comparator.comparingDouble(
-                (java.util.Map.Entry<String,java.util.List<Product>> e) ->
-                    e.getValue().stream().mapToDouble(Product::precio).average().orElse(0));
-            case "precio_desc" -> java.util.Comparator.comparingDouble(
-                (java.util.Map.Entry<String,java.util.List<Product>> e) ->
-                    e.getValue().stream().mapToDouble(Product::precio).average().orElse(0)).reversed();
+            case "precio_asc"  -> java.util.Comparator.comparingDouble(precioMedio);
+            case "precio_desc" -> java.util.Comparator.comparingDouble(precioMedio).reversed();
             default -> java.util.Comparator.comparingInt(
                 (java.util.Map.Entry<String,java.util.List<Product>> e) ->
                     e.getValue().size()).reversed();
@@ -69,7 +67,7 @@ final class MarcasPicksView {
                         p -> p.ml() != null && p.ml().scoreP() > 0 ? p.ml().scoreP() : 999))
                     .orElse(prods.get(0));
 
-                String img = best.imagenUrl() != null ? best.imagenUrl() : "";
+                String img = StringUtils.defaultString(best.imagenUrl());
                 if (img.startsWith("//")) img = "https:" + img;
 
                 String pImg = safe(best.imagenUrl());
@@ -129,7 +127,7 @@ final class MarcasPicksView {
                 // Unit price (pack-aware), not shelf price, so genuine packs are not penalised.
                 double mediana = prods.stream().mapToDouble(ProductJson::precioUnitario)
                     .sorted().skip(prods.size()/2).findFirst().orElse(0);
-                String imgCat = mejor.imagenUrl() != null ? mejor.imagenUrl() : "";
+                String imgCat = StringUtils.defaultString(mejor.imagenUrl());
                 if (imgCat.startsWith("//")) imgCat = "https:" + imgCat;
                 String rubroVal = mejor.rubro() != null ? mejor.rubro() : "indumentaria";
 
@@ -161,7 +159,7 @@ final class MarcasPicksView {
                                    Product p, String tipo, String label,
                                    java.util.Set<String> incluidos) {
         if (p == null) return;
-        String url = p.url() != null ? p.url() : "";
+        String url = StringUtils.defaultString(p.url());
         if (!url.isBlank() && !incluidos.add(url)) return;
         picks.add(toPick(p, tipo, label));
     }

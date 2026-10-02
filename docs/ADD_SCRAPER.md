@@ -216,6 +216,11 @@ public class NombrePage extends BasePage {
 - `absoluteUrl(href, base)` — resuelve URLs relativas
 - `scrollToBottom()` — hace scroll para activar lazy loading
 
+Si la page arma productos con `sitio`, `baseUrl` y banda de precio, extendé
+`StorePage` (package-private, entre `BasePage` y las pages de tienda): trae
+`precioEnRango`, `producto(...)`, `cards` y `crawlPaginas`. El género desde
+JSON sale de `CatalogJson.genero`.
+
 ### 2. No hay clase de scraper
 
 `BaseScraper` es una sola clase concreta (browser, stealth, bloqueos de red) que

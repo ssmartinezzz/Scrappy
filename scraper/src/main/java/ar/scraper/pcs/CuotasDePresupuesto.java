@@ -2,11 +2,14 @@ package ar.scraper.pcs;
 
 import java.util.List;
 import java.util.Map;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
 
 /**
  * Antes de esto {@code PcBuilder} era greedy: cada slot veía TODO el restante y, como el precio es
  * sólo desempate, se llevaba el mejor candidato que entrara.
  */
+@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 public final class CuotasDePresupuesto {
 
     private static final Map<String, Double> SHARES_GAMING = Map.of(
@@ -30,10 +33,6 @@ public final class CuotasDePresupuesto {
             "gpu", 0.20);
 
     private final Map<String, Double> normalizadas;
-
-    private CuotasDePresupuesto(Map<String, Double> normalizadas) {
-        this.normalizadas = normalizadas;
-    }
 
     public static CuotasDePresupuesto para(List<SlotDeArmado> slots) {
         return para(slots, Uso.GAMING);

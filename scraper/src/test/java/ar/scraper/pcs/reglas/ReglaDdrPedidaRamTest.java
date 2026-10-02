@@ -24,7 +24,7 @@ class ReglaDdrPedidaRamTest {
     @DisplayName("does not veto a ram whose ddr matches the requested one")
     void noVetaCuandoCoincide() {
         ReglaDdrPedidaRam regla = new ReglaDdrPedidaRam("DDR5");
-        TechSpecs ram = new TechSpecs("", "DDR5", "", 0, 0, "");
+        TechSpecs ram = TechSpecs.builder().ddr("DDR5").build();
 
         assertThat(regla.permite(ram, contexto)).isTrue();
     }
@@ -33,7 +33,7 @@ class ReglaDdrPedidaRamTest {
     @DisplayName("vetoes a ram whose ddr differs from the requested one")
     void vetaCuandoDifiere() {
         ReglaDdrPedidaRam regla = new ReglaDdrPedidaRam("DDR5");
-        TechSpecs ram = new TechSpecs("", "DDR4", "", 0, 0, "");
+        TechSpecs ram = TechSpecs.builder().ddr("DDR4").build();
 
         assertThat(regla.permite(ram, contexto)).isFalse();
     }

@@ -65,8 +65,7 @@ class TechSpecsRepositoryTest extends PostgresTestBase {
     @Test
     void unaCpuEscribeMarcaChipYGeneracionPeroNoWifiPorNoSerMotherboard() throws Exception {
         String url = insertarProducto("cpu-marca-gen");
-        TechSpecs specs = new TechSpecs("AM5", "", "", 0, 0, "", Gama.ALTA, Certificacion.NINGUNA,
-                0, TipoAlmacenamiento.DESCONOCIDO, List.of(), "AMD", 5, 0, 0, false);
+        TechSpecs specs = TechSpecs.builder().socket("AM5").gama(Gama.ALTA).marcaChip("AMD").generacion(5).build();
 
         repository.upsertSpecs(List.of(new TechSpecsPort.SpecsDeProducto(url, "CPU", specs)));
 
@@ -81,8 +80,14 @@ class TechSpecsRepositoryTest extends PostgresTestBase {
     @Test
     void unaMotherboardEscribeTierChipsetYWifiAfirmado() throws Exception {
         String url = insertarProducto("mother-tier-wifi");
-        TechSpecs specs = new TechSpecs("AM5", "DDR5", "MATX", 0, 0, "", Gama.DESCONOCIDA, Certificacion.NINGUNA,
-                0, TipoAlmacenamiento.DESCONOCIDO, List.of(), "AMD", 0, 1, 0, true);
+        TechSpecs specs = TechSpecs.builder()
+                .socket("AM5")
+                .ddr("DDR5")
+                .formFactor("MATX")
+                .marcaChip("AMD")
+                .tierChipset(1)
+                .wifi(true)
+                .build();
 
         repository.upsertSpecs(List.of(new TechSpecsPort.SpecsDeProducto(url, "Motherboard", specs)));
 
@@ -93,8 +98,13 @@ class TechSpecsRepositoryTest extends PostgresTestBase {
     @Test
     void unaMotherboardSinWifiEscribeFalseNoNull() throws Exception {
         String url = insertarProducto("mother-no-wifi");
-        TechSpecs specs = new TechSpecs("AM4", "DDR4", "ATX", 0, 0, "", Gama.DESCONOCIDA, Certificacion.NINGUNA,
-                0, TipoAlmacenamiento.DESCONOCIDO, List.of(), "AMD", 0, 2, 0, false);
+        TechSpecs specs = TechSpecs.builder()
+                .socket("AM4")
+                .ddr("DDR4")
+                .formFactor("ATX")
+                .marcaChip("AMD")
+                .tierChipset(2)
+                .build();
 
         repository.upsertSpecs(List.of(new TechSpecsPort.SpecsDeProducto(url, "Motherboard", specs)));
 
@@ -107,8 +117,13 @@ class TechSpecsRepositoryTest extends PostgresTestBase {
     @Test
     void unaRamEscribeModulos() throws Exception {
         String url = insertarProducto("ram-modulos");
-        TechSpecs specs = new TechSpecs("", "DDR5", "", 0, 32, "DIMM", Gama.DESCONOCIDA, Certificacion.NINGUNA,
-                6000, TipoAlmacenamiento.DESCONOCIDO, List.of(), "", 0, 0, 2, false);
+        TechSpecs specs = TechSpecs.builder()
+                .ddr("DDR5")
+                .capacidadGb(32)
+                .tipoMemoria("DIMM")
+                .velocidadMhz(6000)
+                .modulos(2)
+                .build();
 
         repository.upsertSpecs(List.of(new TechSpecsPort.SpecsDeProducto(url, "RAM", specs)));
 
@@ -118,8 +133,7 @@ class TechSpecsRepositoryTest extends PostgresTestBase {
     @Test
     void unCoolerEscribeTipoCooler() throws Exception {
         String url = insertarProducto("cooler-tipo");
-        TechSpecs specs = new TechSpecs("", "", "", 0, 0, "", Gama.DESCONOCIDA, Certificacion.NINGUNA,
-                0, TipoAlmacenamiento.DESCONOCIDO, List.of(), "", 0, 0, 0, false, TipoCooler.LIQUIDO);
+        TechSpecs specs = TechSpecs.builder().tipoCooler(TipoCooler.LIQUIDO).build();
 
         repository.upsertSpecs(List.of(new TechSpecsPort.SpecsDeProducto(url, "Cooler", specs)));
 
@@ -144,8 +158,18 @@ class TechSpecsRepositoryTest extends PostgresTestBase {
     @Test
     void aFullSpecResolvesEveryLookupToTheRightName() throws Exception {
         String url = insertarProducto("full");
-        TechSpecs specs = new TechSpecs("AM5", "DDR5", "ATX", 750, 32, "DIMM",
-                Gama.ALTA, Certificacion.GOLD, 6000, TipoAlmacenamiento.NVME);
+        TechSpecs specs = TechSpecs.builder()
+                .socket("AM5")
+                .ddr("DDR5")
+                .formFactor("ATX")
+                .watts(750)
+                .capacidadGb(32)
+                .tipoMemoria("DIMM")
+                .gama(Gama.ALTA)
+                .certificacion(Certificacion.GOLD)
+                .velocidadMhz(6000)
+                .tipoAlmacenamiento(TipoAlmacenamiento.NVME)
+                .build();
 
         repository.upsertSpecs(List.of(new TechSpecsPort.SpecsDeProducto(url, specs)));
 
@@ -166,7 +190,7 @@ class TechSpecsRepositoryTest extends PostgresTestBase {
     @Test
     void gamaBajaLandsAsEconomica() throws Exception {
         String url = insertarProducto("baja");
-        TechSpecs specs = new TechSpecs("", "", "", 0, 0, "", Gama.BAJA, Certificacion.NINGUNA);
+        TechSpecs specs = TechSpecs.builder().gama(Gama.BAJA).build();
 
         repository.upsertSpecs(List.of(new TechSpecsPort.SpecsDeProducto(url, specs)));
 
@@ -177,10 +201,10 @@ class TechSpecsRepositoryTest extends PostgresTestBase {
     void reUpsertOfTheSameUrlUpdatesInPlace() throws Exception {
         String url = insertarProducto("reupsert");
         repository.upsertSpecs(List.of(new TechSpecsPort.SpecsDeProducto(url,
-                new TechSpecs("AM4", "DDR4", "", 0, 0, "", Gama.MEDIA, Certificacion.NINGUNA))));
+                TechSpecs.builder().socket("AM4").ddr("DDR4").gama(Gama.MEDIA).build())));
 
         repository.upsertSpecs(List.of(new TechSpecsPort.SpecsDeProducto(url,
-                new TechSpecs("AM5", "DDR5", "", 0, 0, "", Gama.ALTA, Certificacion.NINGUNA))));
+                TechSpecs.builder().socket("AM5").ddr("DDR5").gama(Gama.ALTA).build())));
 
         assertThat(filas(url)).as("re-upsert must not create a second row").isEqualTo(1);
         Map<String, String> nombres = leerNombresResueltos(url);

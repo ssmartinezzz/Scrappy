@@ -10,25 +10,17 @@ import org.slf4j.LoggerFactory;
 import java.util.*;
 import org.apache.commons.lang3.StringUtils;
 
-public class WooCommercePage extends BasePage implements CatalogPage {
+public class WooCommercePage extends StorePage implements CatalogPage {
 
     private static final Logger log = LoggerFactory.getLogger(WooCommercePage.class);
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final int MAX_PAGES = 50;
 
-    private final String sitio;
-    private final String baseUrl;
-    private final double precioMin;
-    private final double precioMax;
 
     public WooCommercePage(Page page, int timeoutMs,
                            String sitio, String baseUrl,
                            double precioMin, double precioMax) {
-        super(page, timeoutMs);
-        this.sitio     = sitio;
-        this.baseUrl   = baseUrl.replaceAll("/+$", "");
-        this.precioMin = precioMin;
-        this.precioMax = precioMax;
+        super(page, timeoutMs, sitio, sinBarraFinal(baseUrl), precioMin, precioMax);
     }
 
     public List<Product> scrapeAll() {

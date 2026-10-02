@@ -16,7 +16,7 @@ class ReglaWattsTest {
     @DisplayName("vetoes when the psu is below the floor")
     void vetaCuandoNoAlcanzaElPiso() {
         ContextoDeArmado contexto = ContextoDeArmado.inicial(450);
-        TechSpecs fuente = new TechSpecs("", "", "", 400, 0, "");
+        TechSpecs fuente = TechSpecs.builder().watts(400).build();
 
         assertThat(regla.permite(fuente, contexto)).isFalse();
     }
@@ -25,7 +25,7 @@ class ReglaWattsTest {
     @DisplayName("does not veto when the psu meets the floor")
     void noVetaCuandoAlcanzaElPiso() {
         ContextoDeArmado contexto = ContextoDeArmado.inicial(450);
-        TechSpecs fuente = new TechSpecs("", "", "", 450, 0, "");
+        TechSpecs fuente = TechSpecs.builder().watts(450).build();
 
         assertThat(regla.permite(fuente, contexto)).isTrue();
     }

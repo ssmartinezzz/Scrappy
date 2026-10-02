@@ -17,7 +17,7 @@ class ReglaGamaTest {
     @DisplayName("does not veto when the candidate's gama matches the requested one")
     void noVetaCuandoCoincideConLaPedida() {
         ContextoDeArmado contexto = ContextoDeArmado.inicial(450, Gama.ALTA, ar.scraper.pcs.Certificacion.NINGUNA);
-        TechSpecs cpu = new TechSpecs("", "", "", 0, 0, "", Gama.ALTA, ar.scraper.pcs.Certificacion.NINGUNA);
+        TechSpecs cpu = TechSpecs.builder().gama(Gama.ALTA).build();
 
         assertThat(regla.permite(cpu, contexto)).isTrue();
     }
@@ -26,7 +26,7 @@ class ReglaGamaTest {
     @DisplayName("vetoes when the candidate's gama is known but different from the requested one")
     void vetaCuandoDifiereDeLaPedida() {
         ContextoDeArmado contexto = ContextoDeArmado.inicial(450, Gama.ALTA, ar.scraper.pcs.Certificacion.NINGUNA);
-        TechSpecs cpu = new TechSpecs("", "", "", 0, 0, "", Gama.MEDIA, ar.scraper.pcs.Certificacion.NINGUNA);
+        TechSpecs cpu = TechSpecs.builder().gama(Gama.MEDIA).build();
 
         assertThat(regla.permite(cpu, contexto)).isFalse();
     }
@@ -46,7 +46,7 @@ class ReglaGamaTest {
 
         assertThat(regla.permite(TechSpecs.EMPTY, contexto)).isTrue();
         assertThat(regla.permite(
-                new TechSpecs("", "", "", 0, 0, "", Gama.BAJA, ar.scraper.pcs.Certificacion.NINGUNA),
+                TechSpecs.builder().gama(Gama.BAJA).build(),
                 contexto)).isTrue();
     }
 

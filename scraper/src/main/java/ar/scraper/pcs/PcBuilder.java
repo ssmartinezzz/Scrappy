@@ -21,6 +21,8 @@ import ar.scraper.pcs.reglas.ReglaTipoCoolerPedido;
 import ar.scraper.pcs.reglas.ReglaWatts;
 import ar.scraper.pcs.reglas.ReglaWifi;
 
+import org.apache.commons.lang3.StringUtils;
+
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -243,27 +245,51 @@ public class PcBuilder {
     /** Existing rules stay first, preference rules after, per slot. */
     private static List<SlotDeArmado> slotsFijos(PreferenciasDeArmado prefs) {
         return List.of(
-                new SlotDeArmado("mother", "Motherboard",
-                        List.of(new ReglaDdrPedidaMother(prefs.ddr()), new ReglaMarcaChip(prefs.marcaCpu()),
-                                new ReglaWifi(prefs.wifi()), new ReglaPlataformaConCpu()),
-                        new CriterioPorEjesTecnicos(
-                                (ContextoDeArmado ctx) -> EjesTecnicos.mother(ctx.gamaPedida()))),
-                new SlotDeArmado("cpu", "CPU",
-                        List.of(new ReglaSocket(), new ReglaGama(), new ReglaMarcaChip(prefs.marcaCpu())),
-                        new CriterioPorEjesTecnicos(EjesTecnicos.CPU)),
-                new SlotDeArmado("ram", "RAM",
-                        List.of(new ReglaDdr(), new ReglaSodimm(), new ReglaDdrPedidaRam(prefs.ddr()),
-                                new ReglaRamDual(prefs.ramDual())),
-                        new CriterioPorEjesTecnicos(EjesTecnicos.RAM)),
-                new SlotDeArmado("gabinete", "Gabinete",
-                        List.of(new ReglaFormFactor(), new ReglaTamanioGabinete(prefs.tamanioGabinete())),
-                        new CriterioPorEjesTecnicos(EjesTecnicos.GABINETE)),
-                new SlotDeArmado("fuente", "Fuente", List.of(new ReglaWatts(), new ReglaCertificacion()),
-                        new CriterioPorEjesTecnicos(EjesTecnicos.FUENTE)),
-                new SlotDeArmado("almacenamiento", "Almacenamiento",
-                        List.of(new ReglaTipoAlmacenamiento(prefs.tipoAlmacenamiento()),
-                                new ReglaCapacidadMinima(prefs.capacidadMinimaGb())),
-                        new CriterioPorEjesTecnicos(EjesTecnicos.ALMACENAMIENTO)));
+                slotMother(prefs),
+                slotCpu(prefs),
+                slotRam(prefs, EjesTecnicos.RAM),
+                slotGabinete(prefs),
+                slotFuente(),
+                slotAlmacenamiento("almacenamiento", prefs, EjesTecnicos.ALMACENAMIENTO));
+    }
+
+    private static SlotDeArmado slotMother(PreferenciasDeArmado prefs) {
+        return new SlotDeArmado("mother", "Motherboard",
+                List.of(new ReglaDdrPedidaMother(prefs.ddr()), new ReglaMarcaChip(prefs.marcaCpu()),
+                        new ReglaWifi(prefs.wifi()), new ReglaPlataformaConCpu()),
+                new CriterioPorEjesTecnicos((ContextoDeArmado ctx) -> EjesTecnicos.mother(ctx.gamaPedida())));
+    }
+
+    private static SlotDeArmado slotCpu(PreferenciasDeArmado prefs) {
+        return new SlotDeArmado("cpu", "CPU",
+                List.of(new ReglaSocket(), new ReglaGama(), new ReglaMarcaChip(prefs.marcaCpu())),
+                new CriterioPorEjesTecnicos(EjesTecnicos.CPU));
+    }
+
+    private static SlotDeArmado slotRam(PreferenciasDeArmado prefs, Comparator<TechSpecs> ejes) {
+        return new SlotDeArmado("ram", "RAM",
+                List.of(new ReglaDdr(), new ReglaSodimm(), new ReglaDdrPedidaRam(prefs.ddr()),
+                        new ReglaRamDual(prefs.ramDual())),
+                new CriterioPorEjesTecnicos(ejes));
+    }
+
+    private static SlotDeArmado slotGabinete(PreferenciasDeArmado prefs) {
+        return new SlotDeArmado("gabinete", "Gabinete",
+                List.of(new ReglaFormFactor(), new ReglaTamanioGabinete(prefs.tamanioGabinete())),
+                new CriterioPorEjesTecnicos(EjesTecnicos.GABINETE));
+    }
+
+    private static SlotDeArmado slotFuente() {
+        return new SlotDeArmado("fuente", "Fuente", List.of(new ReglaWatts(), new ReglaCertificacion()),
+                new CriterioPorEjesTecnicos(EjesTecnicos.FUENTE));
+    }
+
+    private static SlotDeArmado slotAlmacenamiento(String id, PreferenciasDeArmado prefs,
+            Comparator<TechSpecs> ejes) {
+        return new SlotDeArmado(id, "Almacenamiento",
+                List.of(new ReglaTipoAlmacenamiento(prefs.tipoAlmacenamiento()),
+                        new ReglaCapacidadMinima(prefs.capacidadMinimaGb())),
+                new CriterioPorEjesTecnicos(ejes));
     }
 
     private static SlotDeArmado slotGpu(PreferenciasDeArmado prefs) {
@@ -275,31 +301,13 @@ public class PcBuilder {
     /** El hard-exclude de {@code armar} es lo que evita que los dos elijan el mismo disco. */
     private static List<SlotDeArmado> slotsFijosHomelab(PreferenciasDeArmado prefs) {
         return List.of(
-                new SlotDeArmado("mother", "Motherboard",
-                        List.of(new ReglaDdrPedidaMother(prefs.ddr()), new ReglaMarcaChip(prefs.marcaCpu()),
-                                new ReglaWifi(prefs.wifi()), new ReglaPlataformaConCpu()),
-                        new CriterioPorEjesTecnicos(
-                                (ContextoDeArmado ctx) -> EjesTecnicos.mother(ctx.gamaPedida()))),
-                new SlotDeArmado("cpu", "CPU",
-                        List.of(new ReglaSocket(), new ReglaGama(), new ReglaMarcaChip(prefs.marcaCpu())),
-                        new CriterioPorEjesTecnicos(EjesTecnicos.CPU)),
-                new SlotDeArmado("ram", "RAM",
-                        List.of(new ReglaDdr(), new ReglaSodimm(), new ReglaDdrPedidaRam(prefs.ddr()),
-                                new ReglaRamDual(prefs.ramDual())),
-                        new CriterioPorEjesTecnicos(EjesTecnicos.RAM_HOMELAB)),
-                new SlotDeArmado("gabinete", "Gabinete",
-                        List.of(new ReglaFormFactor(), new ReglaTamanioGabinete(prefs.tamanioGabinete())),
-                        new CriterioPorEjesTecnicos(EjesTecnicos.GABINETE)),
-                new SlotDeArmado("fuente", "Fuente", List.of(new ReglaWatts(), new ReglaCertificacion()),
-                        new CriterioPorEjesTecnicos(EjesTecnicos.FUENTE)),
-                new SlotDeArmado("sistema", "Almacenamiento",
-                        List.of(new ReglaTipoAlmacenamiento(prefs.tipoAlmacenamiento()),
-                                new ReglaCapacidadMinima(prefs.capacidadMinimaGb())),
-                        new CriterioPorEjesTecnicos(EjesTecnicos.ALMACENAMIENTO)),
-                new SlotDeArmado("datos", "Almacenamiento",
-                        List.of(new ReglaTipoAlmacenamiento(prefs.tipoAlmacenamiento()),
-                                new ReglaCapacidadMinima(prefs.capacidadMinimaGb())),
-                        new CriterioPorEjesTecnicos(EjesTecnicos.ALMACENAMIENTO_DATOS)));
+                slotMother(prefs),
+                slotCpu(prefs),
+                slotRam(prefs, EjesTecnicos.RAM_HOMELAB),
+                slotGabinete(prefs),
+                slotFuente(),
+                slotAlmacenamiento("sistema", prefs, EjesTecnicos.ALMACENAMIENTO),
+                slotAlmacenamiento("datos", prefs, EjesTecnicos.ALMACENAMIENTO_DATOS));
     }
 
     /**
@@ -310,10 +318,7 @@ public class PcBuilder {
         return List.of(
                 new SlotDeArmado("minipc", "Mini PC", List.of(new ReglaGama()),
                         new CriterioPorEjesTecnicos(EjesTecnicos.MINI_PC)),
-                new SlotDeArmado("datos", "Almacenamiento",
-                        List.of(new ReglaTipoAlmacenamiento(prefs.tipoAlmacenamiento()),
-                                new ReglaCapacidadMinima(prefs.capacidadMinimaGb())),
-                        new CriterioPorEjesTecnicos(EjesTecnicos.ALMACENAMIENTO_DATOS)));
+                slotAlmacenamiento("datos", prefs, EjesTecnicos.ALMACENAMIENTO_DATOS));
     }
 
     /**
@@ -329,15 +334,15 @@ public class PcBuilder {
     }
 
     private PcPick toPick(String slot, Product p, TechSpecs specs) {
-        String img = p.imagenUrl() != null ? p.imagenUrl() : "";
+        String img = StringUtils.defaultString(p.imagenUrl());
         if (img.startsWith("//")) img = "https:" + img;
         return new PcPick(slot,
-                p.sitio() != null ? p.sitio() : "",
-                p.nombre() != null ? p.nombre() : "",
+                StringUtils.defaultString(p.sitio()),
+                StringUtils.defaultString(p.nombre()),
                 p.precio(),
-                p.url() != null ? p.url() : "",
+                StringUtils.defaultString(p.url()),
                 img,
-                p.marca() != null ? p.marca() : "",
+                StringUtils.defaultString(p.marca()),
                 specs);
     }
 }

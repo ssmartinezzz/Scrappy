@@ -1,16 +1,11 @@
 package ar.scraper.pcs.reglas;
 
-import ar.scraper.pcs.Certificacion;
 import ar.scraper.pcs.ContextoDeArmado;
-import ar.scraper.pcs.Gama;
-import ar.scraper.pcs.TamanioGabinete;
 import ar.scraper.pcs.TechSpecs;
-import ar.scraper.pcs.TipoAlmacenamiento;
 import ar.scraper.pcs.TipoCooler;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -20,9 +15,7 @@ class ReglaTipoCoolerPedidoTest {
     private final ContextoDeArmado contexto = ContextoDeArmado.inicial(450);
 
     private static TechSpecs conTipo(TipoCooler tipo) {
-        return new TechSpecs("", "", "", 0, 0, "", Gama.DESCONOCIDA, Certificacion.NINGUNA, 0,
-                TipoAlmacenamiento.DESCONOCIDO, List.of(), "", 0, 0, 0, false, tipo, 0,
-                TamanioGabinete.DESCONOCIDO, 0);
+        return TechSpecs.builder().tipoCooler(tipo).build();
     }
 
     @Test

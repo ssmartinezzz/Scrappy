@@ -4,19 +4,16 @@ import ar.scraper.catalog.ProductPort;
 import ar.scraper.ml.PythonRunner;
 import ar.scraper.web.dto.MlDtos;
 import org.springframework.stereotype.Component;
+import lombok.RequiredArgsConstructor;
+import org.apache.commons.lang3.StringUtils;
 
 @Component
+@RequiredArgsConstructor
 public class MlEstadoView {
 
     private final ScraperService service;
     private final ProductPort productos;
     private final PythonRunner pythonRunner;
-
-    public MlEstadoView(ScraperService service, ProductPort productos, PythonRunner pythonRunner) {
-        this.service = service;
-        this.productos = productos;
-        this.pythonRunner = pythonRunner;
-    }
 
     public MlDtos.Estado snapshot() {
         java.io.File modelsDir = new java.io.File("_models");
@@ -34,7 +31,7 @@ public class MlEstadoView {
         }
         var ts = pythonRunner.getTrainingStatus();
         estado.setTraining(new MlDtos.Training(ts.running(), ts.phase(), ts.pct(), ts.msg(),
-                ts.startedAt() != null ? ts.startedAt() : ""));
+                StringUtils.defaultString(ts.startedAt())));
 
         long embeddingsCount = productos.contarEmbeddings();
         var lastResult = service.getLastResult();

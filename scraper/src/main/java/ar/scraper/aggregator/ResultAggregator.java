@@ -19,8 +19,10 @@ import org.springframework.stereotype.Component;
 import java.util.*;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
+import lombok.RequiredArgsConstructor;
 
 @Component
+@RequiredArgsConstructor
 public class ResultAggregator {
 
     private static final Logger LOG = LoggerFactory.getLogger(ResultAggregator.class);
@@ -41,24 +43,6 @@ public class ResultAggregator {
     // Estado del último run — leído por ScraperService sin inyección circular
     private volatile JsonNode lastMlOutput     = null;
     private volatile int      lastCatRefinadas = 0;
-
-    public ResultAggregator(NormalizerService    normalizer,
-                            PythonRunner         pythonRunner,
-                            MlEnricher           mlEnricher,
-                            SenalEnricher        senalEnricher,
-                            FinanciacionEnricher financiacionEnricher,
-                            MlOutputPort         mlOutput,
-                            CategoriaStatsPort   categoriaStats,
-                            ProductPort          productos) {
-        this.normalizer          = normalizer;
-        this.pythonRunner        = pythonRunner;
-        this.mlEnricher          = mlEnricher;
-        this.senalEnricher       = senalEnricher;
-        this.financiacionEnricher = financiacionEnricher;
-        this.mlOutput            = mlOutput;
-        this.categoriaStats      = categoriaStats;
-        this.productos           = productos;
-    }
 
     public JsonNode             getLastMlOutput()    { return lastMlOutput; }
     public void                 setLastMlOutput(JsonNode n) { lastMlOutput = n; }
@@ -132,16 +116,15 @@ public class ResultAggregator {
 
         List<Product> conFinanciacion = enriquecerSenalYFinanciacion(pipeline.enriquecidos());
 
-        Facets facets = calcularFacets(conFinanciacion);
-        double minP   = conFinanciacion.isEmpty() ? 0 : conFinanciacion.get(0).precio();
-        double maxP   = conFinanciacion.isEmpty() ? 0 : conFinanciacion.get(conFinanciacion.size()-1).precio();
+        AggregatedResult resultado = resultado(conFinanciacion, validacion.conteo(), validacion.errores(),
+                validacion.stats());
 
         LOG.info("Agregacion: {} brutos -> {} unicos (normalizado+ML)", validacion.todos().size(), conFinanciacion.size());
 
         LOG.info("[AGG] Lanzando entrenamiento del modelo en background...");
         pythonRunner.entrenarEnBackground(forceRetrain);
 
-        return new AggregatedResult(conFinanciacion, validacion.conteo(), validacion.errores(), facets, minP, maxP, validacion.stats());
+        return resultado;
     }
 
     private ValidationResult validarYContar(List<ScrapeResult> resultados) {
@@ -233,14 +216,14 @@ public class ResultAggregator {
         Map<String, String> catOriginal = new HashMap<>();
         for (Product p : normalizados)
             if (StringUtils.isNotBlank(p.url()))
-                catOriginal.put(p.url(), p.categoria() != null ? p.categoria() : "");
+                catOriginal.put(p.url(), StringUtils.defaultString(p.categoria()));
 
         int catRefinadas = 0;
         for (Product p : enriquecidos) {
             String pid = p.url();
             if (StringUtils.isBlank(pid)) continue;
             String antes = catOriginal.get(pid);
-            String ahora = p.categoria() != null ? p.categoria() : "";
+            String ahora = StringUtils.defaultString(p.categoria());
             if (antes != null && !ahora.equals(antes)) {
                 try { productos.actualizarCategoria(pid, ahora); catRefinadas++; }
                 catch (Exception ignored) {}
@@ -303,12 +286,12 @@ public class ResultAggregator {
             if (antes.url() == null || !antes.url().equals(ahora.url())) continue;
 
             totalRevisados++;
-            String catAntes = antes.categoria() != null ? antes.categoria() : "";
-            String catAhora = ahora.categoria() != null ? ahora.categoria() : "";
-            String marcaAntes = antes.marca() != null ? antes.marca() : "";
-            String marcaAhora = ahora.marca() != null ? ahora.marca() : "";
-            String genAntes = antes.genero() != null ? antes.genero() : "";
-            String genAhora = ahora.genero() != null ? ahora.genero() : "";
+            String catAntes = StringUtils.defaultString(antes.categoria());
+            String catAhora = StringUtils.defaultString(ahora.categoria());
+            String marcaAntes = StringUtils.defaultString(antes.marca());
+            String marcaAhora = StringUtils.defaultString(ahora.marca());
+            String genAntes = StringUtils.defaultString(antes.genero());
+            String genAhora = StringUtils.defaultString(ahora.genero());
             List<String> tallesAntes = antes.talles() != null ? antes.talles() : List.of();
             List<String> tallesAhora = ahora.talles() != null ? ahora.talles() : List.of();
 
@@ -316,8 +299,8 @@ public class ResultAggregator {
             boolean marcaCambio     = !marcaAntes.equals(marcaAhora);
             boolean genCambio       = !genAntes.equals(genAhora);
             boolean tallesCambio    = !tallesAntes.equals(tallesAhora);
-            String subCatAntes      = antes.subCategoria() != null ? antes.subCategoria() : "";
-            String subCatAhora      = ahora.subCategoria() != null ? ahora.subCategoria() : "";
+            String subCatAntes      = StringUtils.defaultString(antes.subCategoria());
+            String subCatAhora      = StringUtils.defaultString(ahora.subCategoria());
             boolean subCatCambio    = !subCatAntes.equals(subCatAhora);
 
             if (catCambio)   categoriaCambiada++;
@@ -439,10 +422,15 @@ public class ResultAggregator {
     private AggregatedResult snapshot(List<Product> conFinanciacion) {
         Map<String, Integer> conteo = new LinkedHashMap<>();
         conFinanciacion.forEach(p -> conteo.merge(p.sitio(), 1, Integer::sum));
+        return resultado(conFinanciacion, conteo, Map.of(), Map.of());
+    }
+
+    private AggregatedResult resultado(List<Product> conFinanciacion, Map<String, Integer> conteo,
+            Map<String, String> errores, Map<String, ExtractionStats> stats) {
         Facets facets = calcularFacets(conFinanciacion);
         double minP = conFinanciacion.isEmpty() ? 0 : conFinanciacion.get(0).precio();
         double maxP = conFinanciacion.isEmpty() ? 0 : conFinanciacion.get(conFinanciacion.size()-1).precio();
-        return new AggregatedResult(conFinanciacion, conteo, Map.of(), facets, minP, maxP, Map.of());
+        return new AggregatedResult(conFinanciacion, conteo, errores, facets, minP, maxP, stats);
     }
 
     /** Copia un producto reemplazando solo sus dos señales derivadas. */

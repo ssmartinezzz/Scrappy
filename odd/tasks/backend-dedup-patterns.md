@@ -189,13 +189,59 @@ boilerplate comments.
       Decided 2026-10-02: V42 CHECK (`nombre ~ '\S'`, `sitio ~ '\S'`) closes it, then the validation commit.
 
 ### Phase D — remaining clones (only after A–C, re-measured)
-- [ ] D1 `pages/`: Template Method in `BasePage` for Shopify↔Tiendanube, OsCommerce/Qloud/FullH4rd,
-      `VtexPage` internal clones.
-- [ ] D2 `ml/PythonRunner`: one parameterized script-launch method (6 internal clones).
-- [ ] D3 `pcs/specs`: move shared extraction into `Tokens`.
-- [ ] D4 `web/` Outfits/Pcs/Suplementos controllers: shared helper.
-- [ ] D5 `@RequiredArgsConstructor` where constructors only assign fields (grep found ~117
-      candidate files — unverified heuristic, check each).
+- [x] D0 Re-measured on master 92fac5d, branch `refactor/backend-dedup-clones`. CPD 50t: 62 clones / 649 lines.
+      By first file: pages 23, pcs 13, ml 8, web 6, db 5, outfits 4, aggregator/fuentes/scrapers 1 each.
+      Largest: VtexPage 356↔435 (37 lines, 283t), PcBuilder 244↔276 (14, 166t), Shopify↔Tiendanube 76↔191 (13, 143t),
+      Cpu↔MotherboardSpecsReader (15, 139t). Not in the original plan: `PcBuilder` internal (3 clones) and
+      `pcs/TechSpecs` internal (7 clones). Page parsers with no mapping test: VtexPage JSON→Product, ShopifyPage;
+      D1 adds characterization tests (green on the CURRENT code, own commit) before touching them.
+- [x] D1 `pages/` (1cf74b3 tests, 109a453 vtex, 854f513 vtex/shopify/tiendanube, f9e3b6e osCommerce family).
+      28 characterization tests (Vtex 12, Shopify 7, Tiendanube 9) green on the unchanged code first; negative
+      controls (drop `?` strip, drop legacy `name` fallback, drop IO `categoryTree` fallback) each went red, reverted.
+      New package-private `StorePage` (between `BasePage` and 9 store pages) and `CatalogJson`; `ImageUrl.primera`;
+      `BasePage` untouched. Zero existing test files touched (verified `git diff --name-status`: 3 A only).
+      Suite 3319/0/0/7 (parent re-run, clean). CPD 50t 62/649 → 46/395 (pages 23 → 7); 80t 13/204 → 3/42.
+      pages/ src/main +287/−546. 7 page clones left: public ctors, Shopify↔Tiendanube variant/talle loops reading
+      different JSON fields, FullH4rd↔Qloud parseListing preamble, Tiendanube↔Vtex gender sources.
+      Finding: gender matcher was substring-based. Fixed f90babe (user request 2026-10-02: male words strict):
+      `CatalogJson.tienePalabra` whole-word match for male words in `genero` and Vtex `mapearGenero`; plurals
+      caballeros/masculinos/masculinas added. RED 6/10 (`femenina`/`manga`/`women`/`female` → unisex,
+      `manga corta` → hombre, Vtex `Femenino` → hombre), GREEN 3329/0/0/7. Female/unisex words stay substring.
+      Pending: live scrape smoke (B6-style, master vs HEAD) before the PR.
+- [x] D2 `ml/PythonRunner` (cb4d483 test, 7d63d8d, 79b40c6 test, 49c6b9d): shared stream drain, probe launch, child env,
+      training command. 2 clones left.
+- [x] D3 `pcs/` (285a945, e419ad4 tests, bd4c665 specs → `Tokens`; 4ee91d3 test, ec96245 PcBuilder slots once;
+      4d25010 `StringUtils.defaultString` in the 3 pick builders — user preference, interrupted the first writer over
+      hand-written null ternaries). CPD at 4d25010: 34/281.
+      Left: `TechSpecs` telescoping ctor chain (6 clones, ~100 lines) — needs builder + ~130 test call sites, same
+      call as `Product` (open question); pick builders map into 3 different DTOs, no natural shared home.
+- [x] D4 `web/` (aa644aa, af5b8f6 tests; f5fe255 `web/Params` CSV + saved-build name, 9f5ee88 financing preset
+      validated once, e72d85a MarcasPicksView comparator). Side effect: `OutfitsController.outfits(excluir=null)` now
+      gives an empty set instead of NPE (HTTP always passes `""`, so only a direct call could see it).
+- [x] D-tail: e973aee test + 3c0f961 `fuentes/FuenteHttp`; 82dedc3 ResultAggregator result built once; 994a0e1
+      UsuarioRepository reuses `asignarRol`. Left with reason: SavedOutfits↔SavedPcs (JSON key order is contract),
+      CronRepository 7-bind blocks, ScraperFactory adapters (different arity), Cron↔CronDtos copy.
+- [x] D5 `@RequiredArgsConstructor` (32836a1..6a71a09, 7 commits by package): 56 converted (all that pass every
+      condition; no `lombok.config` → any param annotation skips). Skips by scanner: no-arg 53, multi-ctor 9, body not
+      pure assign 33, subclass 24, already Lombok 12, DatabaseService (assign order ≠ param order), PasswordResetService.
+      `SpringWiringTest` ran (7). Writer booted the jar (crons 3,4 disabled then restored): Started 5.5 s, only WARN =
+      generated-password notice; authed GETs 200 on builders/indices/status; scrape_run unchanged (39).
+- [x] D6 19b1622 `x != null ? x : ""` → `StringUtils.defaultString(x)` in the 9 files this branch touched (26 sites;
+      71 in the repo before, 45 left in untouched files). Suite 3390/0/0/7.
+- [x] D7 `TechSpecs` builder (user-approved 2026-10-02; same pattern as Product): 98f7374 builder + 10 src/main sites
+      (RED: `TechSpecsBuilderTest` failed to compile, then GREEN; hand-written `builder()` presets every abstention
+      sentinel, `EMPTY = builder().build()`; no toBuilder sites — every call built from scratch), f8736fa 104 test calls
+      in 30 files, mechanical (assertion grep = 0 lines, counts identical), 450abda legacy ctors deleted (canonical kept;
+      no @JsonCreator/reflection on TechSpecs). Plus a `safeStr` ternary → `Objects.toString(o, "")`
+      (`ObjectUtils.toString` is deprecated in lang3 3.13). Suite 3393/0/0/7. CPD 50t 25/212 → 17/110.
+- [x] D8 Perf A/B, master 92fac5d jar vs HEAD 7457973 jar, same session, order old → new → new → old, crons 3,4
+      disabled then restored, scrape_run unchanged (39). Boots 4.1/3.6/3.6/3.7 s, only WARN = generated-password notice.
+      JMeter smoke ×3 per boot (6 runs/jar pooled), p95 old→new ms: data 22→24, data_filtrado 38→38, pcs_builder 38→34,
+      recomendados 70→68, status 5→8 (in-memory: noise floor), rest ±2. Locust baseline+login (mean of 2 boots/jar):
+      data 22.5→20.5, data_filtrado 34→37.5, pcs_builder 34.5→31, recomendados 65→66.5, login 41.5→41, rest ±1.
+      All within ±4 ms with no consistent sign across the two tools: no measurable change. 0 errors; all budgets green.
+      Raw: scratchpad 0be4898e…/{old,new,new2,old2}-N.jtl, locust-*.log, perf-ab.sh.
+      Totals master → HEAD (after D7): CPD 50t 62/649 → 17/110; 80t 13/204 → 0.
 
 ## Progress
 
@@ -218,3 +264,10 @@ boilerplate comments.
 - 2026-10-02: user approved the fixture swap (blank nombre → blank url in ResultAggregatorMetricsTest, assertions unchanged, declared CODE-2 edit), deleting the dead nombre check in `isValid`, and updating CLAUDE.md:41 to V1..V42 (explicit request). Writer resumed for commits 6 and 7.
 - 2026-10-02: Phase C code done, 6 commits 470d72b..62d3779 (unpushed), +3875/-826 (C2 alone +3207/-632, mechanical). Isolated run: `V35RollbackRoundTripTest` + `MarcaFkAbstentionTest` red alone with FK `sitio_key=(sitio)` — SAME on master (pre-existing order dependency, not this branch). Next: push + PR (ask first), CPD re-count.
 - 2026-10-02: fd3e43f copy sites use `toBuilder()` (7 sites, null-coalescing kept; VaypolPage:146 kept as a fresh build since its legacy ctor reset fields to defaults). Suite 3291/0/0/7. CPD master→HEAD: 50t 76/735 → 62/649; 80t 12/170 → 13/204 — two new page clones are one-setter-per-line builder chains (Shopify:92↔Tiendanube:211, Vtex:398↔471), left for D1. Next: push + PR, merge if CI + Sonar pass (user-authorized).
+- 2026-10-02: PR #283 merged, master 92fac5d (tree == d692bd5), branch deleted. Sonar first flagged plsql:S125 on the V42 header (prose quoting NOT NULL read as code) → d692bd5 reworded it (V42 not applied to any persistent DB); re-run: gate OK, 0 new issues. Next: Phase D — re-measure CPD first.
+- 2026-10-02: Phase D started, D0 re-measure done (62/649). Next: D1 (writer delegated).
+- 2026-10-02: D1 done (4 commits 1cf74b3..f9e3b6e, unpushed), 3319/0/0/7, CPD 46/395. Next: live smoke for D1, then D2.
+- 2026-10-02: f90babe gender fix (male words whole-word), 3329/0/0/7. Next: live smoke for D1, then D2.
+- 2026-10-02: D2–D6 done on the same branch (18 commits after b1ca0b4, unpushed), 3390/0/0/7, CPD 25/212, 80t 0. PR #284 open, merge stopped by user. Open: TechSpecs builder (CODE-2 exception). Next: push + update PR body when the user says.
+- 2026-10-02: D7 TechSpecs builder done (98f7374, f8736fa, 450abda + safeStr), 3393/0/0/7, CPD 17/110. Next: push + update PR #284 body (merge only on user go).
+- 2026-10-02: D8 perf A/B done (JMeter + Locust, both orders): no measurable change, 0 errors. Next: push + update PR #284 (user asked for perf before pushing).

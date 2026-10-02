@@ -1,18 +1,16 @@
 package ar.scraper.classification;
 
 import org.apache.commons.lang3.StringUtils;
+import lombok.RequiredArgsConstructor;
 
 /**
  * {@code oficina} entra como cuarto rubro, con una rama que es espejo EXACTO de la de
  * {@code tecnologia}, guard {@code !catEsTextil} incluido.
  */
+@RequiredArgsConstructor
 public class RubroResolver {
 
     private final SiteRegistry siteRegistry;
-
-    public RubroResolver(SiteRegistry siteRegistry) {
-        this.siteRegistry = siteRegistry;
-    }
 
     public String resolver(String sitioKey, String cat, String rubroExistente) {
         boolean catEsTextil = CategoryGroups.esIndumentariaOCalzado(cat);

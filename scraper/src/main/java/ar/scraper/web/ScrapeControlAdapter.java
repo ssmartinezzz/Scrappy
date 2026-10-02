@@ -7,6 +7,8 @@ import ar.scraper.scrape.ScraperStatus;
 import org.springframework.stereotype.Component;
 
 import java.util.Set;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
 
 /**
  * No es un bean mas que envuelve a {@code ScraperService} por prolijidad: el flag de GPU no vive en
@@ -14,18 +16,12 @@ import java.util.Set;
  * {@code ScraperConfig}.
  */
 @Component
+@RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 class ScrapeControlAdapter implements ScrapeControlPort {
 
     private final ScraperService scraperService;
     private final ScraperConfig config;
     private final PythonRunner pythonRunner;
-
-    ScrapeControlAdapter(ScraperService scraperService, ScraperConfig config,
-            PythonRunner pythonRunner) {
-        this.scraperService = scraperService;
-        this.config = config;
-        this.pythonRunner = pythonRunner;
-    }
 
     @Override
     public ScraperStatus estado() {
