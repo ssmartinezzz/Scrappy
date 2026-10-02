@@ -12,24 +12,26 @@ Antes de codear, determinar la plataforma del sitio:
 ¿Es tiendanube.com?             → Tiendanube (JS heurístico)
 ¿Es un SPA/SSR propio sobre     → HEADLESS: ver abajo, NO es la plataforma
   otra plataforma?                 de atrás  {inpro}
-¿Otro?                          → Necesita Page/Scraper custom
+¿Otro?                          → Necesita Page custom
 ```
 
 > ⚠️ **El paso del headless es nuevo y es el que más fácil se saltea.** Antes de
 > concluir "es Tiendanube/Shopify" por lo que hay en el payload, mirá qué sirve
 > la **vidriera**. Ver [Caso 6](#caso-6--headless-la-plataforma-de-atrás-no-es-la-plataforma) más abajo.
 
-> **Detección real** (`ScraperFactory.crear`, en orden): WooCommerce → Maximus →
-> FullH4rd → CompraGamer → Vaypol → VTEX → Shopify → Monkyforce → default
-> (Tiendanube). Desde `V20` esto **no** se resuelve con name-sets en Java: cada
-> `if` de `crear()` lee `siteRegistry.plataforma(sitioKey)`, y esa columna sale
-> de la tabla `sitio` (sembrada por migración). Los 8 `Set.of(...)` que existían
+> **Detección real** (`ScraperFactory.crear`): `siteRegistry.plataforma(sitioKey)`
+> elige la page en el mapa `PAGINAS`. Las plataformas de `GANAN_A_LA_URL`
+> (WooCommerce, Maximus, FullH4rd, CompraGamer, Vaypol, Qloud, osCommerce, INPRO,
+> VTEX) ganan siempre; para el resto mandan antes los fallbacks por URL
+> (`vtexcommercestable.com.br`/`vteximg.com.br` → VTEX, `myshopify.com` → Shopify);
+> lo que no está en el mapa cae a Tiendanube. Desde `V20` esto **no** se resuelve
+> con name-sets en Java: la columna sale de la tabla `sitio` (sembrada por migración). Los 8 `Set.of(...)` que existían
 > antes fueron **borrados**, no reemplazados por otra copia — agregar un sitio a
 > una plataforma ya soportada es una fila de seed, no una edición de código.
 > Además de las plataformas genéricas de arriba, el proyecto ya tiene scrapers
 > propios por sitio/plataforma: **Maximus, FullH4rd, CompraGamer** (hardware/PC
 > — el proyecto ya no es solo moda), **Monkyforce** (gym), **Qloud** (Rockethard)
-> y **osCommerce** (Venex). Esos son el "Caso 5" (Page/Scraper custom) ya
+> y **osCommerce** (Venex). Esos son el "Caso 5" (Page custom) ya
 > resueltos; agregá una fila de seed con el `plataforma` correspondiente si
 > aparece otra tienda sobre la misma plataforma — ver el patrón abajo.
 
@@ -144,8 +146,8 @@ Los seams de `TiendanubePage`, todos `protected`:
 | `catalogoUrls()` | `List.of(baseUrl)` | La tienda no tiene una URL de catálogo única |
 | `usaApi()` | `true` | La API de TN devuelve la tienda **entera** sin filtro por sección: apagala si sólo querés una parte |
 
-Y `TiendanubeScraper.crearPage(Page)` es el Factory Method que la subclase de
-scraper overridea para devolver tu page. No reescribas `scrape()`.
+La page se registra en `ScraperFactory.PAGINAS` con `paginated(NombrePage::new)`:
+recibe `extraUrls` y `maxPaginas` igual que `TiendanubePage`. No hay clase de scraper.
 
 Tres reglas que Morashop dejó aprendidas:
 
@@ -214,19 +216,10 @@ public class NombrePage extends BasePage {
 - `absoluteUrl(href, base)` — resuelve URLs relativas
 - `scrollToBottom()` — hace scroll para activar lazy loading
 
-### 2. Crear `src/.../scrapers/NombreScraper.java`
-```java
-public class NombreScraper extends BaseScraper {
-    public NombreScraper(ScraperConfig config, String sitio, String url) {
-        super(config, sitio, url);
-    }
-    @Override
-    protected List<Product> scrape(Page page) {
-        return new NombrePage(page, config.getTimeoutMs(), sitio, baseUrl,
-                config.getPrecioMinimo(), config.getPrecioMaximo()).scrapeAll();
-    }
-}
-```
+### 2. No hay clase de scraper
+
+`BaseScraper` es una sola clase concreta (browser, stealth, bloqueos de red) que
+recibe un `PageFactory`. La page es lo único que se escribe; se registra en el paso 3b.
 
 ### 3. Dar de alta la plataforma: migración + `ScraperFactory.java` + los dos tests de sincronía
 
@@ -249,13 +242,14 @@ VALUES ('Nombre', 'nombre', 'nombre_plataforma', false, NULL, 'config')
 ON CONFLICT (nombre) DO NOTHING;
 ```
 
-**b) `ScraperFactory.java`** — un `if` más, mismo estilo que los existentes,
-**nunca** un `Set.of(...)` (`CODE-6`, `site-platform-vocabulary`/ScraperFactory
-Routes Exclusively Off `sitio.plataforma`):
+**b) `ScraperFactory.java`** — una entrada más en `PAGINAS`, con la clave igual
+al valor de `plataforma`, **nunca** un name-set por sitio (`CODE-6`,
+`site-platform-vocabulary`/ScraperFactory Routes Exclusively Off `sitio.plataforma`).
+Si la plataforma tiene que ganarle a los fallbacks por URL, sumala a `GANAN_A_LA_URL`:
 ```java
-if ("nombre_plataforma".equals(plataforma))
-    return new NombreScraper(config, display, site.url());
+entry("nombre_plataforma", simple(NombrePage::new)),
 ```
+`ScraperFactoryPlatformTest.cadaPlataforma` lista cada plataforma con su page: sumá la fila.
 
 **c) `PLATAFORMAS_VALIDAS`** en `SitiosRepository.java` — segunda copia
 deliberada (valida sitios agregados desde el dashboard, sin tabla `sitio`
@@ -310,7 +304,7 @@ API de Tiendanube —`variants[]`, `compare_at_price`, `promotional_price`,
 **Next.js propio en Vercel**. No hay DOM de Tiendanube en ningún lado.
 
 **Por qué importa y no es una sutileza.** Sembrarlo como `plataforma='tiendanube'`
-lo rutea a `TiendanubeScraper`, que sale a buscar selectores de un tema de
+lo rutea a `TiendanubePage`, que sale a buscar selectores de un tema de
 Tiendanube que ahí no existen. Resultado: **0 productos, sin error**. Es
 exactamente el bug que `V24` cerró para Rockethard y Venex, y la razón por la que
 la plataforma es un dato del sitio y no una heurística sobre la URL.

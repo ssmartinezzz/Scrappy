@@ -44,7 +44,7 @@ VTEX    → sporting, o url contiene vtexcommercestable.com.br / vteximg.com.br
 SHOPIFY → freres, vcp, forever, o url contiene myshopify.com
 MONKYFORCE → monkyforce
 MORASHOP → morashop
-default → TiendanubeScraper (JS heurístico)
+default → TiendanubePage (JS heurístico)
 ```
 
 `plataformaDeFavorito`/`crearParaFavorito` resuelven favoritos solo a SHOPIFY/VTEX.

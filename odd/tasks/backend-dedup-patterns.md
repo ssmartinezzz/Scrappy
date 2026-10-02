@@ -46,8 +46,7 @@ boilerplate comments.
 
 ## Open — ask the user at the start of each phase
 
-- **B**: rewriting `ScraperFactoryPlatformTest` (assert the chosen Page/platform instead of the
-  subclass) breaks `CODE-2`. Declare it as a behavior-visible change up front, or keep it?
+- ~~**B**: rewriting `ScraperFactoryPlatformTest` breaks `CODE-2`~~ → accepted 2026-10-02 (see B0).
 - **C**: migrating 181 test call sites breaks `CODE-2` literally. Proposed: one mechanical
   commit, zero assertion changes. Needs explicit OK.
 - **C**: compact-constructor validation (`Validate.notBlank(sitio/nombre)`) is a behavior
@@ -145,14 +144,35 @@ boilerplate comments.
         `ps.getConnection().createArrayOf(...)` inside setters: CatalogQuery 3, Historial 1, Product 2, ScrapeRun 2.
 
 ### Phase B — scraper registry (Factory)
-- [ ] B0 Ask the `CODE-2` question above.
-- [ ] B1 `PageFactory` functional interface + `PageContext` record (timeout, sitio, url,
-      min/max, extraUrls, maxPaginas); `BaseScraper` becomes concrete and takes a `PageFactory`.
-- [ ] B2 `ScraperFactory` → `Map<String, PageFactory>` with constructor refs; URL fallbacks
-      (`myshopify.com`, `vtexcommercestable.com.br`, `vteximg.com.br`) checked before the map;
-      Tiendanube stays the default.
-- [ ] B3 Delete the 13 subclasses; fix the `VaypolScraper` reference in `QloudPage` javadoc.
-- [ ] B4 Check the platform vocabulary copies still agree (memory `platform-vocabulary-has-two-copies`).
+- [x] B0 Answered 2026-10-02: rewriting `ScraperFactoryPlatformTest` (assert the chosen Page/platform
+      instead of the subclass) is accepted as a declared `CODE-2` exception, "si para hacerlo
+      tendríamos que verificar". Declare it in the PR body; prove equivalence first: the rewritten
+      test must pass against the CURRENT factory (before B1) so it is not tuned to the new code, and
+      every site→platform mapping it asserted before must still be asserted.
+- [x] B0.1 aa053c9 `ScraperFactoryPlatformTest` rewritten: `mockConstruction` over the 12 page classes records
+      which page `scrape(page)` builds and with which args. Passed 24/24 against the UNCHANGED factory
+      (all 8 old cases kept + every platform, both VTEX URL fallbacks, TechStoreType, Tiendanube
+      extraUrls/maxPaginas). Negative control (morashop → default, compragamer → MAXIMUS): 3 red, reverted.
+      The old test could not see the TechStoreType swap.
+- [x] B1 b96b538 `CatalogPage` interface (`scrapeAll()`) implemented by the 10 concrete pages. Deviation from
+      plan: NOT `abstract scrapeAll()` on `BasePage` — 4 test subclasses of `BasePage` (`BasePage*Test.TestPage`)
+      would stop compiling (refactor contract). Suite on this commit (worktree): 3280/0/0/7 + the known flaky
+      `ScrapeRunIndexBenchmarkTest` red once, green on rerun.
+- [x] B2+B3 fd1960f `BaseScraper` is one concrete final class taking a `PageFactory` (nested, with the
+      `PageContext` record: config, sitio, baseUrl, extraUrls). `ScraperFactory.PAGINAS` = `Map<String, PageFactory>`
+      built from constructor refs through two adapters (`simple`, `paginated`). Exact if-chain order kept:
+      `GANAN_A_LA_URL` (8 platforms + vtex) win over URL fallbacks; shopify/monkyforce/morashop/tiendanube yield to
+      the vtex and myshopify URLs; unmapped → Tiendanube. 13 subclasses deleted; QloudPage javadoc fixed; docs
+      updated (ADD_SCRAPER steps 2/3b, SITES, ARCHITECTURE, DATABASE, STRUCTURE). Logger name is now `BaseScraper`
+      for every site (lines still carry `[sitio]`). Suite 3281/0/0/7 (+16 new cases).
+- [x] B4 `PAGINAS` keys == `PLATAFORMAS_VALIDAS` (13 each, checked by hand; no test pins it yet).
+- [x] B5 CPD 50t: 76/741 → 76/735; 80t: 12/170 unchanged (the subclasses were below the CPD threshold).
+      `src/main` vs master: 344 → 332 files, +119/−374 lines (net −255).
+- [x] B6 Live smoke: throwaway harness (`ScraperFactory.crear(...).ejecutar(pw)`, real Chromium, no DB, not committed)
+      on master 200f94c then HEAD fd1960f, ~20 min each. Products master/HEAD, all error=null:
+      freres 134/134, barnes 76/76, monkyforce 1101/1101, rockethard 684/684, inpro 102/102, venex 2853/2899.
+      Venex +46 is live-catalog drift between runs 20 min apart (same page class and args, asserted by B0.1), not routing.
+- [ ] B7 PR (declare the CODE-2 exception for `ScraperFactoryPlatformTest` in the body).
 
 ### Phase C — `Product` builder
 - [ ] C0 Ask the two `CODE-2`/validation questions above.
@@ -177,3 +197,7 @@ boilerplate comments.
 - 2026-10-02: A4.P0, A4.0, A4.1 done (d840d81, 24c136b..5dece5e), A4.2 done. Next: A4.3.
 - 2026-10-02: A4.3, A4.4, A4.6 done. A4.5 (boot + SmokeIT) pending, scheduled by coordinator.
 - 2026-10-02: A4 done (24 commits 37a03ad..33af024, unpushed): 0 pool checkouts left in db/, CPD 50t 76/741, 80t 12/170; suite 3265/0/0/7; boot + HTTP smoke clean; SmokeIT p95 before/after within ±6 ms. Next: PR plan (chained-pr, ~2460 changed lines) or Phase B (ask B0 first).
+- 2026-10-02: A4 chain opened, stacked PRs #271–#281 (refactor/jdbc-01..11), each diff verified to hold only its slice; #271 targets master, the rest show no checks until retargeted. Merge per runbook: retarget → update-branch → wait → merge, never --delete-branch.
+- 2026-10-02: chain merged 11/11, master 200f94c, tree identical to 9daa75f, branches deleted. Sonar: every PR gate OK, 0 new issues/bugs/smells; master-wide numbers flat across the merges (dup 2.9%, bugs 6, vulns 7, smells 67). Next: Phase B — ask B0 first.
+- 2026-10-02: B0 answered (rewrite the platform test, declared, verified against the current factory first). User clearing context. Next: B1.
+- 2026-10-02: Phase B code done on `refactor/backend-dedup-scraper-registry` (aa053c9, b96b538, fd1960f, unpushed); suite 3281/0/0/7. B6 live smoke matched master (venex +46 = drift). Next: B7 push + PR (ask first).

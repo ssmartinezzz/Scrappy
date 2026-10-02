@@ -3,12 +3,20 @@ package ar.scraper.scrapers;
 import ar.scraper.config.ScraperConfig;
 import ar.scraper.model.Product;
 import ar.scraper.model.ScrapeResult;
+import ar.scraper.pages.CatalogPage;
 import com.microsoft.playwright.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import java.util.List;
 
-public abstract class BaseScraper {
+public final class BaseScraper {
+
+    record PageContext(ScraperConfig config, String sitio, String baseUrl, List<String> extraUrls) {}
+
+    @FunctionalInterface
+    interface PageFactory {
+        CatalogPage crear(Page page, PageContext ctx);
+    }
 
     static final String STEALTH_INIT_SCRIPT = """
             // Spoof: navigator.webdriver, navigator.plugins, navigator.languages, window.chrome
@@ -38,16 +46,20 @@ public abstract class BaseScraper {
         page.route("**/hotjar**",     r -> r.abort());
     }
 
-    protected final Logger log = LoggerFactory.getLogger(getClass());
-    protected final ScraperConfig config;
-    protected final String sitio;
-    protected final String baseUrl;
+    private static final Logger log = LoggerFactory.getLogger(BaseScraper.class);
+    private final String sitio;
+    private final ScraperConfig config;
+    private final PageContext pageContext;
+    private final PageFactory pageFactory;
 
-    protected BaseScraper(ScraperConfig config, String sitio, String baseUrl) {
-        this.config = config; this.sitio = sitio; this.baseUrl = baseUrl;
+    BaseScraper(ScraperConfig config, String sitio, String baseUrl, List<String> extraUrls, PageFactory pageFactory) {
+        this.sitio = sitio;
+        this.config = config;
+        this.pageContext = new PageContext(config, sitio, baseUrl, extraUrls);
+        this.pageFactory = pageFactory;
     }
 
-    public final ScrapeResult ejecutar(Playwright pw) {
+    public ScrapeResult ejecutar(Playwright pw) {
         long t0 = System.currentTimeMillis();
         try (Browser browser = pw.chromium().launch(new BrowserType.LaunchOptions()
                 .setHeadless(config.isHeadless())
@@ -73,5 +85,7 @@ public abstract class BaseScraper {
         }
     }
 
-    protected abstract List<Product> scrape(Page page);
+    List<Product> scrape(Page page) {
+        return pageFactory.crear(page, pageContext).scrapeAll();
+    }
 }
