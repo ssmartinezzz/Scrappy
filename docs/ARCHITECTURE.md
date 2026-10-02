@@ -1414,6 +1414,35 @@ prohíbe que el bean dependa de `ActorResolver`. Las anotaciones de cache viven
 en un único bean, `CatalogoDerivadoCache`, que los controllers reciben por inyección. Las claves normalizan a minúsculas (los filtros ya comparan sin
 mayúsculas) pero no hacen `trim`: los endpoints tampoco.
 
+### ¿Por qué `JdbcTemplate` en cada repositorio y no un bean, y por qué no se ganan líneas?
+
+`spring-boot-starter-jdbc` era dependencia y `JdbcTemplate` no se usaba en ningún
+archivo: `db/` tenía 113 bloques `getConnection()` + `PreparedStatement` + `try/catch`
+escritos a mano (`backend-dedup-patterns`, fase A). Ahora no queda ninguno.
+
+- **Sin bean.** Cada repositorio arma `new JdbcTemplate(dataSource)` en su constructor
+  `(DataSource)` existente. Un bean ensancharía los constructores y rompería los
+  contextos armados a mano de los tests (`TestDatabaseServices`,
+  `SiteRegistrySingletonWiringTest`).
+- **Las transacciones no cambian.** El `DataSource` ya es el
+  `TransactionAwareDataSourceProxy`, así que el template entra en el `@Transactional`
+  del llamador (`TransactionalUnitsRollbackTest`). `@Transactional` sigue en el método
+  de la subclase: `TestTransactions` lee `getDeclaredMethods()`.
+- **El contrato de error tampoco.** `DataAccessException` se traduce en un solo lugar,
+  `Sql.traducir`. Los caminos de falla quedaron idénticos: una lectura que fallaba a la
+  mitad devuelve las filas ya leídas (`RowCallbackHandler` sobre una lista
+  preasignada) y un loop fila por fila no pasa a `batchUpdate`, porque pgjdbc manda el
+  batch con un solo Sync y lo vuelve todo-o-nada.
+- **Claves generadas** con `prepareStatement(sql, new String[]{"id"})`:
+  `KeyHolder.getKey()` rechaza las de `RETURN_GENERATED_KEYS`, que en Postgres son todas
+  las columnas.
+
+La ganancia no es de líneas (+1096 / −1364) ni de CPD (80 → 76 clones): es que
+abrir, cerrar y marcar el rollback dejó de repetirse en cada método. Rendimiento medido
+con `SmokeIT` (3 corridas por jar, jar viejo primero; el orden inverso infla al segundo en todo, incluso en `status`): p95 entre −6 y +1 ms por endpoint.
+Spring 6.1 no agrega un viaje por `null`: con el driver de PostgreSQL,
+`StatementCreatorUtils.setNull` no consulta `getParameterMetaData()`.
+
 ---
 
 <!-- Movido desde CLAUDE.md (2026-09-28) -->
