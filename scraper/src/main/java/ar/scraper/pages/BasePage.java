@@ -9,17 +9,15 @@ import org.slf4j.LoggerFactory;
 import java.util.List;
 import java.util.Optional;
 import org.apache.commons.lang3.StringUtils;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
 
+@RequiredArgsConstructor(access = AccessLevel.PROTECTED)
 public abstract class BasePage {
 
     protected final Logger log = LoggerFactory.getLogger(getClass());
     protected final Page page;
     protected final int timeoutMs;
-
-    protected BasePage(Page page, int timeoutMs) {
-        this.page = page;
-        this.timeoutMs = timeoutMs;
-    }
 
     /**
      * Ceiling for the best-effort networkidle settle, deliberately decoupled from the page timeout.

@@ -16,19 +16,18 @@ import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
 
 /**
  * Supplements are a different domain from clothing that happened to live inside a class named
  * OutfitService: they have their own catalogue categories, their own subtype keyword matching and
  * their own brand preference order, and share none of the slot/style machinery.
  */
+@RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 public class SupplementCombo {
 
     private final RecommendationService recommendationService;
-
-    SupplementCombo(RecommendationService recommendationService) {
-        this.recommendationService = recommendationService;
-    }
 
     /**
      * Los estáticos se inicializan en orden de declaración, y varios de los que siguen normalizan
