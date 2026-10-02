@@ -16,7 +16,6 @@ public final class RamSpecsReader implements LectorDeSpecs {
     // eso: sin leerla el reader abstiene, ReglaDdr no veta, y la única DDR2 activa (una Kimota 2GB)
     // ganaba el slot ram de un armado con mother DDR5 por ser lo más barato del pool.
     private static final Pattern DDR = Pattern.compile(" dd+r([2345]) ");
-    private static final Pattern GB_STANDALONE = Pattern.compile("^(\\d+)gb$");
     private static final Pattern GB_MULTIPLIER = Pattern.compile("^(\\d+)x(\\d+)gb$");
 
     private static final Pattern MHZ_ATTACHED = Pattern.compile("^(\\d{3,5})mhz$");
@@ -48,10 +47,8 @@ public final class RamSpecsReader implements LectorDeSpecs {
     }
 
     private static int capacidadGb(Tokens tokens) {
-        for (String t : tokens.array()) {
-            Matcher m = GB_STANDALONE.matcher(t);
-            if (m.matches()) return Integer.parseInt(m.group(1));
-        }
+        var suelto = tokens.gbSuelto();
+        if (suelto.isPresent()) return suelto.getAsInt();
         for (String t : tokens.array()) {
             Matcher m = GB_MULTIPLIER.matcher(t);
             if (m.matches()) return Integer.parseInt(m.group(1)) * Integer.parseInt(m.group(2));

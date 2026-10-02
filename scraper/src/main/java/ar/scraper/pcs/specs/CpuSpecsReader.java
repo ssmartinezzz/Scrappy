@@ -25,17 +25,6 @@ public final class CpuSpecsReader implements LectorDeSpecs {
                 marcaChip(tokens), generacion(tokens), 0, 0, false, TipoCooler.DESCONOCIDO, nivel(tokens));
     }
 
-    private static String explicitSocket(Tokens tokens) {
-        if (tokens.has("am5")) return "AM5";
-        if (tokens.has("am4")) return "AM4";
-        if (tokens.has("am3")) return "AM3";
-        if (tokens.has("lga1851") || tokens.has("1851")) return "LGA1851";
-        if (tokens.has("lga1700") || tokens.has("1700")) return "LGA1700";
-        if (tokens.has("lga1200") || tokens.has("1200") || tokens.has("s1200")) return "LGA1200";
-        if (tokens.has("lga1151") || tokens.has("1151") || tokens.has("s1151")) return "LGA1151";
-        return "";
-    }
-
     private static final Pattern RYZEN_MODEL = Pattern.compile("ryzen \\d+ ([3-9])\\d{3}\\w*");
     private static final Pattern CORE_MODEL = Pattern.compile("i[3579] (1[234])\\d{2}\\w*");
     private static final Pattern CORE_MODEL_1200 = Pattern.compile("i[3579] (1[01])\\d{2}\\w*");
@@ -50,7 +39,7 @@ public final class CpuSpecsReader implements LectorDeSpecs {
             Set.of("3000g", "200ge", "220ge", "240ge", "300ge", "320ge");
 
     private static String cpuSocket(Tokens tokens) {
-        String explicit = explicitSocket(tokens);
+        String explicit = tokens.socketExplicito();
         if (!explicit.isEmpty()) return explicit;
 
         String padded = tokens.padded();

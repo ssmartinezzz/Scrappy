@@ -19,7 +19,6 @@ public final class GpuSpecsReader implements LectorDeSpecs {
     private static final Pattern RTX_MODEL = Pattern.compile(" rtx (\\d{3,4}) ");
     private static final Pattern RX_MODEL = Pattern.compile(" rx (\\d{3,4}) ");
     private static final Pattern GTX_MODEL = Pattern.compile(" gtx (\\d{3,4}) ");
-    private static final Pattern VRAM_GB = Pattern.compile("^(\\d+)gb$");
 
     @Override
     public String categoria() {
@@ -28,7 +27,7 @@ public final class GpuSpecsReader implements LectorDeSpecs {
 
     @Override
     public TechSpecs leer(Tokens tokens) {
-        return new TechSpecs("", "", "", 0, vram(tokens), "", gama(tokens), Certificacion.NINGUNA,
+        return new TechSpecs("", "", "", 0, tokens.gbSuelto().orElse(0), "", gama(tokens), Certificacion.NINGUNA,
                 0, TipoAlmacenamiento.DESCONOCIDO, List.of(),
                 marcaChip(tokens), generacion(tokens), 0, 0, false, TipoCooler.DESCONOCIDO, nivel(tokens));
     }
@@ -116,14 +115,6 @@ public final class GpuSpecsReader implements LectorDeSpecs {
         Matcher rx = RX_MODEL.matcher(padded);
         if (rx.find()) return Integer.parseInt(rx.group(1)) / 1000;
 
-        return 0;
-    }
-
-    private static int vram(Tokens tokens) {
-        for (String t : tokens.array()) {
-            Matcher m = VRAM_GB.matcher(t);
-            if (m.matches()) return Integer.parseInt(m.group(1));
-        }
         return 0;
     }
 }
