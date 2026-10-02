@@ -6,15 +6,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.sql.DataSource;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
 
 @Repository
 class MlOutputRepository implements MlOutputPort {
@@ -22,10 +18,10 @@ class MlOutputRepository implements MlOutputPort {
     private static final Logger LOG = LoggerFactory.getLogger(MlOutputRepository.class);
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    private final DataSource dataSource;
+    private final JdbcTemplate jdbc;
 
     MlOutputRepository(DataSource dataSource) {
-        this.dataSource = dataSource;
+        this.jdbc = new JdbcTemplate(dataSource);
     }
 
     @Override
@@ -36,22 +32,18 @@ class MlOutputRepository implements MlOutputPort {
             LOG.debug("[DB] ML output inválido (sin scores/tendencias) — no se persiste");
             return;
         }
-        try (Connection c = dataSource.getConnection()) {
+        try {
             String json = MAPPER.writeValueAsString(mlOutput);
             java.time.OffsetDateTime now = Timestamps.now();
-            try (PreparedStatement ps = c.prepareStatement(
-                    "INSERT INTO ml_output (payload, created_at) VALUES (?, ?)")) {
+            jdbc.update("INSERT INTO ml_output (payload, created_at) VALUES (?, ?)", ps -> {
                 ps.setString(1, json);
                 ps.setObject(2, now);
-                ps.executeUpdate();
-            }
+            });
             // Mantener solo los últimos 10 outputs
-            try (Statement st = c.createStatement()) {
-                st.executeUpdate("""
+            jdbc.update("""
                     DELETE FROM ml_output WHERE id NOT IN (
                         SELECT id FROM ml_output ORDER BY id DESC LIMIT 10
                     )""");
-            }
         } catch (Exception e) {
             LOG.warn("[DB] Error guardando ML output: {}", e.getMessage());
             Sql.marcarRollback();
@@ -68,12 +60,11 @@ class MlOutputRepository implements MlOutputPort {
 
     @Override
     public JsonNode cargarMlOutput() {
-        try (Connection c = dataSource.getConnection();
-             Statement st = c.createStatement();
-             ResultSet rs = st.executeQuery(
-                "SELECT payload FROM ml_output ORDER BY id DESC LIMIT 1")) {
-            if (rs.next()) {
-                return MAPPER.readTree(rs.getString(1));
+        try {
+            String payload = jdbc.query("SELECT payload FROM ml_output ORDER BY id DESC LIMIT 1",
+                    rs -> rs.next() ? rs.getString(1) : null);
+            if (payload != null) {
+                return MAPPER.readTree(payload);
             }
         } catch (Exception e) {
             LOG.warn("[DB] Error cargando ML output: {}", e.getMessage());
@@ -83,14 +74,9 @@ class MlOutputRepository implements MlOutputPort {
 
     @Override
     public void limpiarMlOutput() {
-        Sql.traducir(() -> limpiarMlOutputSql());
-    }
-
-    private void limpiarMlOutputSql() throws SQLException {
-        try (Connection c = dataSource.getConnection();
-             var st = c.createStatement()) {
-            st.execute("DELETE FROM ml_output");
+        Sql.traducir(() -> {
+            jdbc.update("DELETE FROM ml_output");
             LOG.info("[DB] Datos ML eliminados.");
-        }
+        });
     }
 }
