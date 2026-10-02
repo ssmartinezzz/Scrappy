@@ -1,12 +1,8 @@
 package ar.scraper.pcs.specs;
 
-import ar.scraper.pcs.Certificacion;
 import ar.scraper.pcs.Gama;
 import ar.scraper.pcs.TechSpecs;
-import ar.scraper.pcs.TipoAlmacenamiento;
-import ar.scraper.pcs.TipoCooler;
 
-import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -27,9 +23,13 @@ public final class GpuSpecsReader implements LectorDeSpecs {
 
     @Override
     public TechSpecs leer(Tokens tokens) {
-        return new TechSpecs("", "", "", 0, tokens.gbSuelto().orElse(0), "", gama(tokens), Certificacion.NINGUNA,
-                0, TipoAlmacenamiento.DESCONOCIDO, List.of(),
-                marcaChip(tokens), generacion(tokens), 0, 0, false, TipoCooler.DESCONOCIDO, nivel(tokens));
+        return TechSpecs.builder()
+                .capacidadGb(tokens.gbSuelto().orElse(0))
+                .gama(gama(tokens))
+                .marcaChip(marcaChip(tokens))
+                .generacion(generacion(tokens))
+                .nivel(nivel(tokens))
+                .build();
     }
 
     private static Gama gama(Tokens tokens) {

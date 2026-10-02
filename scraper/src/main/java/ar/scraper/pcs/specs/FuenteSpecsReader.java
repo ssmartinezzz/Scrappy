@@ -1,7 +1,6 @@
 package ar.scraper.pcs.specs;
 
 import ar.scraper.pcs.Certificacion;
-import ar.scraper.pcs.Gama;
 import ar.scraper.pcs.TechSpecs;
 
 import java.util.regex.Matcher;
@@ -18,7 +17,7 @@ public final class FuenteSpecsReader implements LectorDeSpecs {
 
     @Override
     public TechSpecs leer(Tokens tokens) {
-        return new TechSpecs("", "", "", watts(tokens), 0, "", Gama.DESCONOCIDA, certificacion(tokens));
+        return TechSpecs.builder().watts(watts(tokens)).certificacion(certificacion(tokens)).build();
     }
 
     private static int watts(Tokens tokens) {

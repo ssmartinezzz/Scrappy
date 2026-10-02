@@ -1,11 +1,7 @@
 package ar.scraper.pcs.specs;
 
-import ar.scraper.pcs.Certificacion;
-import ar.scraper.pcs.Gama;
 import ar.scraper.pcs.TechSpecs;
-import ar.scraper.pcs.TipoAlmacenamiento;
 
-import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -21,14 +17,14 @@ public final class MotherboardSpecsReader implements LectorDeSpecs {
     public TechSpecs leer(Tokens tokens) {
         String chipsetToken = chipsetToken(tokens);
         String socket = motherboardSocket(tokens, chipsetToken);
-        return new TechSpecs(
-                socket,
-                ddr(tokens),
-                motherboardFormFactor(tokens, chipsetToken),
-                0, 0, "",
-                Gama.DESCONOCIDA, Certificacion.NINGUNA,
-                0, TipoAlmacenamiento.DESCONOCIDO, List.of(),
-                marcaChip(socket), 0, tierChipset(chipsetToken), 0, wifi(tokens));
+        return TechSpecs.builder()
+                .socket(socket)
+                .ddr(ddr(tokens))
+                .formFactor(motherboardFormFactor(tokens, chipsetToken))
+                .marcaChip(marcaChip(socket))
+                .tierChipset(tierChipset(chipsetToken))
+                .wifi(wifi(tokens))
+                .build();
     }
 
     private static final Map<String, String> CHIPSET_SOCKET = Map.ofEntries(
