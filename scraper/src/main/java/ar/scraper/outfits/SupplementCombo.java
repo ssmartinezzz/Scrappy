@@ -752,19 +752,19 @@ public class SupplementCombo {
     }
 
     private static String urlDe(Product p) {
-        return p.url() != null ? p.url() : "";
+        return StringUtils.defaultString(p.url());
     }
 
     private OutfitService.SupplementPick toSupplementPick(String tipo, Product p) {
-        String img = p.imagenUrl() != null ? p.imagenUrl() : "";
+        String img = StringUtils.defaultString(p.imagenUrl());
         if (img.startsWith("//")) img = "https:" + img;
         return new OutfitService.SupplementPick(
                 tipo,
-                p.sitio() != null ? p.sitio() : "",
-                p.nombre() != null ? p.nombre() : "",
+                StringUtils.defaultString(p.sitio()),
+                StringUtils.defaultString(p.nombre()),
                 p.precio(),
-                p.url() != null ? p.url() : "",
+                StringUtils.defaultString(p.url()),
                 img,
-                p.marca() != null ? p.marca() : "");
+                StringUtils.defaultString(p.marca()));
     }
 }

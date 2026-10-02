@@ -21,6 +21,8 @@ import ar.scraper.pcs.reglas.ReglaTipoCoolerPedido;
 import ar.scraper.pcs.reglas.ReglaWatts;
 import ar.scraper.pcs.reglas.ReglaWifi;
 
+import org.apache.commons.lang3.StringUtils;
+
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -332,15 +334,15 @@ public class PcBuilder {
     }
 
     private PcPick toPick(String slot, Product p, TechSpecs specs) {
-        String img = p.imagenUrl() != null ? p.imagenUrl() : "";
+        String img = StringUtils.defaultString(p.imagenUrl());
         if (img.startsWith("//")) img = "https:" + img;
         return new PcPick(slot,
-                p.sitio() != null ? p.sitio() : "",
-                p.nombre() != null ? p.nombre() : "",
+                StringUtils.defaultString(p.sitio()),
+                StringUtils.defaultString(p.nombre()),
                 p.precio(),
-                p.url() != null ? p.url() : "",
+                StringUtils.defaultString(p.url()),
                 img,
-                p.marca() != null ? p.marca() : "",
+                StringUtils.defaultString(p.marca()),
                 specs);
     }
 }
