@@ -40,9 +40,24 @@ import static org.mockito.Mockito.when;
 class ScraperServiceFinanciacionTest {
 
     private Product producto(String url, double precio, SenalFinanciacion finan) {
-        return new Product("Sitio", "p-" + url, precio, null, url, "",
-                "Remera", "unisex", List.of(), Product.MlScore.EMPTY, "", "indumentaria",
-                false, false, Product.SenalCompra.EMPTY, finan);
+        return Product.builder()
+                .sitio("Sitio")
+                .nombre("p-" + url)
+                .precio(precio)
+                .precioOriginal(null)
+                .url(url)
+                .imagenUrl("")
+                .categoria("Remera")
+                .genero("unisex")
+                .talles(List.of())
+                .ml(Product.MlScore.EMPTY)
+                .marca("")
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(finan)
+                .build();
     }
 
     @Test

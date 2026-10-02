@@ -137,9 +137,25 @@ class FinanciacionIndicesRecomendacionTest {
         var puntos = new ArrayList<>(List.of(
                 new HistorialEntry("2024-11-01", 500000.0),
                 new HistorialEntry("2025-01-01", 520000.0)));
-        var gpu = new ar.scraper.model.Product("Sitio", "GPU", 520000.0, null, "https://a.com/gpu", "",
-                "GPU", "unisex", List.of(), ar.scraper.model.Product.MlScore.EMPTY, "", "tecnologia", false, false,
-                ar.scraper.model.Product.SenalCompra.EMPTY, ar.scraper.model.Product.SenalFinanciacion.EMPTY, 1);
+        var gpu = ar.scraper.model.Product.builder()
+                .sitio("Sitio")
+                .nombre("GPU")
+                .precio(520000.0)
+                .precioOriginal(null)
+                .url("https://a.com/gpu")
+                .imagenUrl("")
+                .categoria("GPU")
+                .genero("unisex")
+                .talles(List.of())
+                .ml(ar.scraper.model.Product.MlScore.EMPTY)
+                .marca("")
+                .rubro("tecnologia")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(ar.scraper.model.Product.SenalCompra.EMPTY)
+                .finan(ar.scraper.model.Product.SenalFinanciacion.EMPTY)
+                .cantidadUnidades(1)
+                .build();
         when(historial.getHistorialPrecios("https://a.com/gpu")).thenReturn(puntos);
         when(productos.obtenerProducto("https://a.com/gpu")).thenReturn(java.util.Optional.of(gpu));
         when(indiceService.deflactor(eq(Indice.USD_OFICIAL), eq(LocalDate.parse("2024-11-01")), eq(LocalDate.parse("2025-01-01"))))

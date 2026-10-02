@@ -46,8 +46,17 @@ class ProductRepositoryNoTransactionTest {
     }
 
     private static Product producto() {
-        return new Product("Freres", "Producto", 1000.0, null, "https://t/a", "http://img.example/x.jpg",
-                "Remera", "unisex", List.of("M"));
+        return Product.builder()
+                .sitio("Freres")
+                .nombre("Producto")
+                .precio(1000.0)
+                .precioOriginal(null)
+                .url("https://t/a")
+                .imagenUrl("http://img.example/x.jpg")
+                .categoria("Remera")
+                .genero("unisex")
+                .talles(List.of("M"))
+                .build();
     }
 
     @Test

@@ -145,9 +145,23 @@ class ProposeReclassifyToolGeneroValidationTest {
     }
 
     private Product producto(String url, String nombre, String categoria, String genero) {
-        return new Product("Sitio", nombre, 1000, null, url, "img",
-                categoria, genero, List.of(), Product.MlScore.EMPTY, "Adidas",
-                "indumentaria", false, false,
-                Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY);
+        return Product.builder()
+                .sitio("Sitio")
+                .nombre(nombre)
+                .precio(1000)
+                .precioOriginal(null)
+                .url(url)
+                .imagenUrl("img")
+                .categoria(categoria)
+                .genero(genero)
+                .talles(List.of())
+                .ml(Product.MlScore.EMPTY)
+                .marca("Adidas")
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(Product.SenalFinanciacion.EMPTY)
+                .build();
     }
 }

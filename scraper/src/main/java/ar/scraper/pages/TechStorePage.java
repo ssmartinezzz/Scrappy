@@ -263,10 +263,21 @@ public class TechStorePage extends BasePage implements CatalogPage {
                 ? ""
                 : baseUrl + MAXIMUS_IMAGE_PATH + itemCode + MAXIMUS_IMAGE_SUFFIX;
 
-        return Optional.of(new Product(
-                sitio, nombre, precio, precioOriginal,
-                url, img, "", "",
-                List.of(), Product.MlScore.EMPTY, "", "tecnologia", false));
+        return Optional.of(Product.builder()
+                .sitio(sitio)
+                .nombre(nombre)
+                .precio(precio)
+                .precioOriginal(precioOriginal)
+                .url(url)
+                .imagenUrl(img)
+                .categoria("")
+                .genero("")
+                .talles(List.of())
+                .ml(Product.MlScore.EMPTY)
+                .marca("")
+                .rubro("tecnologia")
+                .gymrat(false)
+                .build());
     }
 
     /**
@@ -431,10 +442,21 @@ public class TechStorePage extends BasePage implements CatalogPage {
         String base = baseUrl == null ? "" : baseUrl.replaceAll("/+$", "");
         String url = base + "/producto/" + slugCompraGamer(nombre) + "_" + idProducto;
 
-        return Optional.of(new Product(
-                sitio, nombre, precio, precioOriginal,
-                url, img, categoria, "",
-                List.of(), Product.MlScore.EMPTY, "", "tecnologia", false));
+        return Optional.of(Product.builder()
+                .sitio(sitio)
+                .nombre(nombre)
+                .precio(precio)
+                .precioOriginal(precioOriginal)
+                .url(url)
+                .imagenUrl(img)
+                .categoria(categoria)
+                .genero("")
+                .talles(List.of())
+                .ml(Product.MlScore.EMPTY)
+                .marca("")
+                .rubro("tecnologia")
+                .gymrat(false)
+                .build());
     }
 
     /**
@@ -490,10 +512,21 @@ public class TechStorePage extends BasePage implements CatalogPage {
 
         String cat = normalizarCat(nombre);
 
-        return Optional.of(new Product(
-                sitio, nombre, precio.get(), precioOrig,
-                url, img, cat, "",
-                List.of(), Product.MlScore.EMPTY, "", "tecnologia", false));
+        return Optional.of(Product.builder()
+                .sitio(sitio)
+                .nombre(nombre)
+                .precio(precio.get())
+                .precioOriginal(precioOrig)
+                .url(url)
+                .imagenUrl(img)
+                .categoria(cat)
+                .genero("")
+                .talles(List.of())
+                .ml(Product.MlScore.EMPTY)
+                .marca("")
+                .rubro("tecnologia")
+                .gymrat(false)
+                .build());
     }
 
     static Optional<Double> parsePrecioTech(String raw) {

@@ -100,8 +100,24 @@ class CatalogMarcaNombreDeSitioTest extends PostgresTestBase {
 
     private Product producto(String url, String nombre, String sitio, String marca) {
         Product.MlScore ml = new Product.MlScore(70, List.of(), false, "estable", 50, 0.0, "standard");
-        return new Product(sitio, nombre, 10000.0, null, url, "http://img.example/x.jpg",
-                "Remera", "unisex", List.of("M"), ml, marca, "indumentaria", false, false,
-                Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY, 1);
+        return Product.builder()
+                .sitio(sitio)
+                .nombre(nombre)
+                .precio(10000.0)
+                .precioOriginal(null)
+                .url(url)
+                .imagenUrl("http://img.example/x.jpg")
+                .categoria("Remera")
+                .genero("unisex")
+                .talles(List.of("M"))
+                .ml(ml)
+                .marca(marca)
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(Product.SenalFinanciacion.EMPTY)
+                .cantidadUnidades(1)
+                .build();
     }
 }

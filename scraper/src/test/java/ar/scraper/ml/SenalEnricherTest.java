@@ -39,8 +39,17 @@ class SenalEnricherTest {
 
     @Step("Build product fixture for url {url}")
     private Product producto(String url) {
-        return new Product("Sitio", "Producto " + url, 1000.0, null, url,
-                "", "Remera", "unisex", List.of());
+        return Product.builder()
+                .sitio("Sitio")
+                .nombre("Producto " + url)
+                .precio(1000.0)
+                .precioOriginal(null)
+                .url(url)
+                .imagenUrl("")
+                .categoria("Remera")
+                .genero("unisex")
+                .talles(List.of())
+                .build();
     }
 
     @Test
@@ -83,9 +92,25 @@ class SenalEnricherTest {
                 Map.of("https://site.com/gpu", historialEntries));
         when(indices.deflactorParaRubro(any(), any(), any())).thenReturn(Deflactor.NEUTRO);
 
-        Product gpu = new Product("Sitio", "GPU", 500000.0, null, "https://site.com/gpu", "",
-                "GPU", "unisex", List.of(), Product.MlScore.EMPTY, "", "tecnologia", false, false,
-                Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY, 1);
+        Product gpu = Product.builder()
+                .sitio("Sitio")
+                .nombre("GPU")
+                .precio(500000.0)
+                .precioOriginal(null)
+                .url("https://site.com/gpu")
+                .imagenUrl("")
+                .categoria("GPU")
+                .genero("unisex")
+                .talles(List.of())
+                .ml(Product.MlScore.EMPTY)
+                .marca("")
+                .rubro("tecnologia")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(Product.SenalFinanciacion.EMPTY)
+                .cantidadUnidades(1)
+                .build();
 
         SenalEnricher enricher = new SenalEnricher(historial, indices);
         enricher.enriquecer(List.of(gpu));
@@ -137,8 +162,17 @@ class SenalEnricherTest {
         when(historial.getHistorialPrecios(anyList())).thenReturn(Map.of());
 
         SenalEnricher enricher = new SenalEnricher(historial, indices);
-        Product sinUrl = new Product("Sitio", "Sin URL", 500.0, null, "",
-                "", "Remera", "unisex", List.of());
+        Product sinUrl = Product.builder()
+                .sitio("Sitio")
+                .nombre("Sin URL")
+                .precio(500.0)
+                .precioOriginal(null)
+                .url("")
+                .imagenUrl("")
+                .categoria("Remera")
+                .genero("unisex")
+                .talles(List.of())
+                .build();
 
         List<Product> result = enricher.enriquecer(List.of(sinUrl));
 
@@ -155,10 +189,25 @@ class SenalEnricherTest {
 
         when(historial.getHistorialPrecios(anyList())).thenReturn(Map.of());
 
-        Product pack = new Product(
-                "Sitio", "Pack x3 Remeras", 15000.0, null, "https://site.com/pack",
-                "", "Remera", "unisex", List.of(), Product.MlScore.EMPTY, "", "indumentaria",
-                false, false, Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY, 3);
+        Product pack = Product.builder()
+                .sitio("Sitio")
+                .nombre("Pack x3 Remeras")
+                .precio(15000.0)
+                .precioOriginal(null)
+                .url("https://site.com/pack")
+                .imagenUrl("")
+                .categoria("Remera")
+                .genero("unisex")
+                .talles(List.of())
+                .ml(Product.MlScore.EMPTY)
+                .marca("")
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(Product.SenalFinanciacion.EMPTY)
+                .cantidadUnidades(3)
+                .build();
 
         SenalEnricher enricher = new SenalEnricher(historial, indices);
         List<Product> result = enricher.enriquecer(List.of(pack));
@@ -179,10 +228,27 @@ class SenalEnricherTest {
         when(historial.getHistorialPrecios(anyList())).thenReturn(Map.of());
 
         Product.VisualAttrs visual = new Product.VisualAttrs("oversize", "estampado", "cuello redondo", "azul");
-        Product conVisual = new Product(
-                "Sitio", "Remera con visual", 15000.0, null, "https://site.com/visual",
-                "", "Remera", "unisex", List.of(), Product.MlScore.EMPTY, "", "indumentaria",
-                false, false, Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY, 1, "", visual);
+        Product conVisual = Product.builder()
+                .sitio("Sitio")
+                .nombre("Remera con visual")
+                .precio(15000.0)
+                .precioOriginal(null)
+                .url("https://site.com/visual")
+                .imagenUrl("")
+                .categoria("Remera")
+                .genero("unisex")
+                .talles(List.of())
+                .ml(Product.MlScore.EMPTY)
+                .marca("")
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(Product.SenalFinanciacion.EMPTY)
+                .cantidadUnidades(1)
+                .subCategoria("")
+                .visual(visual)
+                .build();
 
         SenalEnricher enricher = new SenalEnricher(historial, indices);
         List<Product> result = enricher.enriquecer(List.of(conVisual));

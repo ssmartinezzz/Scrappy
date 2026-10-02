@@ -127,6 +127,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V39` | `uso` (lookup) + `preferencia_armador.uso_id` — perfil homelab, fase 10 |
 | `V40` | `catalog_version` (una fila) + triggers: versión del catálogo para cachear facetas |
 | `V41` | `notify_status_change()` + triggers `pg_notify` sobre `scrape_run`, `scrape_run_site` y `cron_executions` |
+| `V42` | `productos.nombre` y `productos.sitio` no pueden ser vacíos ni sólo espacios (CHECK) |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 
@@ -3062,3 +3063,39 @@ Los rollbacks componen en orden inverso: el de `V41` corre ANTES que el de
 `V29` (que suelta `scrape_run`) y que cualquiera que suelte `cron_executions`.
 Soltar una de esas tablas primero se llevaría el trigger y dejaría la función
 huérfana, y este bloque fallaría con `does not exist`.
+
+## `V42` — un producto necesita nombre y sitio visibles
+
+`Product` rechaza un `sitio` o un `nombre` vacío en su constructor, y
+`ProductRowMapper` arma un `Product` por cada fila que lee: una fila en blanco
+haría fallar la carga entera del catálogo (`cargarProductos` loguea el error y
+devuelve una lista parcial; `CatalogQueryRepository` ni siquiera lo atrapa).
+`NOT NULL` (`V1`) ya descartaba `NULL`; el `V42` descarta `''` y el texto de
+sólo espacios, para que la base nunca guarde lo que el modelo no puede leer.
+
+| Constraint | Predicado |
+|---|---|
+| `chk_productos_nombre_not_blank` | `nombre ~ '\S'` |
+| `chk_productos_sitio_not_blank` | `sitio ~ '\S'` |
+
+- **Nacen válidas**: la base de dev tenía 0 filas violatorias (33.455 revisadas).
+  Una instalación ajena con filas en blanco hace fallar el `ADD CONSTRAINT`, que
+  es lo que se quiere: ese dato no se puede cargar de todos modos.
+- **El FK de `sitio` no alcanza**: `productos.sitio_key` se deriva de `sitio` y
+  apunta a `sitio.sitio_key`; un `sitio` en blanco sólo pasa si existe una fila
+  con clave vacía, y el CHECK cubre ese caso.
+- **El upsert se traga el rechazo**: un producto en blanco que llegue por
+  `sp_upsert_run` se ve como `"0 nuevos"`, no como excepción. El test del `V42`
+  inserta directo y afirma el SQLState `23514`.
+
+### Rollback
+
+```sql
+-- >>> rollback:V42
+ALTER TABLE productos DROP CONSTRAINT chk_productos_sitio_not_blank;
+ALTER TABLE productos DROP CONSTRAINT chk_productos_nombre_not_blank;
+-- <<< rollback:V42
+```
+
+Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el
+de `V41`. No depende de ningún otro objeto.

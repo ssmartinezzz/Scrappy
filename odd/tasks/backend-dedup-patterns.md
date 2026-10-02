@@ -47,10 +47,11 @@ boilerplate comments.
 ## Open — ask the user at the start of each phase
 
 - ~~**B**: rewriting `ScraperFactoryPlatformTest` breaks `CODE-2`~~ → accepted 2026-10-02 (see B0).
-- **C**: migrating 181 test call sites breaks `CODE-2` literally. Proposed: one mechanical
-  commit, zero assertion changes. Needs explicit OK.
-- **C**: compact-constructor validation (`Validate.notBlank(sitio/nombre)`) is a behavior
-  change → its own commit with RED first. Needs explicit OK.
+- ~~**C**: migrating 181 test call sites breaks `CODE-2` literally~~ → accepted 2026-10-02:
+  one mechanical commit, zero assertion changes, declared in the PR body.
+- ~~**C**: compact-constructor validation is a behavior change~~ → accepted 2026-10-02, in the
+  same PR, its own commit with RED first. Dev DB: 0 blank `nombre`/`sitio` (33,455 rows, 22,929
+  active). Gate: every producer (pages, row mapper, enrichers) must skip a bad item, not abort.
 
 ## Checks
 
@@ -172,13 +173,20 @@ boilerplate comments.
       on master 200f94c then HEAD fd1960f, ~20 min each. Products master/HEAD, all error=null:
       freres 134/134, barnes 76/76, monkyforce 1101/1101, rockethard 684/684, inpro 102/102, venex 2853/2899.
       Venex +46 is live-catalog drift between runs 20 min apart (same page class and args, asserted by B0.1), not routing.
-- [ ] B7 PR (declare the CODE-2 exception for `ScraperFactoryPlatformTest` in the body).
+- [x] B7 PR #282 opened (single PR, PR-2 evaluated in the body: 330 of 777 lines are deleted files), CODE-2 exception declared.
 
 ### Phase C — `Product` builder
-- [ ] C0 Ask the two `CODE-2`/validation questions above.
-- [ ] C1 `@Builder(toBuilder = true)` on the record; migrate the 24 `src/main` call sites.
-- [ ] C2 Mechanical commit: migrate the 181 test call sites, no assertion changes.
-- [ ] C3 Delete the 7 legacy constructors (+ validation commit if approved).
+- [x] C0 Both questions accepted 2026-10-02 (Q1 test migration, Q2 validation in this PR).
+      Re-measured on 985b5d6: 24 main / 181 test calls (119 files), **8** legacy constructors (not 7).
+      `@Builder.Default` does not work on records → hand-written `builder()` presets the legacy defaults
+      (ml/senal/finan/visual EMPTY, marca "", rubro "indumentaria", cantidadUnidades 1, subCategoria "").
+- [x] C1 470d72b builder (hand-written `builder()` presets legacy defaults, `ProductBuilderTest` RED→GREEN) + 24 main sites. 3283/0/0/7.
+- [x] C2 8a7ba3e 186 test calls (181 + 5 FQN `new ar.scraper.model.Product(`), 123 files; diff grep for assert/verify/expect/@Test/void = 0 hits; counts identical to C1.
+- [x] C3a dfb7276 8 legacy constructors deleted. 3283/0/0/7.
+- [x] C3b 1f94e28 V42 CHECK (3288/0/0/7) + e67aeb0 validation, fixture swap blank nombre→blank url, dead nombre check removed (3291/0/0/7); 62d3779 CLAUDE.md V1..V42. History: RED observed (3 tests), then blocked by producer audit: pages all guard blank
+      `nombre`, but `db/ProductRowMapper` has none and its callers abort on one bad row
+      (`ProductRepository.cargarProductos` truncates the catalog load; `CatalogQueryRepository:429` propagates).
+      Decided 2026-10-02: V42 CHECK (`nombre ~ '\S'`, `sitio ~ '\S'`) closes it, then the validation commit.
 
 ### Phase D — remaining clones (only after A–C, re-measured)
 - [ ] D1 `pages/`: Template Method in `BasePage` for Shopify↔Tiendanube, OsCommerce/Qloud/FullH4rd,
@@ -201,3 +209,12 @@ boilerplate comments.
 - 2026-10-02: chain merged 11/11, master 200f94c, tree identical to 9daa75f, branches deleted. Sonar: every PR gate OK, 0 new issues/bugs/smells; master-wide numbers flat across the merges (dup 2.9%, bugs 6, vulns 7, smells 67). Next: Phase B — ask B0 first.
 - 2026-10-02: B0 answered (rewrite the platform test, declared, verified against the current factory first). User clearing context. Next: B1.
 - 2026-10-02: Phase B code done on `refactor/backend-dedup-scraper-registry` (aa053c9, b96b538, fd1960f, unpushed); suite 3281/0/0/7. B6 live smoke matched master (venex +46 = drift). Next: B7 push + PR (ask first).
+- 2026-10-02: PR #282 opened for Phase B (aa053c9..5037726). Next: merge after CI + Sonar, then C0 (ask the two Product-builder questions).
+- 2026-10-02: #282 merged, master 985b5d6 (tree == 5037726), branch deleted. Next: Phase C — ask C0 first.
+- 2026-10-02: C0 answered (both yes). Branch `refactor/backend-dedup-product-builder`; C1–C3 delegated to one writer (4 commits, validation gated on a producer audit).
+- 2026-10-02: C1, C2, C3a committed (470d72b, 8a7ba3e, dfb7276), each clean suite 3283/0/0/7. C3b blocked on the row-mapper gap; asked the user.
+- 2026-10-02: user chose the V42 CHECK constraint; writer resumed for commits 5 (V42) and 6 (validation).
+- 2026-10-02: f8edb98 V42 CHECK (+ constraint and rollback round-trip tests, DATABASE.md), 3288/0/0/7. Validation commit blocked: `ResultAggregatorMetricsTest.mixedValidAndInvalid_*` builds a blank-nombre Product as an invalid fixture; with validation it throws at construction and `ResultAggregator.isValid`'s nombre check becomes dead. Asked the user. Stale copies: `CLAUDE.md:41` says V1..V40; `V41RollbackRoundTripTest` javadoc says V41 is the newest.
+- 2026-10-02: user approved the fixture swap (blank nombre → blank url in ResultAggregatorMetricsTest, assertions unchanged, declared CODE-2 edit), deleting the dead nombre check in `isValid`, and updating CLAUDE.md:41 to V1..V42 (explicit request). Writer resumed for commits 6 and 7.
+- 2026-10-02: Phase C code done, 6 commits 470d72b..62d3779 (unpushed), +3875/-826 (C2 alone +3207/-632, mechanical). Isolated run: `V35RollbackRoundTripTest` + `MarcaFkAbstentionTest` red alone with FK `sitio_key=(sitio)` — SAME on master (pre-existing order dependency, not this branch). Next: push + PR (ask first), CPD re-count.
+- 2026-10-02: fd3e43f copy sites use `toBuilder()` (7 sites, null-coalescing kept; VaypolPage:146 kept as a fresh build since its legacy ctor reset fields to defaults). Suite 3291/0/0/7. CPD master→HEAD: 50t 76/735 → 62/649; 80t 12/170 → 13/204 — two new page clones are one-setter-per-line builder chains (Shopify:92↔Tiendanube:211, Vtex:398↔471), left for D1. Next: push + PR, merge if CI + Sonar pass (user-authorized).

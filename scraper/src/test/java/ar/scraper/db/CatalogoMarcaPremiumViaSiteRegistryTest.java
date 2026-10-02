@@ -79,8 +79,24 @@ class CatalogoMarcaPremiumViaSiteRegistryTest extends PostgresTestBase {
     }
 
     private static Product producto(String url, String sitio) {
-        return new Product(sitio, "Producto de prueba", 10000.0, null, url, "img",
-                "Remera", "unisex", List.of(), Product.MlScore.EMPTY, "Nike", "indumentaria",
-                false, false, Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY, 1);
+        return Product.builder()
+                .sitio(sitio)
+                .nombre("Producto de prueba")
+                .precio(10000.0)
+                .precioOriginal(null)
+                .url(url)
+                .imagenUrl("img")
+                .categoria("Remera")
+                .genero("unisex")
+                .talles(List.of())
+                .ml(Product.MlScore.EMPTY)
+                .marca("Nike")
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(Product.SenalFinanciacion.EMPTY)
+                .cantidadUnidades(1)
+                .build();
     }
 }

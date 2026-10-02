@@ -80,9 +80,25 @@ class V7RollbackRoundTripTest extends PostgresTestBase {
 
     private Product producto(String url, List<String> talles, List<String> badges) {
         Product.MlScore ml = new Product.MlScore(80, badges, true, "estable", 20, 0.5, "standard");
-        return new Product("Sitio", "Producto", 1000.0, null, url, "http://img.example/x.jpg",
-                "Remera", "unisex", talles, ml, "Nike", "indumentaria", false, false,
-                Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY, 1);
+        return Product.builder()
+                .sitio("Sitio")
+                .nombre("Producto")
+                .precio(1000.0)
+                .precioOriginal(null)
+                .url(url)
+                .imagenUrl("http://img.example/x.jpg")
+                .categoria("Remera")
+                .genero("unisex")
+                .talles(talles)
+                .ml(ml)
+                .marca("Nike")
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(Product.SenalFinanciacion.EMPTY)
+                .cantidadUnidades(1)
+                .build();
     }
 
     private static String valor(Statement st, String columna, String url) throws Exception {

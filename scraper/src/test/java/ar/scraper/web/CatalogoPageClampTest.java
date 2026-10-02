@@ -82,9 +82,24 @@ class CatalogoPageClampTest extends ar.scraper.db.support.PostgresTestBase {
     }
 
     private Product producto(String url, double precio) {
-        return new Product("Sitio", "Producto " + url, precio, null, url, "img",
-                "Remera", "unisex", List.of(), Product.MlScore.EMPTY, "Nike", "indumentaria",
-                false, false, Product.SenalCompra.EMPTY, SenalFinanciacion.EMPTY);
+        return Product.builder()
+                .sitio("Sitio")
+                .nombre("Producto " + url)
+                .precio(precio)
+                .precioOriginal(null)
+                .url(url)
+                .imagenUrl("img")
+                .categoria("Remera")
+                .genero("unisex")
+                .talles(List.of())
+                .ml(Product.MlScore.EMPTY)
+                .marca("Nike")
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(SenalFinanciacion.EMPTY)
+                .build();
     }
 
     private AggregatedResult resultFor(Product... productos) {

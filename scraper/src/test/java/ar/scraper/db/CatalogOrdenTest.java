@@ -140,9 +140,24 @@ class CatalogOrdenTest extends PostgresTestBase {
 
     private Product producto(String url, double precio, int score, Double precioOrig) {
         Product.MlScore ml = new Product.MlScore(score, List.of(), false, "estable", score, 0.0, "standard");
-        return new Product("Sitio", "Producto " + url, precio, precioOrig, url,
-                "http://img.example/x.jpg", "Remera", "unisex", List.of("M"), ml, "Nike",
-                "indumentaria", false, false, Product.SenalCompra.EMPTY,
-                Product.SenalFinanciacion.EMPTY, 1);
+        return Product.builder()
+                .sitio("Sitio")
+                .nombre("Producto " + url)
+                .precio(precio)
+                .precioOriginal(precioOrig)
+                .url(url)
+                .imagenUrl("http://img.example/x.jpg")
+                .categoria("Remera")
+                .genero("unisex")
+                .talles(List.of("M"))
+                .ml(ml)
+                .marca("Nike")
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(Product.SenalFinanciacion.EMPTY)
+                .cantidadUnidades(1)
+                .build();
     }
 }

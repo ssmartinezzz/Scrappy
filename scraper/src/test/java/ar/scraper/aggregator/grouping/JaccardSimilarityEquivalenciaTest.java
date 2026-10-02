@@ -88,11 +88,27 @@ class JaccardSimilarityEquivalenciaTest {
     private static final String[] COLORES = {"Negro", "Blanco", "Azul", "Gris", "Verde"};
 
     private Product producto(String sitio, String marca, String nombre) {
-        return new Product(sitio, nombre, 1000, null,
-                "https://" + sitio + "/" + nombre.hashCode(), "img", "Zapatilla", "unisex",
-                List.of("M"), Product.MlScore.EMPTY, marca, "indumentaria", false, false,
-                Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY, 1, "",
-                Product.VisualAttrs.EMPTY);
+        return Product.builder()
+                .sitio(sitio)
+                .nombre(nombre)
+                .precio(1000)
+                .precioOriginal(null)
+                .url("https://" + sitio + "/" + nombre.hashCode())
+                .imagenUrl("img")
+                .categoria("Zapatilla")
+                .genero("unisex")
+                .talles(List.of("M"))
+                .ml(Product.MlScore.EMPTY)
+                .marca(marca)
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(Product.SenalFinanciacion.EMPTY)
+                .cantidadUnidades(1)
+                .subCategoria("")
+                .visual(Product.VisualAttrs.EMPTY)
+                .build();
     }
 
     private List<Product> corpus(Random rng, int n) {

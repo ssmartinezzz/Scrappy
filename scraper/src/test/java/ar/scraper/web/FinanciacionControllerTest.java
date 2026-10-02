@@ -72,9 +72,24 @@ class FinanciacionControllerTest {
     }
 
     private Product producto(String url, double precio, SenalFinanciacion finan) {
-        return new Product("Sitio", "Producto " + url, precio, null, url, "img",
-                "Remera", "unisex", List.of(), Product.MlScore.EMPTY, "Marca", "indumentaria",
-                false, false, Product.SenalCompra.EMPTY, finan);
+        return Product.builder()
+                .sitio("Sitio")
+                .nombre("Producto " + url)
+                .precio(precio)
+                .precioOriginal(null)
+                .url(url)
+                .imagenUrl("img")
+                .categoria("Remera")
+                .genero("unisex")
+                .talles(List.of())
+                .ml(Product.MlScore.EMPTY)
+                .marca("Marca")
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(finan)
+                .build();
     }
 
     // ── GET /api/financiacion/presets ──────────────────────────────────────

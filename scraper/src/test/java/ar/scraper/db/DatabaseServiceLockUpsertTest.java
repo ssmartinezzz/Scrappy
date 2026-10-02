@@ -53,11 +53,27 @@ class DatabaseServiceLockUpsertTest extends PostgresTestBase {
     private Product producto(String url, String categoria, String subCategoria, String marca,
                               String genero, String rubro, double precio, String nombre,
                               List<String> talles) {
-        return new Product(
-                "Sitio", nombre, precio, null, url, "http://img.example/x.jpg",
-                categoria, genero, talles, Product.MlScore.EMPTY, marca,
-                rubro, false, false, Product.SenalCompra.EMPTY,
-                Product.SenalFinanciacion.EMPTY, 1, subCategoria, Product.VisualAttrs.EMPTY);
+        return Product.builder()
+                .sitio("Sitio")
+                .nombre(nombre)
+                .precio(precio)
+                .precioOriginal(null)
+                .url(url)
+                .imagenUrl("http://img.example/x.jpg")
+                .categoria(categoria)
+                .genero(genero)
+                .talles(talles)
+                .ml(Product.MlScore.EMPTY)
+                .marca(marca)
+                .rubro(rubro)
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(Product.SenalFinanciacion.EMPTY)
+                .cantidadUnidades(1)
+                .subCategoria(subCategoria)
+                .visual(Product.VisualAttrs.EMPTY)
+                .build();
     }
 
     private void lockProduct(String url, String actor) throws Exception {

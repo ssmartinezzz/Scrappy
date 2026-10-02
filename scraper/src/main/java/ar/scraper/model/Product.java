@@ -1,8 +1,11 @@
 package ar.scraper.model;
 
 import java.util.List;
+import lombok.Builder;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.Validate;
 
+@Builder(toBuilder = true)
 public record Product(
         String sitio,
         String nombre,
@@ -29,88 +32,16 @@ public record Product(
                                // that didn't gate this product into image classification)
 ) implements Comparable<Product> {
 
-    public Product(String sitio, String nombre, double precio, Double precioOriginal,
-                   String url, String imagenUrl, String categoria, String genero,
-                   List<String> talles) {
-        this(sitio, nombre, precio, precioOriginal, url, imagenUrl,
-             categoria, genero, talles, MlScore.EMPTY, "", "indumentaria", false, false,
-             SenalCompra.EMPTY, SenalFinanciacion.EMPTY, 1, "");
-    }
-    public Product(String sitio, String nombre, double precio, Double precioOriginal,
-                   String url, String imagenUrl, String categoria, String genero,
-                   List<String> talles, MlScore ml) {
-        this(sitio, nombre, precio, precioOriginal, url, imagenUrl,
-             categoria, genero, talles, ml, "", "indumentaria", false, false,
-             SenalCompra.EMPTY, SenalFinanciacion.EMPTY, 1, "");
-    }
-    public Product(String sitio, String nombre, double precio, Double precioOriginal,
-                   String url, String imagenUrl, String categoria, String genero,
-                   List<String> talles, MlScore ml, String marca) {
-        this(sitio, nombre, precio, precioOriginal, url, imagenUrl,
-             categoria, genero, talles, ml, marca, "indumentaria", false, false,
-             SenalCompra.EMPTY, SenalFinanciacion.EMPTY, 1, "");
-    }
-    public Product(String sitio, String nombre, double precio, Double precioOriginal,
-                   String url, String imagenUrl, String categoria, String genero,
-                   List<String> talles, MlScore ml, String marca, String rubro, boolean gymrat) {
-        this(sitio, nombre, precio, precioOriginal, url, imagenUrl,
-             categoria, genero, talles, ml, marca, rubro, gymrat, false,
-             SenalCompra.EMPTY, SenalFinanciacion.EMPTY, 1, "");
+    public Product {
+        Validate.notBlank(sitio, "sitio must not be blank");
+        Validate.notBlank(nombre, "nombre must not be blank");
     }
 
-    /**
-     * Legacy 15-arg shape (the canonical constructor BEFORE {@code finan} was added as the 16th
-     * component).
-     */
-    public Product(String sitio, String nombre, double precio, Double precioOriginal,
-                   String url, String imagenUrl, String categoria, String genero,
-                   List<String> talles, MlScore ml, String marca, String rubro,
-                   boolean gymrat, boolean marcaPremium, SenalCompra senal) {
-        this(sitio, nombre, precio, precioOriginal, url, imagenUrl,
-             categoria, genero, talles, ml, marca, rubro, gymrat, marcaPremium,
-             senal, SenalFinanciacion.EMPTY, 1, "");
-    }
-
-    /**
-     * Legacy 16-arg shape (the canonical constructor BEFORE {@code cantidadUnidades} was added as
-     * the 17th component).
-     */
-    public Product(String sitio, String nombre, double precio, Double precioOriginal,
-                   String url, String imagenUrl, String categoria, String genero,
-                   List<String> talles, MlScore ml, String marca, String rubro,
-                   boolean gymrat, boolean marcaPremium, SenalCompra senal,
-                   SenalFinanciacion finan) {
-        this(sitio, nombre, precio, precioOriginal, url, imagenUrl,
-             categoria, genero, talles, ml, marca, rubro, gymrat, marcaPremium,
-             senal, finan, 1, "");
-    }
-
-    /**
-     * Legacy 17-arg shape (the canonical constructor BEFORE {@code subCategoria} was added as the
-     * 18th component).
-     */
-    public Product(String sitio, String nombre, double precio, Double precioOriginal,
-                   String url, String imagenUrl, String categoria, String genero,
-                   List<String> talles, MlScore ml, String marca, String rubro,
-                   boolean gymrat, boolean marcaPremium, SenalCompra senal,
-                   SenalFinanciacion finan, int cantidadUnidades) {
-        this(sitio, nombre, precio, precioOriginal, url, imagenUrl,
-             categoria, genero, talles, ml, marca, rubro, gymrat, marcaPremium,
-             senal, finan, cantidadUnidades, "");
-    }
-
-    /**
-     * Legacy 18-arg shape (the canonical constructor BEFORE {@code visual} was added as the 19th
-     * component).
-     */
-    public Product(String sitio, String nombre, double precio, Double precioOriginal,
-                   String url, String imagenUrl, String categoria, String genero,
-                   List<String> talles, MlScore ml, String marca, String rubro,
-                   boolean gymrat, boolean marcaPremium, SenalCompra senal,
-                   SenalFinanciacion finan, int cantidadUnidades, String subCategoria) {
-        this(sitio, nombre, precio, precioOriginal, url, imagenUrl,
-             categoria, genero, talles, ml, marca, rubro, gymrat, marcaPremium,
-             senal, finan, cantidadUnidades, subCategoria, VisualAttrs.EMPTY);
+    public static ProductBuilder builder() {
+        return new ProductBuilder()
+                .ml(MlScore.EMPTY).marca("").rubro("indumentaria")
+                .senal(SenalCompra.EMPTY).finan(SenalFinanciacion.EMPTY)
+                .cantidadUnidades(1).subCategoria("").visual(VisualAttrs.EMPTY);
     }
 
     @Override

@@ -21,8 +21,21 @@ class PcBuilderPreferenciasTest {
     private final PcBuilder builder = new PcBuilder();
 
     private Product producto(String nombre, double precio, String categoria, String url) {
-        return new Product("TestSitio", nombre, precio, null, url, "https://img/test.jpg",
-                categoria, "", List.of(), Product.MlScore.EMPTY, "", "tecnologia", false);
+        return Product.builder()
+                .sitio("TestSitio")
+                .nombre(nombre)
+                .precio(precio)
+                .precioOriginal(null)
+                .url(url)
+                .imagenUrl("https://img/test.jpg")
+                .categoria(categoria)
+                .genero("")
+                .talles(List.of())
+                .ml(Product.MlScore.EMPTY)
+                .marca("")
+                .rubro("tecnologia")
+                .gymrat(false)
+                .build();
     }
 
     @Test

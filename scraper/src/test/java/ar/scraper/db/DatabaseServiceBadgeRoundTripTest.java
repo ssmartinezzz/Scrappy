@@ -45,10 +45,25 @@ class DatabaseServiceBadgeRoundTripTest extends PostgresTestBase {
     private Product productoConBadges(String url, List<String> badges) {
         Product.MlScore ml = new Product.MlScore(
                 80, badges, true, "estable", 20, 0.5, "standard");
-        return new Product("Sitio", "Producto multi-badge", 15000.0, null, url,
-                "http://img.example/x.jpg", "Remera", "unisex", List.of(), ml, "Nike",
-                "indumentaria", false, false, Product.SenalCompra.EMPTY,
-                Product.SenalFinanciacion.EMPTY, 1);
+        return Product.builder()
+                .sitio("Sitio")
+                .nombre("Producto multi-badge")
+                .precio(15000.0)
+                .precioOriginal(null)
+                .url(url)
+                .imagenUrl("http://img.example/x.jpg")
+                .categoria("Remera")
+                .genero("unisex")
+                .talles(List.of())
+                .ml(ml)
+                .marca("Nike")
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(Product.SenalFinanciacion.EMPTY)
+                .cantidadUnidades(1)
+                .build();
     }
 
     @Test

@@ -63,9 +63,24 @@ class CatalogoBadgeMembershipTest extends ar.scraper.db.support.PostgresTestBase
     private Product productoConBadges(String url, double precio, List<String> badges) {
         Product.MlScore ml = new Product.MlScore(
                 60, badges, false, "estable", 50, 0.0, "standard");
-        return new Product("Sitio", "Producto " + url, precio, null, url, "img",
-                "Remera", "unisex", List.of(), ml, "Nike", "indumentaria",
-                false, false, Product.SenalCompra.EMPTY, SenalFinanciacion.EMPTY);
+        return Product.builder()
+                .sitio("Sitio")
+                .nombre("Producto " + url)
+                .precio(precio)
+                .precioOriginal(null)
+                .url(url)
+                .imagenUrl("img")
+                .categoria("Remera")
+                .genero("unisex")
+                .talles(List.of())
+                .ml(ml)
+                .marca("Nike")
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(SenalFinanciacion.EMPTY)
+                .build();
     }
 
     private final java.util.List<Product> sembrados = new java.util.ArrayList<>();

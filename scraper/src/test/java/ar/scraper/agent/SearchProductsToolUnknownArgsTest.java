@@ -23,9 +23,24 @@ class SearchProductsToolUnknownArgsTest {
 
     private SearchProductsTool tool() {
         ScraperService service = mock(ScraperService.class);
-        Product p = new Product("Sitio", "Zapatilla Nike Air", 1000, null, "https://a.com/1", "img",
-                "Zapatilla", "hombre", List.of(), Product.MlScore.EMPTY, "Nike",
-                "indumentaria", false, false, Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY);
+        Product p = Product.builder()
+                .sitio("Sitio")
+                .nombre("Zapatilla Nike Air")
+                .precio(1000)
+                .precioOriginal(null)
+                .url("https://a.com/1")
+                .imagenUrl("img")
+                .categoria("Zapatilla")
+                .genero("hombre")
+                .talles(List.of())
+                .ml(Product.MlScore.EMPTY)
+                .marca("Nike")
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(Product.SenalFinanciacion.EMPTY)
+                .build();
         var facets = new Facets(Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
         when(service.getLastResult()).thenReturn(new AggregatedResult(List.of(p), Map.of(), Map.of(), facets, 0, 0));
         return new SearchProductsTool(service);

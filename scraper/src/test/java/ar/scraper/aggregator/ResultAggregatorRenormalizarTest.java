@@ -69,8 +69,17 @@ class ResultAggregatorRenormalizarTest {
     }
 
     private Product producto(String url, String categoria) {
-        return new Product("TestSite", "Producto " + url, 1000, null, url, "",
-                categoria, "", List.of());
+        return Product.builder()
+                .sitio("TestSite")
+                .nombre("Producto " + url)
+                .precio(1000)
+                .precioOriginal(null)
+                .url(url)
+                .imagenUrl("")
+                .categoria(categoria)
+                .genero("")
+                .talles(List.of())
+                .build();
     }
 
     @Test

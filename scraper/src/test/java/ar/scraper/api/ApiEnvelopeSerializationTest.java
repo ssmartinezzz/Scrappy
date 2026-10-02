@@ -151,11 +151,25 @@ class ApiEnvelopeSerializationTest {
     @Test
     @DisplayName("/api/data rows keep the keys the frontend has always read (including ml.zScore)")
     void productRowKeepsTheHistoricalKeys() {
-        Product p = new Product("Sitio", "Remera Negra", 15990, 19990.0, "https://t/remera", "img",
-                "Remera", "unisex", List.of("M", "L"),
-                new Product.MlScore(80, List.of("all_time_low"), true, "bajando", 12, 0.5, "premium"),
-                "Nike", "indumentaria", false, false, Product.SenalCompra.EMPTY,
-                Product.SenalFinanciacion.EMPTY, 1);
+        Product p = Product.builder()
+                .sitio("Sitio")
+                .nombre("Remera Negra")
+                .precio(15990)
+                .precioOriginal(19990.0)
+                .url("https://t/remera")
+                .imagenUrl("img")
+                .categoria("Remera")
+                .genero("unisex")
+                .talles(List.of("M", "L"))
+                .ml(new Product.MlScore(80, List.of("all_time_low"), true, "bajando", 12, 0.5, "premium"))
+                .marca("Nike")
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(Product.SenalFinanciacion.EMPTY)
+                .cantidadUnidades(1)
+                .build();
 
         JsonNode fila = mapper.valueToTree(CatalogoDtos.ProductoRow.of(p, "12 cuotas"));
 

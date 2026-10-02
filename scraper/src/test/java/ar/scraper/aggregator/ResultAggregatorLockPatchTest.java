@@ -88,9 +88,26 @@ class ResultAggregatorLockPatchTest {
 
     private static Product producto(String url, String categoria, String subCategoria,
                                      String marca, String genero, String rubro) {
-        return new Product("freres", "Producto " + url, 15000, null, url, "",
-                categoria, genero, List.of("M"), Product.MlScore.EMPTY, marca, rubro,
-                false, false, Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY, 1, subCategoria);
+        return Product.builder()
+                .sitio("freres")
+                .nombre("Producto " + url)
+                .precio(15000)
+                .precioOriginal(null)
+                .url(url)
+                .imagenUrl("")
+                .categoria(categoria)
+                .genero(genero)
+                .talles(List.of("M"))
+                .ml(Product.MlScore.EMPTY)
+                .marca(marca)
+                .rubro(rubro)
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(Product.SenalFinanciacion.EMPTY)
+                .cantidadUnidades(1)
+                .subCategoria(subCategoria)
+                .build();
     }
 
     // ─── Pure function: aplicarBloqueos ─────────────────────────────────────

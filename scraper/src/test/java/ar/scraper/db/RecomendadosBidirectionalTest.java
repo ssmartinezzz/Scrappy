@@ -53,8 +53,21 @@ class RecomendadosBidirectionalTest extends PostgresTestBase {
     }
 
     private Product producto(String url, String marca, String categoria, String genero) {
-        return new Product("TestSitio", "Producto " + url, 10000, null, url, "img",
-                categoria, genero, List.of(), Product.MlScore.EMPTY, marca, "indumentaria", true);
+        return Product.builder()
+                .sitio("TestSitio")
+                .nombre("Producto " + url)
+                .precio(10000)
+                .precioOriginal(null)
+                .url(url)
+                .imagenUrl("img")
+                .categoria(categoria)
+                .genero(genero)
+                .talles(List.of())
+                .ml(Product.MlScore.EMPTY)
+                .marca(marca)
+                .rubro("indumentaria")
+                .gymrat(true)
+                .build();
     }
 
     @AfterEach

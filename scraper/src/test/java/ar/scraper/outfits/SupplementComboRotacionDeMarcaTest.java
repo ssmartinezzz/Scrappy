@@ -31,15 +31,39 @@ class SupplementComboRotacionDeMarcaTest {
     private final SupplementCombo combo = new SupplementCombo(new RecommendationService());
 
     private static Product whey(String marca, String nombre, double precio) {
-        return new Product("entreno", nombre, precio, null,
-                "https://test/" + nombre.replace(" ", "-"), "https://img/x.jpg",
-                "Proteína", "unisex", List.of(), Product.MlScore.EMPTY, marca, "suplementos", false);
+        return Product.builder()
+                .sitio("entreno")
+                .nombre(nombre)
+                .precio(precio)
+                .precioOriginal(null)
+                .url("https://test/" + nombre.replace(" ", "-"))
+                .imagenUrl("https://img/x.jpg")
+                .categoria("Proteína")
+                .genero("unisex")
+                .talles(List.of())
+                .ml(Product.MlScore.EMPTY)
+                .marca(marca)
+                .rubro("suplementos")
+                .gymrat(false)
+                .build();
     }
 
     private static Product creatina(String marca, String nombre, double precio) {
-        return new Product("entreno", nombre, precio, null,
-                "https://test/" + nombre.replace(" ", "-"), "https://img/x.jpg",
-                "Creatina", "unisex", List.of(), Product.MlScore.EMPTY, marca, "suplementos", false);
+        return Product.builder()
+                .sitio("entreno")
+                .nombre(nombre)
+                .precio(precio)
+                .precioOriginal(null)
+                .url("https://test/" + nombre.replace(" ", "-"))
+                .imagenUrl("https://img/x.jpg")
+                .categoria("Creatina")
+                .genero("unisex")
+                .talles(List.of())
+                .ml(Product.MlScore.EMPTY)
+                .marca(marca)
+                .rubro("suplementos")
+                .gymrat(false)
+                .build();
     }
 
     private final List<Product> proteinas = List.of(

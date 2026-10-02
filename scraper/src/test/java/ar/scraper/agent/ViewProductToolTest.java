@@ -34,10 +34,26 @@ class ViewProductToolTest {
     @DisplayName("returns the product's current categoria/subCategoria/genero/marca")
     void returnsCurrentClassification() throws Exception {
         ScraperService service = mock(ScraperService.class);
-        Product p = new Product("Sitio", "Remera SAD Adidas", 1000, null, "https://a.com/1", "img",
-                "Zapatilla Running", "hombre", List.of(), Product.MlScore.EMPTY, "Adidas",
-                "indumentaria", false, false, Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY,
-                1, "running");
+        Product p = Product.builder()
+                .sitio("Sitio")
+                .nombre("Remera SAD Adidas")
+                .precio(1000)
+                .precioOriginal(null)
+                .url("https://a.com/1")
+                .imagenUrl("img")
+                .categoria("Zapatilla Running")
+                .genero("hombre")
+                .talles(List.of())
+                .ml(Product.MlScore.EMPTY)
+                .marca("Adidas")
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(Product.SenalFinanciacion.EMPTY)
+                .cantidadUnidades(1)
+                .subCategoria("running")
+                .build();
         when(service.getLastResult()).thenReturn(mockResult(List.of(p)));
 
         ViewProductTool tool = new ViewProductTool(service);

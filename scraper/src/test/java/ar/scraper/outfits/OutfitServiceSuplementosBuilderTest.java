@@ -429,8 +429,18 @@ class OutfitServiceSuplementosBuilderTest {
     }
 
     private Product producto(String nombre, double precio, String categoria) {
-        return new Product("Sitio", nombre, precio, null,
-                "https://test.com/" + nombre.replace(" ", "-"),
-                "img.jpg", categoria, "", List.of(), null, "Marca");
+        return Product.builder()
+                .sitio("Sitio")
+                .nombre(nombre)
+                .precio(precio)
+                .precioOriginal(null)
+                .url("https://test.com/" + nombre.replace(" ", "-"))
+                .imagenUrl("img.jpg")
+                .categoria(categoria)
+                .genero("")
+                .talles(List.of())
+                .ml(null)
+                .marca("Marca")
+                .build();
     }
 }

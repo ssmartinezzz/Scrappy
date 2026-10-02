@@ -160,10 +160,27 @@ class CatalogoCotaDeLecturaTest extends ar.scraper.db.support.PostgresTestBase {
     }
 
     private Product producto(String sitio, String url, double precio, String marca) {
-        return new Product(sitio, "Producto " + url, precio, null, url, "img",
-                "Remera", "unisex", List.of("M"), Product.MlScore.EMPTY, marca,
-                "indumentaria", false, false, Product.SenalCompra.EMPTY,
-                Product.SenalFinanciacion.EMPTY, 1, "", Product.VisualAttrs.EMPTY);
+        return Product.builder()
+                .sitio(sitio)
+                .nombre("Producto " + url)
+                .precio(precio)
+                .precioOriginal(null)
+                .url(url)
+                .imagenUrl("img")
+                .categoria("Remera")
+                .genero("unisex")
+                .talles(List.of("M"))
+                .ml(Product.MlScore.EMPTY)
+                .marca(marca)
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(Product.SenalFinanciacion.EMPTY)
+                .cantidadUnidades(1)
+                .subCategoria("")
+                .visual(Product.VisualAttrs.EMPTY)
+                .build();
     }
 
     private void fijarTouchedAt(String url, Instant cuando) throws Exception {

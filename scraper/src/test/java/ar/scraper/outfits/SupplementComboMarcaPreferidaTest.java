@@ -121,9 +121,18 @@ class SupplementComboMarcaPreferidaTest {
     }
 
     private Product suplemento(String nombre, double precio, String marca) {
-        return new Product("Sitio", nombre, precio, null,
-                "https://test.com/" + nombre.replace(" ", "-"),
-                "img.jpg", "Proteína", "", List.of(),
-                new Product.MlScore(50, "", false, "estable", 50), marca);
+        return Product.builder()
+                .sitio("Sitio")
+                .nombre(nombre)
+                .precio(precio)
+                .precioOriginal(null)
+                .url("https://test.com/" + nombre.replace(" ", "-"))
+                .imagenUrl("img.jpg")
+                .categoria("Proteína")
+                .genero("")
+                .talles(List.of())
+                .ml(new Product.MlScore(50, "", false, "estable", 50))
+                .marca(marca)
+                .build();
     }
 }

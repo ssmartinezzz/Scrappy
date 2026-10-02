@@ -141,15 +141,37 @@ class OutfitServiceSubslotTest {
 
     /** gymrat=true — required for torso and piernas slots to pass the eligibility gate. */
     private Product gymProd(String categoria, String nombre, double precio) {
-        return new Product("Sitio", nombre, precio, null,
-                "https://test.com/" + nombre.replace(" ", "-"),
-                null, categoria, "hombre", List.of(), null, "Marca", "indumentaria", true);
+        return Product.builder()
+                .sitio("Sitio")
+                .nombre(nombre)
+                .precio(precio)
+                .precioOriginal(null)
+                .url("https://test.com/" + nombre.replace(" ", "-"))
+                .imagenUrl(null)
+                .categoria(categoria)
+                .genero("hombre")
+                .talles(List.of())
+                .ml(null)
+                .marca("Marca")
+                .rubro("indumentaria")
+                .gymrat(true)
+                .build();
     }
 
     /** gymrat=false — calzado and accesorio slots do not require gymrat. */
     private Product prod(String categoria, String nombre, double precio) {
-        return new Product("Sitio", nombre, precio, null,
-                "https://test.com/" + nombre.replace(" ", "-"),
-                null, categoria, "hombre", List.of(), null, "Marca");
+        return Product.builder()
+                .sitio("Sitio")
+                .nombre(nombre)
+                .precio(precio)
+                .precioOriginal(null)
+                .url("https://test.com/" + nombre.replace(" ", "-"))
+                .imagenUrl(null)
+                .categoria(categoria)
+                .genero("hombre")
+                .talles(List.of())
+                .ml(null)
+                .marca("Marca")
+                .build();
     }
 }

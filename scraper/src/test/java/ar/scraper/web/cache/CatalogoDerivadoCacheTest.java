@@ -56,10 +56,27 @@ class CatalogoDerivadoCacheTest {
     }
 
     private static Product producto(String sitio, String nombre, String categoria, String rubro) {
-        return new Product(sitio, nombre, 1000, null, "https://" + sitio.replace(' ', '-') + "/" + nombre.hashCode(),
-                "img", categoria, "unisex", List.of("M"), Product.MlScore.EMPTY, "Nike", rubro,
-                false, false, Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY, 1, "",
-                Product.VisualAttrs.EMPTY);
+        return Product.builder()
+                .sitio(sitio)
+                .nombre(nombre)
+                .precio(1000)
+                .precioOriginal(null)
+                .url("https://" + sitio.replace(' ', '-') + "/" + nombre.hashCode())
+                .imagenUrl("img")
+                .categoria(categoria)
+                .genero("unisex")
+                .talles(List.of("M"))
+                .ml(Product.MlScore.EMPTY)
+                .marca("Nike")
+                .rubro(rubro)
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(Product.SenalFinanciacion.EMPTY)
+                .cantidadUnidades(1)
+                .subCategoria("")
+                .visual(Product.VisualAttrs.EMPTY)
+                .build();
     }
 
     private static AggregatedResult catalogo(Product... productos) {

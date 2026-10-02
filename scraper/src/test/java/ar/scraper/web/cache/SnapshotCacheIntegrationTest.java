@@ -56,9 +56,27 @@ class SnapshotCacheIntegrationTest {
     }
 
     private static Product producto(String url, String nombre) {
-        return new Product("Sitio", nombre, 1000, null, url, "img", "Remera", "unisex", List.of("M"),
-                Product.MlScore.EMPTY, "Nike", "indumentaria", false, false, Product.SenalCompra.EMPTY,
-                Product.SenalFinanciacion.EMPTY, 1, "", Product.VisualAttrs.EMPTY);
+        return Product.builder()
+                .sitio("Sitio")
+                .nombre(nombre)
+                .precio(1000)
+                .precioOriginal(null)
+                .url(url)
+                .imagenUrl("img")
+                .categoria("Remera")
+                .genero("unisex")
+                .talles(List.of("M"))
+                .ml(Product.MlScore.EMPTY)
+                .marca("Nike")
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(Product.SenalFinanciacion.EMPTY)
+                .cantidadUnidades(1)
+                .subCategoria("")
+                .visual(Product.VisualAttrs.EMPTY)
+                .build();
     }
 
     private static AggregatedResult catalogo(Product... productos) {
