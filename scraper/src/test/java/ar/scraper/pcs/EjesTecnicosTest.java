@@ -14,33 +14,37 @@ import static org.assertj.core.api.Assertions.assertThat;
 class EjesTecnicosTest {
 
     private static TechSpecs conGama(Gama gama) {
-        return new TechSpecs("", "", "", 0, 0, "", gama, Certificacion.NINGUNA);
+        return TechSpecs.builder().gama(gama).build();
     }
 
     private static TechSpecs conCertificacion(Certificacion cert) {
-        return new TechSpecs("", "", "", 0, 0, "", Gama.DESCONOCIDA, cert);
+        return TechSpecs.builder().certificacion(cert).build();
     }
 
     private static TechSpecs conTipoAlmacenamiento(TipoAlmacenamiento tipo, int gb) {
-        return new TechSpecs("", "", "", 0, gb, "", Gama.DESCONOCIDA, Certificacion.NINGUNA, 0, tipo);
+        return TechSpecs.builder().capacidadGb(gb).tipoAlmacenamiento(tipo).build();
     }
 
     private static TechSpecs conRam(String ddr, int mhz, int gb) {
-        return new TechSpecs("", ddr, "", 0, gb, "", Gama.DESCONOCIDA, Certificacion.NINGUNA, mhz, TipoAlmacenamiento.DESCONOCIDO);
+        return TechSpecs.builder().ddr(ddr).capacidadGb(gb).velocidadMhz(mhz).build();
     }
 
     private static TechSpecs conRamModulos(String ddr, int modulos, int mhz, int gb) {
-        return new TechSpecs("", ddr, "", 0, gb, "", Gama.DESCONOCIDA, Certificacion.NINGUNA, mhz,
-                TipoAlmacenamiento.DESCONOCIDO, java.util.List.of(), "", 0, 0, modulos, false);
+        return TechSpecs.builder()
+                .ddr(ddr)
+                .capacidadGb(gb)
+                .velocidadMhz(mhz)
+                .socketsSoportados(java.util.List.of())
+                .modulos(modulos)
+                .build();
     }
 
     private static TechSpecs conMother(String socket, String ddr) {
-        return new TechSpecs(socket, ddr, "", 0, 0, "");
+        return TechSpecs.builder().socket(socket).ddr(ddr).build();
     }
 
     private static TechSpecs conMotherTier(String ddr, int tierChipset) {
-        return new TechSpecs("", ddr, "", 0, 0, "", Gama.DESCONOCIDA, Certificacion.NINGUNA, 0,
-                TipoAlmacenamiento.DESCONOCIDO, java.util.List.of(), "", 0, tierChipset, 0, false);
+        return TechSpecs.builder().ddr(ddr).socketsSoportados(java.util.List.of()).tierChipset(tierChipset).build();
     }
 
     // La marca es parte de la fixture desde D2: `generacion` sola no es
@@ -51,9 +55,13 @@ class EjesTecnicosTest {
     }
 
     private static TechSpecs conCpuChip(Gama gama, int nivel, String marcaChip, int generacion) {
-        return new TechSpecs("", "", "", 0, 0, "", gama, Certificacion.NINGUNA, 0,
-                TipoAlmacenamiento.DESCONOCIDO, java.util.List.of(), marcaChip, generacion, 0, 0, false,
-                TipoCooler.DESCONOCIDO, nivel);
+        return TechSpecs.builder()
+                .gama(gama)
+                .socketsSoportados(java.util.List.of())
+                .marcaChip(marcaChip)
+                .generacion(generacion)
+                .nivel(nivel)
+                .build();
     }
 
     private static TechSpecs conGpu(Gama gama, int generacion, int vramGb) {
@@ -61,21 +69,33 @@ class EjesTecnicosTest {
     }
 
     private static TechSpecs conGpuChip(Gama gama, int nivel, String marcaChip, int generacion, int vramGb) {
-        return new TechSpecs("", "", "", 0, vramGb, "", gama, Certificacion.NINGUNA, 0,
-                TipoAlmacenamiento.DESCONOCIDO, java.util.List.of(), marcaChip, generacion, 0, 0, false,
-                TipoCooler.DESCONOCIDO, nivel);
+        return TechSpecs.builder()
+                .capacidadGb(vramGb)
+                .gama(gama)
+                .socketsSoportados(java.util.List.of())
+                .marcaChip(marcaChip)
+                .generacion(generacion)
+                .nivel(nivel)
+                .build();
     }
 
     private static TechSpecs conCpuNivel(Gama gama, int nivel, int generacion) {
-        return new TechSpecs("", "", "", 0, 0, "", gama, Certificacion.NINGUNA, 0,
-                TipoAlmacenamiento.DESCONOCIDO, java.util.List.of(), "", generacion, 0, 0, false,
-                TipoCooler.DESCONOCIDO, nivel);
+        return TechSpecs.builder()
+                .gama(gama)
+                .socketsSoportados(java.util.List.of())
+                .generacion(generacion)
+                .nivel(nivel)
+                .build();
     }
 
     private static TechSpecs conGpuNivel(Gama gama, int nivel, int generacion, int vramGb) {
-        return new TechSpecs("", "", "", 0, vramGb, "", gama, Certificacion.NINGUNA, 0,
-                TipoAlmacenamiento.DESCONOCIDO, java.util.List.of(), "", generacion, 0, 0, false,
-                TipoCooler.DESCONOCIDO, nivel);
+        return TechSpecs.builder()
+                .capacidadGb(vramGb)
+                .gama(gama)
+                .socketsSoportados(java.util.List.of())
+                .generacion(generacion)
+                .nivel(nivel)
+                .build();
     }
 
     // ── CPU / GPU: gama desc, DESCONOCIDA siempre última ─────────────────
@@ -260,8 +280,8 @@ class EjesTecnicosTest {
 
     @Test
     void gabineteSiempreEmpata() {
-        TechSpecs a = new TechSpecs("", "", "ATX", 0, 0, "");
-        TechSpecs b = new TechSpecs("", "", "ITX", 0, 0, "");
+        TechSpecs a = TechSpecs.builder().formFactor("ATX").build();
+        TechSpecs b = TechSpecs.builder().formFactor("ITX").build();
 
         assertThat(EjesTecnicos.GABINETE.compare(a, b)).isZero();
     }
@@ -269,8 +289,7 @@ class EjesTecnicosTest {
     // ── Cooler: LIQUIDO desc sobre AIRE, DESCONOCIDO siempre última (T4d-2) ─
 
     private static TechSpecs conTipoCooler(TipoCooler tipo) {
-        return new TechSpecs("", "", "", 0, 0, "", Gama.DESCONOCIDA, Certificacion.NINGUNA,
-                0, TipoAlmacenamiento.DESCONOCIDO, java.util.List.of(), "", 0, 0, 0, false, tipo);
+        return TechSpecs.builder().socketsSoportados(java.util.List.of()).tipoCooler(tipo).build();
     }
 
     @Test

@@ -3,7 +3,6 @@ package ar.scraper.pcs;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -20,9 +19,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 class EjesTecnicosT16Test {
 
     private static TechSpecs cooler(TipoCooler tipo, int radiadorMm, ClaseDisipador clase, int heatpipes) {
-        return new TechSpecs("", "", "", 0, 0, "", Gama.DESCONOCIDA, Certificacion.NINGUNA, 0,
-                TipoAlmacenamiento.DESCONOCIDO, List.of(), "", 0, 0, 0, false, tipo, 0,
-                TamanioGabinete.DESCONOCIDO, radiadorMm, clase, heatpipes);
+        return TechSpecs.builder()
+                .tipoCooler(tipo)
+                .radiadorMm(radiadorMm)
+                .claseDisipador(clase)
+                .heatpipes(heatpipes)
+                .build();
     }
 
     @Test

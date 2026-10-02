@@ -15,7 +15,7 @@ class ReglaCertificacionTest {
     private final ReglaCertificacion regla = new ReglaCertificacion();
 
     private TechSpecs fuente(Certificacion cert) {
-        return new TechSpecs("", "", "", 0, 0, "", Gama.DESCONOCIDA, cert);
+        return TechSpecs.builder().certificacion(cert).build();
     }
 
     @Test

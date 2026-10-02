@@ -16,7 +16,7 @@ class ReglaSodimmTest {
     @Test
     @DisplayName("vetoes SODIMM unconditionally — tipoMemoria is always asserted, never abstains")
     void vetaSodimm() {
-        TechSpecs ram = new TechSpecs("", "DDR4", "", 0, 0, "SODIMM");
+        TechSpecs ram = TechSpecs.builder().ddr("DDR4").tipoMemoria("SODIMM").build();
 
         assertThat(regla.permite(ram, contexto)).isFalse();
     }
@@ -24,7 +24,7 @@ class ReglaSodimmTest {
     @Test
     @DisplayName("does not veto DIMM")
     void noVetaDimm() {
-        TechSpecs ram = new TechSpecs("", "DDR4", "", 0, 0, "DIMM");
+        TechSpecs ram = TechSpecs.builder().ddr("DDR4").tipoMemoria("DIMM").build();
 
         assertThat(regla.permite(ram, contexto)).isTrue();
     }

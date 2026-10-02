@@ -1,14 +1,10 @@
 package ar.scraper.pcs.reglas;
 
-import ar.scraper.pcs.Certificacion;
 import ar.scraper.pcs.ContextoDeArmado;
-import ar.scraper.pcs.Gama;
 import ar.scraper.pcs.TechSpecs;
-import ar.scraper.pcs.TipoAlmacenamiento;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -18,8 +14,7 @@ class ReglaMarcaChipTest {
     private final ContextoDeArmado contexto = ContextoDeArmado.inicial(450);
 
     private static TechSpecs conMarcaChip(String marcaChip) {
-        return new TechSpecs("", "", "", 0, 0, "", Gama.DESCONOCIDA, Certificacion.NINGUNA, 0,
-                TipoAlmacenamiento.DESCONOCIDO, List.of(), marcaChip, 0, 0, 0, false);
+        return TechSpecs.builder().marcaChip(marcaChip).build();
     }
 
     @Test
@@ -59,8 +54,7 @@ class ReglaMarcaChipTest {
     void motherUsaLaMarcaDerivadaDelSocket() {
         ReglaMarcaChip regla = new ReglaMarcaChip("AMD");
         // AM5 -> marcaChip("AMD"), as MotherboardSpecsReader already derives (T3b).
-        TechSpecs mother = new TechSpecs("AM5", "", "", 0, 0, "", Gama.DESCONOCIDA, Certificacion.NINGUNA, 0,
-                TipoAlmacenamiento.DESCONOCIDO, List.of(), "AMD", 0, 0, 0, false);
+        TechSpecs mother = TechSpecs.builder().socket("AM5").marcaChip("AMD").build();
 
         assertThat(regla.permite(mother, contexto)).isTrue();
     }

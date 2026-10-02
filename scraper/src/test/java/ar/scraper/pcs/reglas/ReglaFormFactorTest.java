@@ -16,8 +16,8 @@ class ReglaFormFactorTest {
     @DisplayName("vetoes when the case is smaller than the board")
     void vetaCuandoElGabineteEsMasChico() {
         ContextoDeArmado contexto = ContextoDeArmado.inicial(450)
-                .conMother(new TechSpecs("", "", "MATX", 0, 0, ""));
-        TechSpecs gabinete = new TechSpecs("", "", "ITX", 0, 0, "");
+                .conMother(TechSpecs.builder().formFactor("MATX").build());
+        TechSpecs gabinete = TechSpecs.builder().formFactor("ITX").build();
 
         assertThat(regla.permite(gabinete, contexto)).isFalse();
     }
@@ -26,8 +26,8 @@ class ReglaFormFactorTest {
     @DisplayName("does not veto when the case is the same class as the board")
     void noVetaCuandoSonDeLaMismaClase() {
         ContextoDeArmado contexto = ContextoDeArmado.inicial(450)
-                .conMother(new TechSpecs("", "", "MATX", 0, 0, ""));
-        TechSpecs gabinete = new TechSpecs("", "", "MATX", 0, 0, "");
+                .conMother(TechSpecs.builder().formFactor("MATX").build());
+        TechSpecs gabinete = TechSpecs.builder().formFactor("MATX").build();
 
         assertThat(regla.permite(gabinete, contexto)).isTrue();
     }
@@ -36,8 +36,8 @@ class ReglaFormFactorTest {
     @DisplayName("does not veto when the case is bigger than the board")
     void noVetaCuandoElGabineteEsMasGrande() {
         ContextoDeArmado contexto = ContextoDeArmado.inicial(450)
-                .conMother(new TechSpecs("", "", "MATX", 0, 0, ""));
-        TechSpecs gabinete = new TechSpecs("", "", "ATX", 0, 0, "");
+                .conMother(TechSpecs.builder().formFactor("MATX").build());
+        TechSpecs gabinete = TechSpecs.builder().formFactor("ATX").build();
 
         assertThat(regla.permite(gabinete, contexto)).isTrue();
     }
@@ -46,7 +46,7 @@ class ReglaFormFactorTest {
     @DisplayName("abstains when the case did not state a form factor")
     void abstieneCuandoElGabineteNoDeclaraForma() {
         ContextoDeArmado contexto = ContextoDeArmado.inicial(450)
-                .conMother(new TechSpecs("", "", "MATX", 0, 0, ""));
+                .conMother(TechSpecs.builder().formFactor("MATX").build());
 
         assertThat(regla.permite(TechSpecs.EMPTY, contexto)).isTrue();
     }
@@ -55,7 +55,7 @@ class ReglaFormFactorTest {
     @DisplayName("abstains when the mother did not state a form factor")
     void abstieneCuandoElMotherNoDeclaraForma() {
         ContextoDeArmado contexto = ContextoDeArmado.inicial(450).conMother(TechSpecs.EMPTY);
-        TechSpecs gabinete = new TechSpecs("", "", "ITX", 0, 0, "");
+        TechSpecs gabinete = TechSpecs.builder().formFactor("ITX").build();
 
         assertThat(regla.permite(gabinete, contexto)).isTrue();
     }

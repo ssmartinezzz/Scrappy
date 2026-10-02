@@ -3,10 +3,7 @@ package ar.scraper.json;
 import ar.scraper.pcs.PcBuild;
 import ar.scraper.pcs.PcPick;
 import ar.scraper.pcs.TechSpecs;
-import ar.scraper.pcs.Gama;
-import ar.scraper.pcs.Certificacion;
 import ar.scraper.pcs.TamanioGabinete;
-import ar.scraper.pcs.TipoAlmacenamiento;
 import ar.scraper.pcs.TipoCooler;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.DisplayName;
@@ -34,9 +31,12 @@ class PcBuildJsonFase9Test {
 
     @Test
     void serializaLosDosCamposNuevos() {
-        TechSpecs specs = new TechSpecs("", "", "ATX", 0, 0, "", Gama.DESCONOCIDA, Certificacion.NINGUNA, 0,
-                TipoAlmacenamiento.DESCONOCIDO, List.of(), "", 0, 0, 0, false, TipoCooler.LIQUIDO, 0,
-                TamanioGabinete.FULL, 360);
+        TechSpecs specs = TechSpecs.builder()
+                .formFactor("ATX")
+                .tipoCooler(TipoCooler.LIQUIDO)
+                .tamanioGabinete(TamanioGabinete.FULL)
+                .radiadorMm(360)
+                .build();
 
         ObjectNode json = specsDe(specs);
 

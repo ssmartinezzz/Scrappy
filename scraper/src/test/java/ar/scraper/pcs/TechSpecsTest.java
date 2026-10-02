@@ -27,8 +27,17 @@ class TechSpecsTest {
 
     @Test
     void canonicalConstructorSetsTheFiveNewFields() {
-        TechSpecs t = new TechSpecs("AM5", "DDR5", "MATX", 0, 0, "", Gama.ALTA, Certificacion.NINGUNA,
-                0, TipoAlmacenamiento.DESCONOCIDO, List.of(), "AMD", 5, 1, 2, true);
+        TechSpecs t = TechSpecs.builder()
+                .socket("AM5")
+                .ddr("DDR5")
+                .formFactor("MATX")
+                .gama(Gama.ALTA)
+                .marcaChip("AMD")
+                .generacion(5)
+                .tierChipset(1)
+                .modulos(2)
+                .wifi(true)
+                .build();
 
         assertThat(t.marcaChip()).isEqualTo("AMD");
         assertThat(t.generacion()).isEqualTo(5);
@@ -41,8 +50,16 @@ class TechSpecsTest {
     void elevenArgCompatConstructorDefaultsTheFiveNewFieldsToAbstencion() {
         // Forma pre-T3a (11 args, canonical antes de este cambio): todo
         // caller existente sigue compilando sin tocarse — CODE-2.
-        TechSpecs t = new TechSpecs("AM4", "DDR4", "ATX", 0, 0, "", Gama.MEDIA, Certificacion.GOLD,
-                3200, TipoAlmacenamiento.NVME, List.of("AM4"));
+        TechSpecs t = TechSpecs.builder()
+                .socket("AM4")
+                .ddr("DDR4")
+                .formFactor("ATX")
+                .gama(Gama.MEDIA)
+                .certificacion(Certificacion.GOLD)
+                .velocidadMhz(3200)
+                .tipoAlmacenamiento(TipoAlmacenamiento.NVME)
+                .socketsSoportados(List.of("AM4"))
+                .build();
 
         assertThat(t.marcaChip()).isEmpty();
         assertThat(t.generacion()).isZero();
