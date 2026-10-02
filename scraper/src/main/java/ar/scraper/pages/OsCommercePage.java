@@ -15,7 +15,7 @@ import org.apache.commons.lang3.StringUtils;
  * from each top category's landing page — the landing page itself shows 12 unrepresentative items
  * and is never treated as a yield source, only as a source of leaf links.
  */
-public class OsCommercePage extends BasePage {
+public class OsCommercePage extends BasePage implements CatalogPage {
 
     private static final Logger log = LoggerFactory.getLogger(OsCommercePage.class);
     private static final int MAX_PAGES = 40;

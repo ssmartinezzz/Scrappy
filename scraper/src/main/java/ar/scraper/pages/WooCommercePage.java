@@ -10,7 +10,7 @@ import org.slf4j.LoggerFactory;
 import java.util.*;
 import org.apache.commons.lang3.StringUtils;
 
-public class WooCommercePage extends BasePage {
+public class WooCommercePage extends BasePage implements CatalogPage {
 
     private static final Logger log = LoggerFactory.getLogger(WooCommercePage.class);
     private static final ObjectMapper MAPPER = new ObjectMapper();

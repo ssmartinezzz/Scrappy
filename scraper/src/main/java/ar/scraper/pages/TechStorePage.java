@@ -16,7 +16,7 @@ import org.apache.commons.lang3.StringUtils;
  * (static.compragamer.com/productos), not scraped from the DOM MAXIMUS — ASP.NET custom, URL:
  * /Productos/{category}.aspx.
  */
-public class TechStorePage extends BasePage {
+public class TechStorePage extends BasePage implements CatalogPage {
 
     private static final Logger log = LoggerFactory.getLogger(TechStorePage.class);
     private static final ObjectMapper MAPPER = new ObjectMapper();

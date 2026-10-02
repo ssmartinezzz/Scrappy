@@ -25,7 +25,7 @@ import org.apache.commons.lang3.StringUtils;
  * {@code compare_at_price}, {@code promotional_price}, {@code stock}, {@code sku}, imágenes en
  * {@code acdn-us.mitiendanube.com}), pero la vidriera es un Next.js propio en Vercel.
  */
-public class InproPage extends BasePage {
+public class InproPage extends BasePage implements CatalogPage {
 
     private static final Logger log = LoggerFactory.getLogger(InproPage.class);
     private static final ObjectMapper MAPPER = new ObjectMapper();

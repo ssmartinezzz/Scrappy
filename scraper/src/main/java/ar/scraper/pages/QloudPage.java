@@ -9,10 +9,10 @@ import java.util.*;
 import org.apache.commons.lang3.StringUtils;
 
 /**
- * Qloud is a multi-tenant platform, not a single store — this pair generalizes to any Argentine
- * store on it, same argument as {@link VaypolPage}/{@code VaypolScraper}.
+ * Qloud is a multi-tenant platform, not a single store — this page generalizes to any Argentine
+ * store on it, same argument as {@link VaypolPage}.
  */
-public class QloudPage extends BasePage {
+public class QloudPage extends BasePage implements CatalogPage {
 
     private static final Logger log = LoggerFactory.getLogger(QloudPage.class);
 

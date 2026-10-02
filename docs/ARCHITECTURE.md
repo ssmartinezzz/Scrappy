@@ -124,14 +124,14 @@ cerrar entre sí. `DATABASE_URL` apunta a `postgres:5432` (nombre del servicio, 
 ### ¿Por qué INPRO es su propia plataforma y no `tiendanube`?
 
 **Decisión** (`add-inpro-office-store`, 2026-08-20): `plataforma='inpro'`, con
-`InproPage`/`InproScraper` propios, aunque los datos que sirve son objetos
+`InproPage` propia, aunque los datos que sirve son objetos
 crudos de la API de Tiendanube.
 
 **Razón**: la plataforma que importa es la de la **vidriera**, no la del
 backend. INPRO corre un Next.js propio en Vercel y el storefront clásico de
 Tiendanube no es alcanzable — `inpro.mitiendanube.com` redirige a otra tienda
 (`inproindumentaria.com.ar`) y los slugs candidatos dan 410. Rutearlo a
-`TiendanubeScraper` lo mandaría a buscar selectores de un tema que ahí no
+`TiendanubePage` lo mandaría a buscar selectores de un tema que ahí no
 existe: **0 productos y ningún error**, que es el mismo modo de falla que `V24`
 cerró para Rockethard y Venex.
 
@@ -183,7 +183,7 @@ caro de los cinco, no el más barato:
   después, por un mecanismo no identificado (¿JSON endpoint propio? ¿SignalR?
   ¿ambos?).
 - La fuente de hidratación real nunca se aisló durante la exploración de este
-  cambio (proposal, riesgo R2). Sin eso, ni un `LoggPage`/`LoggScraper` ni una
+  cambio (proposal, riesgo R2). Sin eso, ni una `LoggPage` ni una
   fila de seed para `logg` en `sitio.plataforma` pueden escribirse con
   confianza — arrancarían adivinando un contrato que nadie confirmó contra el
   sitio real.
@@ -191,7 +191,7 @@ caro de los cinco, no el más barato:
 **Decisión** (post-design, explícita del usuario): no ship Logg en este
 cambio. Consecuencia directa en el esquema: el dominio de `sitio.plataforma`
 crece de 9 a **11** valores (`qloud`, `oscommerce`), no a 12 — no existe
-`logg` en el CHECK, no existe `V25`, no existe `LoggPage`/`LoggScraper`, y
+`logg` en el CHECK, no existe `V25`, no existe `LoggPage`, y
 `config.properties` no tiene ninguna entrada `sitio.logg.*`. No queda ningún
 valor muerto ni código muerto por retirar después: la migración que hubiera
 agregado `logg` nunca se escribió, en vez de escribirse y revertirse.

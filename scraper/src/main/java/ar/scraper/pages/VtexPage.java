@@ -11,7 +11,7 @@ import java.util.*;
 import org.apache.commons.lang3.StringUtils;
 
 /** Si no está, se hace heurística sobre nombre + categorías. */
-public class VtexPage extends BasePage {
+public class VtexPage extends BasePage implements CatalogPage {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final int PAGE_SIZE = 50;
