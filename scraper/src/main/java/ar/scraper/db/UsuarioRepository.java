@@ -3,13 +3,13 @@ package ar.scraper.db;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.sql.DataSource;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -27,10 +27,10 @@ public class UsuarioRepository {
 
     private static final Logger LOG = LoggerFactory.getLogger(UsuarioRepository.class);
 
-    private final DataSource dataSource;
+    private final JdbcTemplate jdbc;
 
     public UsuarioRepository(DataSource dataSource) {
-        this.dataSource = dataSource;
+        this.jdbc = new JdbcTemplate(dataSource);
     }
 
     /** A row of {@code usuario}, without its roles. */
@@ -55,63 +55,59 @@ public class UsuarioRepository {
     public boolean crear(String username, String email, String passwordHash, boolean esServicio) {
         Objects.requireNonNull(username, "username must not be null");
         Objects.requireNonNull(passwordHash, "passwordHash must not be null");
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement("""
+        try {
+            return jdbc.update("""
                     INSERT INTO usuario (username, email, password_hash, es_servicio)
                     VALUES (?, ?, ?, ?)
                     ON CONFLICT (username) DO NOTHING
-                    """)) {
-            ps.setString(1, username);
-            ps.setString(2, email);
-            ps.setString(3, passwordHash);
-            ps.setBoolean(4, esServicio);
-            return ps.executeUpdate() == 1;
+                    """, ps -> {
+                ps.setString(1, username);
+                ps.setString(2, email);
+                ps.setString(3, passwordHash);
+                ps.setBoolean(4, esServicio);
+            }) == 1;
         } catch (Exception e) {
             throw new DatabaseException("no se pudo crear la cuenta '" + username + "'", e);
         }
     }
 
     public Optional<Cuenta> buscarActivaPorUsername(String username) {
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement("""
+        try {
+            return jdbc.query("""
                     SELECT id, username, email, password_hash, es_servicio
                     FROM usuario
                     WHERE username = ? AND activo = TRUE
-                    """)) {
-            ps.setString(1, username);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (!rs.next()) {
-                    return Optional.empty();
-                }
-                return Optional.of(new Cuenta(
-                        rs.getObject(1, UUID.class),
-                        rs.getString(2),
-                        rs.getString(3),
-                        rs.getString(4),
-                        rs.getBoolean(5)));
-            }
+                    """, ps -> ps.setString(1, username), UsuarioRepository::cuentaOVacia);
         } catch (Exception e) {
             throw new DatabaseException("no se pudo leer la cuenta '" + username + "'", e);
         }
     }
 
+    private static Optional<Cuenta> cuentaOVacia(ResultSet rs) throws SQLException {
+        if (!rs.next()) {
+            return Optional.empty();
+        }
+        return Optional.of(new Cuenta(
+                rs.getObject(1, UUID.class),
+                rs.getString(2),
+                rs.getString(3),
+                rs.getString(4),
+                rs.getBoolean(5)));
+    }
+
     public List<String> rolesDe(String username) {
         List<String> roles = new ArrayList<>();
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement("""
+        try {
+            jdbc.query("""
                     SELECT r.nombre
                     FROM usuario u
                     JOIN usuario_rol ur ON ur.usuario_id = u.id
                     JOIN rol r          ON r.id = ur.rol_id
                     WHERE u.username = ?
                     ORDER BY r.nombre
-                    """)) {
-            ps.setString(1, username);
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    roles.add(rs.getString(1));
-                }
-            }
+                    """, ps -> ps.setString(1, username), rs -> {
+                roles.add(rs.getString(1));
+            });
             return roles;
         } catch (Exception e) {
             throw new DatabaseException("no se pudieron leer los roles de '" + username + "'", e);
@@ -120,17 +116,17 @@ public class UsuarioRepository {
 
     /** Idempotent: granting a role the account already holds changes nothing. */
     public void asignarRol(String username, String rol) {
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement("""
+        try {
+            jdbc.update("""
                     INSERT INTO usuario_rol (usuario_id, rol_id)
                     SELECT u.id, r.id
                     FROM usuario u, rol r
                     WHERE u.username = ? AND r.nombre = ?
                     ON CONFLICT DO NOTHING
-                    """)) {
-            ps.setString(1, username);
-            ps.setString(2, rol);
-            ps.executeUpdate();
+                    """, ps -> {
+                ps.setString(1, username);
+                ps.setString(2, rol);
+            });
         } catch (Exception e) {
             throw new DatabaseException("no se pudo asignar el rol " + rol + " a '" + username + "'", e);
         }
@@ -142,11 +138,8 @@ public class UsuarioRepository {
      * re-creation.
      */
     public void desactivar(String username) {
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement(
-                     "UPDATE usuario SET activo = FALSE WHERE username = ?")) {
-            ps.setString(1, username);
-            int filas = ps.executeUpdate();
+        try {
+            int filas = jdbc.update("UPDATE usuario SET activo = FALSE WHERE username = ?", username);
             if (filas == 0) {
                 LOG.warn("[DB] desactivar: no existe la cuenta '{}'", username);
             }
@@ -157,24 +150,13 @@ public class UsuarioRepository {
 
     /** Reset looks accounts up by address; login never does. */
     public Optional<Cuenta> buscarActivaPorEmail(String email) {
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement("""
+        try {
+            return jdbc.query("""
                     SELECT id, username, email, password_hash, es_servicio
                     FROM usuario
                     WHERE email = ? AND activo = TRUE
-                    """)) {
-            ps.setString(1, email == null ? null : email.trim().toLowerCase());
-            try (ResultSet rs = ps.executeQuery()) {
-                if (!rs.next()) {
-                    return Optional.empty();
-                }
-                return Optional.of(new Cuenta(
-                        rs.getObject(1, UUID.class),
-                        rs.getString(2),
-                        rs.getString(3),
-                        rs.getString(4),
-                        rs.getBoolean(5)));
-            }
+                    """, ps -> ps.setString(1, email == null ? null : email.trim().toLowerCase()),
+                    UsuarioRepository::cuentaOVacia);
         } catch (Exception e) {
             throw new DatabaseException("no se pudo buscar la cuenta por email", e);
         }
@@ -182,13 +164,12 @@ public class UsuarioRepository {
 
     /** Joins the reset transaction when called inside one. The stamp is not bookkeeping. */
     public boolean cambiarPassword(UUID usuarioId, String passwordHash, java.time.Instant cuando) {
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement(
-                "UPDATE usuario SET password_hash = ?, password_changed_at = ? WHERE id = ?")) {
-            ps.setString(1, passwordHash);
-            ps.setTimestamp(2, java.sql.Timestamp.from(cuando));
-            ps.setObject(3, usuarioId);
-            return ps.executeUpdate() == 1;
+        try {
+            return jdbc.update("UPDATE usuario SET password_hash = ?, password_changed_at = ? WHERE id = ?", ps -> {
+                ps.setString(1, passwordHash);
+                ps.setTimestamp(2, java.sql.Timestamp.from(cuando));
+                ps.setObject(3, usuarioId);
+            }) == 1;
         } catch (Exception e) {
             throw new DatabaseException("no se pudo cambiar la password", e);
         }
@@ -201,17 +182,15 @@ public class UsuarioRepository {
      * eviction would be a privilege escalation nobody sees.
      */
     public Optional<Autorizacion> autorizacionDe(UUID usuarioId) {
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement("""
+        try {
+            return jdbc.query("""
                     SELECT u.username, u.password_changed_at, r.nombre
                     FROM usuario u
                     JOIN usuario_rol ur ON ur.usuario_id = u.id
                     JOIN rol r          ON r.id = ur.rol_id
                     WHERE u.id = ? AND u.activo = TRUE
                     ORDER BY r.nombre
-                    """)) {
-            ps.setObject(1, usuarioId);
-            try (ResultSet rs = ps.executeQuery()) {
+                    """, ps -> ps.setObject(1, usuarioId), rs -> {
                 String username = null;
                 java.time.Instant cambiada = null;
                 List<String> roles = new ArrayList<>();
@@ -222,10 +201,10 @@ public class UsuarioRepository {
                     roles.add(rs.getString(3));
                 }
                 if (roles.isEmpty()) {
-                    return Optional.empty();
+                    return Optional.<Autorizacion>empty();
                 }
                 return Optional.of(new Autorizacion(username, roles, cambiada));
-            }
+            });
         } catch (Exception e) {
             throw new DatabaseException("no se pudo leer la autorización del usuario", e);
         }
@@ -237,22 +216,21 @@ public class UsuarioRepository {
     public record Ficha(UUID id, String username, String email, boolean activo,
                         boolean esServicio, List<String> roles) {}
 
+
     /**
      * Disabled ones are included on purpose: an admin looking for the person they locked out last
      * week needs to find them in order to let them back in.
      */
     public List<Ficha> listar() {
         Map<UUID, Ficha> porId = new java.util.LinkedHashMap<>();
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement("""
+        try {
+            jdbc.query("""
                     SELECT u.id, u.username, u.email, u.activo, u.es_servicio, r.nombre
                     FROM usuario u
                     LEFT JOIN usuario_rol ur ON ur.usuario_id = u.id
                     LEFT JOIN rol r          ON r.id = ur.rol_id
                     ORDER BY u.username, r.nombre
-                    """);
-             ResultSet rs = ps.executeQuery()) {
-            while (rs.next()) {
+                    """, rs -> {
                 UUID id = rs.getObject(1, UUID.class);
                 Ficha previa = porId.get(id);
                 List<String> roles = previa == null ? new ArrayList<>() : new ArrayList<>(previa.roles());
@@ -262,7 +240,7 @@ public class UsuarioRepository {
                 }
                 porId.put(id, new Ficha(id, rs.getString(2), rs.getString(3),
                         rs.getBoolean(4), rs.getBoolean(5), roles));
-            }
+            });
             return List.copyOf(porId.values());
         } catch (Exception e) {
             throw new DatabaseException("no se pudieron listar las cuentas", e);
@@ -272,12 +250,10 @@ public class UsuarioRepository {
     /** The closed vocabulary, read from the table rather than hardcoded a second time. */
     public List<String> rolesValidos() {
         List<String> roles = new ArrayList<>();
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement("SELECT nombre FROM rol ORDER BY nombre");
-             ResultSet rs = ps.executeQuery()) {
-            while (rs.next()) {
+        try {
+            jdbc.query("SELECT nombre FROM rol ORDER BY nombre", rs -> {
                 roles.add(rs.getString(1));
-            }
+            });
             return roles;
         } catch (Exception e) {
             throw new DatabaseException("no se pudo leer el vocabulario de roles", e);
@@ -310,39 +286,33 @@ public class UsuarioRepository {
         if (!rolesValidos().contains(rol)) {
             throw new IllegalArgumentException("rol inválido: " + rol);
         }
-        try (Connection c = dataSource.getConnection()) {
-            try (PreparedStatement ps = c.prepareStatement("""
+        try {
+            jdbc.update("""
                     DELETE FROM usuario_rol
                      WHERE usuario_id = (SELECT id FROM usuario WHERE username = ?)
-                    """)) {
-                ps.setString(1, username);
-                ps.executeUpdate();
-            }
-            try (PreparedStatement ps = c.prepareStatement("""
+                    """, username);
+            return jdbc.update("""
                     INSERT INTO usuario_rol (usuario_id, rol_id)
                     SELECT u.id, r.id FROM usuario u, rol r
                     WHERE u.username = ? AND r.nombre = ?
-                    """)) {
+                    """, ps -> {
                 ps.setString(1, username);
                 ps.setString(2, rol);
-                return ps.executeUpdate() == 1;
-            }
+            }) == 1;
         } catch (Exception e) {
             throw new DatabaseException("no se pudo reemplazar el rol de '" + username + "'", e);
         }
     }
 
     public int adminsActivos() {
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement("""
+        try {
+            return jdbc.query("""
                     SELECT count(DISTINCT u.id)
                     FROM usuario u
                     JOIN usuario_rol ur ON ur.usuario_id = u.id
                     JOIN rol r          ON r.id = ur.rol_id
                     WHERE u.activo = TRUE AND r.nombre = 'ADMIN'
-                    """);
-             ResultSet rs = ps.executeQuery()) {
-            return rs.next() ? rs.getInt(1) : 0;
+                    """, rs -> rs.next() ? rs.getInt(1) : 0);
         } catch (Exception e) {
             throw new DatabaseException("no se pudieron contar los administradores activos", e);
         }
@@ -354,23 +324,17 @@ public class UsuarioRepository {
     }
 
     public boolean reactivar(String username) {
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement(
-                     "UPDATE usuario SET activo = TRUE WHERE username = ?")) {
-            ps.setString(1, username);
-            return ps.executeUpdate() == 1;
+        try {
+            return jdbc.update("UPDATE usuario SET activo = TRUE WHERE username = ?", username) == 1;
         } catch (Exception e) {
             throw new DatabaseException("no se pudo reactivar la cuenta '" + username + "'", e);
         }
     }
 
     public boolean existe(String username) {
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement("SELECT 1 FROM usuario WHERE username = ?")) {
-            ps.setString(1, username);
-            try (ResultSet rs = ps.executeQuery()) {
-                return rs.next();
-            }
+        try {
+            return jdbc.query("SELECT 1 FROM usuario WHERE username = ?",
+                    ps -> ps.setString(1, username), ResultSet::next);
         } catch (Exception e) {
             throw new DatabaseException("no se pudo verificar la cuenta '" + username + "'", e);
         }
@@ -393,52 +357,48 @@ public class UsuarioRepository {
 
     private UUID sembrarCuenta(String username, String email, String passwordHash,
                                boolean esServicio, String rol) {
-        try (Connection c = dataSource.getConnection()) {
-            try (PreparedStatement ps = c.prepareStatement("""
+        try {
+            jdbc.update("""
                     INSERT INTO usuario (username, email, password_hash, es_servicio)
                     VALUES (?, ?, ?, ?)
                     ON CONFLICT (username) DO NOTHING
-                    """)) {
+                    """, ps -> {
                 ps.setString(1, username);
                 ps.setString(2, email);
                 ps.setString(3, passwordHash);
                 ps.setBoolean(4, esServicio);
-                ps.executeUpdate();
-            } catch (Exception e) {
-                throw new DatabaseException("no se pudo sembrar la cuenta '" + username + "'", e);
-            }
+            });
+        } catch (Exception e) {
+            throw new DatabaseException("no se pudo sembrar la cuenta '" + username + "'", e);
+        }
 
-            try (PreparedStatement ps = c.prepareStatement("""
+        try {
+            jdbc.update("""
                     INSERT INTO usuario_rol (usuario_id, rol_id)
                     SELECT u.id, r.id
                     FROM usuario u, rol r
                     WHERE u.username = ? AND r.nombre = ?
                     ON CONFLICT DO NOTHING
-                    """)) {
+                    """, ps -> {
                 ps.setString(1, username);
                 ps.setString(2, rol);
-                ps.executeUpdate();
-            } catch (Exception e) {
-                throw new DatabaseException("no se pudo asignar el rol " + rol + " a '" + username + "'", e);
-            }
-
-            try (PreparedStatement ps = c.prepareStatement("SELECT id FROM usuario WHERE username = ?")) {
-                ps.setString(1, username);
-                try (ResultSet rs = ps.executeQuery()) {
-                    if (!rs.next()) {
-                        throw new DatabaseException(
-                                "la cuenta '" + username + "' no existe después de sembrarla", null);
-                    }
-                    return rs.getObject(1, UUID.class);
-                }
-            } catch (DatabaseException e) {
-                throw e;
-            } catch (Exception e) {
-                throw new DatabaseException("no se pudo leer el id de '" + username + "'", e);
-            }
-        } catch (java.sql.SQLException e) {
-            throw new DatabaseException("no se pudo sembrar la cuenta '" + username + "'", e);
+            });
+        } catch (Exception e) {
+            throw new DatabaseException("no se pudo asignar el rol " + rol + " a '" + username + "'", e);
         }
+
+        UUID id;
+        try {
+            id = jdbc.query("SELECT id FROM usuario WHERE username = ?",
+                    ps -> ps.setString(1, username),
+                    rs -> rs.next() ? rs.getObject(1, UUID.class) : null);
+        } catch (Exception e) {
+            throw new DatabaseException("no se pudo leer el id de '" + username + "'", e);
+        }
+        if (id == null) {
+            throw new DatabaseException("la cuenta '" + username + "' no existe después de sembrarla", null);
+        }
+        return id;
     }
 
     /**
@@ -448,18 +408,13 @@ public class UsuarioRepository {
      */
     private int adoptarFilasSinDueno(UUID duenoId) {
         int adoptadas = 0;
-        try (Connection c = dataSource.getConnection()) {
-            for (String tabla : TABLAS_CON_DUENO) {
-                try (PreparedStatement ps = c.prepareStatement(
-                        "UPDATE " + tabla + " SET usuario_id = ? WHERE usuario_id IS NULL")) {
-                    ps.setObject(1, duenoId);
-                    adoptadas += ps.executeUpdate();
-                } catch (Exception e) {
-                    throw new DatabaseException("no se pudieron adoptar las filas de " + tabla, e);
-                }
+        for (String tabla : TABLAS_CON_DUENO) {
+            try {
+                adoptadas += jdbc.update("UPDATE " + tabla + " SET usuario_id = ? WHERE usuario_id IS NULL",
+                        ps -> ps.setObject(1, duenoId));
+            } catch (Exception e) {
+                throw new DatabaseException("no se pudieron adoptar las filas de " + tabla, e);
             }
-        } catch (java.sql.SQLException e) {
-            throw new DatabaseException("no se pudieron adoptar las filas sin dueño", e);
         }
         return adoptadas;
     }
