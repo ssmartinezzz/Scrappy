@@ -3,6 +3,7 @@ package ar.scraper.model;
 import java.util.List;
 import lombok.Builder;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.Validate;
 
 @Builder(toBuilder = true)
 public record Product(
@@ -30,6 +31,11 @@ public record Product(
                                // value is preserved (RELY-001; never wipe to "" on a run/backfill
                                // that didn't gate this product into image classification)
 ) implements Comparable<Product> {
+
+    public Product {
+        Validate.notBlank(sitio, "sitio must not be blank");
+        Validate.notBlank(nombre, "nombre must not be blank");
+    }
 
     public static ProductBuilder builder() {
         return new ProductBuilder()

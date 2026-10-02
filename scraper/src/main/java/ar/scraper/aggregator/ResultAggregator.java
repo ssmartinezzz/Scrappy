@@ -87,8 +87,7 @@ public class ResultAggregator {
     }
 
     private static boolean isValid(Product p) {
-        return StringUtils.isNotBlank(p.nombre())
-                && p.precio() > 0
+        return p.precio() > 0
                 && StringUtils.isNotBlank(p.url());
     }
 
