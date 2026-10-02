@@ -9,21 +9,18 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import lombok.RequiredArgsConstructor;
 
 /**
  * Criterio de identidad: categoría + marca + modelo normalizado (sin color, talle, género ni
  * descriptores variables).
  */
 @Component
+@RequiredArgsConstructor
 public class GroupingService {
 
     private final ProductIdentity productIdentity;
     private final JaccardSimilarity jaccardSimilarity;
-
-    public GroupingService(ProductIdentity productIdentity, JaccardSimilarity jaccardSimilarity) {
-        this.productIdentity = productIdentity;
-        this.jaccardSimilarity = jaccardSimilarity;
-    }
 
     public List<ProductGroup> agrupar(List<Product> productos, boolean soloMultiSitio) {
         Map<String, List<Product>> preGrupos = new LinkedHashMap<>();
