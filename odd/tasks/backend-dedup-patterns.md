@@ -189,8 +189,25 @@ boilerplate comments.
       Decided 2026-10-02: V42 CHECK (`nombre ~ '\S'`, `sitio ~ '\S'`) closes it, then the validation commit.
 
 ### Phase D — remaining clones (only after A–C, re-measured)
-- [ ] D1 `pages/`: Template Method in `BasePage` for Shopify↔Tiendanube, OsCommerce/Qloud/FullH4rd,
-      `VtexPage` internal clones.
+- [x] D0 Re-measured on master 92fac5d, branch `refactor/backend-dedup-clones`. CPD 50t: 62 clones / 649 lines.
+      By first file: pages 23, pcs 13, ml 8, web 6, db 5, outfits 4, aggregator/fuentes/scrapers 1 each.
+      Largest: VtexPage 356↔435 (37 lines, 283t), PcBuilder 244↔276 (14, 166t), Shopify↔Tiendanube 76↔191 (13, 143t),
+      Cpu↔MotherboardSpecsReader (15, 139t). Not in the original plan: `PcBuilder` internal (3 clones) and
+      `pcs/TechSpecs` internal (7 clones). Page parsers with no mapping test: VtexPage JSON→Product, ShopifyPage;
+      D1 adds characterization tests (green on the CURRENT code, own commit) before touching them.
+- [x] D1 `pages/` (1cf74b3 tests, 109a453 vtex, 854f513 vtex/shopify/tiendanube, f9e3b6e osCommerce family).
+      28 characterization tests (Vtex 12, Shopify 7, Tiendanube 9) green on the unchanged code first; negative
+      controls (drop `?` strip, drop legacy `name` fallback, drop IO `categoryTree` fallback) each went red, reverted.
+      New package-private `StorePage` (between `BasePage` and 9 store pages) and `CatalogJson`; `ImageUrl.primera`;
+      `BasePage` untouched. Zero existing test files touched (verified `git diff --name-status`: 3 A only).
+      Suite 3319/0/0/7 (parent re-run, clean). CPD 50t 62/649 → 46/395 (pages 23 → 7); 80t 13/204 → 3/42.
+      pages/ src/main +287/−546. 7 page clones left: public ctors, Shopify↔Tiendanube variant/talle loops reading
+      different JSON fields, FullH4rd↔Qloud parseListing preamble, Tiendanube↔Vtex gender sources.
+      Finding: gender matcher was substring-based. Fixed f90babe (user request 2026-10-02: male words strict):
+      `CatalogJson.tienePalabra` whole-word match for male words in `genero` and Vtex `mapearGenero`; plurals
+      caballeros/masculinos/masculinas added. RED 6/10 (`femenina`/`manga`/`women`/`female` → unisex,
+      `manga corta` → hombre, Vtex `Femenino` → hombre), GREEN 3329/0/0/7. Female/unisex words stay substring.
+      Pending: live scrape smoke (B6-style, master vs HEAD) before the PR.
 - [ ] D2 `ml/PythonRunner`: one parameterized script-launch method (6 internal clones).
 - [ ] D3 `pcs/specs`: move shared extraction into `Tokens`.
 - [ ] D4 `web/` Outfits/Pcs/Suplementos controllers: shared helper.
@@ -218,3 +235,7 @@ boilerplate comments.
 - 2026-10-02: user approved the fixture swap (blank nombre → blank url in ResultAggregatorMetricsTest, assertions unchanged, declared CODE-2 edit), deleting the dead nombre check in `isValid`, and updating CLAUDE.md:41 to V1..V42 (explicit request). Writer resumed for commits 6 and 7.
 - 2026-10-02: Phase C code done, 6 commits 470d72b..62d3779 (unpushed), +3875/-826 (C2 alone +3207/-632, mechanical). Isolated run: `V35RollbackRoundTripTest` + `MarcaFkAbstentionTest` red alone with FK `sitio_key=(sitio)` — SAME on master (pre-existing order dependency, not this branch). Next: push + PR (ask first), CPD re-count.
 - 2026-10-02: fd3e43f copy sites use `toBuilder()` (7 sites, null-coalescing kept; VaypolPage:146 kept as a fresh build since its legacy ctor reset fields to defaults). Suite 3291/0/0/7. CPD master→HEAD: 50t 76/735 → 62/649; 80t 12/170 → 13/204 — two new page clones are one-setter-per-line builder chains (Shopify:92↔Tiendanube:211, Vtex:398↔471), left for D1. Next: push + PR, merge if CI + Sonar pass (user-authorized).
+- 2026-10-02: PR #283 merged, master 92fac5d (tree == d692bd5), branch deleted. Sonar first flagged plsql:S125 on the V42 header (prose quoting NOT NULL read as code) → d692bd5 reworded it (V42 not applied to any persistent DB); re-run: gate OK, 0 new issues. Next: Phase D — re-measure CPD first.
+- 2026-10-02: Phase D started, D0 re-measure done (62/649). Next: D1 (writer delegated).
+- 2026-10-02: D1 done (4 commits 1cf74b3..f9e3b6e, unpushed), 3319/0/0/7, CPD 46/395. Next: live smoke for D1, then D2.
+- 2026-10-02: f90babe gender fix (male words whole-word), 3329/0/0/7. Next: live smoke for D1, then D2.
