@@ -42,12 +42,27 @@ class V40CatalogVersionTest extends PostgresTestBase {
     void updateSubeLaVersion() throws Exception {
         upsert(producto("https://v40.test/2", "Remera", "Sitio40"));
         long antes = leerVersion();
-        upsert(new Product("Sitio40", "Remera", 9999, null, "https://v40.test/2",
-                "http://img.example/x.jpg", "Remera", "hombre", List.of("M"),
-                new Product.MlScore(70, List.of(), false, "estable", 50, 0.0, "standard"),
-                "Nike", "indumentaria", false, false,
-                Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY, 1, "Basicas",
-                new Product.VisualAttrs("regular", "", "", "")));
+        upsert(Product.builder()
+                .sitio("Sitio40")
+                .nombre("Remera")
+                .precio(9999)
+                .precioOriginal(null)
+                .url("https://v40.test/2")
+                .imagenUrl("http://img.example/x.jpg")
+                .categoria("Remera")
+                .genero("hombre")
+                .talles(List.of("M"))
+                .ml(new Product.MlScore(70, List.of(), false, "estable", 50, 0.0, "standard"))
+                .marca("Nike")
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(Product.SenalFinanciacion.EMPTY)
+                .cantidadUnidades(1)
+                .subCategoria("Basicas")
+                .visual(new Product.VisualAttrs("regular", "", "", ""))
+                .build());
         assertThat(leerVersion()).isGreaterThan(antes);
     }
 
@@ -176,17 +191,51 @@ class V40CatalogVersionTest extends PostgresTestBase {
 
     private Product producto(String url, String nombre, String sitio) {
         Product.MlScore ml = new Product.MlScore(70, List.of(), false, "estable", 50, 0.0, "standard");
-        return new Product(sitio, nombre, 1000, null, url, "http://img.example/x.jpg",
-                nombre, "hombre", List.of("M"), ml, "Nike", "indumentaria", false, false,
-                Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY, 1, "Basicas",
-                new Product.VisualAttrs("regular", "", "", ""));
+        return Product.builder()
+                .sitio(sitio)
+                .nombre(nombre)
+                .precio(1000)
+                .precioOriginal(null)
+                .url(url)
+                .imagenUrl("http://img.example/x.jpg")
+                .categoria(nombre)
+                .genero("hombre")
+                .talles(List.of("M"))
+                .ml(ml)
+                .marca("Nike")
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(Product.SenalFinanciacion.EMPTY)
+                .cantidadUnidades(1)
+                .subCategoria("Basicas")
+                .visual(new Product.VisualAttrs("regular", "", "", ""))
+                .build();
     }
 
     private Product productoConTallesYBadges(String url, String nombre, String sitio) {
         Product.MlScore ml = new Product.MlScore(70, List.of("trending"), false, "estable", 50, 0.0, "standard");
-        return new Product(sitio, nombre, 1000, null, url, "http://img.example/x.jpg",
-                nombre, "hombre", List.of("M", "L"), ml, "Nike", "indumentaria", false, false,
-                Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY, 1, "Basicas",
-                new Product.VisualAttrs("regular", "", "", ""));
+        return Product.builder()
+                .sitio(sitio)
+                .nombre(nombre)
+                .precio(1000)
+                .precioOriginal(null)
+                .url(url)
+                .imagenUrl("http://img.example/x.jpg")
+                .categoria(nombre)
+                .genero("hombre")
+                .talles(List.of("M", "L"))
+                .ml(ml)
+                .marca("Nike")
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(Product.SenalFinanciacion.EMPTY)
+                .cantidadUnidades(1)
+                .subCategoria("Basicas")
+                .visual(new Product.VisualAttrs("regular", "", "", ""))
+                .build();
     }
 }

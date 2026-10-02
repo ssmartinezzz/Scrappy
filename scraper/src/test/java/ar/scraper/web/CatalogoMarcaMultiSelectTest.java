@@ -83,9 +83,24 @@ class CatalogoMarcaMultiSelectTest extends ar.scraper.db.support.PostgresTestBas
     }
 
     private Product producto(String url, String marca) {
-        return new Product("Sitio", "Producto " + url, 10000.0, null, url, "img",
-                "Remera", "unisex", List.of(), Product.MlScore.EMPTY, marca, "indumentaria",
-                false, false, Product.SenalCompra.EMPTY, SenalFinanciacion.EMPTY);
+        return Product.builder()
+                .sitio("Sitio")
+                .nombre("Producto " + url)
+                .precio(10000.0)
+                .precioOriginal(null)
+                .url(url)
+                .imagenUrl("img")
+                .categoria("Remera")
+                .genero("unisex")
+                .talles(List.of())
+                .ml(Product.MlScore.EMPTY)
+                .marca(marca)
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(SenalFinanciacion.EMPTY)
+                .build();
     }
 
     private AggregatedResult resultFor(Product... productos) {

@@ -61,9 +61,24 @@ class MarcasPicksInfantilVetoTest {
     }
 
     private Product producto(String url, String genero) {
-        return new Product("Sitio", "Producto " + url, 10000, null, url, "img",
-                "Zapatilla", genero, List.of(), MlScore.EMPTY, "Marca", "indumentaria",
-                false, false, Product.SenalCompra.EMPTY, SenalFinanciacion.EMPTY);
+        return Product.builder()
+                .sitio("Sitio")
+                .nombre("Producto " + url)
+                .precio(10000)
+                .precioOriginal(null)
+                .url(url)
+                .imagenUrl("img")
+                .categoria("Zapatilla")
+                .genero(genero)
+                .talles(List.of())
+                .ml(MlScore.EMPTY)
+                .marca("Marca")
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(SenalFinanciacion.EMPTY)
+                .build();
     }
 
     private AggregatedResult resultFor(Product... productos) {

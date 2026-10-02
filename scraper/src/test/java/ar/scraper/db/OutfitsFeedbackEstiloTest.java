@@ -49,8 +49,21 @@ class OutfitsFeedbackEstiloTest extends PostgresTestBase {
     private ScraperService service;
 
     private Product buzo(String url, String marca, boolean gymrat) {
-        return new Product("TestSitio", "Buzo " + url, 10_000, null, url, "img",
-                "Buzo", "hombre", List.of(), Product.MlScore.EMPTY, marca, "indumentaria", gymrat);
+        return Product.builder()
+                .sitio("TestSitio")
+                .nombre("Buzo " + url)
+                .precio(10_000)
+                .precioOriginal(null)
+                .url(url)
+                .imagenUrl("img")
+                .categoria("Buzo")
+                .genero("hombre")
+                .talles(List.of())
+                .ml(Product.MlScore.EMPTY)
+                .marca(marca)
+                .rubro("indumentaria")
+                .gymrat(gymrat)
+                .build();
     }
 
     @AfterEach

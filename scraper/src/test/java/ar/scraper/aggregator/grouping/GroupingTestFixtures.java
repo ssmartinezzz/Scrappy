@@ -17,7 +17,18 @@ final class GroupingTestFixtures {
     private GroupingTestFixtures() {}
 
     static Product product(String sitio, String nombre, String marca, String categoria, double precio) {
-        return new Product(sitio, nombre, precio, null, "https://example.com/" + nombre, "",
-                categoria, "", List.of(), Product.MlScore.EMPTY, marca);
+        return Product.builder()
+                .sitio(sitio)
+                .nombre(nombre)
+                .precio(precio)
+                .precioOriginal(null)
+                .url("https://example.com/" + nombre)
+                .imagenUrl("")
+                .categoria(categoria)
+                .genero("")
+                .talles(List.of())
+                .ml(Product.MlScore.EMPTY)
+                .marca(marca)
+                .build();
     }
 }

@@ -110,9 +110,18 @@ class SupplementComboProteinaPrioridadTest {
     }
 
     private Product suplemento(String nombre, double precio, String marca, String categoria) {
-        return new Product("Sitio", nombre, precio, null,
-                "https://test.com/" + nombre.replace(" ", "-"),
-                "img.jpg", categoria, "", List.of(),
-                new Product.MlScore(50, "", false, "estable", 50), marca);
+        return Product.builder()
+                .sitio("Sitio")
+                .nombre(nombre)
+                .precio(precio)
+                .precioOriginal(null)
+                .url("https://test.com/" + nombre.replace(" ", "-"))
+                .imagenUrl("img.jpg")
+                .categoria(categoria)
+                .genero("")
+                .talles(List.of())
+                .ml(new Product.MlScore(50, "", false, "estable", 50))
+                .marca(marca)
+                .build();
     }
 }

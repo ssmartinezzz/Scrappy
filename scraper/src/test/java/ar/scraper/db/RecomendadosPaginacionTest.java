@@ -66,10 +66,26 @@ class RecomendadosPaginacionTest extends PostgresTestBase {
     private RecomendadosController controller;
 
     private Product producto(String url) {
-        return new Product("Sitio", "Producto " + url, 1000, null, url, "img",
-                "Medias", "hombre", List.of(), MlScore.EMPTY, "Marca", "indumentaria",
-                false, false, Product.SenalCompra.EMPTY, SenalFinanciacion.EMPTY,
-                1, "");
+        return Product.builder()
+                .sitio("Sitio")
+                .nombre("Producto " + url)
+                .precio(1000)
+                .precioOriginal(null)
+                .url(url)
+                .imagenUrl("img")
+                .categoria("Medias")
+                .genero("hombre")
+                .talles(List.of())
+                .ml(MlScore.EMPTY)
+                .marca("Marca")
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(SenalFinanciacion.EMPTY)
+                .cantidadUnidades(1)
+                .subCategoria("")
+                .build();
     }
 
     /** Thirty products: enough that page 1 of 24 is full and page 2 is partial. */

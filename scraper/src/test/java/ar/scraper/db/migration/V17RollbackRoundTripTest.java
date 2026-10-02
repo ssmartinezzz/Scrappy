@@ -52,10 +52,25 @@ class V17RollbackRoundTripTest extends PostgresTestBase {
     @DisplayName("Rolling back returns precio_orig to TEXT with a canonical numeric string")
     void rollbackReturnsPrecioOrigToText() throws Exception {
         String url = "https://site.com/v17-rollback";
-        db.upsertProductos(List.of(new Product("Sitio", "Producto", 1000.0, 45000.0, url,
-                "http://img.example/x.jpg", "Remera", "unisex", List.of(), Product.MlScore.EMPTY, "Nike",
-                "indumentaria", false, false, Product.SenalCompra.EMPTY,
-                Product.SenalFinanciacion.EMPTY, 1)));
+        db.upsertProductos(List.of(Product.builder()
+                .sitio("Sitio")
+                .nombre("Producto")
+                .precio(1000.0)
+                .precioOriginal(45000.0)
+                .url(url)
+                .imagenUrl("http://img.example/x.jpg")
+                .categoria("Remera")
+                .genero("unisex")
+                .talles(List.of())
+                .ml(Product.MlScore.EMPTY)
+                .marca("Nike")
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(Product.SenalFinanciacion.EMPTY)
+                .cantidadUnidades(1)
+                .build()));
 
         try (Connection c = dataSource().getConnection()) {
             c.setAutoCommit(false);
@@ -79,10 +94,25 @@ class V17RollbackRoundTripTest extends PostgresTestBase {
     @DisplayName("Un producto sin precio original vuelve a NULL, no a un string vacío")
     void rollbackKeepsNullAsNull() throws Exception {
         String url = "https://site.com/v17-rollback-null";
-        db.upsertProductos(List.of(new Product("Sitio", "Producto", 1000.0, null, url,
-                "http://img.example/x.jpg", "Remera", "unisex", List.of(), Product.MlScore.EMPTY, "Nike",
-                "indumentaria", false, false, Product.SenalCompra.EMPTY,
-                Product.SenalFinanciacion.EMPTY, 1)));
+        db.upsertProductos(List.of(Product.builder()
+                .sitio("Sitio")
+                .nombre("Producto")
+                .precio(1000.0)
+                .precioOriginal(null)
+                .url(url)
+                .imagenUrl("http://img.example/x.jpg")
+                .categoria("Remera")
+                .genero("unisex")
+                .talles(List.of())
+                .ml(Product.MlScore.EMPTY)
+                .marca("Nike")
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(Product.SenalFinanciacion.EMPTY)
+                .cantidadUnidades(1)
+                .build()));
 
         try (Connection c = dataSource().getConnection()) {
             c.setAutoCommit(false);

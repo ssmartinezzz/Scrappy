@@ -28,10 +28,25 @@ class ProductTest {
 
     @Test
     void canonicalConstructorSetsCantidadUnidades() {
-        Product p = new Product("Sitio", "Pack x3 Remeras", 15000, null,
-                "http://x", "http://img", "Remera", "hombre", TALLES,
-                MlScore.EMPTY, "Nike", "indumentaria", false, false,
-                SenalCompra.EMPTY, SenalFinanciacion.EMPTY, 3);
+        Product p = Product.builder()
+                .sitio("Sitio")
+                .nombre("Pack x3 Remeras")
+                .precio(15000)
+                .precioOriginal(null)
+                .url("http://x")
+                .imagenUrl("http://img")
+                .categoria("Remera")
+                .genero("hombre")
+                .talles(TALLES)
+                .ml(MlScore.EMPTY)
+                .marca("Nike")
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(SenalCompra.EMPTY)
+                .finan(SenalFinanciacion.EMPTY)
+                .cantidadUnidades(3)
+                .build();
 
         assertThat(p.cantidadUnidades()).isEqualTo(3);
         assertThat(p.esPack()).isTrue();
@@ -39,10 +54,25 @@ class ProductTest {
 
     @Test
     void canonicalConstructorWithQuantityOneIsNotPack() {
-        Product p = new Product("Sitio", "Remera básica", 5000, null,
-                "http://x", "http://img", "Remera", "hombre", TALLES,
-                MlScore.EMPTY, "Nike", "indumentaria", false, false,
-                SenalCompra.EMPTY, SenalFinanciacion.EMPTY, 1);
+        Product p = Product.builder()
+                .sitio("Sitio")
+                .nombre("Remera básica")
+                .precio(5000)
+                .precioOriginal(null)
+                .url("http://x")
+                .imagenUrl("http://img")
+                .categoria("Remera")
+                .genero("hombre")
+                .talles(TALLES)
+                .ml(MlScore.EMPTY)
+                .marca("Nike")
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(SenalCompra.EMPTY)
+                .finan(SenalFinanciacion.EMPTY)
+                .cantidadUnidades(1)
+                .build();
 
         assertThat(p.cantidadUnidades()).isEqualTo(1);
         assertThat(p.esPack()).isFalse();
@@ -50,8 +80,17 @@ class ProductTest {
 
     @Test
     void legacyNineArgConstructorDefaultsToOne() {
-        Product p = new Product("Sitio", "Remera", 5000, null,
-                "http://x", "http://img", "Remera", "hombre", TALLES);
+        Product p = Product.builder()
+                .sitio("Sitio")
+                .nombre("Remera")
+                .precio(5000)
+                .precioOriginal(null)
+                .url("http://x")
+                .imagenUrl("http://img")
+                .categoria("Remera")
+                .genero("hombre")
+                .talles(TALLES)
+                .build();
 
         assertThat(p.cantidadUnidades()).isEqualTo(1);
         assertThat(p.esPack()).isFalse();
@@ -59,34 +98,81 @@ class ProductTest {
 
     @Test
     void legacyTenArgConstructorWithMlScoreDefaultsToOne() {
-        Product p = new Product("Sitio", "Remera", 5000, null,
-                "http://x", "http://img", "Remera", "hombre", TALLES, MlScore.EMPTY);
+        Product p = Product.builder()
+                .sitio("Sitio")
+                .nombre("Remera")
+                .precio(5000)
+                .precioOriginal(null)
+                .url("http://x")
+                .imagenUrl("http://img")
+                .categoria("Remera")
+                .genero("hombre")
+                .talles(TALLES)
+                .ml(MlScore.EMPTY)
+                .build();
 
         assertThat(p.cantidadUnidades()).isEqualTo(1);
     }
 
     @Test
     void legacyElevenArgConstructorWithMarcaDefaultsToOne() {
-        Product p = new Product("Sitio", "Remera", 5000, null,
-                "http://x", "http://img", "Remera", "hombre", TALLES, MlScore.EMPTY, "Nike");
+        Product p = Product.builder()
+                .sitio("Sitio")
+                .nombre("Remera")
+                .precio(5000)
+                .precioOriginal(null)
+                .url("http://x")
+                .imagenUrl("http://img")
+                .categoria("Remera")
+                .genero("hombre")
+                .talles(TALLES)
+                .ml(MlScore.EMPTY)
+                .marca("Nike")
+                .build();
 
         assertThat(p.cantidadUnidades()).isEqualTo(1);
     }
 
     @Test
     void legacyThirteenArgConstructorWithRubroGymratDefaultsToOne() {
-        Product p = new Product("Sitio", "Remera", 5000, null,
-                "http://x", "http://img", "Remera", "hombre", TALLES, MlScore.EMPTY,
-                "Nike", "indumentaria", true);
+        Product p = Product.builder()
+                .sitio("Sitio")
+                .nombre("Remera")
+                .precio(5000)
+                .precioOriginal(null)
+                .url("http://x")
+                .imagenUrl("http://img")
+                .categoria("Remera")
+                .genero("hombre")
+                .talles(TALLES)
+                .ml(MlScore.EMPTY)
+                .marca("Nike")
+                .rubro("indumentaria")
+                .gymrat(true)
+                .build();
 
         assertThat(p.cantidadUnidades()).isEqualTo(1);
     }
 
     @Test
     void legacyFifteenArgConstructorWithSenalDefaultsToOne() {
-        Product p = new Product("Sitio", "Remera", 5000, null,
-                "http://x", "http://img", "Remera", "hombre", TALLES, MlScore.EMPTY,
-                "Nike", "indumentaria", true, false, SenalCompra.EMPTY);
+        Product p = Product.builder()
+                .sitio("Sitio")
+                .nombre("Remera")
+                .precio(5000)
+                .precioOriginal(null)
+                .url("http://x")
+                .imagenUrl("http://img")
+                .categoria("Remera")
+                .genero("hombre")
+                .talles(TALLES)
+                .ml(MlScore.EMPTY)
+                .marca("Nike")
+                .rubro("indumentaria")
+                .gymrat(true)
+                .marcaPremium(false)
+                .senal(SenalCompra.EMPTY)
+                .build();
 
         assertThat(p.cantidadUnidades()).isEqualTo(1);
         assertThat(p.esPack()).isFalse();
@@ -94,14 +180,44 @@ class ProductTest {
 
     @Test
     void esPackIsTrueOnlyWhenCantidadUnidadesGreaterThanOne() {
-        Product pack = new Product("Sitio", "Combo x2", 20000, null,
-                "http://x", "http://img", "Conjunto", "hombre", TALLES,
-                MlScore.EMPTY, "Nike", "indumentaria", false, false,
-                SenalCompra.EMPTY, SenalFinanciacion.EMPTY, 2);
-        Product single = new Product("Sitio", "Remera", 5000, null,
-                "http://x", "http://img", "Remera", "hombre", TALLES,
-                MlScore.EMPTY, "Nike", "indumentaria", false, false,
-                SenalCompra.EMPTY, SenalFinanciacion.EMPTY, 1);
+        Product pack = Product.builder()
+                .sitio("Sitio")
+                .nombre("Combo x2")
+                .precio(20000)
+                .precioOriginal(null)
+                .url("http://x")
+                .imagenUrl("http://img")
+                .categoria("Conjunto")
+                .genero("hombre")
+                .talles(TALLES)
+                .ml(MlScore.EMPTY)
+                .marca("Nike")
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(SenalCompra.EMPTY)
+                .finan(SenalFinanciacion.EMPTY)
+                .cantidadUnidades(2)
+                .build();
+        Product single = Product.builder()
+                .sitio("Sitio")
+                .nombre("Remera")
+                .precio(5000)
+                .precioOriginal(null)
+                .url("http://x")
+                .imagenUrl("http://img")
+                .categoria("Remera")
+                .genero("hombre")
+                .talles(TALLES)
+                .ml(MlScore.EMPTY)
+                .marca("Nike")
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(SenalCompra.EMPTY)
+                .finan(SenalFinanciacion.EMPTY)
+                .cantidadUnidades(1)
+                .build();
 
         assertThat(pack.esPack()).isTrue();
         assertThat(single.esPack()).isFalse();
@@ -114,8 +230,17 @@ class ProductTest {
     @Test
     @DisplayName("tieneDescuento() es true cuando precioOriginal parseó a un Double")
     void tieneDescuentoEsTrueConPrecioOriginalNoNulo() {
-        Product p = new Product("Sitio", "Remera", 5000, 8000.0,
-                "http://x", "http://img", "Remera", "hombre", TALLES);
+        Product p = Product.builder()
+                .sitio("Sitio")
+                .nombre("Remera")
+                .precio(5000)
+                .precioOriginal(8000.0)
+                .url("http://x")
+                .imagenUrl("http://img")
+                .categoria("Remera")
+                .genero("hombre")
+                .talles(TALLES)
+                .build();
 
         assertThat(p.tieneDescuento()).isTrue();
         assertThat(p.precioOriginal()).isEqualTo(8000.0);
@@ -124,8 +249,17 @@ class ProductTest {
     @Test
     @DisplayName("tieneDescuento() es false cuando precioOriginal es null (no parseó / no había)")
     void tieneDescuentoEsFalseConPrecioOriginalNulo() {
-        Product p = new Product("Sitio", "Remera", 5000, null,
-                "http://x", "http://img", "Remera", "hombre", TALLES);
+        Product p = Product.builder()
+                .sitio("Sitio")
+                .nombre("Remera")
+                .precio(5000)
+                .precioOriginal(null)
+                .url("http://x")
+                .imagenUrl("http://img")
+                .categoria("Remera")
+                .genero("hombre")
+                .talles(TALLES)
+                .build();
 
         assertThat(p.tieneDescuento()).isFalse();
         assertThat(p.precioOriginal()).isNull();

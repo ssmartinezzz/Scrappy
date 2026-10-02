@@ -97,9 +97,27 @@ class ScraperServiceCatalogoEnteroTest extends PostgresTestBase {
     }
 
     private static Product producto(String sitio, String url) {
-        return new Product(sitio, "n-" + url, 1000, null, url, "", "Otros", "", List.of(),
-                Product.MlScore.EMPTY, "", "indumentaria", false, false, null, null, 1, "",
-                Product.VisualAttrs.EMPTY);
+        return Product.builder()
+                .sitio(sitio)
+                .nombre("n-" + url)
+                .precio(1000)
+                .precioOriginal(null)
+                .url(url)
+                .imagenUrl("")
+                .categoria("Otros")
+                .genero("")
+                .talles(List.of())
+                .ml(Product.MlScore.EMPTY)
+                .marca("")
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(null)
+                .finan(null)
+                .cantidadUnidades(1)
+                .subCategoria("")
+                .visual(Product.VisualAttrs.EMPTY)
+                .build();
     }
 
 }

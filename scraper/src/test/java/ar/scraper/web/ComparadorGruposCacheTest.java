@@ -31,9 +31,27 @@ class ComparadorGruposCacheTest {
         service = mock(ScraperService.class);
         derivados = mock(CatalogoDerivadoCache.class);
         endpoints = new ComparadorController(service, mock(PreciosExternosPort.class), derivados);
-        Product p = new Product("Sitio", "Remera", 1000, null, "https://s/1", "img", "Remera", "unisex",
-                List.of("M"), Product.MlScore.EMPTY, "Nike", "indumentaria", false, false,
-                Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY, 1, "", Product.VisualAttrs.EMPTY);
+        Product p = Product.builder()
+                .sitio("Sitio")
+                .nombre("Remera")
+                .precio(1000)
+                .precioOriginal(null)
+                .url("https://s/1")
+                .imagenUrl("img")
+                .categoria("Remera")
+                .genero("unisex")
+                .talles(List.of("M"))
+                .ml(Product.MlScore.EMPTY)
+                .marca("Nike")
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(Product.SenalFinanciacion.EMPTY)
+                .cantidadUnidades(1)
+                .subCategoria("")
+                .visual(Product.VisualAttrs.EMPTY)
+                .build();
         when(service.getLastResult()).thenReturn(new AggregatedResult(List.of(p), Map.of(), Map.of(),
                 ResultAggregator.calcularFacets(List.of(p)), 0, 0));
     }

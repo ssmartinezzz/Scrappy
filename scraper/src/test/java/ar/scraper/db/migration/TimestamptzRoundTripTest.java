@@ -134,11 +134,25 @@ class TimestamptzRoundTripTest extends PostgresTestBase {
     }
 
     private ar.scraper.model.Product producto(String url) {
-        return new ar.scraper.model.Product("Sitio", "Producto", 1000.0, null, url,
-                "http://img.example/x.jpg", "Remera", "unisex", List.of("M"),
-                ar.scraper.model.Product.MlScore.EMPTY, "Nike", "indumentaria", false, false,
-                ar.scraper.model.Product.SenalCompra.EMPTY,
-                ar.scraper.model.Product.SenalFinanciacion.EMPTY, 1);
+        return ar.scraper.model.Product.builder()
+                .sitio("Sitio")
+                .nombre("Producto")
+                .precio(1000.0)
+                .precioOriginal(null)
+                .url(url)
+                .imagenUrl("http://img.example/x.jpg")
+                .categoria("Remera")
+                .genero("unisex")
+                .talles(List.of("M"))
+                .ml(ar.scraper.model.Product.MlScore.EMPTY)
+                .marca("Nike")
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(ar.scraper.model.Product.SenalCompra.EMPTY)
+                .finan(ar.scraper.model.Product.SenalFinanciacion.EMPTY)
+                .cantidadUnidades(1)
+                .build();
     }
 
     private OffsetDateTime instante(String sql) throws Exception {

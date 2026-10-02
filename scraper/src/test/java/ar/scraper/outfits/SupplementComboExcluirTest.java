@@ -34,9 +34,21 @@ class SupplementComboExcluirTest {
     private final SupplementCombo combo = new SupplementCombo(new RecommendationService());
 
     private Product whey(String marca, String nombre, double precio) {
-        return new Product("entreno", nombre, precio, null,
-                "https://test/" + Math.abs(nombre.hashCode()), "https://img/x.jpg",
-                "Proteína", "unisex", List.of(), Product.MlScore.EMPTY, marca, "suplementos", false);
+        return Product.builder()
+                .sitio("entreno")
+                .nombre(nombre)
+                .precio(precio)
+                .precioOriginal(null)
+                .url("https://test/" + Math.abs(nombre.hashCode()))
+                .imagenUrl("https://img/x.jpg")
+                .categoria("Proteína")
+                .genero("unisex")
+                .talles(List.of())
+                .ml(Product.MlScore.EMPTY)
+                .marca(marca)
+                .rubro("suplementos")
+                .gymrat(false)
+                .build();
     }
 
     private final Product a = whey("ENA",  "Whey Protein ENA 1kg",      50000);
@@ -92,9 +104,21 @@ class SupplementComboExcluirTest {
     @Test
     @DisplayName("exclusions on one subtype do not disturb another")
     void laExclusionDeUnSubtipoNoAfectaAOtro() {
-        Product creatina = new Product("entreno", "Creatina Monohidrato ENA 300g", 30000, null,
-                "https://test/creatina", "https://img/x.jpg", "Creatina", "unisex", List.of(),
-                Product.MlScore.EMPTY, "ENA", "suplementos", false);
+        Product creatina = Product.builder()
+                .sitio("entreno")
+                .nombre("Creatina Monohidrato ENA 300g")
+                .precio(30000)
+                .precioOriginal(null)
+                .url("https://test/creatina")
+                .imagenUrl("https://img/x.jpg")
+                .categoria("Creatina")
+                .genero("unisex")
+                .talles(List.of())
+                .ml(Product.MlScore.EMPTY)
+                .marca("ENA")
+                .rubro("suplementos")
+                .gymrat(false)
+                .build();
 
         List<Product> mixto = List.of(a, b, c, creatina);
         List<OutfitService.SupplementPick> picks = combo.armarComboSuplementos(

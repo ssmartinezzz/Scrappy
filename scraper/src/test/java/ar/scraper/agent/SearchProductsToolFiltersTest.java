@@ -56,10 +56,24 @@ class SearchProductsToolFiltersTest {
     }
 
     private Product producto(String url, String nombre, String categoria, double precio, String genero) {
-        return new Product("Sitio", nombre, precio, null, url, "img",
-                categoria, genero, List.of(), Product.MlScore.EMPTY, "Marca",
-                "indumentaria", false, false,
-                Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY);
+        return Product.builder()
+                .sitio("Sitio")
+                .nombre(nombre)
+                .precio(precio)
+                .precioOriginal(null)
+                .url(url)
+                .imagenUrl("img")
+                .categoria(categoria)
+                .genero(genero)
+                .talles(List.of())
+                .ml(Product.MlScore.EMPTY)
+                .marca("Marca")
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(Product.SenalFinanciacion.EMPTY)
+                .build();
     }
 
     private List<String> urls(ToolResult r) throws Exception {

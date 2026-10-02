@@ -64,11 +64,27 @@ class ComparadorGruposSitioTest {
     }
 
     private static Product producto(String sitio, String nombre, double precio) {
-        return new Product(sitio, nombre, precio, null,
-                "https://" + sitio + "/" + nombre.hashCode() + precio, "img",
-                "Zapatilla", "unisex", List.of("M"), Product.MlScore.EMPTY, "Nike",
-                "indumentaria", false, false, Product.SenalCompra.EMPTY,
-                Product.SenalFinanciacion.EMPTY, 1, "", Product.VisualAttrs.EMPTY);
+        return Product.builder()
+                .sitio(sitio)
+                .nombre(nombre)
+                .precio(precio)
+                .precioOriginal(null)
+                .url("https://" + sitio + "/" + nombre.hashCode() + precio)
+                .imagenUrl("img")
+                .categoria("Zapatilla")
+                .genero("unisex")
+                .talles(List.of("M"))
+                .ml(Product.MlScore.EMPTY)
+                .marca("Nike")
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(Product.SenalFinanciacion.EMPTY)
+                .cantidadUnidades(1)
+                .subCategoria("")
+                .visual(Product.VisualAttrs.EMPTY)
+                .build();
     }
 
     private void publicar(Product... productos) {

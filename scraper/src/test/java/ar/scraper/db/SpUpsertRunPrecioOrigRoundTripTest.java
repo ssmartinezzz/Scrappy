@@ -52,10 +52,25 @@ class SpUpsertRunPrecioOrigRoundTripTest extends PostgresTestBase {
     }
 
     private Product producto(String url, Double precioOrig) {
-        return new Product("Sitio", "Producto", 1000.0, precioOrig, url, "http://img.example/x.jpg",
-                "Remera", "unisex", List.of(), Product.MlScore.EMPTY, "Nike",
-                "indumentaria", false, false, Product.SenalCompra.EMPTY,
-                Product.SenalFinanciacion.EMPTY, 1);
+        return Product.builder()
+                .sitio("Sitio")
+                .nombre("Producto")
+                .precio(1000.0)
+                .precioOriginal(precioOrig)
+                .url(url)
+                .imagenUrl("http://img.example/x.jpg")
+                .categoria("Remera")
+                .genero("unisex")
+                .talles(List.of())
+                .ml(Product.MlScore.EMPTY)
+                .marca("Nike")
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(Product.SenalFinanciacion.EMPTY)
+                .cantidadUnidades(1)
+                .build();
     }
 
     @Test

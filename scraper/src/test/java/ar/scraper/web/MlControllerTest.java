@@ -102,8 +102,17 @@ class MlControllerTest {
         var facets = new Facets(Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
         List<Product> productos = new java.util.ArrayList<>();
         for (int i = 0; i < 100; i++) {
-            productos.add(new Product("Sitio", "Producto " + i, 1000.0, null,
-                    "https://site.com/" + i, "", "Remera", "unisex", List.of()));
+            productos.add(Product.builder()
+                    .sitio("Sitio")
+                    .nombre("Producto " + i)
+                    .precio(1000.0)
+                    .precioOriginal(null)
+                    .url("https://site.com/" + i)
+                    .imagenUrl("")
+                    .categoria("Remera")
+                    .genero("unisex")
+                    .talles(List.of())
+                    .build());
         }
         var result = new AggregatedResult(productos, Map.of(), Map.of(), facets, 0, 0);
         when(service.getLastResult()).thenReturn(result);

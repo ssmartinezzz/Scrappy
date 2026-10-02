@@ -32,11 +32,25 @@ class RecommendationServiceTest {
     private Product producto(String nombre, String url, String categoria, String marca,
                               int scoreP, String badge, boolean ofertaReal, String tendencia,
                               String genero) {
-        return new Product("TestSitio", nombre, 10000, null, url, "https://img/test.jpg",
-                categoria, genero, List.of(),
-                new Product.MlScore(scoreP, badge, ofertaReal, tendencia, scoreP, 0.0, "standard"),
-                marca, "indumentaria", false, false,
-                Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY, 1);
+        return Product.builder()
+                .sitio("TestSitio")
+                .nombre(nombre)
+                .precio(10000)
+                .precioOriginal(null)
+                .url(url)
+                .imagenUrl("https://img/test.jpg")
+                .categoria(categoria)
+                .genero(genero)
+                .talles(List.of())
+                .ml(new Product.MlScore(scoreP, badge, ofertaReal, tendencia, scoreP, 0.0, "standard"))
+                .marca(marca)
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(Product.SenalFinanciacion.EMPTY)
+                .cantidadUnidades(1)
+                .build();
     }
 
     @Test

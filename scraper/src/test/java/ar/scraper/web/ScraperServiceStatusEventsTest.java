@@ -71,10 +71,27 @@ class ScraperServiceStatusEventsTest {
 
     @Test
     void restoringTheCatalogFromTheDatabaseAnnouncesDone() throws Exception {
-        Product p = new Product("Sitio", "Producto", 1000, null, "https://site.com/a", "",
-                "Camisa", "unisex", List.of("M"), Product.MlScore.EMPTY, "Marca",
-                "indumentaria", false, false, Product.SenalCompra.EMPTY,
-                Product.SenalFinanciacion.EMPTY, 1, "Sub", null);
+        Product p = Product.builder()
+                .sitio("Sitio")
+                .nombre("Producto")
+                .precio(1000)
+                .precioOriginal(null)
+                .url("https://site.com/a")
+                .imagenUrl("")
+                .categoria("Camisa")
+                .genero("unisex")
+                .talles(List.of("M"))
+                .ml(Product.MlScore.EMPTY)
+                .marca("Marca")
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(Product.SenalFinanciacion.EMPTY)
+                .cantidadUnidades(1)
+                .subCategoria("Sub")
+                .visual(null)
+                .build();
         Mockito.when(productos.cargarProductos()).thenReturn(List.of(p));
         Mockito.when(aggregator.fromDB(Mockito.any())).thenReturn(new ResultAggregator.AggregatedResult(
                 List.of(p), java.util.Map.of("Sitio", 1), java.util.Map.of(),

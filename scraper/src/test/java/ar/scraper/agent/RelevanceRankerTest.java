@@ -153,9 +153,25 @@ class RelevanceRankerTest {
     }
 
     private static Product pc(String nombre, String marca, String categoria, String sub) {
-        return new Product("Sitio", nombre, 100, null, "https://x.com/" + nombre.hashCode(), "img",
-                categoria, "unisex", List.of(), Product.MlScore.EMPTY, marca,
-                "tecnologia", false, false,
-                Product.SenalCompra.EMPTY, Product.SenalFinanciacion.EMPTY, 1, sub);
+        return Product.builder()
+                .sitio("Sitio")
+                .nombre(nombre)
+                .precio(100)
+                .precioOriginal(null)
+                .url("https://x.com/" + nombre.hashCode())
+                .imagenUrl("img")
+                .categoria(categoria)
+                .genero("unisex")
+                .talles(List.of())
+                .ml(Product.MlScore.EMPTY)
+                .marca(marca)
+                .rubro("tecnologia")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(Product.SenalFinanciacion.EMPTY)
+                .cantidadUnidades(1)
+                .subCategoria(sub)
+                .build();
     }
 }

@@ -63,25 +63,74 @@ class MarcasPicksPackUnitPriceTest {
 
     /** Non-pack product (cantidadUnidades = 1). */
     private Product producto(String url, double precio) {
-        return new Product("Sitio", "Producto " + url, precio, null, url, "img",
-                "Zapatilla", "hombre", List.of(), MlScore.EMPTY, "Marca", "indumentaria",
-                false, false, Product.SenalCompra.EMPTY, SenalFinanciacion.EMPTY, 1, "");
+        return Product.builder()
+                .sitio("Sitio")
+                .nombre("Producto " + url)
+                .precio(precio)
+                .precioOriginal(null)
+                .url(url)
+                .imagenUrl("img")
+                .categoria("Zapatilla")
+                .genero("hombre")
+                .talles(List.of())
+                .ml(MlScore.EMPTY)
+                .marca("Marca")
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(SenalFinanciacion.EMPTY)
+                .cantidadUnidades(1)
+                .subCategoria("")
+                .build();
     }
 
     /** Product with an explicit cantidadUnidades (pack when > 1). */
     private Product producto(String url, double precio, int cantidadUnidades) {
-        return new Product("Sitio", "Producto " + url, precio, null, url, "img",
-                "Zapatilla", "hombre", List.of(), MlScore.EMPTY, "Marca", "indumentaria",
-                false, false, Product.SenalCompra.EMPTY, SenalFinanciacion.EMPTY,
-                cantidadUnidades, "");
+        return Product.builder()
+                .sitio("Sitio")
+                .nombre("Producto " + url)
+                .precio(precio)
+                .precioOriginal(null)
+                .url(url)
+                .imagenUrl("img")
+                .categoria("Zapatilla")
+                .genero("hombre")
+                .talles(List.of())
+                .ml(MlScore.EMPTY)
+                .marca("Marca")
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(SenalFinanciacion.EMPTY)
+                .cantidadUnidades(cantidadUnidades)
+                .subCategoria("")
+                .build();
     }
 
     /** Product with an explicit MlScore and cantidadUnidades, for slot-winning scenarios. */
     private Product producto(String url, double precio, int cantidadUnidades, MlScore ml) {
-        return new Product("Sitio", "Producto " + url, precio, null, url, "img",
-                "Zapatilla", "hombre", List.of(), ml, "Marca", "indumentaria",
-                false, false, Product.SenalCompra.EMPTY, SenalFinanciacion.EMPTY,
-                cantidadUnidades, "");
+        return Product.builder()
+                .sitio("Sitio")
+                .nombre("Producto " + url)
+                .precio(precio)
+                .precioOriginal(null)
+                .url(url)
+                .imagenUrl("img")
+                .categoria("Zapatilla")
+                .genero("hombre")
+                .talles(List.of())
+                .ml(ml)
+                .marca("Marca")
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(Product.SenalCompra.EMPTY)
+                .finan(SenalFinanciacion.EMPTY)
+                .cantidadUnidades(cantidadUnidades)
+                .subCategoria("")
+                .build();
     }
 
     private AggregatedResult resultFor(Product... productos) {
@@ -275,9 +324,25 @@ class MarcasPicksPackUnitPriceTest {
 
     /** Attaches a non-blank imagenUrl, required for the "valor" pick's min-scoreP filter. */
     private Product withImage(Product p) {
-        return new Product(p.sitio(), p.nombre(), p.precio(), p.precioOriginal(), p.url(),
-                "https://img.example.com/x.jpg", p.categoria(), p.genero(), p.talles(), p.ml(),
-                p.marca(), p.rubro(), p.gymrat(), p.marcaPremium(), p.senal(), p.finan(),
-                p.cantidadUnidades(), p.subCategoria());
+        return Product.builder()
+                .sitio(p.sitio())
+                .nombre(p.nombre())
+                .precio(p.precio())
+                .precioOriginal(p.precioOriginal())
+                .url(p.url())
+                .imagenUrl("https://img.example.com/x.jpg")
+                .categoria(p.categoria())
+                .genero(p.genero())
+                .talles(p.talles())
+                .ml(p.ml())
+                .marca(p.marca())
+                .rubro(p.rubro())
+                .gymrat(p.gymrat())
+                .marcaPremium(p.marcaPremium())
+                .senal(p.senal())
+                .finan(p.finan())
+                .cantidadUnidades(p.cantidadUnidades())
+                .subCategoria(p.subCategoria())
+                .build();
     }
 }

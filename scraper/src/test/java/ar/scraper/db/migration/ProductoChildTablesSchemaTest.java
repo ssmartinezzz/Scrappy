@@ -93,10 +93,25 @@ class ProductoChildTablesSchemaTest extends PostgresTestBase {
     private ar.scraper.model.Product producto(String url, List<String> talles, List<String> badges) {
         ar.scraper.model.Product.MlScore ml = new ar.scraper.model.Product.MlScore(
                 80, badges, true, "estable", 20, 0.5, "standard");
-        return new ar.scraper.model.Product("Sitio", "Producto", 1000.0, null, url,
-                "http://img.example/x.jpg", "Remera", "unisex", talles, ml, "Nike",
-                "indumentaria", false, false, ar.scraper.model.Product.SenalCompra.EMPTY,
-                ar.scraper.model.Product.SenalFinanciacion.EMPTY, 1);
+        return ar.scraper.model.Product.builder()
+                .sitio("Sitio")
+                .nombre("Producto")
+                .precio(1000.0)
+                .precioOriginal(null)
+                .url(url)
+                .imagenUrl("http://img.example/x.jpg")
+                .categoria("Remera")
+                .genero("unisex")
+                .talles(talles)
+                .ml(ml)
+                .marca("Nike")
+                .rubro("indumentaria")
+                .gymrat(false)
+                .marcaPremium(false)
+                .senal(ar.scraper.model.Product.SenalCompra.EMPTY)
+                .finan(ar.scraper.model.Product.SenalFinanciacion.EMPTY)
+                .cantidadUnidades(1)
+                .build();
     }
 
     private int contar(String tabla, String url) throws Exception {
