@@ -208,11 +208,27 @@ boilerplate comments.
       caballeros/masculinos/masculinas added. RED 6/10 (`femenina`/`manga`/`women`/`female` → unisex,
       `manga corta` → hombre, Vtex `Femenino` → hombre), GREEN 3329/0/0/7. Female/unisex words stay substring.
       Pending: live scrape smoke (B6-style, master vs HEAD) before the PR.
-- [ ] D2 `ml/PythonRunner`: one parameterized script-launch method (6 internal clones).
-- [ ] D3 `pcs/specs`: move shared extraction into `Tokens`.
-- [ ] D4 `web/` Outfits/Pcs/Suplementos controllers: shared helper.
-- [ ] D5 `@RequiredArgsConstructor` where constructors only assign fields (grep found ~117
-      candidate files — unverified heuristic, check each).
+- [x] D2 `ml/PythonRunner` (cb4d483 test, 7d63d8d, 79b40c6 test, 49c6b9d): shared stream drain, probe launch, child env,
+      training command. 2 clones left.
+- [x] D3 `pcs/` (285a945, e419ad4 tests, bd4c665 specs → `Tokens`; 4ee91d3 test, ec96245 PcBuilder slots once;
+      4d25010 `StringUtils.defaultString` in the 3 pick builders — user preference, interrupted the first writer over
+      hand-written null ternaries). CPD at 4d25010: 34/281.
+      Left: `TechSpecs` telescoping ctor chain (6 clones, ~100 lines) — needs builder + ~130 test call sites, same
+      call as `Product` (open question); pick builders map into 3 different DTOs, no natural shared home.
+- [x] D4 `web/` (aa644aa, af5b8f6 tests; f5fe255 `web/Params` CSV + saved-build name, 9f5ee88 financing preset
+      validated once, e72d85a MarcasPicksView comparator). Side effect: `OutfitsController.outfits(excluir=null)` now
+      gives an empty set instead of NPE (HTTP always passes `""`, so only a direct call could see it).
+- [x] D-tail: e973aee test + 3c0f961 `fuentes/FuenteHttp`; 82dedc3 ResultAggregator result built once; 994a0e1
+      UsuarioRepository reuses `asignarRol`. Left with reason: SavedOutfits↔SavedPcs (JSON key order is contract),
+      CronRepository 7-bind blocks, ScraperFactory adapters (different arity), Cron↔CronDtos copy.
+- [x] D5 `@RequiredArgsConstructor` (32836a1..6a71a09, 7 commits by package): 56 converted (all that pass every
+      condition; no `lombok.config` → any param annotation skips). Skips by scanner: no-arg 53, multi-ctor 9, body not
+      pure assign 33, subclass 24, already Lombok 12, DatabaseService (assign order ≠ param order), PasswordResetService.
+      `SpringWiringTest` ran (7). Writer booted the jar (crons 3,4 disabled then restored): Started 5.5 s, only WARN =
+      generated-password notice; authed GETs 200 on builders/indices/status; scrape_run unchanged (39).
+- [x] D6 19b1622 `x != null ? x : ""` → `StringUtils.defaultString(x)` in the 9 files this branch touched (26 sites;
+      71 in the repo before, 45 left in untouched files). Suite 3390/0/0/7.
+      Totals master → HEAD: CPD 50t 62/649 → 25/212; 80t 13/204 → 0. src/main 85 files +738/−1283.
 
 ## Progress
 
@@ -239,3 +255,4 @@ boilerplate comments.
 - 2026-10-02: Phase D started, D0 re-measure done (62/649). Next: D1 (writer delegated).
 - 2026-10-02: D1 done (4 commits 1cf74b3..f9e3b6e, unpushed), 3319/0/0/7, CPD 46/395. Next: live smoke for D1, then D2.
 - 2026-10-02: f90babe gender fix (male words whole-word), 3329/0/0/7. Next: live smoke for D1, then D2.
+- 2026-10-02: D2–D6 done on the same branch (18 commits after b1ca0b4, unpushed), 3390/0/0/7, CPD 25/212, 80t 0. PR #284 open, merge stopped by user. Open: TechSpecs builder (CODE-2 exception). Next: push + update PR body when the user says.
