@@ -1,14 +1,10 @@
 package ar.scraper.pcs.reglas;
 
-import ar.scraper.pcs.Certificacion;
 import ar.scraper.pcs.ContextoDeArmado;
-import ar.scraper.pcs.Gama;
 import ar.scraper.pcs.TechSpecs;
-import ar.scraper.pcs.TipoAlmacenamiento;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -18,8 +14,7 @@ class ReglaRamDualTest {
     private final ContextoDeArmado contexto = ContextoDeArmado.inicial(450);
 
     private static TechSpecs conModulos(int modulos) {
-        return new TechSpecs("", "", "", 0, 0, "", Gama.DESCONOCIDA, Certificacion.NINGUNA, 0,
-                TipoAlmacenamiento.DESCONOCIDO, List.of(), "", 0, 0, modulos, false);
+        return TechSpecs.builder().modulos(modulos).build();
     }
 
     @Test

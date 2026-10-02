@@ -14,8 +14,7 @@ class ReglaTipoAlmacenamientoTest {
     private final ContextoDeArmado contexto = ContextoDeArmado.inicial(450);
 
     private static TechSpecs conTipo(TipoAlmacenamiento tipo) {
-        return new TechSpecs("", "", "", 0, 0, "", ar.scraper.pcs.Gama.DESCONOCIDA,
-                ar.scraper.pcs.Certificacion.NINGUNA, 0, tipo);
+        return TechSpecs.builder().tipoAlmacenamiento(tipo).build();
     }
 
     @Test

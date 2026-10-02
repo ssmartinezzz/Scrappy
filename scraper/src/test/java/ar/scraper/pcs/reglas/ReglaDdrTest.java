@@ -16,8 +16,8 @@ class ReglaDdrTest {
     @DisplayName("vetoes when both ddr generations parsed and differ")
     void vetaCuandoDifierenYAmbosParsearon() {
         ContextoDeArmado contexto = ContextoDeArmado.inicial(450)
-                .conMother(new TechSpecs("AM4", "DDR4", "", 0, 0, ""));
-        TechSpecs ram = new TechSpecs("", "DDR5", "", 0, 0, "");
+                .conMother(TechSpecs.builder().socket("AM4").ddr("DDR4").build());
+        TechSpecs ram = TechSpecs.builder().ddr("DDR5").build();
 
         assertThat(regla.permite(ram, contexto)).isFalse();
     }
@@ -26,8 +26,8 @@ class ReglaDdrTest {
     @DisplayName("does not veto when both ddr generations parsed and match")
     void noVetaCuandoCoinciden() {
         ContextoDeArmado contexto = ContextoDeArmado.inicial(450)
-                .conMother(new TechSpecs("AM4", "DDR4", "", 0, 0, ""));
-        TechSpecs ram = new TechSpecs("", "DDR4", "", 0, 0, "");
+                .conMother(TechSpecs.builder().socket("AM4").ddr("DDR4").build());
+        TechSpecs ram = TechSpecs.builder().ddr("DDR4").build();
 
         assertThat(regla.permite(ram, contexto)).isTrue();
     }
@@ -36,7 +36,7 @@ class ReglaDdrTest {
     @DisplayName("abstains when the ram did not state a ddr generation")
     void abstieneCuandoRamNoDeclaraDdr() {
         ContextoDeArmado contexto = ContextoDeArmado.inicial(450)
-                .conMother(new TechSpecs("AM4", "DDR4", "", 0, 0, ""));
+                .conMother(TechSpecs.builder().socket("AM4").ddr("DDR4").build());
 
         assertThat(regla.permite(TechSpecs.EMPTY, contexto)).isTrue();
     }
@@ -45,8 +45,8 @@ class ReglaDdrTest {
     @DisplayName("abstains when motherDdr could not be derived (LGA1700)")
     void abstieneCuandoMotherDdrEsIndeterminado() {
         ContextoDeArmado contexto = ContextoDeArmado.inicial(450)
-                .conMother(new TechSpecs("LGA1700", "", "", 0, 0, ""));
-        TechSpecs ram = new TechSpecs("", "DDR5", "", 0, 0, "");
+                .conMother(TechSpecs.builder().socket("LGA1700").build());
+        TechSpecs ram = TechSpecs.builder().ddr("DDR5").build();
 
         assertThat(regla.permite(ram, contexto)).isTrue();
     }
