@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.function.Predicate;
+import lombok.RequiredArgsConstructor;
 
 /**
  * {@code search_products(query?, categoria?, genero?, excluir?, precioMin?, precioMax?, enOferta?, limit=10)}
@@ -24,6 +25,7 @@ import java.util.function.Predicate;
  * fabricated data.
  */
 @Component
+@RequiredArgsConstructor
 public class SearchProductsTool implements CatalogTool {
 
     public static final String NAME = "search_products";
@@ -41,10 +43,6 @@ public class SearchProductsTool implements CatalogTool {
 
     private final CatalogSnapshotPort catalogo;
     private final RelevanceRanker ranker = new RelevanceRanker();
-
-    public SearchProductsTool(CatalogSnapshotPort catalogo) {
-        this.catalogo = catalogo;
-    }
 
     @Override
     public ToolSpec spec() {

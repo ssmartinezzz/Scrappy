@@ -7,19 +7,17 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.stereotype.Component;
+import lombok.RequiredArgsConstructor;
 
 /** Unknown url → {@code is_error}, never a fabricated/empty result. */
 @Component
+@RequiredArgsConstructor
 public class ViewProductTool implements CatalogTool {
 
     public static final String NAME = "view_product";
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private final CatalogSnapshotPort catalogo;
-
-    public ViewProductTool(CatalogSnapshotPort catalogo) {
-        this.catalogo = catalogo;
-    }
 
     @Override
     public ToolSpec spec() {

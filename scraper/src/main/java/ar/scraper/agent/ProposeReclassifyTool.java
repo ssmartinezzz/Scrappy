@@ -11,8 +11,10 @@ import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.Set;
+import lombok.RequiredArgsConstructor;
 
 @Component
+@RequiredArgsConstructor
 public class ProposeReclassifyTool implements CatalogTool {
 
     public static final String NAME = "propose_reclassify";
@@ -27,10 +29,6 @@ public class ProposeReclassifyTool implements CatalogTool {
             Set.of("hombre", "mujer", "unisex", "infantil", "");
 
     private final CatalogSnapshotPort catalogo;
-
-    public ProposeReclassifyTool(CatalogSnapshotPort catalogo) {
-        this.catalogo = catalogo;
-    }
 
     @Override
     public ToolSpec spec() {
