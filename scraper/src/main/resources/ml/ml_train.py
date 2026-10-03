@@ -436,7 +436,8 @@ def main():
         print(f"  Texto  : {acc:.1f}% accuracy | {n_cls} categorias | {n_train} ejemplos",
               file=sys.stderr)
 
-    img = results.get("image", {})
+    # Without --images there is no image phase at all, so nothing to report.
+    img = results.get("image")
     if isinstance(img, dict):
         if img.get("status") == "no-op":
             print(f"  Imagen : no-op — {img.get('reason', '')}", file=sys.stderr)
