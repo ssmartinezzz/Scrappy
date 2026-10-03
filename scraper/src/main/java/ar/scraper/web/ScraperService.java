@@ -459,10 +459,10 @@ public class ScraperService implements CatalogSnapshotPort {
         ExecutorService exec = Executors.newFixedThreadPool(threads);
         ExecutorCompletionService<ScrapeResult> ecs = new ExecutorCompletionService<>(exec);
 
-        Map<String, Integer> idxMap = new LinkedHashMap<>();
+        IndiceDeSitios indice = new IndiceDeSitios(
+                todos.stream().map(ScraperConfig.SiteConfig::nombre).toList());
         for (int i = 0; i < todos.size(); i++) {
             String nombre = todos.get(i).nombre();
-            idxMap.put(nombre, i);
 
             actualizarProgreso(progSitios, i, SitioEstado.EN_CURSO, 0, null, 0);
             registrarSitioEnCurso(nombre);
@@ -504,7 +504,7 @@ public class ScraperService implements CatalogSnapshotPort {
                     boolean tieneError = StringUtils.isNotBlank(r.error());
                     SitioEstado estado = (tieneError && n == 0) ? SitioEstado.ERROR : SitioEstado.DONE;
 
-                    int idx = idxMap.getOrDefault(r.sitio(), -1);
+                    int idx = indice.de(r.sitio());
                     if (idx >= 0) actualizarProgreso(progSitios, idx, estado, n, r.error(), r.duracionMs());
                     registrarSitioTerminado(r.sitio(), estado == SitioEstado.ERROR ? "ERROR" : "DONE",
                             n, r.error());
@@ -548,7 +548,7 @@ public class ScraperService implements CatalogSnapshotPort {
         if (!cancelado.get()) {
             for (SitioProgress sp : progSitios) {
                 if (sp.estado() == SitioEstado.EN_CURSO || sp.estado() == SitioEstado.ESPERANDO) {
-                    int idx = idxMap.getOrDefault(sp.nombre(), -1);
+                    int idx = indice.de(sp.nombre());
                     if (idx >= 0) actualizarProgreso(progSitios, idx, SitioEstado.ERROR, 0, "Deadline", 0);
                     resultados.add(new ScrapeResult(sp.nombre(), List.of(), "Deadline global", 0));
                     registrarSitioTerminado(sp.nombre(), "ERROR", 0, "Deadline global");
