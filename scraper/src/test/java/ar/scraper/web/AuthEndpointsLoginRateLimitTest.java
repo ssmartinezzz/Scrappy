@@ -9,6 +9,8 @@ import ar.scraper.security.LoginRateLimiter;
 import ar.scraper.security.PasswordHasher;
 import ar.scraper.security.RefreshTokenService;
 import ar.scraper.security.TokenService;
+import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.mock.web.MockHttpServletRequest;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
@@ -41,6 +43,7 @@ class AuthEndpointsLoginRateLimitTest extends PostgresTestBase {
 
     private static final String SECRETO = "un-secreto-de-al-menos-32-bytes-para-hs256";
     private static final String PASSWORD = "la-password-correcta";
+    private static final String IP = "203.0.113.7";
 
     private AuthEndpoints endpoints;
 
@@ -142,7 +145,8 @@ class AuthEndpointsLoginRateLimitTest extends PostgresTestBase {
                 new RefreshTokenService(TestRepositories.refreshTokens(dataSource()), tokens, reloj), null);
 
         for (int i = 0; i < LoginRateLimiter.FALLOS_POR_CUENTA + 3; i++) {
-            assertThat(Wire.answer(() -> sinLimiter.login(cuerpo("ana", "mal"))).getStatusCode().value()).isEqualTo(401);
+            assertThat(Wire.answer(() -> sinLimiter.login(cuerpo("ana", "mal"), pedido(IP)))
+                    .getStatusCode().value()).isEqualTo(401);
         }
     }
 
@@ -155,7 +159,13 @@ class AuthEndpointsLoginRateLimitTest extends PostgresTestBase {
     }
 
     private ResponseEntity<?> login(String username, String password) {
-        return Wire.answer(() -> endpoints.login(cuerpo(username, password)));
+        return Wire.answer(() -> endpoints.login(cuerpo(username, password), pedido(IP)));
+    }
+
+    private static HttpServletRequest pedido(String ip) {
+        MockHttpServletRequest req = new MockHttpServletRequest();
+        req.setRemoteAddr(ip);
+        return req;
     }
 
     private static Map<String, String> cuerpo(String username, String password) {

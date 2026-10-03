@@ -14,11 +14,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @Epic("Security")
 @Feature("Authentication")
-@Story("login is rate limited")
+@Story("login is rate limited per account and per source IP")
 @DisplayName("LoginRateLimiter — cuenta fallos, no intentos")
 class LoginRateLimiterTest {
 
     private static final Instant T0 = Instant.parse("2026-08-27T12:00:00Z");
+    private static final String IP = "203.0.113.7";
+    private static final String OTRA_IP = "198.51.100.9";
 
     private LoginRateLimiter enT0() {
         return new LoginRateLimiter(Clock.fixed(T0, ZoneOffset.UTC));
@@ -29,10 +31,10 @@ class LoginRateLimiterTest {
     void elExitoNoConsumePresupuesto() {
         LoginRateLimiter limiter = enT0();
         for (int i = 0; i < 100; i++) {
-            assertThat(limiter.permitir("ana")).isTrue();
+            assertThat(limiter.permitir("ana", IP)).isTrue();
             limiter.limpiarCuenta("ana");
         }
-        assertThat(limiter.permitir("ana")).isTrue();
+        assertThat(limiter.permitir("ana", IP)).isTrue();
     }
 
     @Test
@@ -40,10 +42,10 @@ class LoginRateLimiterTest {
     void alColmarLaCuentaSeFrena() {
         LoginRateLimiter limiter = enT0();
         for (int i = 0; i < LoginRateLimiter.FALLOS_POR_CUENTA; i++) {
-            assertThat(limiter.permitir("ana")).as("intento %d", i + 1).isTrue();
-            limiter.registrarFallo("ana");
+            assertThat(limiter.permitir("ana", IP)).as("intento %d", i + 1).isTrue();
+            limiter.registrarFallo("ana", IP);
         }
-        assertThat(limiter.permitir("ana")).isFalse();
+        assertThat(limiter.permitir("ana", IP)).isFalse();
     }
 
     @Test
@@ -52,8 +54,8 @@ class LoginRateLimiterTest {
         LoginRateLimiter limiter = enT0();
         colmarCuenta(limiter, "ana");
 
-        assertThat(limiter.permitir("ana")).isFalse();
-        assertThat(limiter.permitir("beto")).isTrue();
+        assertThat(limiter.permitir("ana", IP)).isFalse();
+        assertThat(limiter.permitir("beto", IP)).isTrue();
     }
 
     @Test
@@ -62,21 +64,30 @@ class LoginRateLimiterTest {
         LoginRateLimiter limiter = enT0();
         colmarCuenta(limiter, "esta-cuenta-no-existe");
 
-        assertThat(limiter.permitir("esta-cuenta-no-existe")).isFalse();
+        assertThat(limiter.permitir("esta-cuenta-no-existe", IP)).isFalse();
     }
 
     @Test
-    @DisplayName("Un login exitoso limpia su cuenta y nunca el techo global")
-    void elExitoNoLimpiaElTechoGlobal() {
+    @DisplayName("Un flood desde una IP frena a esa IP pero no a otra: el admin real entra desde otra")
+    void elFloodDeUnaIpNoFrenaAOtra() {
         LoginRateLimiter limiter = enT0();
-        for (int i = 0; i < LoginRateLimiter.FALLOS_GLOBALES; i++) {
-            limiter.registrarFallo("victima-" + i);
+        for (int i = 0; i < LoginRateLimiter.FALLOS_POR_IP; i++) {
+            limiter.registrarFallo("inventada-" + i, IP);
         }
-        assertThat(limiter.permitir("cualquiera")).isFalse();
+        assertThat(limiter.permitir("admin", IP)).isFalse();
+        assertThat(limiter.permitir("admin", OTRA_IP)).isTrue();
+    }
 
+    @Test
+    @DisplayName("El éxito limpia la cuenta pero no el presupuesto de la IP")
+    void elExitoNoLimpiaElTechoDeIp() {
+        LoginRateLimiter limiter = enT0();
+        for (int i = 0; i < LoginRateLimiter.FALLOS_POR_IP; i++) {
+            limiter.registrarFallo("inventada-" + i, IP);
+        }
         limiter.limpiarCuenta("la-cuenta-que-si-tengo");
 
-        assertThat(limiter.permitir("cualquiera")).isFalse();
+        assertThat(limiter.permitir("cualquiera", IP)).isFalse();
     }
 
     @Test
@@ -84,41 +95,39 @@ class LoginRateLimiterTest {
     void laVentanaDesliza() {
         LoginRateLimiter limiter = enT0();
         colmarCuenta(limiter, "ana");
-        assertThat(limiter.permitir("ana")).isFalse();
+        assertThat(limiter.permitir("ana", IP)).isFalse();
 
         Instant despues = T0.plus(LoginRateLimiter.VENTANA).plusSeconds(1);
         assertThat(new LoginRateLimiter(Clock.fixed(despues, ZoneOffset.UTC))
-                .permitir("ana")).isTrue();
+                .permitir("ana", IP)).isTrue();
     }
 
     @Test
     @DisplayName("Una cuenta que se vacía deja de ocupar memoria")
     void laCuentaVaciaNoQuedaEnMemoria() {
-        // Un atacante controla el username, así que una clave por username
-        // intentado que nunca se desaloja es crecimiento sin techo.
         LoginRateLimiter limiter = enT0();
         for (int i = 0; i < 500; i++) {
-            limiter.registrarFallo("inventada-" + i);
+            limiter.registrarFallo("inventada-" + i, IP);
             limiter.limpiarCuenta("inventada-" + i);
         }
         assertThat(limiter.cuentasEnMemoria())
-                .as("500 usernames distintos no pueden dejar 500 claves; sólo sobrevive el contador global")
+                .as("500 usernames distintos desde una IP no dejan 500 claves; sólo sobrevive la de la IP")
                 .isEqualTo(1);
     }
 
     @Test
-    @DisplayName("Un username nulo o vacío no tumba el limiter")
+    @DisplayName("Un username o IP nulos no tumban el limiter")
     void unUsernameNuloNoTumbaNada() {
         LoginRateLimiter limiter = enT0();
-        assertThat(limiter.permitir(null)).isTrue();
-        limiter.registrarFallo(null);
+        assertThat(limiter.permitir(null, null)).isTrue();
+        limiter.registrarFallo(null, null);
         limiter.limpiarCuenta(null);
-        assertThat(limiter.permitir("")).isTrue();
+        assertThat(limiter.permitir("", null)).isTrue();
     }
 
     private void colmarCuenta(LoginRateLimiter limiter, String username) {
         for (int i = 0; i < LoginRateLimiter.FALLOS_POR_CUENTA; i++) {
-            limiter.registrarFallo(username);
+            limiter.registrarFallo(username, IP);
         }
     }
 }
