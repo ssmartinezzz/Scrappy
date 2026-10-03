@@ -130,7 +130,7 @@ public class AuthEndpoints {
         boolean coincide = hasher.verify(password, hashGuardado);
 
         if (cuenta.isEmpty() || !coincide) {
-            LOG.info("[AUTH] login rechazado para '{}'", username);
+            LOG.info("[AUTH] login rechazado para '{}'", LogSafe.para(username));
             // Counted whether or not the account exists: counting only real ones would make the 429
             // an oracle.
             if (limiteLogin != null) limiteLogin.registrarFallo(username);
