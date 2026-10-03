@@ -116,20 +116,26 @@ public class PasswordResetService {
      * mark the transaction rollback-only: a token consumed by a call that then fails to change the
      * password must not stay consumed..
      */
+    /** Argon2id is memory-hard; this bounds the work per call and is far above any real password. */
+    private static final int MAX_PASSWORD = 200;
+
     @Transactional(rollbackFor = Exception.class)
     public boolean confirmar(String token, String nuevaPassword) {
-        if (StringUtils.isBlank(token) || nuevaPassword == null || nuevaPassword.length() < 8) {
+        if (StringUtils.isBlank(token) || nuevaPassword == null
+                || nuevaPassword.length() < 8 || nuevaPassword.length() > MAX_PASSWORD) {
             return false;
         }
         Instant ahora = reloj.instant();
-        String hash = hasher.hash(nuevaPassword);
 
+        // Consume the token BEFORE hashing: hashing first let an anonymous caller with any garbage
+        // token spend a full Argon2id round per request, a cheap way to exhaust CPU and the pool.
         Optional<UUID> duenio = tokens.consumir(token, ahora);
         if (duenio.isEmpty()) {
             TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
             return false;
         }
         UUID usuarioId = duenio.get();
+        String hash = hasher.hash(nuevaPassword);
         if (!usuarios.cambiarPassword(usuarioId, hash, ahora)) {
             TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
             return false;
