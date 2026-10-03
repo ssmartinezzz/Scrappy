@@ -4,6 +4,7 @@ import ar.scraper.aggregator.CatalogSnapshotPort;
 import ar.scraper.aggregator.ResultAggregator;
 import ar.scraper.catalog.CatalogoActualizado;
 import ar.scraper.catalog.ProductPort;
+import ar.scraper.catalog.UpsertStats;
 import ar.scraper.ml.MlOutputPort;
 import ar.scraper.classification.SiteRegistry;
 import ar.scraper.classification.SitiosPort;
@@ -495,6 +496,9 @@ public class ScraperService implements CatalogSnapshotPort {
         long deadline = System.currentTimeMillis() + TIMEOUT_GLOBAL_MIN * 60_000L;
         AtomicInteger completados = new AtomicInteger(0);
         AtomicInteger productosAcumulados = new AtomicInteger(0);
+        // Each site is written as it finishes, so the final upsert finds almost nothing left to
+        // change: the run's real numbers are these.
+        AtomicReference<UpsertStats> upsertPorSitio = new AtomicReference<>(UpsertStats.CERO);
 
         List<ScrapeResult> resultados = SiteResultCollector.recolectar(
                 ecs, totalSitios, deadline, TIMEOUT_POR_SITIO_S, POLL_GRANULARIDAD_MS, GRACIA_SITIO_MS,
@@ -520,7 +524,8 @@ public class ScraperService implements CatalogSnapshotPort {
                     if (!r.productos().isEmpty()) {
                         try {
                             var normalizados = aggregator.normalizarSolo(r.productos());
-                            productos.upsertParcial(normalizados);
+                            upsertPorSitio.accumulateAndGet(productos.upsertParcial(normalizados),
+                                    UpsertStats::sumar);
                             var todosActuales = productos.cargarProductos();
                             if (!todosActuales.isEmpty()) {
                                 // Solo este sitio pudo cambiar algo, así que solo sus URLs
@@ -633,6 +638,9 @@ public class ScraperService implements CatalogSnapshotPort {
         RUN_LOG.info("────────────────────────────────────────────────────────");
         RUN_LOG.info("[FIN]     Productos: {} únicos  |  Con foto: {}  Sin foto: {}  |  Duración: {}",
                 lastResult.productos().size(), conFoto, sinFoto, formatDuracion(durMs));
+        UpsertStats upsert = upsertPorSitio.get();
+        RUN_LOG.info("[DB]      Por sitio: {} nuevos / {} precio cambió / {} sin cambio",
+                upsert.nuevos(), upsert.actualizados(), upsert.sinCambios());
 
         List<String> vacios = resultados.stream()
                 .filter(r -> r.productos().isEmpty() && StringUtils.isBlank(r.error()))
