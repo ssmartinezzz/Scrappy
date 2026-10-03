@@ -135,7 +135,7 @@ class AuthEndpointsLoginTest extends PostgresTestBase {
         assertThat(login(null, PASSWORD).getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
         assertThat(login("ana", null).getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
         assertThat(login("", "").getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
-        assertThat(Wire.answer(() -> endpoints.login(Map.of())).getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(Wire.answer(() -> endpoints.login(Map.of(), pedido())).getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
     }
 
     @Test
@@ -190,6 +190,12 @@ class AuthEndpointsLoginTest extends PostgresTestBase {
         java.util.Map<String, String> body = new java.util.HashMap<>();
         body.put("username", username);
         body.put("password", password);
-        return Wire.answer(() -> endpoints.login(body));
+        return Wire.answer(() -> endpoints.login(body, pedido()));
+    }
+
+    private static jakarta.servlet.http.HttpServletRequest pedido() {
+        org.springframework.mock.web.MockHttpServletRequest req = new org.springframework.mock.web.MockHttpServletRequest();
+        req.setRemoteAddr("203.0.113.7");
+        return req;
     }
 }
