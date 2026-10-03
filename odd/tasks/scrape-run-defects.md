@@ -58,8 +58,9 @@ Fix the three defects found on the full scrape of 2026-10-02 (run 40, master 87e
   Run 41: trained on _tools/ml-venv (system python3 still lacks numpy): `✓ ENTRENAMIENTO COMPLETADO`, 96.2% / 98 classes.
   NOT verified: Docker image rebuild. Commit 46dfb3e.
   Note: CLI already has `retrain` → POST /api/ml/entrenar (construirIndiceVisualEnBackground, no preflight there).
-- [~] T4 Docs (KNOWN_ISSUES rows → resolved), PR #288 title/body, CI + Sonar.
+- [x] T4 Docs (KNOWN_ISSUES rows → resolved), PR #288 title/body, CI + Sonar.
   Done: rows removed in each fix commit; two new KNOWN_ISSUES rows (cosmetic `Imagen : ERROR` line, unrotated backend.log).
+  PR #288 retitled/rewritten (Closes #285 #286 #287); CI 7/7 green incl. SonarCloud on 4f85956.
 
 ## Progress
 
@@ -68,3 +69,4 @@ Fix the three defects found on the full scrape of 2026-10-02 (run 40, master 87e
 - 2026-10-02: T1 code + T2 done (uncommitted). T3 decided.
 - 2026-10-02: T3 code done (uncommitted). Next: full scrape proving T1+T2+T3 together, then T4.
 - 2026-10-02: run 41 (21:19–21:40, 20m54s) proved T1+T2+T3; crons 3,4 restored. Next: push, PR #288 body, CI + Sonar.
+- 2026-10-02: feature closed. PR #288 open, CI + Sonar green; merge is the user's call. Docker image not rebuilt.
