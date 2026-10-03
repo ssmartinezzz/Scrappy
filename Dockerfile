@@ -39,8 +39,9 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends python3.11 python3-pip python3.11-venv \
     && rm -rf /var/lib/apt/lists/*
 
+COPY scraper/ml-requirements.txt /tmp/ml-requirements.txt
 RUN python3 -m pip install --no-cache-dir --upgrade pip \
-    && python3 -m pip install --no-cache-dir psycopg2-binary \
+    && python3 -m pip install --no-cache-dir -r /tmp/ml-requirements.txt \
     && python3 -m pip install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cpu \
     && python3 -m pip install --no-cache-dir \
         open_clip_torch==2.24.0 \
