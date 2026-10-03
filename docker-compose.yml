@@ -92,8 +92,10 @@ services:
       SCRAPER_MODELS_ROOT: /models
       HF_HOME: /models/marqo
       LOG_DIR: /app/logs
+    # Loopback by default: the API (login, password reset) must not be exposed
+    # to the whole LAN unless asked. Set BIND_HOST=0.0.0.0 to serve other devices.
     ports:
-      - "3000:3000"
+      - "${BIND_HOST:-127.0.0.1}:3000:3000"
     volumes:
       - models:/models
       - logs:/app/logs
@@ -111,7 +113,7 @@ services:
     depends_on:
       - backend
     ports:
-      - "8080:8080"
+      - "${BIND_HOST:-127.0.0.1}:8080:8080"
 
 volumes:
   pgdata:
