@@ -56,11 +56,18 @@ Fix the three defects found on the full scrape of 2026-10-02 (run 40, master 87e
   RED observed on 3 new tests; `PythonRunnerProcessLaunchTest` fake interpreter taught to answer the new probe
   (`*sklearn*) echo ok`, no assertion touched). Suite 3402/0/0/7. Installer step run by hand: venv OK, 257 MB.
   Run 41: trained on _tools/ml-venv (system python3 still lacks numpy): `✓ ENTRENAMIENTO COMPLETADO`, 96.2% / 98 classes.
-  NOT verified: Docker image rebuild. Commit 46dfb3e.
+  Docker: image rebuilt 2026-10-02, `python3 -c 'import numpy, sklearn, scipy, PIL, psycopg2, torch'` OK inside it
+  (numpy 2.2.6, sklearn 1.7.2, torch 2.14.1+cpu); training itself not run in the container. Commit 46dfb3e.
   Note: CLI already has `retrain` → POST /api/ml/entrenar (construirIndiceVisualEnBackground, no preflight there).
 - [x] T4 Docs (KNOWN_ISSUES rows → resolved), PR #288 title/body, CI + Sonar.
   Done: rows removed in each fix commit; two new KNOWN_ISSUES rows (cosmetic `Imagen : ERROR` line, unrotated backend.log).
   PR #288 retitled/rewritten (Closes #285 #286 #287); CI 7/7 green incl. SonarCloud on 4f85956.
+
+- [x] T5 `ml_train.py` summary printed `Imagen : ERROR — desconocido` on text-only runs. RED test in
+  `ml-tests/test_ml_train.py`, fix: no image phase → no image line. ML suite 116 passed. Commit 73c4772.
+- [x] T6 backend.log "never rotated" row — WRONG: `cli/core/logs.py::roll_if_large` rolls it past 8 MB on every launch
+  (one `.log.1` kept, since 0c086e7, tested). Row removed, nothing to fix. Commit accf1b0.
+- [x] T7 Docker image rebuilt and ML imports checked inside it (see T3).
 
 ## Progress
 
@@ -70,3 +77,4 @@ Fix the three defects found on the full scrape of 2026-10-02 (run 40, master 87e
 - 2026-10-02: T3 code done (uncommitted). Next: full scrape proving T1+T2+T3 together, then T4.
 - 2026-10-02: run 41 (21:19–21:40, 20m54s) proved T1+T2+T3; crons 3,4 restored. Next: push, PR #288 body, CI + Sonar.
 - 2026-10-02: feature closed. PR #288 open, CI + Sonar green; merge is the user's call. Docker image not rebuilt.
+- 2026-10-02: user asked to fix/test the two follow-ups: T5 fixed, T6 was my misreading, T7 verified.
