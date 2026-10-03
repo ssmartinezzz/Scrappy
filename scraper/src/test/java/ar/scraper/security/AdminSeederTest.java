@@ -138,6 +138,33 @@ class AdminSeederTest extends PostgresTestBase {
                 .hasMessageContaining("CLI_SERVICE_ACCOUNT_PASSWORD");
     }
 
+    @Test
+    @DisplayName("the CLI placeholder from docker.env.example is refused, not only the admin one")
+    void theDockerExampleCliPlaceholderIsRefused() {
+        AdminSeeder conPlaceholderCli = new AdminSeeder(
+                repo, hasher, "admin", PASSWORD_REAL, "cli", "replace-me-with-random-too");
+
+        assertThatThrownBy(() -> conPlaceholderCli.run(null))
+                .as("docker.env.example seeds the CLI account as ADMIN with this public password")
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("CLI_SERVICE_ACCOUNT_PASSWORD");
+
+        assertThat(repo.buscarActivaPorUsername("admin"))
+                .as("a refused seed must not leave the admin half-made either")
+                .isEmpty();
+    }
+
+    @Test
+    @DisplayName("any password carrying a replace-me / cambiame marker is refused")
+    void aPasswordWithAPlaceholderMarkerIsRefused() {
+        AdminSeeder conMarcador = new AdminSeeder(
+                repo, hasher, "admin", "replace-me-ya-mismo-por-favor", "cli", PASSWORD_CLI);
+
+        assertThatThrownBy(() -> conMarcador.run(null))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("ADMIN_BOOTSTRAP_PASSWORD");
+    }
+
     private int contarUsuarios() throws Exception {
         try (Connection c = dataSource().getConnection();
              Statement st = c.createStatement();

@@ -42,6 +42,12 @@ public class TokenService {
                             + bytes.length + ". A short key makes the signature forgeable, which defeats "
                             + "the entire point of signing the token.");
         }
+        if (Placeholders.esDeEjemplo(secreto)) {
+            throw new IllegalStateException(
+                    "AUTH_JWT_SECRET still holds an .env.example placeholder, which is public and long "
+                            + "enough to pass the length check. A world-known key lets anyone forge a token "
+                            + "for any account. Generate one with `openssl rand -base64 48` and restart.");
+        }
         this.secreto = bytes;
         this.reloj = reloj;
     }

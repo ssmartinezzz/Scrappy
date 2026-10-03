@@ -169,4 +169,23 @@ class TokenServiceTest {
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("AUTH_JWT_SECRET");
     }
+
+    @Test
+    @DisplayName("the docker.env.example JWT placeholder is refused even though it is long enough")
+    void theExampleJwtPlaceholderIsRefused() {
+        assertThatThrownBy(() -> new TokenService("replace-me-with-at-least-32-bytes-of-random", reloj))
+                .as("the example secret is 43 bytes, so it passes the length check and then "
+                        + "signs forgeable tokens with a world-known key")
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("AUTH_JWT_SECRET");
+    }
+
+    @Test
+    @DisplayName("any long secret carrying a replace-me / cambiame marker is refused")
+    void aSecretWithAPlaceholderMarkerIsRefused() {
+        assertThatThrownBy(() -> new TokenService("replace-me-con-un-secreto-de-mas-de-32-bytes", reloj))
+                .isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> new TokenService("cambiame-por-un-secreto-de-mas-de-32-bytes-reales", reloj))
+                .isInstanceOf(IllegalStateException.class);
+    }
 }
