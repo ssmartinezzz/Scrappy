@@ -3,6 +3,7 @@ package ar.scraper.web;
 import ar.scraper.db.UsuarioRepository;
 import ar.scraper.security.ActorResolver;
 import ar.scraper.security.PasswordHasher;
+import ar.scraper.security.RefreshTokenService;
 import ar.scraper.api.ApiException;
 import ar.scraper.api.ApiResponse;
 import ar.scraper.web.dto.OpResult;
@@ -40,6 +41,7 @@ public class UsuarioAdminEndpoints {
     private final UsuarioRepository usuarios;
     private final PasswordHasher hasher;
     private final ActorResolver actorResolver;
+    private final RefreshTokenService sesiones;
 
     @GetMapping
     public ResponseEntity<ApiResponse<List<UsuariosDtos.Usuario>>> listar() {
@@ -126,7 +128,13 @@ public class UsuarioAdminEndpoints {
                             + "administrador, y sólo se recupera por SQL.");
         }
 
+        // Capture the id while the account is still active, then revoke every refresh family so the
+        // lockout is immediate and total — not just for access tokens.
+        UUID id = usuarios.buscarActivaPorUsername(username).map(UsuarioRepository.Cuenta::id).orElse(null);
         usuarios.desactivar(username);
+        if (id != null) {
+            sesiones.revocarTodasLasDe(id);
+        }
         LOG.info("[ADMIN] '{}' desactivó la cuenta '{}'", actorResolver.current(), username);
         return ok("Cuenta desactivada. Su próximo request va a ser rechazado.");
     }
