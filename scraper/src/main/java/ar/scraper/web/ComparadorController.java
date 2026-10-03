@@ -44,6 +44,19 @@ public class ComparadorController {
 
     private String safe(String s) { return ProductJson.safe(s); }
 
+    private static boolean esAdmin(org.springframework.security.core.Authentication auth) {
+        return auth != null && auth.getAuthorities().stream()
+                .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
+    }
+
+    /** The shared external-price cache is written only by an ADMIN, so a viewer cannot poison it. */
+    void persistirPreciosExternos(boolean admin, String url, String sitio,
+            java.util.List<java.util.Map<String, Object>> persistir, boolean hayResultados) {
+        if (admin && hayResultados && StringUtils.isNotBlank(url)) {
+            preciosExternos.guardarPreciosExternos(url, sitio, persistir);
+        }
+    }
+
     /** {@code page} is 0-based here (unlike /api/data and /api/recomendados). */
     @GetMapping("/grupos")
     public ResponseEntity<ApiResponse<List<ComparadorDtos.Grupo>>> grupos(@RequestParam(required = false) String q,
@@ -90,7 +103,8 @@ public class ComparadorController {
     @GetMapping("/buscar-externo")
     public ResponseEntity<ApiResponse<ComparadorDtos.BusquedaExterna>> buscarExterno(@RequestParam String q,
             @RequestParam(required = false) String url,
-            @RequestParam(defaultValue = "mercadolibre") String sitio) {
+            @RequestParam(defaultValue = "mercadolibre") String sitio,
+            org.springframework.security.core.Authentication auth) {
         try {
             String cleanQ = limpiarQueryBusqueda(q);
             LOG.info("[API] buscarExterno q='{}' → limpia='{}'", LogSafe.of(q), LogSafe.of(cleanQ));
@@ -138,8 +152,7 @@ public class ComparadorController {
                     }
                 }
             }
-            if (StringUtils.isNotBlank(url) && !results.isEmpty())
-                preciosExternos.guardarPreciosExternos(url, sitio, persistir);
+            persistirPreciosExternos(esAdmin(auth), url, sitio, persistir, !results.isEmpty());
             return ResponseEntity.ok(ApiResponse.ok(
                     new ComparadorDtos.BusquedaExterna(searchUrl, cleanQ, results)));
         } catch (Exception e) {
