@@ -285,6 +285,14 @@ mensaje accionable. Para reprovisionar: borrar `_tools/uv` y `_tools/cli-venv` y
 re-correr el instalador. Se invoca `python -m cli` con cwd = raíz del repo —
 **no** `cli/__main__.py` directo, que falla por los imports absolutos `cli.*`.
 
+**Entrenamiento ML en POSIX (`_tools/ml-venv`):** `ml_train.py` necesita numpy,
+scikit-learn y psycopg2, y el `python3` del sistema no los suele tener. El
+instalador arma `_tools/ml-venv` con `scraper/ml-requirements.txt` (~257 MB) y
+`PythonRunner.detectarPython` lo encuentra antes que el PATH. Si falta, el
+backend no falla: saltea el entrenamiento con un WARN y deja `/api/ml/estado` en
+`skipped` con el motivo. Para reprovisionar: borrar `_tools/ml-venv` y re-correr
+el instalador.
+
 **El Postgres de dev corre con `trust` — sin password — así que el bind importa
 más que de costumbre.** `scripts/dev-db.sh` mapea `127.0.0.1:5432` a propósito
 (`PG_BIND`): con el `-p 5432:5432` que tenía antes, Docker publicaba en

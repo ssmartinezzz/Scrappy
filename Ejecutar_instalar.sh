@@ -205,6 +205,23 @@ fi
 echo "       _tools/cli-venv listo (Python $UV_PY_VER administrado por uv, 'import textual' OK)."
 echo
 
+# ── ML venv: what ml_train.py needs (numpy, scikit-learn, psycopg2) ─────
+# PythonRunner.detectarPython finds _tools/ml-venv before the system python3.
+# Optional: without it the backend still scores, and skips training with a WARN.
+ML_VENV="$ROOT/_tools/ml-venv"
+ML_VENV_PY="$ML_VENV/bin/python"
+echo "[ML] Entorno Python del entrenamiento (_tools/ml-venv)..."
+if [[ -x "$ML_VENV_PY" ]] && "$ML_VENV_PY" -c "import numpy, sklearn, psycopg2" >/dev/null 2>&1; then
+  echo "       _tools/ml-venv ya provisionado."
+elif "$UV_BIN" venv --managed-python --python "$UV_PY_VER" "$ML_VENV" \
+    && "$UV_BIN" pip install --python "$ML_VENV_PY" -r "$PROJECT/ml-requirements.txt"; then
+  echo "       _tools/ml-venv listo."
+else
+  echo "  [AVISO] No se pudo armar _tools/ml-venv: el backend va a saltear el" >&2
+  echo "          entrenamiento ML. Reintentá corriendo de nuevo este instalador." >&2
+fi
+echo
+
 echo "============================================================"
 echo " FASHION SCRAPER - TOOLCHAIN LISTO"
 echo "============================================================"

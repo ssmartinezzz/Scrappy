@@ -92,6 +92,7 @@ class PythonRunnerProcessLaunchTest {
                 if [ "$1" = "-c" ]; then
                   case "$2" in
                     *cuda*) if [ "$CUDA_VISIBLE_DEVICES" = "-1" ]; then echo no; else echo %s; fi ;;
+                    *sklearn*) echo ok ;;
                     *) echo %s ;;
                   esac
                   exit 0

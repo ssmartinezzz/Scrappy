@@ -202,6 +202,13 @@ public class PythonRunner {
         boolean useGpuSnapshot = this.useGpu;
         String python = detectarPython();
         if (python == null) { LOG.info("[ML-TRAIN] Python no disponible, saltando entrenamiento"); return; }
+        if (!tieneDependenciasDeEntrenamiento(python)) {
+            String msg = "Faltan numpy/scikit-learn/psycopg2 en " + python
+                    + " — instalalas con scraper/ml-requirements.txt (Ejecutar_instalar.sh arma _tools/ml-venv)";
+            LOG.warn("[ML-TRAIN] {}. Entrenamiento salteado.", msg);
+            setTraining(new TrainingStatus(false, "skipped", 0, msg, null));
+            return;
+        }
 
         Path workDir = Paths.get("").toAbsolutePath();
         Path modelsDir = workDir.resolve("_models");
@@ -875,17 +882,25 @@ public class PythonRunner {
         return pb;
     }
 
+    static java.util.List<String> candidatosLocales(String wd) {
+        return java.util.List.of(
+            wd + "/../_tools/python/python.exe",
+            wd + "/_tools/python/python.exe",
+            wd + "/../_tools/python/python3",
+            wd + "/../_tools/ml-venv/bin/python",
+            wd + "/_tools/ml-venv/bin/python");
+    }
+
+    /** {@code ml_train.py} needs these; scoring runs on a bare python3, so finding one proves nothing. */
+    boolean tieneDependenciasDeEntrenamiento(String python) {
+        return probeResponde(python, "import numpy, sklearn, psycopg2; print('ok')", true);
+    }
+
     String detectarPython() {
         String sysPy = System.getProperty("PYTHON_EXE");
         if (StringUtils.isNotBlank(sysPy) && new java.io.File(sysPy).exists()) return sysPy;
 
-        String wd = System.getProperty("user.dir");
-        String[] relatives = {
-            wd + "/../_tools/python/python.exe",
-            wd + "/_tools/python/python.exe",
-            wd + "/../_tools/python/python3"
-        };
-        for (String path : relatives) {
+        for (String path : candidatosLocales(System.getProperty("user.dir"))) {
             if (new java.io.File(path).exists()) return path;
         }
 

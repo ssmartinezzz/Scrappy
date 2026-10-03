@@ -1,0 +1,8 @@
+# What ml_train.py and the scoring pipeline import beyond the stdlib.
+# Installed into _tools/ml-venv by Ejecutar_instalar.sh and into the image by the Dockerfile.
+# The zero-shot image stage (torch, open_clip) is optional and not listed here.
+numpy
+scipy
+scikit-learn
+Pillow
+psycopg2-binary
