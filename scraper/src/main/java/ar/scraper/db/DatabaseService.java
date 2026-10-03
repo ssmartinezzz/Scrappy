@@ -235,8 +235,8 @@ public class DatabaseService {
     }
 
     /** NUNCA hace soft-delete — solo inserta/actualiza los productos dados. */
-    public void upsertParcial(List<Product> productos) {
-        productPort.upsertParcial(productos);
+    public UpsertStats upsertParcial(List<Product> productos) {
+        return productPort.upsertParcial(productos);
     }
 
     public List<Product> cargarProductos() {

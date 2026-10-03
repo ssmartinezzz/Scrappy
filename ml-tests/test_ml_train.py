@@ -143,6 +143,17 @@ def test_results_have_no_image_key_when_images_flag_not_passed(monkeypatch, tmp_
     assert "image" not in results
 
 
+def test_summary_does_not_report_an_image_error_when_images_were_not_requested(monkeypatch, tmp_path, capsys):
+    # Run 41 (2026-10-02): every post-scrape training is text-only, and the
+    # summary still printed "Imagen : ERROR — desconocido".
+    _install_fakes(monkeypatch, tmp_path)
+    monkeypatch.setattr(sys, "argv", ["ml_train.py"])
+
+    ml_train.main()
+
+    assert "Imagen" not in capsys.readouterr().err
+
+
 # ─── Batch 2 regression: DATABASE_URL-driven load_dataset ───────────────────
 
 

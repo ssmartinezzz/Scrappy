@@ -250,6 +250,12 @@ devuelve `UpsertStats(0,0,0,0)`, que sale como `"0 nuevos"` y nunca como error.
 Todo test de round-trip afirma `nuevos()` **antes** que cualquier valor de
 columna, porque `0` es la firma exacta de un fallo tragado.
 
+En una corrida, cada sitio se persiste con `upsertParcial` apenas termina, así
+que la línea final `[DB] Upsert:` casi siempre dice `0 nuevos`: no le queda
+nada por insertar. Los números reales de la corrida son la suma por sitio, en
+`[DB] Por sitio: N nuevos / M precio cambió / K sin cambio` después de `[FIN]`
+(#286). Ahí un `0` sí es sospechoso.
+
 ### Transacciones
 
 Las unidades de escritura son atómicas **por declaración** (`backend-hardening` T4):
