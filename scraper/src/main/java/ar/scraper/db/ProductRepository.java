@@ -86,20 +86,7 @@ class ProductRepository implements ProductPort {
         try {
             String rowsJson = buildRowsJson(productos, now, today, true);
 
-            int nuevos = 0, actualizados = 0, sinCambios = 0;
-            List<String> filas = new ArrayList<>();
-            jdbc.query("SELECT sp_upsert_run(?::jsonb, ?)", ps -> {
-                ps.setString(1, rowsJson);
-                ps.setBoolean(2, true);
-            }, rs -> {
-                filas.add(rs.getString(1));
-            });
-            if (!filas.isEmpty()) {
-                JsonNode stats = MAPPER.readTree(filas.get(0));
-                nuevos       = stats.path("nuevos").asInt(0);
-                actualizados = stats.path("actualizados").asInt(0);
-                sinCambios   = stats.path("sinCambios").asInt(0);
-            }
+            UpsertStats upsert = upsertRun(rowsJson, true);
 
             // El alcance del soft-delete NO sale de la lista de sitios pedidos: un sitio cuyo
             // scraper se rompió llega con 0 productos, y no hay que confundir "se rompió" con "se
@@ -112,8 +99,8 @@ class ProductRepository implements ProductPort {
             purgarHistorialViejo();
 
             LOG.info("[DB] Upsert: {} nuevos / {} precio cambió / {} sin cambio / {} desactivados",
-                    nuevos, actualizados, sinCambios, desactivados);
-            return new UpsertStats(nuevos, actualizados, sinCambios, desactivados);
+                    upsert.nuevos(), upsert.actualizados(), upsert.sinCambios(), desactivados);
+            return new UpsertStats(upsert.nuevos(), upsert.actualizados(), upsert.sinCambios(), desactivados);
         } catch (Exception e) {
             LOG.error("[DB] Error en upsert: {}", e.getMessage(), e);
             status.setRollbackOnly();
@@ -232,29 +219,41 @@ class ProductRepository implements ProductPort {
 
     /** NUNCA hace soft-delete — solo inserta/actualiza los productos dados. */
     @Override
-    public void upsertParcial(List<Product> productos) {
-        if (productos == null || productos.isEmpty()) return;
+    public UpsertStats upsertParcial(List<Product> productos) {
+        if (productos == null || productos.isEmpty()) return UpsertStats.CERO;
         try {
-            tx.executeWithoutResult(status -> upsertParcialEnTransaccion(productos, status));
+            return tx.execute(status -> upsertParcialEnTransaccion(productos, status));
         } catch (RuntimeException e) {
             LOG.warn("[DB] Error en upsertParcial: {}", e.getMessage());
+            return UpsertStats.CERO;
         }
     }
 
-    private void upsertParcialEnTransaccion(List<Product> productos, TransactionStatus status) {
+    private UpsertStats upsertParcialEnTransaccion(List<Product> productos, TransactionStatus status) {
         String now   = LocalDateTime.now().format(DT);
         String today = LocalDate.now().format(DATE);
         try {
-            String rowsJson = buildRowsJson(productos, now, today, false);
-            jdbc.query("SELECT sp_upsert_run(?::jsonb, ?)", ps -> {
-                ps.setString(1, rowsJson);
-                ps.setBoolean(2, false);
-            }, rs -> {
-            });
+            return upsertRun(buildRowsJson(productos, now, today, false), false);
         } catch (Exception e) {
             LOG.warn("[DB] Error en upsertParcial: {}", e.getMessage());
             status.setRollbackOnly();
+            return UpsertStats.CERO;
         }
+    }
+
+    /** {@code sp_upsert_run} counts what it changed; the soft-delete is the caller's. */
+    private UpsertStats upsertRun(String rowsJson, boolean includeVisual) throws Exception {
+        List<String> filas = new ArrayList<>();
+        jdbc.query("SELECT sp_upsert_run(?::jsonb, ?)", ps -> {
+            ps.setString(1, rowsJson);
+            ps.setBoolean(2, includeVisual);
+        }, rs -> {
+            filas.add(rs.getString(1));
+        });
+        if (filas.isEmpty()) return UpsertStats.CERO;
+        JsonNode stats = MAPPER.readTree(filas.get(0));
+        return new UpsertStats(stats.path("nuevos").asInt(0), stats.path("actualizados").asInt(0),
+                stats.path("sinCambios").asInt(0), 0);
     }
 
 

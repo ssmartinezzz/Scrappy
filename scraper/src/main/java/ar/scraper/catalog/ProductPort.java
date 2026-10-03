@@ -26,7 +26,7 @@ public interface ProductPort {
 
     UpsertStats upsertProductos(List<Product> productos, ar.scraper.scrape.CorridaEnCurso corrida);
 
-    void upsertParcial(List<Product> productos);
+    UpsertStats upsertParcial(List<Product> productos);
 
     void actualizarCategoria(String url, String nuevaCategoria);
 
