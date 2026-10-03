@@ -93,7 +93,7 @@ public class ComparadorController {
             @RequestParam(defaultValue = "mercadolibre") String sitio) {
         try {
             String cleanQ = limpiarQueryBusqueda(q);
-            LOG.info("[API] buscarExterno q='{}' → limpia='{}'", LogSafe.para(q), LogSafe.para(cleanQ));
+            LOG.info("[API] buscarExterno q='{}' → limpia='{}'", LogSafe.of(q), LogSafe.of(cleanQ));
 
             var results  = new ArrayList<ComparadorDtos.ResultadoExterno>();
             var persistir = new ArrayList<java.util.Map<String, Object>>();
