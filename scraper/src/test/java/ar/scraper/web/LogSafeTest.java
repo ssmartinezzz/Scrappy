@@ -25,7 +25,7 @@ class LogSafeTest {
     void stripsLineBreaks() {
         String forjado = "x\n2026-01-01 00:00:00 INFO forged [ADMIN] login ok";
 
-        String seguro = LogSafe.para(forjado);
+        String seguro = LogSafe.of(forjado);
 
         assertThat(seguro).doesNotContain("\n").doesNotContain("\r");
         assertThat(seguro).startsWith("x");
@@ -34,7 +34,7 @@ class LogSafeTest {
     @Test
     @DisplayName("other control characters are neutralised too")
     void stripsOtherControlChars() {
-        assertThat(LogSafe.para("a\tb\u0000c\u001bd")).doesNotContainPattern("[\\x00-\\x1f]");
+        assertThat(LogSafe.of("a\tb\u0000c\u001bd")).doesNotContainPattern("[\\x00-\\x1f]");
     }
 
     @Test
@@ -42,13 +42,13 @@ class LogSafeTest {
     void capsLength() {
         String largo = "a".repeat(10_000);
 
-        assertThat(LogSafe.para(largo).length()).isLessThanOrEqualTo(130);
+        assertThat(LogSafe.of(largo).length()).isLessThanOrEqualTo(130);
     }
 
     @Test
     @DisplayName("null and ordinary values pass through legibly")
     void leavesOrdinaryValuesAlone() {
-        assertThat(LogSafe.para(null)).isEqualTo("null");
-        assertThat(LogSafe.para("zapatillas rojas")).isEqualTo("zapatillas rojas");
+        assertThat(LogSafe.of(null)).isEqualTo("null");
+        assertThat(LogSafe.of("zapatillas rojas")).isEqualTo("zapatillas rojas");
     }
 }

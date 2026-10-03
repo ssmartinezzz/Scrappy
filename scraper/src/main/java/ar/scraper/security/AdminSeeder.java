@@ -62,7 +62,7 @@ public class AdminSeeder implements ApplicationRunner {
     }
 
     private void rechazarPlaceholder(String password, String variable, String cuenta) {
-        if (Placeholders.esDeEjemplo(password)) {
+        if (Placeholders.isExample(password)) {
             String mensaje = "La cuenta '" + cuenta + "' NO se creó: " + variable + " sigue teniendo un "
                     + "valor de ejemplo de .env.example, que es público y lo conoce cualquiera. "
                     + "Poné una password real en tu .env y volvé a arrancar.";

@@ -29,7 +29,7 @@ final class Placeholders {
     }
 
     /** True when {@code valor} looks like an unedited example secret. */
-    static boolean esDeEjemplo(String valor) {
+    static boolean isExample(String valor) {
         if (StringUtils.isBlank(valor)) {
             return false;
         }

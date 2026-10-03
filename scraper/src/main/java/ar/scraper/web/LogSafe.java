@@ -14,7 +14,7 @@ public final class LogSafe {
     }
 
     /** Returns a one-line, length-capped rendering safe to interpolate into a log message. */
-    public static String para(String valor) {
+    public static String of(String valor) {
         if (valor == null) {
             return "null";
         }
