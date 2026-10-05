@@ -2,6 +2,7 @@ package ar.scraper.pages;
 
 import ar.scraper.aggregator.text.PrecioParser;
 import ar.scraper.model.Product;
+import ar.scraper.security.egress.EgressProxy;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.microsoft.playwright.Page;
@@ -90,11 +91,17 @@ public class VaypolPage extends StorePage implements CatalogPage {
     private static final int    IMG_RETRY_WAIT_MS = 1500;
     private static final int    IMG_REQ_TIMEOUT_S = 20;
 
-    private List<Product> enricherImagenesHttp(List<Product> productos) {
-        var client = java.net.http.HttpClient.newBuilder()
+    /** Product URLs are scraped, so the redirects this client follows must go through the egress proxy. */
+    static java.net.http.HttpClient imageClient(java.net.InetSocketAddress proxy) {
+        return java.net.http.HttpClient.newBuilder()
                 .connectTimeout(java.time.Duration.ofSeconds(8))
                 .followRedirects(java.net.http.HttpClient.Redirect.NORMAL)
+                .proxy(java.net.ProxySelector.of(proxy))
                 .build();
+    }
+
+    private List<Product> enricherImagenesHttp(List<Product> productos) {
+        var client = imageClient(EgressProxy.shared().address());
 
         var executor = java.util.concurrent.Executors.newFixedThreadPool(IMG_THREADS);
         var imgMap   = new java.util.concurrent.ConcurrentHashMap<String, String>();

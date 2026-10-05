@@ -5,9 +5,12 @@ import ar.scraper.model.Product;
 import ar.scraper.model.ScrapeResult;
 import ar.scraper.pages.CatalogPage;
 import com.microsoft.playwright.*;
+import com.microsoft.playwright.options.Proxy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import ar.scraper.security.egress.EgressProxy;
 import java.util.List;
+import java.util.function.Supplier;
 
 public final class BaseScraper {
 
@@ -38,6 +41,17 @@ public final class BaseScraper {
                        "--blink-settings=imagesEnabled=false");
     }
 
+    /**
+     * Chromium goes through the egress proxy because {@code page.route} never sees the later hops of a
+     * redirect chain; the proxy is the only place that can refuse an internal destination on every hop.
+     */
+    static BrowserType.LaunchOptions launchOptions(boolean headless, String proxyServer) {
+        return new BrowserType.LaunchOptions()
+                .setHeadless(headless)
+                .setArgs(launchArgs())
+                .setProxy(new Proxy(proxyServer));
+    }
+
     /** Aborts requests that can never contribute to a product record. */
     static void aplicarBloqueosDeRed(Page page) {
         page.route("**/*.{woff,woff2,ttf,otf}", r -> r.abort());
@@ -51,8 +65,15 @@ public final class BaseScraper {
     private final ScraperConfig config;
     private final PageContext pageContext;
     private final PageFactory pageFactory;
+    private final Supplier<String> proxyServer;
 
     BaseScraper(ScraperConfig config, String sitio, String baseUrl, List<String> extraUrls, PageFactory pageFactory) {
+        this(config, sitio, baseUrl, extraUrls, pageFactory, () -> EgressProxy.shared().server());
+    }
+
+    BaseScraper(ScraperConfig config, String sitio, String baseUrl, List<String> extraUrls, PageFactory pageFactory,
+                Supplier<String> proxyServer) {
+        this.proxyServer = proxyServer;
         this.sitio = sitio;
         this.config = config;
         this.pageContext = new PageContext(config, sitio, baseUrl, extraUrls);
@@ -61,9 +82,7 @@ public final class BaseScraper {
 
     public ScrapeResult ejecutar(Playwright pw) {
         long t0 = System.currentTimeMillis();
-        try (Browser browser = pw.chromium().launch(new BrowserType.LaunchOptions()
-                .setHeadless(config.isHeadless())
-                .setArgs(launchArgs()))) {
+        try (Browser browser = pw.chromium().launch(launchOptions(config.isHeadless(), proxyServer.get()))) {
             try (BrowserContext ctx = browser.newContext(new Browser.NewContextOptions()
                     .setViewportSize(1366, 768)
                     .setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0.0.0 Safari/537.36")
