@@ -41,8 +41,8 @@ Scrappy/
 │                                  Las DOS suites lo corren solas si faltan credenciales: con el backend
 │                                  arriba, un solo comando alcanza y no hay que exportar nada
 │                                  Ninguna levanta el backend: exigen uno vivo (`run-e2e.sh --api --keep-up`).
-│                                  Presupuestos p95 MEDIDOS (15.987 productos, 2026-09-22). Ojo: los caros
-│                                  son los SQL (`data` 160ms, `facets` 150ms), no los armadores (`pcs` 23ms)
+│                                  Presupuestos p95 MEDIDOS (23.217 productos, 2026-10-05). Los más caros:
+│                                  `recomendados` 66ms, `data_filtrado` 41ms, `pcs_builder` 39ms
 └── scraper/
     ├── pom.xml
     ├── src/test/
