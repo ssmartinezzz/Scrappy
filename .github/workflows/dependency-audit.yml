@@ -29,7 +29,7 @@ jobs:
 
       - name: Install osv-scanner
         run: |
-          curl -sSfL -o osv-scanner \
+          curl -sSfL --proto "=https" --tlsv1.2 -o osv-scanner \
             "https://github.com/google/osv-scanner/releases/download/${OSV_VERSION}/osv-scanner_linux_amd64"
           echo "${OSV_SHA256}  osv-scanner" | sha256sum -c -
           chmod +x osv-scanner
