@@ -9,6 +9,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.sql.DataSource;
+import java.sql.ResultSet;
 import java.time.LocalDate;
 
 @Repository
@@ -27,6 +28,10 @@ class PreciosExternosRepository implements PreciosExternosPort {
     public void guardarPreciosExternos(String productoUrl, String sitio,
             java.util.List<java.util.Map<String,Object>> resultados) {
         if (resultados == null || resultados.isEmpty()) return;
+        if (!isActiveProduct(productoUrl)) {
+            LOG.warn("[DB] precios_externos ignorado: la url no es un producto activo del catálogo");
+            return;
+        }
         LocalDate hoy = LocalDate.now();
         try {
             jdbc.update("DELETE FROM precios_externos WHERE producto_url=? AND sitio=? AND fecha=?",
@@ -48,6 +53,12 @@ class PreciosExternosRepository implements PreciosExternosPort {
             LOG.warn("[DB] Error guardando precios_externos: {}", e.getMessage());
             Sql.marcarRollback();
         }
+    }
+
+    private boolean isActiveProduct(String url) {
+        Boolean exists = jdbc.query("SELECT 1 FROM productos WHERE url=? AND activo IS NOT FALSE",
+                ResultSet::next, url);
+        return Boolean.TRUE.equals(exists);
     }
 
     @Override

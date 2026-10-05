@@ -13,10 +13,14 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.ResponseEntity;
 
+import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 /**
  * {@code GET /api/buscar-externo} — query cleaning and MercadoLibre slug
@@ -54,7 +58,7 @@ class ComparadorBuscarExternoTest {
 
     /** Runs the endpoint on the no-network path and returns its body. */
     private JsonNode responder(String q) {
-        ResponseEntity<?> resp = endpoints.buscarExterno(q, null, "otro-sitio");
+        ResponseEntity<?> resp = endpoints.buscarExterno(q, null, "otro-sitio", null);
         return Wire.data(resp);
     }
 
@@ -194,5 +198,33 @@ class ComparadorBuscarExternoTest {
         assertThat(body.has("searchUrl")).isTrue();
         assertThat(body.has("queryUsada")).isTrue();
         assertThat(body.has("resultados")).isTrue();
+    }
+
+    // ─── Shared cache is ADMIN-only ──────────────────────────────────────────
+
+    @Test
+    @DisplayName("un viewer no escribe el cache compartido aunque haya resultados")
+    void unViewerNoEscribeElCache() {
+        PreciosExternosPort cache = mock(PreciosExternosPort.class);
+        ScraperService service = mock(ScraperService.class);
+        ComparadorController c = new ComparadorController(service, cache,
+                new CatalogoDerivadoCache(service, mock(GroupingService.class)));
+
+        c.persistirPreciosExternos(false, "https://tienda/p", "mercadolibre", List.of(Map.of()), true);
+
+        verify(cache, never()).guardarPreciosExternos(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("un ADMIN sí escribe el cache cuando hay resultados y url")
+    void unAdminEscribeElCache() {
+        PreciosExternosPort cache = mock(PreciosExternosPort.class);
+        ScraperService service = mock(ScraperService.class);
+        ComparadorController c = new ComparadorController(service, cache,
+                new CatalogoDerivadoCache(service, mock(GroupingService.class)));
+
+        c.persistirPreciosExternos(true, "https://tienda/p", "mercadolibre", List.of(Map.of()), true);
+
+        verify(cache).guardarPreciosExternos("https://tienda/p", "mercadolibre", List.of(Map.of()));
     }
 }

@@ -191,6 +191,37 @@ class PasswordResetFlowTest extends PostgresTestBase {
     }
 
     @Test
+    @DisplayName("an invalid token is rejected without paying the Argon2 hash")
+    void anInvalidTokenCostsNoHash() {
+        HasherQueCuenta contador = new HasherQueCuenta();
+        PasswordResetService svc = TestTransactions.proxy(
+                new PasswordResetService(usuarios, tokens, refrescos, contador, canal,
+                        new ResetRateLimiter(Clock.systemUTC()), Clock.systemUTC(),
+                        "http://localhost:5173", INLINE),
+                TestTransactions.manager(dataSource()));
+
+        assertThat(svc.confirmar("un-token-que-no-existe", "una-password-valida")).isFalse();
+        assertThat(contador.veces)
+                .as("hashing before validating the token lets an anonymous caller burn Argon2 CPU "
+                        + "at will — the hash must only run once the token is known good")
+                .isZero();
+    }
+
+    @Test
+    @DisplayName("an absurdly long password is refused cheaply, without hashing")
+    void anAbsurdlyLongPasswordIsRefused() {
+        HasherQueCuenta contador = new HasherQueCuenta();
+        PasswordResetService svc = TestTransactions.proxy(
+                new PasswordResetService(usuarios, tokens, refrescos, contador, canal,
+                        new ResetRateLimiter(Clock.systemUTC()), Clock.systemUTC(),
+                        "http://localhost:5173", INLINE),
+                TestTransactions.manager(dataSource()));
+
+        assertThat(svc.confirmar("cualquier-token", "a".repeat(5_000))).isFalse();
+        assertThat(contador.veces).isZero();
+    }
+
+    @Test
     @DisplayName("a too-short password is refused and the token is not burnt")
     void aShortPasswordDoesNotBurnTheToken() {
         service.solicitar("ana@example.com", "1.2.3.4");
@@ -275,6 +306,17 @@ class PasswordResetFlowTest extends PostgresTestBase {
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────
+
+    /** Counts how often the Argon2 hash runs, to prove it is skipped on invalid input. */
+    private static final class HasherQueCuenta extends PasswordHasher {
+        int veces = 0;
+
+        @Override
+        public String hash(String plaintext) {
+            veces++;
+            return super.hash(plaintext);
+        }
+    }
 
     private record Envio(String destino, String enlace) {}
 

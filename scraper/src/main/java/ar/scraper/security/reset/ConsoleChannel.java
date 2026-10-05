@@ -6,8 +6,11 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 /**
- * An operator who considers the log a weaker boundary than the environment file should select the
- * SMTP channel.
+ * The default channel. The reset link carries the single-use token, which is the whole credential,
+ * so it is logged only at DEBUG — a deliberate development opt-in. At the default INFO level the log
+ * says a reset was issued and to whom, but not the token, so that read access to {@code logs/} is
+ * not read access to every account that requests a reset. An operator who wants the link delivered
+ * out of band should select the SMTP channel.
  */
 @Component
 @ConditionalOnProperty(name = "password.reset.channel", havingValue = "console", matchIfMissing = true)
@@ -23,10 +26,13 @@ public class ConsoleChannel implements PasswordResetChannel {
                 ║  RESETEO DE CONTRASEÑA — canal `console`                     ║
                 ╠══════════════════════════════════════════════════════════════╣
                 ║  Para:  {}
-                ║  Link:  {}
                 ║
+                ║  El link (con el token de un solo uso) NO se escribe acá: es
+                ║  la credencial entera. Para verlo en desarrollo, subí este
+                ║  logger a DEBUG; en producción usá el canal SMTP.
                 ║  Un solo uso, vence en 30 minutos.
                 ╚══════════════════════════════════════════════════════════════╝
-                """, destino, enlace);
+                """, destino);
+        LOG.debug("[RESET] link para {}: {}", destino, enlace);
     }
 }
