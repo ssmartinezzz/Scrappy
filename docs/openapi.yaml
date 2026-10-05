@@ -1731,6 +1731,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiResponse"
+        "400":
+          description: "`solicitud_invalida` — blank nombre/url, or a url that is not http(s) to a public host (loopback, private, link-local and non-canonical numeric hosts are refused)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
 
   /api/sitios/{nombre}:
     delete:

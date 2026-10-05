@@ -14,6 +14,8 @@ import io.qameta.allure.Story;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.http.HttpHeaders;
 
 import java.util.Map;
@@ -91,6 +93,18 @@ class SitiosControllerTest {
     void agregarSitioDefaultsPlatformToTiendanubeWhenNotProvided() {
         controller.agregarSitio(Map.of("nombre", "S", "url", "http://s.com"));
         verify(service).agregarSitio("S", "http://s.com", "tiendanube");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"http://127.0.0.1:5432", "http://169.254.169.254/latest/meta-data", "localhost:8080",
+            "httpx://tienda.com", "http://10.0.0.5/admin", "http://2130706433/"})
+    void agregarSitioReturns400WhenUrlTargetsAnInternalOrMalformedHost(String url) {
+        var resp = Wire.answer(() -> controller.agregarSitio(Map.of("nombre", "S", "url", url)));
+        JsonNode error = Wire.error(resp);
+
+        assertThat(resp.getStatusCode().value()).isEqualTo(400);
+        assertThat(error.get("code").asText()).isEqualTo("solicitud_invalida");
+        verify(service, never()).agregarSitio(any(), any(), any());
     }
 
     // ── DELETE /api/sitios/{nombre} ──────────────────────────────────────

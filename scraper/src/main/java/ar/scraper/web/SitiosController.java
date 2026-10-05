@@ -3,6 +3,7 @@ package ar.scraper.web;
 import ar.scraper.config.ScraperConfig;
 import ar.scraper.api.ApiException;
 import ar.scraper.api.ApiResponse;
+import ar.scraper.security.OutboundUrl;
 import ar.scraper.web.dto.OpResult;
 import ar.scraper.web.dto.ScrapeDtos;
 import org.springframework.http.HttpStatus;
@@ -46,6 +47,10 @@ public class SitiosController {
                     "nombre y url son obligatorios");
         }
         if (!url.startsWith("http")) url = "https://" + url;
+        if (!OutboundUrl.isAcceptable(url)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "solicitud_invalida",
+                    "url no permitida: debe ser http(s) a un host público");
+        }
         service.agregarSitio(nombre, url, plataforma);
         return ResponseEntity.ok(ApiResponse.ok(OpResult.of(true,
                 "Sitio '" + nombre + "' agregado. Corré el scraper para incluirlo.")));
