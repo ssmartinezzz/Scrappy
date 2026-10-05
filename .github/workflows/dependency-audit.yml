@@ -1,0 +1,67 @@
+name: Dependency Audit
+
+# OWASP A06 gate: fails when a dependency carries a known HIGH or CRITICAL
+# vulnerability. Unlike the test workflows it does not skip on unrelated PRs,
+# and it also runs weekly: an advisory published against an unchanged lockfile
+# is exactly what this gate exists to catch.
+#
+# Backend: osv-scanner resolves scraper/pom.xml transitively. It has no severity
+# threshold flag, so the JSON is filtered at CVSS >= 7.0. OWASP dependency-check
+# was the other candidate; without an NVD API key its first database download
+# is slow and rate-limited, and OSV needs no key.
+# Frontend: npm audit on production dependencies only; dev tooling never ships.
+
+on:
+  pull_request:
+    branches: [master]
+  schedule:
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    env:
+      OSV_VERSION: v2.6.0
+      OSV_SHA256: ca69b3d3cd08f889a49dc0a383122f71cc528b83803671df5fd874d97485b108
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install osv-scanner
+        run: |
+          curl -sSfL -o osv-scanner \
+            "https://github.com/google/osv-scanner/releases/download/${OSV_VERSION}/osv-scanner_linux_amd64"
+          echo "${OSV_SHA256}  osv-scanner" | sha256sum -c -
+          chmod +x osv-scanner
+
+      - name: Fail on HIGH or CRITICAL
+        run: |
+          # osv-scanner exits 1 whenever it finds anything; the threshold below decides.
+          ./osv-scanner scan source -L scraper/pom.xml --format json > osv.json || true
+          python3 - <<'PY'
+          import json, sys
+          found = []
+          for result in json.load(open("osv.json")).get("results", []):
+              for pkg in result.get("packages", []):
+                  for group in pkg.get("groups", []):
+                      score = float(group.get("max_severity") or 0)
+                      if score >= 7.0:
+                          p = pkg["package"]
+                          found.append(f"{score:4.1f}  {p['name']} {p['version']}  {', '.join(group['ids'])}")
+          print("\n".join(sorted(found, reverse=True)) or "No HIGH/CRITICAL vulnerabilities.")
+          sys.exit(1 if found else 0)
+          PY
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Fail on HIGH or CRITICAL
+        working-directory: frontend
+        run: npm audit --omit=dev --audit-level=high
