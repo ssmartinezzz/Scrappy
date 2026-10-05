@@ -16,7 +16,7 @@ import us.abstracta.jmeter.javadsl.core.TestPlanStats;
  *
  * <p>Argon2id es memory-bound <i>a propósito</i>: ~22 ms de verify (re-medidos
  * 2026-09-22) son el precio de que un hash robado no se pueda romper a fuerza
- * de GPU. El login entero clava 43 ms p95 con diez usuarios concurrentes.
+ * de GPU. Con diez hilos sin pausa, el login entero da 137 ms p95 (2026-10-05).
  * Mezclarlo con los GET del
  * catálogo arruinaría las dos mediciones a la vez — el login taparía cualquier
  * cambio en los endpoints, y los endpoints diluirían el login.
