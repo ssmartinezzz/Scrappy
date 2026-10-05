@@ -150,6 +150,16 @@ public class RefreshTokenService {
     }
 
     /**
+     * Revokes every refresh family the user owns. Deactivating an account only sets {@code
+     * activo=FALSE}, which stops access tokens on the next request but leaves the 14-day refresh
+     * family rotating; without this the lockout is not real, and a later reactivation silently
+     * revives any cookie captured before it. Returns how many live tokens were revoked.
+     */
+    public int revocarTodasLasDe(UUID usuarioId) {
+        return repo.revocarTodasLasDe(usuarioId, reloj.instant());
+    }
+
+    /**
      * The cache is process-global and keyed by spent-token hash, so the only way to scope a wipe is
      * by the successor session each entry carries.
      */

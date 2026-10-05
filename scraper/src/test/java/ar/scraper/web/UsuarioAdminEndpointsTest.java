@@ -6,6 +6,8 @@ import ar.scraper.db.UsuarioRepository;
 import ar.scraper.db.support.PostgresTestBase;
 import ar.scraper.security.ActorResolver;
 import ar.scraper.security.PasswordHasher;
+import ar.scraper.security.RefreshTokenService;
+import ar.scraper.security.TokenService;
 import ar.scraper.web.support.SujetoDePrueba;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -44,13 +46,18 @@ class UsuarioAdminEndpointsTest extends PostgresTestBase {
 
     private UsuarioRepository usuarios;
     private PasswordHasher hasher;
+    private RefreshTokenService sesiones;
     private UsuarioAdminEndpoints endpoints;
 
     @BeforeEach
     void setUp() {
         usuarios = TestRepositories.usuarios(dataSource());
         hasher = new PasswordHasher();
-        endpoints = new UsuarioAdminEndpoints(usuarios, hasher, new ActorResolver());
+        sesiones = new RefreshTokenService(
+                TestRepositories.refreshTokens(dataSource()),
+                new TokenService("un-secreto-de-test-de-al-menos-32-bytes", java.time.Clock.systemUTC()),
+                java.time.Clock.systemUTC());
+        endpoints = new UsuarioAdminEndpoints(usuarios, hasher, new ActorResolver(), sesiones);
         SujetoDePrueba.entrar(dataSource(), "ADMIN");
 
         // A second ADMIN so the last-admin guard is not tripped by every test.
@@ -187,6 +194,21 @@ class UsuarioAdminEndpointsTest extends PostgresTestBase {
                 .as("a DELETE would cascade away their roles, tokens, audit trail and personal rows")
                 .isTrue();
         assertThat(usuarios.rolesDe("ana")).containsExactly("VIEWER");
+    }
+
+    @Test
+    @DisplayName("deactivating revokes the account's refresh sessions, so the cookie cannot rotate")
+    void deactivatingRevokesRefreshSessions() {
+        crear("ana", null, "una-password-larga", "VIEWER");
+        var cuenta = usuarios.buscarActivaPorUsername("ana").orElseThrow();
+        RefreshTokenService.Sesion sesion = sesiones.abrir(cuenta.id());
+
+        Wire.answer(() -> endpoints.desactivar("ana"));
+
+        assertThat(sesiones.rotar(sesion.refreshToken(), sesion.csrfNonce()))
+                .as("otherwise the 14-day refresh family keeps minting access tokens, and a "
+                        + "reactivation silently revives a cookie captured before the lockout")
+                .isInstanceOf(RefreshTokenService.Rechazada.class);
     }
 
     @Test

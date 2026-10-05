@@ -110,16 +110,18 @@ public class AuthEndpoints {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<ApiResponse<AuthDtos.Token>> login(@RequestBody Map<String, String> body) {
+    public ResponseEntity<ApiResponse<AuthDtos.Token>> login(@RequestBody Map<String, String> body,
+            HttpServletRequest request) {
         String username = body == null ? null : body.get("username");
         String password = body == null ? null : body.get("password");
+        String ip = request == null ? null : request.getRemoteAddr();
 
         if (StringUtils.isBlank(username) || StringUtils.isEmpty(password)) {
             hasher.verify("", hashSenuelo);
             throw rechazar();
         }
 
-        if (limiteLogin != null && !limiteLogin.permitir(username)) {
+        if (limiteLogin != null && !limiteLogin.permitir(username, ip)) {
             LOG.info("[AUTH] login frenado por rate limit");
             throw demasiadosIntentos();
         }
@@ -130,10 +132,10 @@ public class AuthEndpoints {
         boolean coincide = hasher.verify(password, hashGuardado);
 
         if (cuenta.isEmpty() || !coincide) {
-            LOG.info("[AUTH] login rechazado para '{}'", username);
+            LOG.info("[AUTH] login rechazado para '{}'", LogSafe.of(username));
             // Counted whether or not the account exists: counting only real ones would make the 429
             // an oracle.
-            if (limiteLogin != null) limiteLogin.registrarFallo(username);
+            if (limiteLogin != null) limiteLogin.registrarFallo(username, ip);
             throw rechazar();
         }
 

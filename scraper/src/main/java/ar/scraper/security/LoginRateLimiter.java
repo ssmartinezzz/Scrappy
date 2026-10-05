@@ -20,34 +20,34 @@ import lombok.RequiredArgsConstructor;
 public class LoginRateLimiter {
 
     public static final int FALLOS_POR_CUENTA = 5;
-    public static final int FALLOS_GLOBALES = 100;
+
+    /** Por IP de origen, no global: un flood queda acotado a su propia IP, no frena al admin real. */
+    public static final int FALLOS_POR_IP = 30;
 
     public static final Duration VENTANA = Duration.ofMinutes(15);
-
-    private static final String GLOBAL = "\0global";
 
     private final Clock reloj;
     private final Map<String, Deque<Instant>> fallos = new ConcurrentHashMap<>();
 
-    public boolean permitir(String username) {
+    public boolean permitir(String username, String ip) {
         return vigentes(claveDe(username)) < FALLOS_POR_CUENTA
-            && vigentes(GLOBAL) < FALLOS_GLOBALES;
+            && (ip == null || vigentes(claveIp(ip)) < FALLOS_POR_IP);
     }
 
     /**
-     * Se llama con el username que se envió, exista o no la cuenta: contar sólo las reales
-     * convertiría el 429 en un oráculo de qué cuentas existen, que es justo lo que
-     * {@code AuthEndpoints} evita devolviendo siempre el mismo 401 y pagando el costo de Argon2id
-     * incluso contra un hash señuelo.
+     * Se llama con el username enviado exista o no la cuenta: contar sólo las reales convertiría el
+     * 429 en un oráculo de qué cuentas existen.
      */
-    public void registrarFallo(String username) {
+    public void registrarFallo(String username, String ip) {
         anotar(claveDe(username));
-        anotar(GLOBAL);
+        if (ip != null) {
+            anotar(claveIp(ip));
+        }
     }
 
     /**
-     * Sólo la cuenta, nunca el techo global: si el éxito lo limpiara, alguien con una credencial
-     * válida podría resetear el presupuesto de todos entre tanda y tanda de adivinanzas.
+     * Sólo la cuenta, nunca el techo por IP: si el éxito lo limpiara, alguien con una credencial
+     * válida podría resetear el presupuesto de su IP entre tanda y tanda de adivinanzas.
      */
     public void limpiarCuenta(String username) {
         fallos.remove(claveDe(username));
@@ -89,5 +89,9 @@ public class LoginRateLimiter {
     private static String claveDe(String username) {
         String normalizado = username == null ? "" : username.trim().toLowerCase();
         return "u:" + Integer.toHexString(normalizado.hashCode());
+    }
+
+    private static String claveIp(String ip) {
+        return "ip:" + Integer.toHexString(ip.hashCode());
     }
 }
