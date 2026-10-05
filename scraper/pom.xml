@@ -13,7 +13,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.2.5</version>
+        <version>3.5.16</version>
         <relativePath/>
     </parent>
 
@@ -29,26 +29,37 @@
         <allure.version>2.29.1</allure.version>
         <aspectj.version>1.9.24</aspectj.version>
         <testcontainers.version>1.21.4</testcontainers.version>
-        <!-- BouncyCastle backs Argon2PasswordEncoder. Spring Boot 3.2.5's BOM
-             does not manage it, so it is pinned here like flyway-database-postgresql
-             below — an unpinned version is a build that changes under you. -->
-        <bouncycastle.version>1.76</bouncycastle.version>
-        <!-- HS256 access tokens. Boot 3.2.5's BOM does not manage a JWT library
+        <!-- BouncyCastle backs Argon2PasswordEncoder. Boot's BOM does not manage it,
+             so it is pinned here — an unpinned version is a build that changes under
+             you. 1.76 carried CVSS 9.3 advisories; 1.86 is the latest 1.x. -->
+        <bouncycastle.version>1.86</bouncycastle.version>
+        <!-- HS256 access tokens. Boot's BOM does not manage a JWT library
              either, so this is pinned for the same reason as BouncyCastle. -->
         <nimbus.jwt.version>9.37.3</nimbus.jwt.version>
-        <!-- Spring Boot 3.2.5's dependencyManagement does not pin flyway-database-postgresql
-             (added to Boot's managed BOM in later 3.2.x/3.3 lines) — pin explicitly, matching
-             the flyway-core version Boot 3.2.5 DOES manage (10.10.0). -->
-        <flyway.version>10.10.0</flyway.version>
-        <!-- Boot 3.2.5's BOM does not manage ArchUnit either, so it is pinned
+        <!-- Tomcat and Flyway (incl. flyway-database-postgresql) are managed by Boot.
+             Tomcat is overridden: Boot 3.5.16 manages 10.1.55, which still carries
+             advisories fixed in later 10.1.x releases. -->
+        <tomcat.version>10.1.60</tomcat.version>
+        <!-- Same for Jackson and the PostgreSQL driver: Boot 3.5.16 manages 2.21.4 and
+             42.7.11, both with HIGH advisories fixed in the next patch. -->
+        <jackson-bom.version>2.21.7</jackson-bom.version>
+        <postgresql.version>42.7.12</postgresql.version>
+        <!-- opencsv 5.9 drags in commons-beanutils 1.9.4 (CVSS 8.8, fixed in 1.11.0). -->
+        <commons-beanutils.version>1.11.0</commons-beanutils.version>
+        <!-- Boot's BOM does not manage ArchUnit either, so it is pinned
              here like BouncyCastle and Nimbus above. -->
         <archunit.version>1.5.0</archunit.version>
-        <!-- Boot 3.2.5 manages 1.18.32; JDK 24 needs >= 1.18.36. -->
+        <!-- JDK 24 needs >= 1.18.36; kept as an explicit pin. -->
         <lombok.version>1.18.38</lombok.version>
     </properties>
 
     <dependencyManagement>
         <dependencies>
+            <dependency>
+                <groupId>commons-beanutils</groupId>
+                <artifactId>commons-beanutils</artifactId>
+                <version>${commons-beanutils.version}</version>
+            </dependency>
             <dependency>
                 <groupId>io.qameta.allure</groupId>
                 <artifactId>allure-bom</artifactId>
@@ -108,7 +119,7 @@
             <artifactId>commons-lang3</artifactId>
         </dependency>
 
-        <!-- JDBC + HikariCP (default pool in Spring Boot 3.2) -->
+        <!-- JDBC + HikariCP (default pool in Spring Boot) -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-jdbc</artifactId>
@@ -135,7 +146,6 @@
         <dependency>
             <groupId>org.flywaydb</groupId>
             <artifactId>flyway-database-postgresql</artifactId>
-            <version>${flyway.version}</version>
         </dependency>
 
         <!-- Argon2id password hashing (user-accounts-and-roles slice 1).
