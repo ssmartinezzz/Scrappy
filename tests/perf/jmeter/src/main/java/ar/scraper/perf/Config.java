@@ -49,8 +49,9 @@ public final class Config {
   // Sólo lectura: ningún POST/PUT/DELETE fuera del login. Un test de carga que
   // escribe contamina el catálogo y hace que la segunda corrida ya no mida lo
   // mismo que la primera.
-  // Presupuestos MEDIDOS contra el catálogo real (15.987 productos, 2026-09-22),
-  // con `carga`: 20 usuarios, 3 min, 2653 requests, cero errores.
+  // Presupuestos MEDIDOS contra el catálogo real (23.217 productos, 2026-10-05),
+  // con `carga`: 20 usuarios, 3 min, 2795 requests, cero errores. Cada techo sale
+  // del p95 más alto entre la baseline (1 usuario) y la carga.
   //
   // La regla: presupuesto = max(2 × p95, p95 + 25 ms), redondeado. El factor 2 da
   // aire para que una regresión chica no ponga todo rojo; el "+25 ms" es un piso
@@ -58,10 +59,11 @@ public final class Config {
   //
   // ⚠ LA INTUICIÓN ESTABA AL REVÉS, y por eso se mide. La primera versión de este
   // archivo le daba 2000-2500 ms a los armadores y a /api/grupos por "caros por
-  // diseño", y 300 ms a /api/facets por "precalculado". Medido: pcs_builder sale
-  // 23 ms y grupos 97; facets sale 150 ms y es el tercero más lento. Los caros son
-  // los que pegan a Postgres, no los algoritmos en memoria — un solver sobre 15.987
-  // productos le gana 7x a una consulta SQL con faceteo.
+  // diseño", y 300 ms a /api/facets por "precalculado". La medición del 2026-09-22
+  // dio pcs_builder 23 ms, grupos 97 y facets 150. Y un techo medido también se
+  // vence: para el 2026-10-05 facets y grupos bajaron a 4 ms, y sus techos de 300 y
+  // 200 ya no detectaban ni una regresión de 50x. Re-medir cuando cambia el catálogo
+  // o el backend.
   //
   // Sólo lectura: ningún POST/PUT/DELETE fuera del login. Un test de carga que
   // escribe contamina el catálogo y hace que la segunda corrida ya no mida lo
@@ -71,29 +73,33 @@ public final class Config {
       Endpoint.de("status", "/api/status", 1, 30),
       // IPC + dólar ya refrescados por un job aparte — p95 medido 3 ms
       Endpoint.de("indices", "/api/indices", 1, 30),
-      // agregación por marca sobre el snapshot — p95 medido 6 ms
-      Endpoint.de("marcas", "/api/marcas-browser", 1, 40),
-      // la primera pantalla de /catalogo, y el endpoint más pedido — p95 medido 160 ms, el segundo más lento
-      Endpoint.de("data", "/api/data?page=0&size=24", 5, 350),
-      // el mismo SQL con WHERE + ORDER BY — p95 medido 170 ms, EL más lento del catálogo
-      Endpoint.de("data_filtrado", "/api/data?page=0&size=24&rubro=tecnologia&orden=precio_asc", 3, 350),
-      // p95 medido 150 ms: el tercero más lento, no el barato que parece
-      Endpoint.de("facets", "/api/facets", 2, 300),
-      // re-agrupa el catálogo entero por request — p95 medido 97 ms
-      Endpoint.de("grupos", "/api/grupos?minSitios=2&page=0&size=20", 2, 200),
-      // mejor pick por categoría sobre el snapshot — p95 medido 13 ms
+      // agregación por marca sobre el snapshot — p95 medido 4 ms
+      Endpoint.de("marcas", "/api/marcas-browser", 1, 30),
+      // la primera pantalla de /catalogo, y el endpoint más pedido — p95 medido 24 ms
+      Endpoint.de("data", "/api/data?page=0&size=24", 5, 50),
+      // el mismo SQL con WHERE + ORDER BY — p95 medido 41 ms, el segundo más lento
+      Endpoint.de("data_filtrado", "/api/data?page=0&size=24&rubro=tecnologia&orden=precio_asc", 3, 90),
+      // conteos SQL por faceta — p95 medido 4 ms (150 el 2026-09-22)
+      Endpoint.de("facets", "/api/facets", 2, 30),
+      // agrupa el catálogo una vez por versión de snapshot y lo memoiza — p95 medido 4 ms
+      Endpoint.de("grupos", "/api/grupos?minSitios=2&page=0&size=20", 2, 30),
+      // mejor pick por categoría sobre el snapshot — p95 medido 7 ms
       Endpoint.de("mejores", "/api/mejores", 1, 40),
-      // arma el FeedbackModel y pega 2 queries — p95 medido 57 ms
-      Endpoint.de("recomendados", "/api/recomendados?page=0&size=24", 2, 120),
-      // MCKP con branch-and-bound — p95 medido 7 ms. `categorias` es obligatorio
+      // arma el FeedbackModel y pega 2 queries — p95 medido 66 ms, EL más lento
+      Endpoint.de("recomendados", "/api/recomendados?page=0&size=24", 2, 140),
+      // MCKP con branch-and-bound — p95 medido 13 ms. `categorias` es obligatorio
       Endpoint.de("outfits_builder", "/api/outfits/builder?categorias=Remera,Jean,Zapatilla&presupuesto=150000&estilo=gym", 1, 40),
-      // una pasada por precedencia sobre 33 subtipos — p95 medido 11 ms. `tipos` es obligatorio
+      // una pasada por precedencia sobre 33 subtipos — p95 medido 13 ms. `tipos` es obligatorio
       Endpoint.de("suplementos_builder", "/api/suplementos/builder?tipos=Prote%C3%ADna%20en%20Polvo,Creatina&presupuesto=100000", 1, 40),
-      // parsea TechSpecs al armar y corre siete slots con sus vetos — p95 medido 23 ms
-      Endpoint.de("pcs_builder", "/api/pcs/builder?presupuesto=2000000&conGpu=true&gama=alta", 1, 50));
+      // parsea TechSpecs al armar y corre siete slots con sus vetos — p95 medido 39 ms, el tercero más lento
+      Endpoint.de("pcs_builder", "/api/pcs/builder?presupuesto=2000000&conGpu=true&gama=alta", 1, 80));
 
-  /** p95 medido 43 ms con 10 usuarios concurrentes. Ver README. */
-  public static final Duration PRESUPUESTO_LOGIN = Duration.ofMillis(150);
+  /**
+   * p95 medido 137 ms con 10 hilos sin pausa (2026-10-05). Locust mide 41 ms porque
+   * sus usuarios esperan 1-3 s entre logins; acá los diez verifies de Argon2id compiten
+   * entre sí. Cada suite tiene el techo de su propia carga. Ver README.
+   */
+  public static final Duration PRESUPUESTO_LOGIN = Duration.ofMillis(280);
 
   private Config() {}
 
