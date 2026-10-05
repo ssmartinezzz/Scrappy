@@ -1052,6 +1052,29 @@ mano desde `frontend/` se comporta igual que antes, y `frontend/public/config.js
 es un archivo inerte que Vite copia a `dist/` para que un build no gestionado
 sirva algo válido en vez de un 404.
 
+### ¿Por qué el scraper sale por un proxy de egress y no filtra con `page.route`?
+
+Porque `page.route` no ve los redirects. Medido con Chromium real (Playwright
+1.44): `store.test` → 302 → `http://127.0.0.1/secret`, el handler recibió sólo la
+primera URL, el servidor interno recibió el GET y la página leyó `SECRET`. Un
+filtro ahí se saltea con un redirect, un subrecurso o un DNS que cambia entre el
+chequeo y la conexión.
+
+`EgressProxy` (`ar.scraper.security.egress`) es un proxy HTTP en loopback por el
+que se lanza Chromium (`BaseScraper.launchOptions`) y el `HttpClient` de imágenes
+de `VaypolPage`. Con `LaunchOptions.setProxy` Chromium manda **todo** por ahí,
+loopback incluido (verificado). En cada conexión resuelve el host, rechaza con
+403 si *alguna* IP es interna (`OutboundAddressPolicy.isInternal`: loopback,
+privadas, link-local/metadata, CGNAT, ULA) y se conecta **a la IP que aprobó**,
+nunca re-resuelve el nombre: eso cierra el rebinding.
+
+`OutboundUrl` en `POST /api/sitios` es UX (400 temprano), no la defensa: no
+resuelve DNS. El proxy es un `shared()` lazy por proceso para no ensanchar
+`ScraperService` (15 construcciones a mano en los tests); los tests inyectan un
+`DestinationResolver` por el seam de `BaseScraper`.
+
+Rollback: revertir el commit; no hay estado persistido.
+
 ### El estado se empuja, no se consulta
 
 **Decisión** (`backend-hardening` T3): la UI no pollea el estado del scrape, del ML ni

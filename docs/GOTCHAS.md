@@ -370,6 +370,13 @@ migraciones — detalle en `docs/DATABASE.md` § `V40`.
 
 ### Leer un sitio
 
+**Chromium sale por `EgressProxy`: un sitio en loopback o en la LAN no se
+scrapea.** Es el guard de SSRF ([ARCHITECTURE](./ARCHITECTURE.md), "proxy de
+egress"). Un test que sirve un fixture local inyecta un `DestinationResolver`
+que lo permita; si no, recibe 403. Dos trampas al probarlo: `page.route` no ve
+los saltos de un redirect (por eso no es la defensa), y Chrome rechaza puertos
+como el 9 (`ERR_UNSAFE_PORT`) antes de llegar al proxy — usá puertos efímeros.
+
 **`page.content()` sirve el DOM re-serializado, no el HTML crudo del servidor:**
 descubierto escribiendo `OsCommercePage` — un fixture construido a partir de
 `curl` (comillas simples en un atributo `onclick`, JSON con comillas dobles
