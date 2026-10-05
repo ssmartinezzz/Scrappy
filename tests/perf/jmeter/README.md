@@ -71,24 +71,40 @@ margen. Throughput plano y latencia subiendo = saturado, la cola crece.
 
 ## Lo que salió medido
 
-Catálogo real: 15.987 productos, 2026-09-22. `carga` = 20 usuarios, 3 min,
-2653 requests, cero errores.
+Catálogo real: 23.217 productos, 2026-10-05. `carga` = 20 usuarios, 3 min,
+2795 requests, cero errores. Cada techo sale del p95 más alto de las dos columnas.
+El login es la excepción: Locust lo mide con 1-3 s de pausa entre intentos (41 ms)
+y esta suite sin pausa (137 ms), así que cada una tiene su propio techo.
 
 | endpoint | p95 baseline (1 usuario) | p95 con carga (20) | presupuesto |
 |---|---:|---:|---:|
 | `status` | 3 ms | 3 ms | 30 |
-| `indices` | 2 ms | 3 ms | 30 |
-| `marcas` | 7 ms | 6 ms | 40 |
-| `outfits_builder` | 6 ms | 7 ms | 40 |
-| `suplementos_builder` | 9 ms | 11 ms | 40 |
-| `mejores` | 12 ms | 13 ms | 40 |
-| `pcs_builder` | 21 ms | 23 ms | 50 |
-| `recomendados` | 48 ms | 57 ms | 120 |
-| `grupos` | 93 ms | 97 ms | 200 |
-| `facets` | 142 ms | 150 ms | 300 |
-| `data` | 152 ms | 160 ms | 350 |
-| `data_filtrado` | 163 ms | 170 ms | 350 |
-| `login` (POST) | — | 43 ms (10 usuarios) | 150 |
+| `indices` | 3 ms | 3 ms | 30 |
+| `marcas` | 4 ms | 4 ms | 30 |
+| `facets` | 4 ms | 4 ms | 30 |
+| `grupos` | 4 ms | 3 ms | 30 |
+| `mejores` | 7 ms | 7 ms | 40 |
+| `suplementos_builder` | 12 ms | 13 ms | 40 |
+| `outfits_builder` | 13 ms | 9 ms | 40 |
+| `data` | 24 ms | 22 ms | 50 |
+| `pcs_builder` | 37 ms | 39 ms | 80 |
+| `data_filtrado` | 41 ms | 39 ms | 90 |
+| `recomendados` | 66 ms | 66 ms | 140 |
+| `login` (POST) | — | 137 ms (10 hilos sin pausa) | 280 |
+
+**Stress y spike (2026-10-05)**, analizando los JTL por cantidad de hilos:
+
+| hilos | p50 | p95 | p99 | errores |
+|---:|---:|---:|---:|---:|
+| 1–25 | 57 ms | 204 ms | 301 ms | 0 |
+| 26–50 | 109 ms | 348 ms | 476 ms | 0 |
+| 51–100 | 198 ms | 705 ms | 982 ms | 0 |
+| 101–200 | 324 ms | 1318 ms | 1869 ms | 0 |
+
+Cero errores en 112.773 requests: con cada escalón la latencia se duplica, pero
+no hay ni un rechazo. El p95 pasa 1 s entre 100 y 200 hilos, con el cliente, el
+backend y Postgres en la misma máquina. Spike (150 hilos de golpe): p95 75 ms
+antes del pico, 989 ms durante, 67 ms después; vuelve a la normalidad.
 
 **La regla del presupuesto:** `max(2 × p95, p95 + 25 ms)`, redondeado. El factor
 2 da aire para que una regresión chica no ponga todo rojo; el `+25 ms` es un piso
@@ -98,7 +114,7 @@ absoluto, porque el doble de 3 ms es ruido del reloj, no un presupuesto.
 
 La primera versión de esta suite le daba **2000–2500 ms** a los armadores y a
 `/api/grupos` —"caros por diseño, corren un branch-and-bound"— y **300 ms** a
-`/api/facets`, "facetas precalculadas, el barato". Medido:
+`/api/facets`, "facetas precalculadas, el barato". Medido el 2026-09-22:
 
 - `pcs_builder` sale **23 ms** y `grupos` **97**: los techos estaban 100x y 20x
   arriba. Un presupuesto así no puede fallar nunca.
@@ -107,6 +123,17 @@ La primera versión de esta suite le daba **2000–2500 ms** a los armadores y a
 Los caros son los que pegan a Postgres (`data`, `data_filtrado`, `facets`), no
 los algoritmos en memoria. Un solver sobre 15.987 productos le gana 7x a una
 consulta SQL con faceteo. Ninguna de las dos cosas era obvia leyendo el código.
+
+### Y un techo medido también se vence
+
+Entre el 2026-09-22 y el 2026-10-05 los endpoints SQL bajaron de 4x a 40x
+(`facets` 150 → 4 ms, `grupos` 97 → 4, `data` 160 → 24) y el catálogo creció
+45%, con lo que los armadores subieron (`pcs_builder` 23 → 39). La caída de
+`grupos`, `mejores` y `marcas` la explica el A/B de backend-hardening
+(`odd/tasks/release-performance.md`: snapshot caches); la de `data` y `facets` es
+anterior a esa base y no está atribuida. Con los techos viejos, `facets` podía
+empeorar 50x y la suite seguía en verde. Re-medir cuando cambia el catálogo o el
+backend.
 
 ### Lo que encontró la suite mientras se la ponía a punto
 
