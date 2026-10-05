@@ -13,6 +13,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration;
+import org.springframework.boot.autoconfigure.security.servlet.SecurityFilterAutoConfiguration;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
@@ -53,7 +55,11 @@ class CorsCredentialsTest {
     private static final String ORIGEN = "http://localhost:5173";
 
     @Nested
-    @WebMvcTest(controllers = {RootController.class, AuthEndpoints.class})
+    // Boot's default security chain refuses an unauthenticated preflight; this slice
+    // pins the MVC CORS mapping, and the real chain permits OPTIONS in ApiRoutePolicy.
+    @WebMvcTest(controllers = {RootController.class, AuthEndpoints.class},
+            excludeAutoConfiguration = {SecurityAutoConfiguration.class,
+                    SecurityFilterAutoConfiguration.class})
     @Import(CorsConfig.class)
     @TestPropertySource(properties = "app.cors.allowed-origins=" + ORIGEN)
     @DisplayName("through the real filter/handler stack")
