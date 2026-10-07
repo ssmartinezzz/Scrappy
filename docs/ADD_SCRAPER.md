@@ -189,7 +189,9 @@ La API Legacy responde HTTP 400 pasado `_from` ≈ 2550, así que `VtexPage` par
 
 Las tres piezas de arriba con `plataforma = 'vaypol'`.
 
-`VaypolPage` busca links con href que terminen en `/-{4-6 dígitos}` (el slug de producto de esta plataforma). Si el nuevo sitio usa un patrón diferente, ajustar el regex en `buildExtractorJs()`.
+`VaypolPage` lee primero el `__NEXT_DATA__` de cada `/productos/p/N`: trae 60 productos por página con imagen (`dummy_images`) y precio (`all_prices.sale_price`, o `original` si no hay oferta). La URL canónica es `/<slug>-<id>`: el campo `url` del payload agrega `-<variante>` y hay que cortarla, porque la URL es la clave del upsert.
+
+Sólo si ese parseo da vacío cae a los links del DOM (href que terminan en `-{4-6 dígitos}`, regex en `buildExtractorJs()`), que muestra **12 de los 60** y sin imagen, y después baja cada ficha para su `og:image`. Si `[Vaypol] __NEXT_DATA__ → 0 productos` aparece en cada página, el sitio cambió el payload: es el síntoma de que el parser se rompió, no de que la página esté vacía.
 
 ---
 

@@ -254,6 +254,15 @@ public class VaypolPage extends StorePage implements CatalogPage {
                 "  return el ? el.textContent : null;" +
                 "})()"
             );
+            return productosDeNextData(rawJson, base);
+        } catch (Exception e) {
+            log.debug("[{}] __NEXT_DATA__ error: {}", sitio, e.getMessage());
+            return List.of();
+        }
+    }
+
+    List<Product> productosDeNextData(String rawJson, String base) {
+        try {
             if (StringUtils.isBlank(rawJson)) return List.of();
 
             JsonNode root = MAPPER.readTree(rawJson);
@@ -282,6 +291,7 @@ public class VaypolPage extends StorePage implements CatalogPage {
 
     private JsonNode encontrarProductsNode(JsonNode root) {
         String[] paths = {
+            "props/pageProps/initialReduxState/products/items",
             "props/pageProps/products",
             "props/pageProps/data/products",
             "props/pageProps/catalog/products",
@@ -328,6 +338,7 @@ public class VaypolPage extends StorePage implements CatalogPage {
             if (nombre.isBlank()) return Optional.empty();
 
             String slug = p.path("slug").asText("");
+            if (slug.isBlank()) slug = sinSufijoDeVariante(p.path("url").asText(""), p.path("id").asText(""));
             String url  = slug.isBlank() ? "" : base + "/" + slug;
 
             // La versión anterior no lo miraba: escaneaba el JSON entero por URLs del CDN y las
@@ -375,6 +386,13 @@ public class VaypolPage extends StorePage implements CatalogPage {
                                     priceNode.path("list").asDouble(0));
                     if (orig > precio && orig > 0) precioOrig = orig;
                 }
+            }
+            JsonNode allPrices = p.path("all_prices");
+            if (precio == 0 && allPrices.isObject()) {
+                double original = allPrices.path("original").asDouble(0);
+                double oferta   = allPrices.path("sale_price").asDouble(0);
+                precio = oferta > 0 ? oferta : original;
+                if (oferta > 0 && original > oferta) precioOrig = original;
             }
             if (precio == 0) {
                 precio = p.path("selling_price").asDouble(
@@ -552,6 +570,16 @@ public class VaypolPage extends StorePage implements CatalogPage {
             "});" +
             "return JSON.stringify(results);" +
             "})()";
+    }
+
+    /**
+     * The payload's {@code url} is {@code <slug>-<id>-<variant>}; the card links to
+     * {@code /<slug>-<id>}, and that is the URL every stored product already has.
+     */
+    private static String sinSufijoDeVariante(String url, String id) {
+        if (StringUtils.isAnyBlank(url, id)) return url;
+        int k = url.lastIndexOf("-" + id + "-");
+        return k < 0 ? url : url.substring(0, k + id.length() + 1);
     }
 
     private List<String> extraerTalles(JsonNode p) {
