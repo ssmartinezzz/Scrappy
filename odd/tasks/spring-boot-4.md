@@ -65,7 +65,7 @@ Measured on branch build/spring-boot-4 (uncommitted), 2026-10-07.
   is only the package name of `UserDetailsServiceAutoConfiguration` (same generated-password
   warning). `RequiredEnvVarsGuard` (now `org.springframework.boot.EnvironmentPostProcessor`) verified:
   boot without DATABASE_URL exits 1 naming it; normal boot starts.
-- Dependency tree: spring-webmvc / spring-web / spring-core 7.0.9, security 7.1.1, Tomcat 11.0.24,
+- Dependency tree: spring-webmvc / spring-web / spring-core 7.0.9, security 7.1.1, Tomcat 11.0.26 (override, see below),
   Flyway 12.4.0, postgresql 42.7.13; no 6.x Spring artifact in the tree or in the packaged jar.
   `osv-scanner` not installed locally; the Dependency Audit gate must confirm in CI.
 
@@ -75,6 +75,14 @@ Measured on branch build/spring-boot-4 (uncommitted), 2026-10-07.
   workflow) still read it at INFO. The harness now raises `ar.scraper.security.reset` to DEBUG
   (the package: an env var binds a lower-cased logger name, so the class name never matched).
   After: API 51/51. Docker Smoke: dispatched in CI with the PR.
+
+- B6 first CI run (#294): Spring cleared, but the gate then reported what Boot 4.1.1 manages —
+  Tomcat 11.0.24 (GHSA-9xv2-5v5q-p794 9.8, GHSA-h3x4-894j-xpx5 9.1, GHSA-gcx9-497g-6cp6 9.1;
+  fixed 11.0.25) and Jackson 3.1.5 (five 7.5 advisories; fixed 3.1.7). Reproduced locally with
+  CI's own osv-scanner v2.6.0 (same SHA-256, same threshold): exit 1 → overrides
+  `tomcat.version` 11.0.26, `jackson-bom.version` 3.1.7 → "No HIGH/CRITICAL vulnerabilities.".
+  Re-verified: suite 3552/0, packaged jar holds tomcat-embed-core-11.0.26 and
+  jackson-databind-3.1.7, e2e API 51/51 (real boot). Docker Smoke (dispatched): success.
 
 ## Next step
 

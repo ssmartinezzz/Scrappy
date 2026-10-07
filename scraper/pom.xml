@@ -34,10 +34,16 @@
         <!-- HS256 access tokens. Boot's BOM does not manage a JWT library
              either, so this is pinned for the same reason as BouncyCastle. -->
         <nimbus.jwt.version>9.37.3</nimbus.jwt.version>
-        <!-- Tomcat, Flyway (incl. flyway-database-postgresql) and the PostgreSQL driver
-             are managed by Boot. Jackson 2 (com.fasterxml.jackson, used directly by the
-             code) is overridden: Boot 4.1.1 manages 2.21.5, and 2.21.7 is the patch
-             that carried the HIGH advisory fixes. -->
+        <!-- Flyway (incl. flyway-database-postgresql) and the PostgreSQL driver are managed
+             by Boot. Three managed versions are overridden to their first patch without
+             HIGH/CRITICAL advisories (the Dependency Audit gate):
+             - Tomcat: Boot 4.1.1 manages 11.0.24 (CVSS 9.8, fixed in 11.0.25);
+             - Jackson 3 (tools.jackson, Spring's HTTP layer): 3.1.5 (7.5, fixed in 3.1.7);
+             - Jackson 2 (com.fasterxml.jackson, used directly by the code): 2.21.5, 2.21.7
+               carries the fixes.
+             Drop each override once Boot manages that version or newer. -->
+        <tomcat.version>11.0.26</tomcat.version>
+        <jackson-bom.version>3.1.7</jackson-bom.version>
         <jackson-2-bom.version>2.21.7</jackson-2-bom.version>
         <!-- opencsv 5.9 drags in commons-beanutils 1.9.4 (CVSS 8.8, fixed in 1.11.0). -->
         <commons-beanutils.version>1.11.0</commons-beanutils.version>
