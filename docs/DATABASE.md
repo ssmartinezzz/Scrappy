@@ -1843,6 +1843,15 @@ no-clave —3FN— y, peor que la teoría, una segunda cosa que mantener
 sincronizada: cualquier corrección de `finished_at` dejaría la duración
 mintiendo sin que nada lo señale.
 
+**`scrape_run_site.started_at` es el arranque real del sitio, no su encolado.**
+Hasta 2026-10-07 se marcaba al hacer submit al pool: las 29 filas de una corrida
+compartían `started_at` y la duración derivada incluía la espera en cola (Venex:
+1322 s en la base, 813 s scrapeando). Hoy lo marca el worker al arrancar, y un
+sitio en cola sigue `PENDING` — el resume ya trata `PENDING` y `RUNNING` igual.
+Importa porque `ScrapeRunPort.duracionesHistoricasMs()` (mediana de las últimas 3
+filas `DONE`) decide el orden de submit, más largos primero. Las filas anteriores
+a ese cambio inflan a los sitios que esperaban en cola; se lavan en ≤ 3 corridas.
+
 ### El CHECK apareado es toda la detección de interrupciones
 
 ```sql
