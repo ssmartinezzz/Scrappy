@@ -39,9 +39,7 @@ class CategoriaStatsRepository implements CategoriaStatsPort {
         Set<String> canonicas = CategoryGroups.canonicalCategories();
         java.time.OffsetDateTime now = Timestamps.now();
         try {
-            var it = statsNode.fields();
-            while (it.hasNext()) {
-                var entry = it.next();
+            for (var entry : statsNode.properties()) {
                 String categoria = entry.getKey();
                 if (!canonicas.contains(categoria)) {
                     LOG.warn("[DB] categoria_stats: descartando clave no canónica '{}' " +

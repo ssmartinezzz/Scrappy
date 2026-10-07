@@ -1,6 +1,7 @@
 package ar.scraper.security;
 
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.Strings;
 
 import java.net.InetAddress;
 import java.net.URI;
@@ -35,7 +36,7 @@ public final class OutboundUrl {
         String host = hostOf(uri);
         if (StringUtils.isBlank(host) || OutboundAddressPolicy.isLocalhostName(host)) return false;
         if (host.startsWith("[")) return isPublicIpv6(host);
-        host = StringUtils.removeEnd(host, ".");
+        host = Strings.CS.removeEnd(host, ".");
         return looksNumeric(host) ? isPublicDottedQuad(host) : true;
     }
 
@@ -51,7 +52,7 @@ public final class OutboundUrl {
         String[] labels = host.split("\\.", -1);
         boolean allDigits = true;
         for (String label : labels) {
-            if (StringUtils.startsWithIgnoreCase(label, "0x")) return true;
+            if (Strings.CI.startsWith(label, "0x")) return true;
             allDigits &= DIGITS.matcher(label).matches();
         }
         return allDigits;

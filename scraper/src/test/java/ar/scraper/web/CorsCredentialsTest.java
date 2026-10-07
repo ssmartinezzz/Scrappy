@@ -13,10 +13,12 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration;
-import org.springframework.boot.autoconfigure.security.servlet.SecurityFilterAutoConfiguration;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.security.autoconfigure.SecurityAutoConfiguration;
+import org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration;
+import org.springframework.boot.security.autoconfigure.web.servlet.SecurityFilterAutoConfiguration;
+import org.springframework.boot.security.autoconfigure.web.servlet.ServletWebSecurityAutoConfiguration;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -59,7 +61,8 @@ class CorsCredentialsTest {
     // pins the MVC CORS mapping, and the real chain permits OPTIONS in ApiRoutePolicy.
     @WebMvcTest(controllers = {RootController.class, AuthEndpoints.class},
             excludeAutoConfiguration = {SecurityAutoConfiguration.class,
-                    SecurityFilterAutoConfiguration.class})
+                    SecurityFilterAutoConfiguration.class, ServletWebSecurityAutoConfiguration.class,
+                    UserDetailsServiceAutoConfiguration.class})
     @Import(CorsConfig.class)
     @TestPropertySource(properties = "app.cors.allowed-origins=" + ORIGEN)
     @DisplayName("through the real filter/handler stack")
@@ -68,16 +71,16 @@ class CorsCredentialsTest {
         @Autowired
         private MockMvc mockMvc;
 
-        @MockBean
+        @MockitoBean
         private UsuarioRepository usuarios;
-        @MockBean
+        @MockitoBean
         private PasswordHasher hasher;
-        @MockBean
+        @MockitoBean
         private TokenService tokens;
-        @MockBean
+        @MockitoBean
         private RefreshTokenService sesiones;
 
-        @MockBean
+        @MockitoBean
         private PasswordResetService reseteos;
 
         @Test
