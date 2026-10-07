@@ -3,6 +3,7 @@ package ar.scraper.scrape;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -40,4 +41,10 @@ public interface ScrapeRunPort {
     boolean existeCorridaCompletada();
 
     Optional<Instant> startedAtDe(long runId);
+
+    /**
+     * Per {@code sitio_key}, the median wall time of its last 3 finished DONE runs. Sites with no
+     * such run are absent.
+     */
+    Map<String, Long> duracionesHistoricasMs();
 }

@@ -239,7 +239,7 @@ public class ScraperService implements CatalogSnapshotPort {
         bus.publish(new StatusEvent.ScrapeStatus(status.get(), msg));
     }
 
-    private void progreso(ProgressData p) {
+    synchronized void progreso(ProgressData p) {
         progressData = p;
         bus.publish(new StatusEvent.ScrapeProgress(p.total(), p.completados(), p.productosAcumulados(),
                 p.sitios().stream()
@@ -418,7 +418,7 @@ public class ScraperService implements CatalogSnapshotPort {
         long runStart = System.currentTimeMillis();
         String ts = LocalDateTime.now().format(TS);
 
-        List<ScraperConfig.SiteConfig> todos = buildSiteList(sitiosSeleccionados);
+        List<ScraperConfig.SiteConfig> todos = ordenarPorHistorial(buildSiteList(sitiosSeleccionados));
         int totalSitios = todos.size();
 
         // `pendientes` trae `sitio_key` y `buildSiteList` filtra por `nombre`: si no matchea
@@ -463,17 +463,11 @@ public class ScraperService implements CatalogSnapshotPort {
         IndiceDeSitios indice = new IndiceDeSitios(
                 todos.stream().map(ScraperConfig.SiteConfig::nombre).toList());
         for (int i = 0; i < todos.size(); i++) {
-            String nombre = todos.get(i).nombre();
-
-            actualizarProgreso(progSitios, i, SitioEstado.EN_CURSO, 0, null, 0);
-            registrarSitioEnCurso(nombre);
-            progreso(new ProgressData(totalSitios, 0, 0, List.copyOf(progSitios)));
-
+            final int idx = i;
             final var site = todos.get(i);
-            RUN_LOG.info("[INICIO]  {} scrapeando...", String.format("%-15s", site.nombre()));
             ecs.submit(() -> {
                 try {
-                    return withRetry(() -> {
+                    return correrSitio(site, idx, progSitios, totalSitios, () -> {
                         // Registrado ANTES de usarse y sacado en el finally: si cancelar llega en
                         // el medio, tiene a quién cerrarle.
                         Playwright pw = Playwright.create();
@@ -485,7 +479,7 @@ public class ScraperService implements CatalogSnapshotPort {
                             playwrightsVivos.remove(pw);
                             pw.close();
                         }
-                    }, 3, 2000, cancelado::get);
+                    });
                 } catch (Exception e) {
                     return new ScrapeResult(site.nombre(), List.of(), e.getMessage(), 0);
                 }
@@ -680,6 +674,43 @@ public class ScraperService implements CatalogSnapshotPort {
                      + "queda sólo lo de esta corrida: {}", e.getMessage());
             return delBatch;
         }
+    }
+
+    /** Ordering is an optimization: whatever goes wrong reading the history, the run goes on. */
+    List<ScraperConfig.SiteConfig> ordenarPorHistorial(List<ScraperConfig.SiteConfig> sitios) {
+        try {
+            List<ScraperConfig.SiteConfig> orden =
+                    OrdenDeSitios.masLargosPrimero(sitios, scrapeRun.duracionesHistoricasMs());
+            RUN_LOG.info("[ORDEN]   {}", orden.stream().map(ScraperConfig.SiteConfig::nombre)
+                    .collect(Collectors.joining(", ")));
+            return orden;
+        } catch (Exception e) {
+            LOG.warn("[RUN] no se pudo leer el historial de duraciones, orden de config: {}",
+                    e.getMessage());
+            return sitios;
+        }
+    }
+
+    /**
+     * The mark is taken here, in the worker, so {@code scrape_run_site.started_at} and the EN_CURSO
+     * progress are the real start: a site waiting in the pool queue stays ESPERANDO / PENDING.
+     */
+    ScrapeResult correrSitio(ScraperConfig.SiteConfig site, int idx, List<SitioProgress> progSitios,
+                             int totalSitios, java.util.concurrent.Callable<ScrapeResult> intento)
+            throws InterruptedException {
+        actualizarProgreso(progSitios, idx, SitioEstado.EN_CURSO, 0, null, 0);
+        registrarSitioEnCurso(site.nombre());
+        // Read-and-publish under progreso's lock: a site starting mid-run must not roll back the
+        // counters the collector thread just published.
+        synchronized (this) {
+            ProgressData actual = progressData;
+            progreso(new ProgressData(totalSitios,
+                    actual == null ? 0 : actual.completados(),
+                    actual == null ? 0 : actual.productosAcumulados(),
+                    List.copyOf(progSitios)));
+        }
+        RUN_LOG.info("[INICIO]  {} scrapeando...", String.format("%-15s", site.nombre()));
+        return withRetry(intento, 3, 2000, cancelado::get);
     }
 
     private void actualizarProgreso(List<SitioProgress> lista, int idx,
