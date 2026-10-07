@@ -18,7 +18,9 @@ import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.apache.commons.lang3.StringUtils;
@@ -356,6 +358,31 @@ class ScrapeRunRepository implements ScrapeRunPort {
      */
     private static Instant truncarAlSegundo(Instant instante) {
         return instante.truncatedTo(ChronoUnit.SECONDS);
+    }
+
+    @Override
+    public Map<String, Long> duracionesHistoricasMs() {
+        return Sql.traducir(this::duracionesHistoricasMsSql);
+    }
+
+    private Map<String, Long> duracionesHistoricasMsSql() {
+        Map<String, Long> out = new LinkedHashMap<>();
+        jdbc.query("""
+                SELECT sitio_key,
+                       percentile_cont(0.5) WITHIN GROUP (ORDER BY ms) AS mediana_ms
+                  FROM (SELECT sitio_key,
+                               EXTRACT(EPOCH FROM (finished_at - started_at)) * 1000 AS ms,
+                               ROW_NUMBER() OVER (PARTITION BY sitio_key
+                                                  ORDER BY finished_at DESC) AS n
+                          FROM scrape_run_site
+                         WHERE status = 'DONE'
+                           AND started_at IS NOT NULL AND finished_at IS NOT NULL) ultimas
+                 WHERE n <= 3
+                 GROUP BY sitio_key
+                """, rs -> {
+            out.put(rs.getString(1), Math.round(rs.getDouble(2)));
+        });
+        return out;
     }
 
     private static OffsetDateTime enUtc(Instant instante) {

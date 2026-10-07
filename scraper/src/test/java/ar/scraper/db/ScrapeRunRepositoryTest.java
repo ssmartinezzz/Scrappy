@@ -183,6 +183,45 @@ class ScrapeRunRepositoryTest extends PostgresTestBase {
         assertThat(errorDelSitio(runId, SITIO_CONOCIDO)).isEqualTo("timeout tras 600s");
     }
 
+    // ── historical durations ─────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("duracionesHistoricasMs is the median of the site's last 3 DONE runs")
+    void historicalDurationIsTheMedianOfTheLastThreeDoneRuns() {
+        Instant t0 = Instant.parse("2026-10-01T10:00:00Z");
+        // Oldest first; the 100s run falls outside the last 3 and must not count.
+        sitioTerminado("freres", "DONE", t0, 100);
+        sitioTerminado("freres", "DONE", t0.plus(1, ChronoUnit.DAYS), 10);
+        sitioTerminado("freres", "DONE", t0.plus(2, ChronoUnit.DAYS), 30);
+        sitioTerminado("freres", "DONE", t0.plus(3, ChronoUnit.DAYS), 20);
+        // Newer than all of them, but neither is a finished DONE measurement.
+        sitioTerminado("freres", "ERROR", t0.plus(4, ChronoUnit.DAYS), 999);
+        repo().marcarSitioTerminado(
+                repo().crear(UUID.randomUUID(), t0, null, null, List.of("freres")),
+                "freres", "DONE", 1, null, t0.plus(5, ChronoUnit.DAYS));
+
+        assertThat(repo().duracionesHistoricasMs()).containsEntry("freres", 20_000L);
+    }
+
+    @Test
+    @DisplayName("a site with fewer than 3 runs uses what it has; one without a DONE run is absent")
+    void sparseHistory() {
+        Instant t0 = Instant.parse("2026-10-01T10:00:00Z");
+        sitioTerminado("midway", "DONE", t0, 10);
+        sitioTerminado("midway", "DONE", t0.plus(1, ChronoUnit.DAYS), 20);
+        sitioTerminado("harvey", "ERROR", t0, 50);
+
+        var duraciones = repo().duracionesHistoricasMs();
+
+        assertThat(duraciones).containsEntry("midway", 15_000L).doesNotContainKey("harvey");
+    }
+
+    private void sitioTerminado(String sitio, String status, Instant inicio, long segundos) {
+        long runId = repo().crear(UUID.randomUUID(), inicio, null, null, List.of(sitio));
+        repo().marcarSitioEnCurso(runId, sitio, inicio);
+        repo().marcarSitioTerminado(runId, sitio, status, 1, null, inicio.plusSeconds(segundos));
+    }
+
     // ── finalization ─────────────────────────────────────────────────────────
 
     @Test
