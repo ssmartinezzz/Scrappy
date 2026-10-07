@@ -1,0 +1,74 @@
+{
+  "props": {
+    "pageProps": {
+      "initialReduxState": {
+        "products": {
+          "items": [
+            {
+              "id": 34667,
+              "name": "Zapatillas adidas Adistar Control 3",
+              "url": "zapatillas-adidas-adistar-control-3-34667-40007311",
+              "all_prices": {
+                "original": 199999,
+                "discount": null,
+                "sale_price": null,
+                "tax_total": 34710,
+                "before_tax": 165288,
+                "installments": {
+                  "quantity": 6,
+                  "value": 33333
+                }
+              },
+              "dummy_images": [
+                {
+                  "url": "https://production.cdn.vaypol.com/variants/l238gsi7xuqf117cq2uacnr39hh1/b96acdf7b3e1356dea9bd5656af8e64bbc8ce1f5cfda2a0d1e2d872323b20cc0",
+                  "blurhash": null,
+                  "ext": "webp"
+                },
+                {
+                  "url": "https://production.cdn.vaypol.com/variants/saiugtv7bmf7nwkx83qur7nihw5w/b96acdf7b3e1356dea9bd5656af8e64bbc8ce1f5cfda2a0d1e2d872323b20cc0",
+                  "blurhash": null,
+                  "ext": "webp"
+                }
+              ],
+              "gender": "Mujer",
+              "brand_name": "adidas",
+              "sizes_on_stock": 95
+            },
+            {
+              "id": 34470,
+              "name": "Zapatillas Nike Terra Manta",
+              "url": "zapatillas-nike-terra-manta-34470-40000451",
+              "all_prices": {
+                "original": 179999,
+                "discount": 35,
+                "sale_price": 116999,
+                "tax_total": 20305,
+                "before_tax": 96693,
+                "installments": {
+                  "quantity": 6,
+                  "value": 19499
+                }
+              },
+              "dummy_images": [
+                {
+                  "url": "https://production.cdn.vaypol.com/variants/c517jm33cy4ps5l0egghecxej19k/b96acdf7b3e1356dea9bd5656af8e64bbc8ce1f5cfda2a0d1e2d872323b20cc0",
+                  "blurhash": null,
+                  "ext": "webp"
+                },
+                {
+                  "url": "https://production.cdn.vaypol.com/variants/7unhc2basi5ws5746iinugkwzt8l/b96acdf7b3e1356dea9bd5656af8e64bbc8ce1f5cfda2a0d1e2d872323b20cc0",
+                  "blurhash": null,
+                  "ext": "webp"
+                }
+              ],
+              "gender": "Mujer",
+              "brand_name": "Nike",
+              "sizes_on_stock": 54
+            }
+          ]
+        }
+      }
+    }
+  }
+}
