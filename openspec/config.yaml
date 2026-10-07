@@ -5,7 +5,7 @@ initialized: "2026-06-15"
 
 context: |
   Tech stack:
-    - Backend: Java 21 + Spring Boot 3.2.5 + Tomcat (embedded on localhost:3000)
+    - Backend: Java 21 + Spring Boot 4.1.1 + Tomcat (embedded on localhost:3000)
     - Frontend: HTML/CSS/JS vanilla (SPA)
     - Database: SQLite (scraper.db)
     - ML Pipeline: Python 3.11 embedded (subprocess from Java)

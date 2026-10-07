@@ -21,13 +21,13 @@ Fashion Scraper Argentina is a headless e-commerce scraper (clothing/indumentari
 
 | Layer | Technology | Notes |
 |-------|-----------|-------|
-| **Backend** | Java 21 + Spring Boot 3.2.5 | Tomcat embedded on localhost:3000 |
+| **Backend** | Java 21 + Spring Boot 4.1.1 | Tomcat embedded on localhost:3000 |
 | **Web Framework** | Spring Boot Web (Tomcat) | REST API + static file serving |
 | **Web Scraping** | Playwright 1.44 | Headless browser; Page Object Model pattern |
 | **Database** | SQLite 3.45.3 | `scraper.db` alongside JAR; 4 main tables |
 | **ML Pipeline** | Python 3.11 (embedded) | Subprocess from Java; TF-IDF clustering, price ranking |
 | **Frontend** | HTML/CSS/JS vanilla | Single Page App (SPA); no build step |
-| **Build System** | Maven 3.x + Spring Boot Maven Plugin | Fat JAR generation; parent = spring-boot-starter-parent 3.2.5 |
+| **Build System** | Maven 3.x + Spring Boot Maven Plugin | Fat JAR generation; parent = spring-boot-starter-parent 4.1.1 |
 | **Dependency Management** | Maven | Key deps: playwright, sqlite-jdbc, jackson-databind, opencsv |
 
 ---
