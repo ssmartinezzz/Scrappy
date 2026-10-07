@@ -10,7 +10,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.aop.support.AopUtils;
-import org.springframework.boot.autoconfigure.flyway.FlywayDataSource;
+import org.springframework.boot.flyway.autoconfigure.FlywayDataSource;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -119,7 +119,7 @@ class TransactionWiringTest extends PostgresTestBase {
         runner.run(ctx -> {
             assertThat(ctx.getBean(DataSource.class)).isInstanceOf(TransactionAwareDataSourceProxy.class);
             assertThat(TransactionConfig.class.getDeclaredMethod("hikariPool",
-                    org.springframework.boot.autoconfigure.jdbc.DataSourceProperties.class)
+                    org.springframework.boot.jdbc.autoconfigure.DataSourceProperties.class)
                     .isAnnotationPresent(FlywayDataSource.class)).isTrue();
         });
     }

@@ -27,7 +27,7 @@ import uuid
 
 from tests.e2e.conftest import SEC_FETCH_SITE_REAL, esperar, login
 
-# ConsoleChannel writes `║  Link:  http://…/reset-password#token=<token>`.
+# ConsoleChannel writes `[RESET] link para <email>: http://…/reset-password#token=<token>` at DEBUG.
 # The token is Base64-url without padding (PasswordResetService.aleatorio).
 _ENLACE = re.compile(r"/reset-password#token=([A-Za-z0-9_-]+)")
 

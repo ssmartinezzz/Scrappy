@@ -129,6 +129,11 @@ export DATABASE_PASSWORD="${DATABASE_PASSWORD-}"
 export APP_CORS_ALLOWED_ORIGINS="${APP_CORS_ALLOWED_ORIGINS:-$APP_ORIGIN}"
 export SCRAPER_MODELS_ROOT="${SCRAPER_MODELS_ROOT:-$REPO_ROOT/scraper/_models}"
 export PASSWORD_RESET_CHANNEL=console
+# The console channel writes the reset link (the whole credential) only at DEBUG since
+# 6247f7f; test_password_reset.py reads it from the log, so this harness raises its package.
+# The package, not the class: an env var binds to a lower-cased logger name, and
+# `...consolechannel` never matches `ConsoleChannel`.
+export LOGGING_LEVEL_AR_SCRAPER_SECURITY_RESET=DEBUG
 export PASSWORD_RESET_LINK_BASE="$APP_ORIGIN"
 export LOG_DIR="$REPO_ROOT/tests/e2e/.run/logs"
 

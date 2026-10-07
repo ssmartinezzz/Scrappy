@@ -7,7 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.datasource.SimpleDriverDataSource;
 import org.testcontainers.DockerClientFactory;
-import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
 import javax.sql.DataSource;
@@ -168,7 +168,7 @@ public abstract class PostgresTestBase {
         if (!DockerClientFactory.instance().isDockerAvailable()) {
             throw new IllegalStateException("Docker not available");
         }
-        PostgreSQLContainer<?> container = new PostgreSQLContainer<>(DockerImageName.parse("postgres:16-alpine"))
+        PostgreSQLContainer container = new PostgreSQLContainer(DockerImageName.parse("postgres:16-alpine"))
                 .withDatabaseName("scraper_test")
                 .withUsername("scraper_test")
                 .withPassword("scraper_test");
