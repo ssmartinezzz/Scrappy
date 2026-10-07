@@ -1122,6 +1122,30 @@ que la base avise hacia afuera y nosotros no le preguntemos.
   equivocado; el bus emite `Resync` y el cliente relee. Por eso el aviso es una pista,
   y la fuente de verdad sigue siendo `/api/status` y `/api/ml/estado`.
 
+### ¿Por qué Boot 4 sigue escribiendo el JSON con las reglas de Jackson 2?
+
+**Decisión** (spring-boot-4, 2026-10): backend en Spring Boot 4.1.1 / Framework 7.0.9. Las
+advisories GHSA-pc63-qcmh-9cmg y GHSA-j9f9-w8pj-32f8 (9.8) no tienen parche en la línea 6.2:
+la gate `Dependency Audit` sólo se pone verde con Framework 7.0.9. Boot 4 escribe los cuerpos HTTP
+con **Jackson 3** (`tools.jackson`), y el código arma sus árboles con **Jackson 2**
+(`com.fasterxml.jackson`, ~136 archivos). Dos piezas mantienen el contrato JSON idéntico:
+
+- `spring.jackson.use-jackson2-defaults=true` restaura los defaults de Jackson 2 (orden de
+  propiedades declarado). Sin él, Jackson 3 ordena alfabéticamente y el orden de claves de todo
+  bean serializado cambia.
+- `LegacyJsonNodeSerializer` escribe un `JsonNode` de Jackson 2 tal cual. Jackson 3 no lo conoce y lo
+  serializa como bean (`{"nodeType":"OBJECT","array":false,…}`) en `/api/historial`, `/api/tendencias`,
+  `/api/producto`, `/api/pcs/builder`, `/api/ml/estado` y `/api/recomendados`.
+
+**Por qué no migrar los 136 archivos a `tools.jackson`**: sería un cambio de comportamiento
+(`JsonMapper` inmutable, excepciones sin chequear, defaults distintos en cada `new ObjectMapper()`) metido
+en un upgrade de seguridad. Tampoco `spring-boot-jackson2`: está deprecado y Boot lo retira en 4.x.
+Migrar a Jackson 3 y borrar el serializador queda como trabajo aparte.
+
+**Lombok queda en 1.18.38**: el motivo está en [`GOTCHAS.md`](./GOTCHAS.md#entorno-procesos-y-config).
+
+**Rollback**: revertir el PR. No hay migración de base: Flyway 12 valida las mismas 44 migraciones.
+
 ---
 
 ## Diagrama de capas y topología de servicios

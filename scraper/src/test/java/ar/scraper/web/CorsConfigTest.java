@@ -6,12 +6,12 @@ import io.qameta.allure.Story;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import ar.scraper.db.UsuarioRepository;
 import ar.scraper.security.JwtAuthFilter;
 import ar.scraper.security.SecurityConfig;
 import ar.scraper.security.TokenService;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
@@ -63,7 +63,7 @@ class CorsConfigTest {
     private MockMvc mockMvc;
 
     /** The filter chain needs it; what it returns is irrelevant to CORS. */
-    @MockBean
+    @MockitoBean
     private UsuarioRepository usuarios;
 
     @Test
