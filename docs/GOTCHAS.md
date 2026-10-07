@@ -247,6 +247,23 @@ puede pasar contra clases viejas y fingir verde.
 existe. Tras recompilar a mano: copiar `scraper/target/fashion-scraper-1.0.0.jar`
 → `scraper/scraper.jar`, o borrar el jar y correr `build` desde el CLI.
 
+**Boot 4 (Framework 7): los tests y el JSON tienen trampas propias.**
+- Un test que serializa con su propio `new ObjectMapper()` (Jackson 2) **no ve** lo que escribe el
+  converter HTTP de Boot (Jackson 3): la suite pasó en verde con seis endpoints devolviendo
+  `{"nodeType":…}` en vez de su JSON. Un cambio de serialización se verifica con
+  `HttpJsonBodyTest` (MockMvc sobre el converter real) y comparando respuestas de un jar real.
+- Los slices se dividen en starters: `@WebMvcTest`/`MockMvc` viven en
+  `spring-boot-starter-webmvc-test`, y sin `spring-boot-starter-security-test` un `@WebMvcTest` con
+  `SecurityConfig` contesta 401 a todo (el token es válido; el filtro de test no se aplica).
+- La cadena de seguridad por defecto pasó a `ServletWebSecurityAutoConfiguration`. Excluir sólo
+  `SecurityAutoConfiguration` ya no la apaga: hay que excluir también esa y
+  `UserDetailsServiceAutoConfiguration`.
+- `@MockBean` ya no existe: es `@MockitoBean`.
+- **`lombok.version` está fijado en 1.18.38 a propósito.** El 1.18.46 que maneja Boot 4.1 no copia
+  `@JsonProperty` del campo a su getter, y `CatalogoDtos.Ml` serializa `zscore` junto a `zScore`.
+  Lo atrapan `ApiEnvelopeSerializationTest.productRowKeepsTheHistoricalKeys` y `HttpJsonBodyTest`
+  (rojos con `-Dlombok.version=1.18.46`). Subir el pin exige resolver eso primero.
+
 **`DATABASE_URL` tiene DOS formatos según el consumidor:** Java/Spring necesita
 el prefijo `jdbc:` (`jdbc:postgresql://…`); psycopg2 **no** lo entiende, solo
 `postgresql://…`. `PythonRunner.toPsycopgDsn` traduce antes de pasarlo al

@@ -146,7 +146,7 @@ class ApiExceptionHandlerTest {
     @DisplayName("an upload over the limit is 413 payload_demasiado_grande")
     void oversizedUploadIs413() throws Exception {
         mvc.perform(get("/t/upload"))
-                .andExpect(status().isPayloadTooLarge())
+                .andExpect(status().isContentTooLarge())
                 .andExpect(jsonPath("$.error.code").value("payload_demasiado_grande"))
                 .andExpect(jsonPath("$.error.message").isNotEmpty());
     }
