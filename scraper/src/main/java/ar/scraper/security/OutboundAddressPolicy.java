@@ -1,6 +1,7 @@
 package ar.scraper.security;
 
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.Strings;
 
 import java.net.Inet4Address;
 import java.net.Inet6Address;
@@ -30,7 +31,7 @@ public final class OutboundAddressPolicy {
     }
 
     public static boolean isLocalhostName(String host) {
-        String h = StringUtils.removeEnd(StringUtils.trimToEmpty(host).toLowerCase(java.util.Locale.ROOT), ".");
+        String h = Strings.CS.removeEnd(StringUtils.trimToEmpty(host).toLowerCase(java.util.Locale.ROOT), ".");
         return h.equals("localhost") || h.endsWith(".localhost");
     }
 

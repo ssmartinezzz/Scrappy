@@ -6,7 +6,7 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Story;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.autoconfigure.flyway.FlywayProperties;
+import org.springframework.boot.flyway.autoconfigure.FlywayProperties;
 import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.boot.test.context.ConfigDataApplicationContextInitializer;

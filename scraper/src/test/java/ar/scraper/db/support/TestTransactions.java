@@ -4,6 +4,7 @@ import org.springframework.aop.framework.ProxyFactory;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.TransactionAwareDataSourceProxy;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionManager;
 import org.springframework.transaction.annotation.AnnotationTransactionAttributeSource;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.interceptor.TransactionInterceptor;
@@ -37,7 +38,7 @@ public final class TestTransactions {
         if (!isTransactional(target.getClass())) return target;
         ProxyFactory factory = new ProxyFactory(target);
         factory.setProxyTargetClass(true);
-        factory.addAdvice(new TransactionInterceptor(manager, new AnnotationTransactionAttributeSource()));
+        factory.addAdvice(new TransactionInterceptor((TransactionManager) manager, new AnnotationTransactionAttributeSource()));
         return (T) factory.getProxy(target.getClass().getClassLoader());
     }
 

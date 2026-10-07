@@ -219,7 +219,7 @@ public class AgentController {
             actual.put("genero", StringUtils.defaultString(p.genero()));
             actual.put("subCategoria", StringUtils.defaultString(p.subCategoria()));
         });
-        return new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "conflicto_stale",
+        return new ApiException(HttpStatus.UNPROCESSABLE_CONTENT, "conflicto_stale",
                 "El producto cambió desde que se generó esta propuesta — volvé a consultar.",
                 Map.of("actual", actual));
     }

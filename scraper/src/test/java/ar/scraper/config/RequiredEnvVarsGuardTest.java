@@ -17,7 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * correction): spec "Environment-Only Configuration" MUST fail fast when a
  * required env var is missing, instead of silently defaulting.
  *
- * <p>Exercises the {@link org.springframework.boot.env.EnvironmentPostProcessor}
+ * <p>Exercises the {@link org.springframework.boot.EnvironmentPostProcessor}
  * directly against a {@link MockEnvironment} rather than booting a full Spring
  * context — this keeps the test fast/DB-free and lets us assert the exact
  * missing-variable message without depending on real OS environment state
