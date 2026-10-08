@@ -74,4 +74,4 @@ S7 proof 2026-10-08 (real boot, dev DB returned to pre-V43 first). Rolled back V
 
 ## Next step
 
-Push the branch and open the PR when the user asks. Open follow-ups, not in scope: 3 Armytech rows misclassified into indumentaria, 23 in Otros, Flowin bundles as Silla; ProductRepository also reads the catalog before Flyway on boot (same class as S7).
+None. Merged as #295 (9660e68, 2026-10-08). Open follow-ups, not in scope: 3 Armytech rows misclassified into indumentaria, 23 in Otros, Flowin bundles as Silla; ProductRepository also reads the catalog before Flyway on boot (same class as S7).

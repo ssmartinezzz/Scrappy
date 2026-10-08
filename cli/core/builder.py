@@ -21,7 +21,7 @@ from cli.core.errors import BuildError
 
 logger = logging.getLogger(__name__)
 
-JAR_NAME = "fashion-scraper-1.0.0.jar"
+JAR_NAME = "fashion-scraper-1.0.1.jar"
 
 # Injectable subprocess runner — tests substitute a recorder to assert
 # argument/env/order without spawning real processes.
@@ -90,7 +90,7 @@ def build_project(
     6. `npm run build` (frontend) — `VITE_API_BASE_URL` MUST already be a
        real env var in this subprocess's environment
     7. `mvn clean package -DskipTests` (backend)
-    8. copy `scraper/target/fashion-scraper-1.0.0.jar` -> `scraper/scraper.jar`
+    8. copy `scraper/target/fashion-scraper-1.0.1.jar` -> `scraper/scraper.jar`
 
     Step 7 skips the test suite on purpose. This is an install-and-run
     flow: its contract is "produce a runnable jar", not "validate the
