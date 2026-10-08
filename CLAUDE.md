@@ -36,7 +36,7 @@ tendencias ML con clasificación de imagen zero-shot.
 
 | Capa | Tecnología |
 |------|-----------|
-| Backend/Scraper | Java 21 + Spring Boot 3.2 + Playwright 1.44 — **API-only**, `localhost:3000` |
+| Backend/Scraper | Java 21 + Spring Boot 4.1 + Playwright 1.44 — **API-only**, `localhost:3000` |
 | Frontend | React 18 + Vite 8 (`frontend/`), habla al backend por CORS (`VITE_API_BASE_URL` / `window.__API_BASE__`) |
 | Base de datos | PostgreSQL + Flyway (`V1`..`V42` + dos `R__`), HikariCP |
 | ML | Python 3.11 embeddable como subprocess: estadístico + TF-IDF + zero-shot (Marqo-FashionSigLIP) |

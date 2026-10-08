@@ -31,7 +31,7 @@ failure and the GREEN is the full suite + boot + audit. Runner (TEST-2):
 - [x] B3 JSON contract unchanged: compare real responses of the main endpoints before/after.
 - [x] B4 Real boot against the dev DB (Flyway validate, `Started App`, no WARN regressions).
 - [x] B5 e2e (`tests/e2e/run-e2e.sh`) and Docker Smoke (dispatch by hand: pom-only changes).
-- [ ] B6 PR, CI green incl. Dependency Audit, merge; then update #293 and merge it.
+- [x] B6 PR, CI green incl. Dependency Audit, merge; then update #293 and merge it.
 
 ## Evidence
 
@@ -86,4 +86,4 @@ Measured on branch build/spring-boot-4 (uncommitted), 2026-10-07.
 
 ## Next step
 
-B6: PR, CI green incl. Dependency Audit, merge; then update #293 and merge it.
+None. Merged as #294 (c4c9a53, 2026-10-07); #293 updated and merged after it (a36aea4).
