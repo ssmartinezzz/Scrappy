@@ -127,7 +127,7 @@ Antes de responder, chequeá si alguna skill disponible aplica y cargala.
 | E2E (API + browser) | `tests/e2e/run-e2e.sh` — nunca contra `vite dev` | [`docs/GOTCHAS.md`](./docs/GOTCHAS.md) → Frontend ↔ backend |
 | Perf | `tests/perf/locust`: `uv run pytest` · `tests/perf/jmeter`: `mvn verify` | [`SKILL.md`](./SKILL.md) |
 | Hooks de commit | `git config core.hooksPath scripts/hooks` | [`CONTRIBUTING.md`](./CONTRIBUTING.md) |
-| Jar stale tras recompilar | copiar `scraper/target/fashion-scraper-1.0.0.jar` → `scraper/scraper.jar` | [`docs/GOTCHAS.md`](./docs/GOTCHAS.md) → Entorno |
+| Jar stale tras recompilar | copiar `scraper/target/fashion-scraper-1.0.1.jar` → `scraper/scraper.jar` | [`docs/GOTCHAS.md`](./docs/GOTCHAS.md) → Entorno |
 
 ---
 

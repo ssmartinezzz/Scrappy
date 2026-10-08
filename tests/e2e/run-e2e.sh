@@ -33,7 +33,7 @@
 # ── Prerequisites ───────────────────────────────────────────────────────────
 #
 #   * PostgreSQL reachable at $DATABASE_URL (scripts/dev-db.sh up).
-#   * The backend fat jar at scraper/target/fashion-scraper-1.0.0.jar
+#   * The backend fat jar at scraper/target/fashion-scraper-1.0.1.jar
 #     (mvn -f scraper/pom.xml -DskipTests package), or pass --no-build after
 #     one build.
 #   * Node >= 22 and `npm ci` already run in frontend/.
@@ -183,7 +183,7 @@ wait_for() { # url, label, seconds
 port_busy() { (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null; }
 
 # ── Backend ─────────────────────────────────────────────────────────────────
-JAR="$REPO_ROOT/scraper/target/fashion-scraper-1.0.0.jar"
+JAR="$REPO_ROOT/scraper/target/fashion-scraper-1.0.1.jar"
 if port_busy "$API_PORT"; then
   say "port $API_PORT already bound — reusing whatever is listening there"
 else
