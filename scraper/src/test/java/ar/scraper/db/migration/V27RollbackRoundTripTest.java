@@ -82,6 +82,7 @@ class V27RollbackRoundTripTest extends PostgresTestBase {
                 // ese valor— es RECHAZADO por Postgres, que valida las filas
                 // existentes al re-agregar el CHECK. Los rollbacks componen al
                 // revés: de más nuevo a más viejo.
+                st.execute(DocumentedRollback.sqlFor("V43"));
                 st.execute(DocumentedRollback.sqlFor("V30"));
                 st.execute(DocumentedRollback.sqlFor("V28"));
                 st.execute(DocumentedRollback.sqlFor("V27"));
@@ -141,6 +142,7 @@ class V27RollbackRoundTripTest extends PostgresTestBase {
                 // ese valor— es RECHAZADO por Postgres, que valida las filas
                 // existentes al re-agregar el CHECK. Los rollbacks componen al
                 // revés: de más nuevo a más viejo.
+                st.execute(DocumentedRollback.sqlFor("V43"));
                 st.execute(DocumentedRollback.sqlFor("V30"));
                 st.execute(DocumentedRollback.sqlFor("V28"));
 

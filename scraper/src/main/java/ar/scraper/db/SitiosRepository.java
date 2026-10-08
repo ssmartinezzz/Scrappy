@@ -36,7 +36,7 @@ class SitiosRepository implements SitiosPort {
     static final Set<String> PLATAFORMAS_VALIDAS = Set.of(
             "tiendanube", "shopify", "vtex", "vaypol", "woocommerce",
             "monkyforce", "maximus", "fullh4rd", "compragamer",
-            "qloud", "oscommerce", "inpro", "morashop");
+            "qloud", "oscommerce", "inpro", "morashop", "prestashop");
 
     private final JdbcTemplate jdbc;
     private final SiteRegistry siteRegistry;

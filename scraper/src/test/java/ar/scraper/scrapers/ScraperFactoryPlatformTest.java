@@ -9,6 +9,7 @@ import ar.scraper.pages.InproPage;
 import ar.scraper.pages.MonkyforcePage;
 import ar.scraper.pages.MorashopPage;
 import ar.scraper.pages.OsCommercePage;
+import ar.scraper.pages.PrestashopPage;
 import ar.scraper.pages.QloudPage;
 import ar.scraper.pages.ShopifyPage;
 import ar.scraper.pages.TechStorePage;
@@ -69,7 +70,7 @@ class ScraperFactoryPlatformTest {
     private static final List<Class<? extends BasePage>> PAGINAS = List.of(
             WooCommercePage.class, TechStorePage.class, FullH4rdPage.class, VaypolPage.class,
             QloudPage.class, OsCommercePage.class, InproPage.class, VtexPage.class, ShopifyPage.class,
-            TiendanubePage.class, MonkyforcePage.class, MorashopPage.class);
+            TiendanubePage.class, MonkyforcePage.class, MorashopPage.class, PrestashopPage.class);
 
     private static final SiteRegistry SITE_REGISTRY = SiteRegistry.forTesting(Map.of(
             "forever", new SiteRegistry.Sitio("Forever", "forever", "shopify", false, null, "config"),
@@ -185,6 +186,7 @@ class ScraperFactoryPlatformTest {
                 Arguments.of("shopify",     ShopifyPage.class),
                 Arguments.of("monkyforce",  MonkyforcePage.class),
                 Arguments.of("morashop",    MorashopPage.class),
+                Arguments.of("prestashop",  PrestashopPage.class),
                 Arguments.of("tiendanube",  TiendanubePage.class));
     }
 
