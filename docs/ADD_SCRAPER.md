@@ -10,6 +10,7 @@ Antes de codear, determinar la plataforma del sitio:
 ¿Es WooCommerce (wp-json/wc)?   → WooCommerce  {dcshoes}
 ¿URL termina en /productos/p/N? → Vaypol/City platform
 ¿Es tiendanube.com?             → Tiendanube (JS heurístico)
+¿`prestashop = {` en el HTML?   → PrestaShop 1.7  {armytech}
 ¿Es un SPA/SSR propio sobre     → HEADLESS: ver abajo, NO es la plataforma
   otra plataforma?                 de atrás  {inpro}
 ¿Otro?                          → Necesita Page custom
@@ -362,3 +363,18 @@ también `chk_productos_rubro_domain` y `sitio_rubro_forzado_check`, y las
 categorías nuevas necesitan su fila en la tabla `categoria` de `V13` — sin eso
 la FK rechaza el upsert y, como `ProductRepository` se traga los errores SQL,
 el síntoma es **"0 nuevos"** y no un error. Ver `docs/DATABASE.md`.
+
+---
+
+## Caso 7: Sitio PrestaShop 1.7
+
+Las tres piezas de arriba con `plataforma = 'prestashop'`, y la URL es la
+**categoría raíz** del listado (en Armytech, `/2-productos`). `PrestashopPage`
+pide `?page=N` con `Accept: application/json` + `X-Requested-With: XMLHttpRequest`
+desde la página ya navegada: PrestaShop responde el JSON del listado
+(`products[]`, `pagination.pages_count`) en vez del HTML.
+
+Dos trampas medidas en Armytech: las filas de marca ("Marca - Intel") vienen con
+precio 0 y la banda **no** las corta porque `precio.minimo` es 0, así que la page
+las descarta explícitamente; y un producto sin foto trae `cover: false`, no
+`null`.

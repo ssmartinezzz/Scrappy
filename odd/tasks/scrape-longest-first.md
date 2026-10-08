@@ -87,4 +87,4 @@ Baseline real full runs (master): 18.0–22.0 min site phase.
 
 ## Next step
 
-Commit on `perf/scrape-longest-first` and open the PR — waiting for the user.
+None. Merged as #293 (a36aea4, 2026-10-07), on top of #294.

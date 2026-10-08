@@ -1,0 +1,2033 @@
+{
+ "result": {},
+ "label": "Categoría: Procesadores",
+ "products": [
+  {
+   "add_to_cart_url": "https://www.armytech.com.ar/carrito?add=1&id_product=6037&id_product_attribute=0&token=c328ffee3a3a577fa52620071f1662f6",
+   "url": "https://www.armytech.com.ar/procesadores/6037-procesador-amd-ryzen-5-3400g-am4-c-video-tray-sin-cooler-y-sin-caja.html",
+   "canonical_url": "https://www.armytech.com.ar/procesadores/6037-procesador-amd-ryzen-5-3400g-am4-c-video-tray-sin-cooler-y-sin-caja.html",
+   "labels": {
+    "tax_short": ".",
+    "tax_long": "Impuestos incluidos"
+   },
+   "main_variants": [],
+   "id_product": "6037",
+   "price": "$ 136.987,73",
+   "reference": "106638",
+   "active": "1",
+   "description_short": "<p>El AMD Ryzen 5 3400G ofrece buen rendimiento con gráficos integrados Radeon. Ideal para PCs económicas sin GPU dedicada. Versión bulk sin cooler ni caja.</p>",
+   "link_rewrite": "procesador-amd-ryzen-5-3400g-am4-c-video-tray-sin-cooler-y-sin-caja",
+   "name": "Procesador Amd Ryzen 5 3400g Am4 C/video Tray (sin Cooler Y Sin Caja)",
+   "manufacturer_name": "Amd",
+   "category_name": "Procesadores",
+   "link": "https://www.armytech.com.ar/procesadores/6037-procesador-amd-ryzen-5-3400g-am4-c-video-tray-sin-cooler-y-sin-caja.html",
+   "rate": 10.5,
+   "tax_name": "IVA AR 10.5%",
+   "unit_price": "",
+   "cover": {
+    "bySize": {
+     "small_default": {
+      "url": "https://www.armytech.com.ar/7151-small_default/procesador-amd-ryzen-5-3400g-am4-c-video-tray-sin-cooler-y-sin-caja.jpg",
+      "width": 98,
+      "height": 127
+     },
+     "cart_default": {
+      "url": "https://www.armytech.com.ar/7151-cart_default/procesador-amd-ryzen-5-3400g-am4-c-video-tray-sin-cooler-y-sin-caja.jpg",
+      "width": 125,
+      "height": 162
+     },
+     "home_default": {
+      "url": "https://www.armytech.com.ar/7151-home_default/procesador-amd-ryzen-5-3400g-am4-c-video-tray-sin-cooler-y-sin-caja.jpg",
+      "width": 236,
+      "height": 305
+     },
+     "medium_default": {
+      "url": "https://www.armytech.com.ar/7151-medium_default/procesador-amd-ryzen-5-3400g-am4-c-video-tray-sin-cooler-y-sin-caja.jpg",
+      "width": 452,
+      "height": 452
+     },
+     "large_default": {
+      "url": "https://www.armytech.com.ar/7151-large_default/procesador-amd-ryzen-5-3400g-am4-c-video-tray-sin-cooler-y-sin-caja.jpg",
+      "width": 492,
+      "height": 492
+     },
+     "thickbox_default": {
+      "url": "https://www.armytech.com.ar/7151-thickbox_default/procesador-amd-ryzen-5-3400g-am4-c-video-tray-sin-cooler-y-sin-caja.jpg",
+      "width": 1100,
+      "height": 1422
+     }
+    },
+    "small": {
+     "url": "https://www.armytech.com.ar/7151-small_default/procesador-amd-ryzen-5-3400g-am4-c-video-tray-sin-cooler-y-sin-caja.jpg",
+     "width": 98,
+     "height": 127
+    },
+    "medium": {
+     "url": "https://www.armytech.com.ar/7151-medium_default/procesador-amd-ryzen-5-3400g-am4-c-video-tray-sin-cooler-y-sin-caja.jpg",
+     "width": 452,
+     "height": 452
+    },
+    "large": {
+     "url": "https://www.armytech.com.ar/7151-thickbox_default/procesador-amd-ryzen-5-3400g-am4-c-video-tray-sin-cooler-y-sin-caja.jpg",
+     "width": 1100,
+     "height": 1422
+    },
+    "legend": "",
+    "id_image": "7151",
+    "cover": "1",
+    "position": "1",
+    "associatedVariants": []
+   },
+   "has_discount": false,
+   "discount_type": null,
+   "discount_percentage": null,
+   "discount_percentage_absolute": null,
+   "discount_amount": null,
+   "price_amount": 136987.73,
+   "regular_price_amount": 136987.73,
+   "regular_price": "$ 136.987,73",
+   "discount_to_display": null
+  },
+  {
+   "add_to_cart_url": "https://www.armytech.com.ar/carrito?add=1&id_product=6061&id_product_attribute=0&token=c328ffee3a3a577fa52620071f1662f6",
+   "url": "https://www.armytech.com.ar/procesadores/6061-combo-ryzen-5-3400g-cooler-jiushark-jf100rs-argb.html",
+   "canonical_url": "https://www.armytech.com.ar/procesadores/6061-combo-ryzen-5-3400g-cooler-jiushark-jf100rs-argb.html",
+   "labels": {
+    "tax_short": ".",
+    "tax_long": "Impuestos incluidos"
+   },
+   "main_variants": [],
+   "id_product": "6061",
+   "price": "$ 163.927,74",
+   "reference": "COMBO-R5-3400G-Cooler",
+   "active": "1",
+   "description_short": "<p>Combo Ryzen 5 3400G con gráficos integrados y cooler Jiushark JF100RS para mejor refrigeración. Ideal para gaming básico y uso diario, con rendimiento estable y eficiente.</p>",
+   "link_rewrite": "combo-ryzen-5-3400g-cooler-jiushark-jf100rs-argb",
+   "name": "Combo Ryzen 5 3400g & Cooler Jiushark Jf100rs Argb",
+   "manufacturer_name": "Amd",
+   "category_name": "Procesadores",
+   "link": "https://www.armytech.com.ar/procesadores/6061-combo-ryzen-5-3400g-cooler-jiushark-jf100rs-argb.html",
+   "rate": 10.5,
+   "tax_name": "IVA AR 10.5%",
+   "unit_price": "",
+   "cover": {
+    "bySize": {
+     "small_default": {
+      "url": "https://www.armytech.com.ar/7281-small_default/combo-ryzen-5-3400g-cooler-jiushark-jf100rs-argb.jpg",
+      "width": 98,
+      "height": 127
+     },
+     "cart_default": {
+      "url": "https://www.armytech.com.ar/7281-cart_default/combo-ryzen-5-3400g-cooler-jiushark-jf100rs-argb.jpg",
+      "width": 125,
+      "height": 162
+     },
+     "home_default": {
+      "url": "https://www.armytech.com.ar/7281-home_default/combo-ryzen-5-3400g-cooler-jiushark-jf100rs-argb.jpg",
+      "width": 236,
+      "height": 305
+     },
+     "medium_default": {
+      "url": "https://www.armytech.com.ar/7281-medium_default/combo-ryzen-5-3400g-cooler-jiushark-jf100rs-argb.jpg",
+      "width": 452,
+      "height": 452
+     },
+     "large_default": {
+      "url": "https://www.armytech.com.ar/7281-large_default/combo-ryzen-5-3400g-cooler-jiushark-jf100rs-argb.jpg",
+      "width": 492,
+      "height": 492
+     },
+     "thickbox_default": {
+      "url": "https://www.armytech.com.ar/7281-thickbox_default/combo-ryzen-5-3400g-cooler-jiushark-jf100rs-argb.jpg",
+      "width": 1100,
+      "height": 1422
+     }
+    },
+    "small": {
+     "url": "https://www.armytech.com.ar/7281-small_default/combo-ryzen-5-3400g-cooler-jiushark-jf100rs-argb.jpg",
+     "width": 98,
+     "height": 127
+    },
+    "medium": {
+     "url": "https://www.armytech.com.ar/7281-medium_default/combo-ryzen-5-3400g-cooler-jiushark-jf100rs-argb.jpg",
+     "width": 452,
+     "height": 452
+    },
+    "large": {
+     "url": "https://www.armytech.com.ar/7281-thickbox_default/combo-ryzen-5-3400g-cooler-jiushark-jf100rs-argb.jpg",
+     "width": 1100,
+     "height": 1422
+    },
+    "legend": "",
+    "id_image": "7281",
+    "cover": "1",
+    "position": "1",
+    "associatedVariants": []
+   },
+   "has_discount": false,
+   "discount_type": null,
+   "discount_percentage": null,
+   "discount_percentage_absolute": null,
+   "discount_amount": null,
+   "price_amount": 163927.74,
+   "regular_price_amount": 163927.74,
+   "regular_price": "$ 163.927,74",
+   "discount_to_display": null
+  },
+  {
+   "add_to_cart_url": "https://www.armytech.com.ar/carrito?add=1&id_product=4694&id_product_attribute=0&token=c328ffee3a3a577fa52620071f1662f6",
+   "url": "https://www.armytech.com.ar/procesadores/4694-procesador-amd-ryzen-5-8400f-am5-s-video-tray-sin-cooler-y-sin-caja.html",
+   "canonical_url": "https://www.armytech.com.ar/procesadores/4694-procesador-amd-ryzen-5-8400f-am5-s-video-tray-sin-cooler-y-sin-caja.html",
+   "labels": {
+    "tax_short": ".",
+    "tax_long": "Impuestos incluidos"
+   },
+   "main_variants": [],
+   "id_product": "4694",
+   "price": "$ 226.941,42",
+   "reference": "105031",
+   "active": "1",
+   "description_short": "<p>El procesador AMD Ryzen 5 8400F para socket AM5 ofrece 6 núcleos y 12 hilos de rendimiento eficiente, perfecto para gaming y multitarea.Se adapta a tus necesidades sin gráficos integrados.</p>",
+   "link_rewrite": "procesador-amd-ryzen-5-8400f-am5-s-video-tray-sin-cooler-y-sin-caja",
+   "name": "Procesador Amd Ryzen 5 8400f Am5 S/video Tray (sin Cooler Y Sin Caja)",
+   "manufacturer_name": "Amd",
+   "category_name": "Procesadores",
+   "link": "https://www.armytech.com.ar/procesadores/4694-procesador-amd-ryzen-5-8400f-am5-s-video-tray-sin-cooler-y-sin-caja.html",
+   "rate": 10.5,
+   "tax_name": "IVA AR 10.5%",
+   "unit_price": "",
+   "cover": {
+    "bySize": {
+     "small_default": {
+      "url": "https://www.armytech.com.ar/3152-small_default/procesador-amd-ryzen-5-8400f-am5-s-video-tray-sin-cooler-y-sin-caja.jpg",
+      "width": 98,
+      "height": 127
+     },
+     "cart_default": {
+      "url": "https://www.armytech.com.ar/3152-cart_default/procesador-amd-ryzen-5-8400f-am5-s-video-tray-sin-cooler-y-sin-caja.jpg",
+      "width": 125,
+      "height": 162
+     },
+     "home_default": {
+      "url": "https://www.armytech.com.ar/3152-home_default/procesador-amd-ryzen-5-8400f-am5-s-video-tray-sin-cooler-y-sin-caja.jpg",
+      "width": 236,
+      "height": 305
+     },
+     "medium_default": {
+      "url": "https://www.armytech.com.ar/3152-medium_default/procesador-amd-ryzen-5-8400f-am5-s-video-tray-sin-cooler-y-sin-caja.jpg",
+      "width": 452,
+      "height": 452
+     },
+     "large_default": {
+      "url": "https://www.armytech.com.ar/3152-large_default/procesador-amd-ryzen-5-8400f-am5-s-video-tray-sin-cooler-y-sin-caja.jpg",
+      "width": 492,
+      "height": 492
+     },
+     "thickbox_default": {
+      "url": "https://www.armytech.com.ar/3152-thickbox_default/procesador-amd-ryzen-5-8400f-am5-s-video-tray-sin-cooler-y-sin-caja.jpg",
+      "width": 1100,
+      "height": 1422
+     }
+    },
+    "small": {
+     "url": "https://www.armytech.com.ar/3152-small_default/procesador-amd-ryzen-5-8400f-am5-s-video-tray-sin-cooler-y-sin-caja.jpg",
+     "width": 98,
+     "height": 127
+    },
+    "medium": {
+     "url": "https://www.armytech.com.ar/3152-medium_default/procesador-amd-ryzen-5-8400f-am5-s-video-tray-sin-cooler-y-sin-caja.jpg",
+     "width": 452,
+     "height": 452
+    },
+    "large": {
+     "url": "https://www.armytech.com.ar/3152-thickbox_default/procesador-amd-ryzen-5-8400f-am5-s-video-tray-sin-cooler-y-sin-caja.jpg",
+     "width": 1100,
+     "height": 1422
+    },
+    "legend": "",
+    "id_image": "3152",
+    "cover": "1",
+    "position": "1",
+    "associatedVariants": []
+   },
+   "has_discount": false,
+   "discount_type": null,
+   "discount_percentage": null,
+   "discount_percentage_absolute": null,
+   "discount_amount": null,
+   "price_amount": 226941.42,
+   "regular_price_amount": 226941.42,
+   "regular_price": "$ 226.941,42",
+   "discount_to_display": null
+  },
+  {
+   "add_to_cart_url": "https://www.armytech.com.ar/carrito?add=1&id_product=6607&id_product_attribute=0&token=c328ffee3a3a577fa52620071f1662f6",
+   "url": "https://www.armytech.com.ar/procesadores/6607-procesador-amd-ryzen-5-5600ge-am4.html",
+   "canonical_url": "https://www.armytech.com.ar/procesadores/6607-procesador-amd-ryzen-5-5600ge-am4.html",
+   "labels": {
+    "tax_short": ".",
+    "tax_long": "Impuestos incluidos"
+   },
+   "main_variants": [],
+   "id_product": "6607",
+   "price": "$ 282.357,94",
+   "reference": "108153",
+   "active": "1",
+   "description_short": "",
+   "link_rewrite": "procesador-amd-ryzen-5-5600ge-am4",
+   "name": "Procesador Amd Ryzen 5 5600ge Am4",
+   "manufacturer_name": "Amd",
+   "category_name": "Procesadores",
+   "link": "https://www.armytech.com.ar/procesadores/6607-procesador-amd-ryzen-5-5600ge-am4.html",
+   "rate": 10.5,
+   "tax_name": "IVA AR 10.5%",
+   "unit_price": "",
+   "cover": false,
+   "has_discount": false,
+   "discount_type": null,
+   "discount_percentage": null,
+   "discount_percentage_absolute": null,
+   "discount_amount": null,
+   "price_amount": 282357.94,
+   "regular_price_amount": 282357.94,
+   "regular_price": "$ 282.357,94",
+   "discount_to_display": null
+  },
+  {
+   "add_to_cart_url": "https://www.armytech.com.ar/carrito?add=1&id_product=605&id_product_attribute=0&token=c328ffee3a3a577fa52620071f1662f6",
+   "url": "https://www.armytech.com.ar/procesadores/605-procesador-amd-ryzen-7-5700g-am4-c-video-c-cooler-730143313377.html",
+   "canonical_url": "https://www.armytech.com.ar/procesadores/605-procesador-amd-ryzen-7-5700g-am4-c-video-c-cooler-730143313377.html",
+   "labels": {
+    "tax_short": ".",
+    "tax_long": "Impuestos incluidos"
+   },
+   "main_variants": [],
+   "id_product": "605",
+   "price": "$ 332.277,20",
+   "reference": "103615",
+   "active": "1",
+   "description_short": "<p>Impulsa tu rendimiento con el Procesador AMD Ryzen 7 5700G AM4, ofreciendo potencia excepcional y gráficos integrados de alta calidad para tus necesidades informáticas.</p>",
+   "link_rewrite": "procesador-amd-ryzen-7-5700g-am4-c-video-c-cooler",
+   "name": "Procesador Amd Ryzen 7 5700g Am4 C/video C/cooler",
+   "manufacturer_name": "Amd",
+   "category_name": "Procesadores",
+   "link": "https://www.armytech.com.ar/procesadores/605-procesador-amd-ryzen-7-5700g-am4-c-video-c-cooler-730143313377.html",
+   "rate": 10.5,
+   "tax_name": "IVA AR 10.5%",
+   "unit_price": "",
+   "cover": {
+    "bySize": {
+     "small_default": {
+      "url": "https://www.armytech.com.ar/196-small_default/procesador-amd-ryzen-7-5700g-am4-c-video-c-cooler.jpg",
+      "width": 98,
+      "height": 127
+     },
+     "cart_default": {
+      "url": "https://www.armytech.com.ar/196-cart_default/procesador-amd-ryzen-7-5700g-am4-c-video-c-cooler.jpg",
+      "width": 125,
+      "height": 162
+     },
+     "home_default": {
+      "url": "https://www.armytech.com.ar/196-home_default/procesador-amd-ryzen-7-5700g-am4-c-video-c-cooler.jpg",
+      "width": 236,
+      "height": 305
+     },
+     "medium_default": {
+      "url": "https://www.armytech.com.ar/196-medium_default/procesador-amd-ryzen-7-5700g-am4-c-video-c-cooler.jpg",
+      "width": 452,
+      "height": 452
+     },
+     "large_default": {
+      "url": "https://www.armytech.com.ar/196-large_default/procesador-amd-ryzen-7-5700g-am4-c-video-c-cooler.jpg",
+      "width": 492,
+      "height": 492
+     },
+     "thickbox_default": {
+      "url": "https://www.armytech.com.ar/196-thickbox_default/procesador-amd-ryzen-7-5700g-am4-c-video-c-cooler.jpg",
+      "width": 1100,
+      "height": 1422
+     }
+    },
+    "small": {
+     "url": "https://www.armytech.com.ar/196-small_default/procesador-amd-ryzen-7-5700g-am4-c-video-c-cooler.jpg",
+     "width": 98,
+     "height": 127
+    },
+    "medium": {
+     "url": "https://www.armytech.com.ar/196-medium_default/procesador-amd-ryzen-7-5700g-am4-c-video-c-cooler.jpg",
+     "width": 452,
+     "height": 452
+    },
+    "large": {
+     "url": "https://www.armytech.com.ar/196-thickbox_default/procesador-amd-ryzen-7-5700g-am4-c-video-c-cooler.jpg",
+     "width": 1100,
+     "height": 1422
+    },
+    "legend": "",
+    "id_image": "196",
+    "cover": "1",
+    "position": "1",
+    "associatedVariants": []
+   },
+   "has_discount": false,
+   "discount_type": null,
+   "discount_percentage": null,
+   "discount_percentage_absolute": null,
+   "discount_amount": null,
+   "price_amount": 332277.2,
+   "regular_price_amount": 332277.2,
+   "regular_price": "$ 332.277,20",
+   "discount_to_display": null
+  },
+  {
+   "add_to_cart_url": "https://www.armytech.com.ar/carrito?add=1&id_product=956&id_product_attribute=0&token=c328ffee3a3a577fa52620071f1662f6",
+   "url": "https://www.armytech.com.ar/procesadores/956-procesador-intel-core-i5-12400-socket-1700-6926337224558.html",
+   "canonical_url": "https://www.armytech.com.ar/procesadores/956-procesador-intel-core-i5-12400-socket-1700-6926337224558.html",
+   "labels": {
+    "tax_short": ".",
+    "tax_long": "Impuestos incluidos"
+   },
+   "main_variants": [],
+   "id_product": "956",
+   "price": "$ 337.637,89",
+   "reference": "103973",
+   "active": "1",
+   "description_short": "<p>Experimenta un rendimiento de vanguardia con el Procesador Intel Core i5-12400 Socket 1700, brindando potencia excepcional para tus aplicaciones y juegos favoritos.</p>",
+   "link_rewrite": "procesador-intel-core-i5-12400-socket-1700",
+   "name": "Procesador Intel Core I5 12400 Socket 1700",
+   "manufacturer_name": "Intel",
+   "category_name": "Procesadores",
+   "link": "https://www.armytech.com.ar/procesadores/956-procesador-intel-core-i5-12400-socket-1700-6926337224558.html",
+   "rate": 10.5,
+   "tax_name": "IVA AR 10.5%",
+   "unit_price": "",
+   "cover": {
+    "bySize": {
+     "small_default": {
+      "url": "https://www.armytech.com.ar/1517-small_default/procesador-intel-core-i5-12400-socket-1700.jpg",
+      "width": 98,
+      "height": 127
+     },
+     "cart_default": {
+      "url": "https://www.armytech.com.ar/1517-cart_default/procesador-intel-core-i5-12400-socket-1700.jpg",
+      "width": 125,
+      "height": 162
+     },
+     "home_default": {
+      "url": "https://www.armytech.com.ar/1517-home_default/procesador-intel-core-i5-12400-socket-1700.jpg",
+      "width": 236,
+      "height": 305
+     },
+     "medium_default": {
+      "url": "https://www.armytech.com.ar/1517-medium_default/procesador-intel-core-i5-12400-socket-1700.jpg",
+      "width": 452,
+      "height": 452
+     },
+     "large_default": {
+      "url": "https://www.armytech.com.ar/1517-large_default/procesador-intel-core-i5-12400-socket-1700.jpg",
+      "width": 492,
+      "height": 492
+     },
+     "thickbox_default": {
+      "url": "https://www.armytech.com.ar/1517-thickbox_default/procesador-intel-core-i5-12400-socket-1700.jpg",
+      "width": 1100,
+      "height": 1422
+     }
+    },
+    "small": {
+     "url": "https://www.armytech.com.ar/1517-small_default/procesador-intel-core-i5-12400-socket-1700.jpg",
+     "width": 98,
+     "height": 127
+    },
+    "medium": {
+     "url": "https://www.armytech.com.ar/1517-medium_default/procesador-intel-core-i5-12400-socket-1700.jpg",
+     "width": 452,
+     "height": 452
+    },
+    "large": {
+     "url": "https://www.armytech.com.ar/1517-thickbox_default/procesador-intel-core-i5-12400-socket-1700.jpg",
+     "width": 1100,
+     "height": 1422
+    },
+    "legend": "",
+    "id_image": "1517",
+    "cover": "1",
+    "position": "1",
+    "associatedVariants": []
+   },
+   "has_discount": false,
+   "discount_type": null,
+   "discount_percentage": null,
+   "discount_percentage_absolute": null,
+   "discount_amount": null,
+   "price_amount": 337637.89,
+   "regular_price_amount": 337637.89,
+   "regular_price": "$ 337.637,89",
+   "discount_to_display": null
+  },
+  {
+   "add_to_cart_url": "https://www.armytech.com.ar/carrito?add=1&id_product=6275&id_product_attribute=0&token=c328ffee3a3a577fa52620071f1662f6",
+   "url": "https://www.armytech.com.ar/procesadores/6275-procesador-amd-ryzen-5-9600x-am5-c-video-tray-sin-cooler-y-sin-caja.html",
+   "canonical_url": "https://www.armytech.com.ar/procesadores/6275-procesador-amd-ryzen-5-9600x-am5-c-video-tray-sin-cooler-y-sin-caja.html",
+   "labels": {
+    "tax_short": ".",
+    "tax_long": "Impuestos incluidos"
+   },
+   "main_variants": [],
+   "id_product": "6275",
+   "price": "$ 340.557,24",
+   "reference": "106914",
+   "active": "1",
+   "description_short": "<p>Rendimiento de nueva generación para gaming y productividad avanzada. El AMD Ryzen 5 9600X AM5 ofrece gran velocidad, eficiencia y gráficos integrados en formato Bulk sin cooler ni caja.</p>",
+   "link_rewrite": "procesador-amd-ryzen-5-9600x-am5-c-video-tray-sin-cooler-y-sin-caja",
+   "name": "Procesador Amd Ryzen 5 9600x Am5 C/video Tray (sin Cooler Y Sin Caja)",
+   "manufacturer_name": "Amd",
+   "category_name": "Procesadores",
+   "link": "https://www.armytech.com.ar/procesadores/6275-procesador-amd-ryzen-5-9600x-am5-c-video-tray-sin-cooler-y-sin-caja.html",
+   "rate": 10.5,
+   "tax_name": "IVA AR 10.5%",
+   "unit_price": "",
+   "cover": {
+    "bySize": {
+     "small_default": {
+      "url": "https://www.armytech.com.ar/7696-small_default/procesador-amd-ryzen-5-9600x-am5-c-video-tray-sin-cooler-y-sin-caja.jpg",
+      "width": 98,
+      "height": 127
+     },
+     "cart_default": {
+      "url": "https://www.armytech.com.ar/7696-cart_default/procesador-amd-ryzen-5-9600x-am5-c-video-tray-sin-cooler-y-sin-caja.jpg",
+      "width": 125,
+      "height": 162
+     },
+     "home_default": {
+      "url": "https://www.armytech.com.ar/7696-home_default/procesador-amd-ryzen-5-9600x-am5-c-video-tray-sin-cooler-y-sin-caja.jpg",
+      "width": 236,
+      "height": 305
+     },
+     "medium_default": {
+      "url": "https://www.armytech.com.ar/7696-medium_default/procesador-amd-ryzen-5-9600x-am5-c-video-tray-sin-cooler-y-sin-caja.jpg",
+      "width": 452,
+      "height": 452
+     },
+     "large_default": {
+      "url": "https://www.armytech.com.ar/7696-large_default/procesador-amd-ryzen-5-9600x-am5-c-video-tray-sin-cooler-y-sin-caja.jpg",
+      "width": 492,
+      "height": 492
+     },
+     "thickbox_default": {
+      "url": "https://www.armytech.com.ar/7696-thickbox_default/procesador-amd-ryzen-5-9600x-am5-c-video-tray-sin-cooler-y-sin-caja.jpg",
+      "width": 1100,
+      "height": 1422
+     }
+    },
+    "small": {
+     "url": "https://www.armytech.com.ar/7696-small_default/procesador-amd-ryzen-5-9600x-am5-c-video-tray-sin-cooler-y-sin-caja.jpg",
+     "width": 98,
+     "height": 127
+    },
+    "medium": {
+     "url": "https://www.armytech.com.ar/7696-medium_default/procesador-amd-ryzen-5-9600x-am5-c-video-tray-sin-cooler-y-sin-caja.jpg",
+     "width": 452,
+     "height": 452
+    },
+    "large": {
+     "url": "https://www.armytech.com.ar/7696-thickbox_default/procesador-amd-ryzen-5-9600x-am5-c-video-tray-sin-cooler-y-sin-caja.jpg",
+     "width": 1100,
+     "height": 1422
+    },
+    "legend": "",
+    "id_image": "7696",
+    "cover": "1",
+    "position": "1",
+    "associatedVariants": []
+   },
+   "has_discount": false,
+   "discount_type": null,
+   "discount_percentage": null,
+   "discount_percentage_absolute": null,
+   "discount_amount": null,
+   "price_amount": 340557.24,
+   "regular_price_amount": 340557.24,
+   "regular_price": "$ 340.557,24",
+   "discount_to_display": null
+  },
+  {
+   "add_to_cart_url": "https://www.armytech.com.ar/carrito?add=1&id_product=6368&id_product_attribute=0&token=c328ffee3a3a577fa52620071f1662f6",
+   "url": "https://www.armytech.com.ar/procesadores/6368-procesador-amd-ryzen-5-5600xt-am4-s-video.html",
+   "canonical_url": "https://www.armytech.com.ar/procesadores/6368-procesador-amd-ryzen-5-5600xt-am4-s-video.html",
+   "labels": {
+    "tax_short": ".",
+    "tax_long": "Impuestos incluidos"
+   },
+   "main_variants": [],
+   "id_product": "6368",
+   "price": "$ 345.149,68",
+   "reference": "108004",
+   "active": "1",
+   "description_short": "<p>Rendimiento y potencia para gaming y productividad. El AMD Ryzen 5 5600XT AM4 ofrece 6 núcleos y 12 hilos para disfrutar de una experiencia fluida en juegos, trabajo y multitarea.</p>",
+   "link_rewrite": "procesador-amd-ryzen-5-5600xt-am4-s-video",
+   "name": "Procesador Amd Ryzen 5 5600xt Am4 S/video",
+   "manufacturer_name": "Amd",
+   "category_name": "Procesadores",
+   "link": "https://www.armytech.com.ar/procesadores/6368-procesador-amd-ryzen-5-5600xt-am4-s-video.html",
+   "rate": 10.5,
+   "tax_name": "IVA AR 10.5%",
+   "unit_price": "",
+   "cover": {
+    "bySize": {
+     "small_default": {
+      "url": "https://www.armytech.com.ar/7943-small_default/procesador-amd-ryzen-5-5600xt-am4-s-video.jpg",
+      "width": 98,
+      "height": 127
+     },
+     "cart_default": {
+      "url": "https://www.armytech.com.ar/7943-cart_default/procesador-amd-ryzen-5-5600xt-am4-s-video.jpg",
+      "width": 125,
+      "height": 162
+     },
+     "home_default": {
+      "url": "https://www.armytech.com.ar/7943-home_default/procesador-amd-ryzen-5-5600xt-am4-s-video.jpg",
+      "width": 236,
+      "height": 305
+     },
+     "medium_default": {
+      "url": "https://www.armytech.com.ar/7943-medium_default/procesador-amd-ryzen-5-5600xt-am4-s-video.jpg",
+      "width": 452,
+      "height": 452
+     },
+     "large_default": {
+      "url": "https://www.armytech.com.ar/7943-large_default/procesador-amd-ryzen-5-5600xt-am4-s-video.jpg",
+      "width": 492,
+      "height": 492
+     },
+     "thickbox_default": {
+      "url": "https://www.armytech.com.ar/7943-thickbox_default/procesador-amd-ryzen-5-5600xt-am4-s-video.jpg",
+      "width": 1100,
+      "height": 1422
+     }
+    },
+    "small": {
+     "url": "https://www.armytech.com.ar/7943-small_default/procesador-amd-ryzen-5-5600xt-am4-s-video.jpg",
+     "width": 98,
+     "height": 127
+    },
+    "medium": {
+     "url": "https://www.armytech.com.ar/7943-medium_default/procesador-amd-ryzen-5-5600xt-am4-s-video.jpg",
+     "width": 452,
+     "height": 452
+    },
+    "large": {
+     "url": "https://www.armytech.com.ar/7943-thickbox_default/procesador-amd-ryzen-5-5600xt-am4-s-video.jpg",
+     "width": 1100,
+     "height": 1422
+    },
+    "legend": "",
+    "id_image": "7943",
+    "cover": "1",
+    "position": "1",
+    "associatedVariants": []
+   },
+   "has_discount": false,
+   "discount_type": null,
+   "discount_percentage": null,
+   "discount_percentage_absolute": null,
+   "discount_amount": null,
+   "price_amount": 345149.68,
+   "regular_price_amount": 345149.68,
+   "regular_price": "$ 345.149,68",
+   "discount_to_display": null
+  },
+  {
+   "add_to_cart_url": "https://www.armytech.com.ar/carrito?add=1&id_product=1363&id_product_attribute=0&token=c328ffee3a3a577fa52620071f1662f6",
+   "url": "https://www.armytech.com.ar/procesadores/1363-procesador-amd-ryzen-5-7600x-am5-c-video-s-cooler.html",
+   "canonical_url": "https://www.armytech.com.ar/procesadores/1363-procesador-amd-ryzen-5-7600x-am5-c-video-s-cooler.html",
+   "labels": {
+    "tax_short": ".",
+    "tax_long": "Impuestos incluidos"
+   },
+   "main_variants": [],
+   "id_product": "1363",
+   "price": "$ 386.174,30",
+   "reference": "104229",
+   "active": "1",
+   "description_short": "<p>Potencia y rendimiento se unen en el Procesador AMD Ryzen 5 7600X AM5 con gráficos integrados de alta calidad, mejorando tu experiencia informática.</p>",
+   "link_rewrite": "procesador-amd-ryzen-5-7600x-am5-c-video-s-cooler",
+   "name": "Procesador Amd Ryzen 5 7600x Am5 C/video S/cooler",
+   "manufacturer_name": "Amd",
+   "category_name": "Procesadores",
+   "link": "https://www.armytech.com.ar/procesadores/1363-procesador-amd-ryzen-5-7600x-am5-c-video-s-cooler.html",
+   "rate": 10.5,
+   "tax_name": "IVA AR 10.5%",
+   "unit_price": "",
+   "cover": {
+    "bySize": {
+     "small_default": {
+      "url": "https://www.armytech.com.ar/1484-small_default/procesador-amd-ryzen-5-7600x-am5-c-video-s-cooler.jpg",
+      "width": 98,
+      "height": 127
+     },
+     "cart_default": {
+      "url": "https://www.armytech.com.ar/1484-cart_default/procesador-amd-ryzen-5-7600x-am5-c-video-s-cooler.jpg",
+      "width": 125,
+      "height": 162
+     },
+     "home_default": {
+      "url": "https://www.armytech.com.ar/1484-home_default/procesador-amd-ryzen-5-7600x-am5-c-video-s-cooler.jpg",
+      "width": 236,
+      "height": 305
+     },
+     "medium_default": {
+      "url": "https://www.armytech.com.ar/1484-medium_default/procesador-amd-ryzen-5-7600x-am5-c-video-s-cooler.jpg",
+      "width": 452,
+      "height": 452
+     },
+     "large_default": {
+      "url": "https://www.armytech.com.ar/1484-large_default/procesador-amd-ryzen-5-7600x-am5-c-video-s-cooler.jpg",
+      "width": 492,
+      "height": 492
+     },
+     "thickbox_default": {
+      "url": "https://www.armytech.com.ar/1484-thickbox_default/procesador-amd-ryzen-5-7600x-am5-c-video-s-cooler.jpg",
+      "width": 1100,
+      "height": 1422
+     }
+    },
+    "small": {
+     "url": "https://www.armytech.com.ar/1484-small_default/procesador-amd-ryzen-5-7600x-am5-c-video-s-cooler.jpg",
+     "width": 98,
+     "height": 127
+    },
+    "medium": {
+     "url": "https://www.armytech.com.ar/1484-medium_default/procesador-amd-ryzen-5-7600x-am5-c-video-s-cooler.jpg",
+     "width": 452,
+     "height": 452
+    },
+    "large": {
+     "url": "https://www.armytech.com.ar/1484-thickbox_default/procesador-amd-ryzen-5-7600x-am5-c-video-s-cooler.jpg",
+     "width": 1100,
+     "height": 1422
+    },
+    "legend": "",
+    "id_image": "1484",
+    "cover": "1",
+    "position": "1",
+    "associatedVariants": []
+   },
+   "has_discount": false,
+   "discount_type": null,
+   "discount_percentage": null,
+   "discount_percentage_absolute": null,
+   "discount_amount": null,
+   "price_amount": 386174.3,
+   "regular_price_amount": 386174.3,
+   "regular_price": "$ 386.174,30",
+   "discount_to_display": null
+  },
+  {
+   "add_to_cart_url": "https://www.armytech.com.ar/carrito?add=1&id_product=5520&id_product_attribute=0&token=c328ffee3a3a577fa52620071f1662f6",
+   "url": "https://www.armytech.com.ar/procesadores/5520-procesador-intel-ultra-5-225-socket-1851.html",
+   "canonical_url": "https://www.armytech.com.ar/procesadores/5520-procesador-intel-ultra-5-225-socket-1851.html",
+   "labels": {
+    "tax_short": ".",
+    "tax_long": "Impuestos incluidos"
+   },
+   "main_variants": [],
+   "id_product": "5520",
+   "price": "$ 389.520,46",
+   "reference": "106008",
+   "active": "1",
+   "description_short": "<p>Intel Ultra 5-225 combina 10 núcleos (6 P-cores + 4 E-cores), hasta 4.9 GHz, socket LGA 1851, DDR5 hasta 6400MT/s. Potencia para gaming, productividad y tareas exigentes.</p>",
+   "link_rewrite": "procesador-intel-ultra-5-225-socket-1851",
+   "name": "Procesador Intel Ultra 5 225 Socket 1851",
+   "manufacturer_name": "Intel",
+   "category_name": "Procesadores",
+   "link": "https://www.armytech.com.ar/procesadores/5520-procesador-intel-ultra-5-225-socket-1851.html",
+   "rate": 10.5,
+   "tax_name": "IVA AR 10.5%",
+   "unit_price": "",
+   "cover": {
+    "bySize": {
+     "small_default": {
+      "url": "https://www.armytech.com.ar/5929-small_default/procesador-intel-ultra-5-225-socket-1851.jpg",
+      "width": 98,
+      "height": 127
+     },
+     "cart_default": {
+      "url": "https://www.armytech.com.ar/5929-cart_default/procesador-intel-ultra-5-225-socket-1851.jpg",
+      "width": 125,
+      "height": 162
+     },
+     "home_default": {
+      "url": "https://www.armytech.com.ar/5929-home_default/procesador-intel-ultra-5-225-socket-1851.jpg",
+      "width": 236,
+      "height": 305
+     },
+     "medium_default": {
+      "url": "https://www.armytech.com.ar/5929-medium_default/procesador-intel-ultra-5-225-socket-1851.jpg",
+      "width": 452,
+      "height": 452
+     },
+     "large_default": {
+      "url": "https://www.armytech.com.ar/5929-large_default/procesador-intel-ultra-5-225-socket-1851.jpg",
+      "width": 492,
+      "height": 492
+     },
+     "thickbox_default": {
+      "url": "https://www.armytech.com.ar/5929-thickbox_default/procesador-intel-ultra-5-225-socket-1851.jpg",
+      "width": 1100,
+      "height": 1422
+     }
+    },
+    "small": {
+     "url": "https://www.armytech.com.ar/5929-small_default/procesador-intel-ultra-5-225-socket-1851.jpg",
+     "width": 98,
+     "height": 127
+    },
+    "medium": {
+     "url": "https://www.armytech.com.ar/5929-medium_default/procesador-intel-ultra-5-225-socket-1851.jpg",
+     "width": 452,
+     "height": 452
+    },
+    "large": {
+     "url": "https://www.armytech.com.ar/5929-thickbox_default/procesador-intel-ultra-5-225-socket-1851.jpg",
+     "width": 1100,
+     "height": 1422
+    },
+    "legend": "",
+    "id_image": "5929",
+    "cover": "1",
+    "position": "1",
+    "associatedVariants": []
+   },
+   "has_discount": false,
+   "discount_type": null,
+   "discount_percentage": null,
+   "discount_percentage_absolute": null,
+   "discount_amount": null,
+   "price_amount": 389520.46,
+   "regular_price_amount": 389520.46,
+   "regular_price": "$ 389.520,46",
+   "discount_to_display": null
+  },
+  {
+   "add_to_cart_url": "https://www.armytech.com.ar/carrito?add=1&id_product=6229&id_product_attribute=0&token=c328ffee3a3a577fa52620071f1662f6",
+   "url": "https://www.armytech.com.ar/procesadores/6229-procesador-amd-ryzen-7-9700x-am5-c-video-sin-cooler-y-sin-caja.html",
+   "canonical_url": "https://www.armytech.com.ar/procesadores/6229-procesador-amd-ryzen-7-9700x-am5-c-video-sin-cooler-y-sin-caja.html",
+   "labels": {
+    "tax_short": ".",
+    "tax_long": "Impuestos incluidos"
+   },
+   "main_variants": [],
+   "id_product": "6229",
+   "price": "$ 510.084,69",
+   "reference": "106865",
+   "active": "1",
+   "description_short": "<p>Potencia de última generación para gaming, creación y productividad. El AMD Ryzen 7 9700X AM5 ofrece alto rendimiento, gráficos integrados y eficiencia avanzada para cualquier desafío.</p>",
+   "link_rewrite": "procesador-amd-ryzen-7-9700x-am5-c-video-sin-cooler-y-sin-caja",
+   "name": "Procesador Amd Ryzen 7 9700x Am5  C/video  (sin Cooler Y Sin Caja)",
+   "manufacturer_name": "Amd",
+   "category_name": "Procesadores",
+   "link": "https://www.armytech.com.ar/procesadores/6229-procesador-amd-ryzen-7-9700x-am5-c-video-sin-cooler-y-sin-caja.html",
+   "rate": 10.5,
+   "tax_name": "IVA AR 10.5%",
+   "unit_price": "",
+   "cover": {
+    "bySize": {
+     "small_default": {
+      "url": "https://www.armytech.com.ar/7583-small_default/procesador-amd-ryzen-7-9700x-am5-c-video-sin-cooler-y-sin-caja.jpg",
+      "width": 98,
+      "height": 127
+     },
+     "cart_default": {
+      "url": "https://www.armytech.com.ar/7583-cart_default/procesador-amd-ryzen-7-9700x-am5-c-video-sin-cooler-y-sin-caja.jpg",
+      "width": 125,
+      "height": 162
+     },
+     "home_default": {
+      "url": "https://www.armytech.com.ar/7583-home_default/procesador-amd-ryzen-7-9700x-am5-c-video-sin-cooler-y-sin-caja.jpg",
+      "width": 236,
+      "height": 305
+     },
+     "medium_default": {
+      "url": "https://www.armytech.com.ar/7583-medium_default/procesador-amd-ryzen-7-9700x-am5-c-video-sin-cooler-y-sin-caja.jpg",
+      "width": 452,
+      "height": 452
+     },
+     "large_default": {
+      "url": "https://www.armytech.com.ar/7583-large_default/procesador-amd-ryzen-7-9700x-am5-c-video-sin-cooler-y-sin-caja.jpg",
+      "width": 492,
+      "height": 492
+     },
+     "thickbox_default": {
+      "url": "https://www.armytech.com.ar/7583-thickbox_default/procesador-amd-ryzen-7-9700x-am5-c-video-sin-cooler-y-sin-caja.jpg",
+      "width": 1100,
+      "height": 1422
+     }
+    },
+    "small": {
+     "url": "https://www.armytech.com.ar/7583-small_default/procesador-amd-ryzen-7-9700x-am5-c-video-sin-cooler-y-sin-caja.jpg",
+     "width": 98,
+     "height": 127
+    },
+    "medium": {
+     "url": "https://www.armytech.com.ar/7583-medium_default/procesador-amd-ryzen-7-9700x-am5-c-video-sin-cooler-y-sin-caja.jpg",
+     "width": 452,
+     "height": 452
+    },
+    "large": {
+     "url": "https://www.armytech.com.ar/7583-thickbox_default/procesador-amd-ryzen-7-9700x-am5-c-video-sin-cooler-y-sin-caja.jpg",
+     "width": 1100,
+     "height": 1422
+    },
+    "legend": "",
+    "id_image": "7583",
+    "cover": "1",
+    "position": "1",
+    "associatedVariants": []
+   },
+   "has_discount": false,
+   "discount_type": null,
+   "discount_percentage": null,
+   "discount_percentage_absolute": null,
+   "discount_amount": null,
+   "price_amount": 510084.69,
+   "regular_price_amount": 510084.69,
+   "regular_price": "$ 510.084,69",
+   "discount_to_display": null
+  },
+  {
+   "add_to_cart_url": "https://www.armytech.com.ar/carrito?add=1&id_product=6323&id_product_attribute=0&token=c328ffee3a3a577fa52620071f1662f6",
+   "url": "https://www.armytech.com.ar/procesadores/6323-procesador-intel-ultra-7-265k-socket-1851-c-video-tray-sin-cooler-y-sin-caja.html",
+   "canonical_url": "https://www.armytech.com.ar/procesadores/6323-procesador-intel-ultra-7-265k-socket-1851-c-video-tray-sin-cooler-y-sin-caja.html",
+   "labels": {
+    "tax_short": ".",
+    "tax_long": "Impuestos incluidos"
+   },
+   "main_variants": [],
+   "id_product": "6323",
+   "price": "$ 601.506,58",
+   "reference": "106961",
+   "active": "1",
+   "description_short": "<p>Potencia de nueva generación para gaming y productividad avanzada. El Intel Core Ultra 7 265K Socket 1851 versión Tray ofrece alto rendimiento, eficiencia y multitarea para usuarios exigentes.</p>",
+   "link_rewrite": "procesador-intel-ultra-7-265k-socket-1851-c-video-tray-sin-cooler-y-sin-caja",
+   "name": "Procesador Intel Ultra 7 265k Socket 1851 C/video Tray (sin Cooler Y Sin Caja)",
+   "manufacturer_name": "Intel",
+   "category_name": "Procesadores",
+   "link": "https://www.armytech.com.ar/procesadores/6323-procesador-intel-ultra-7-265k-socket-1851-c-video-tray-sin-cooler-y-sin-caja.html",
+   "rate": 10.5,
+   "tax_name": "IVA AR 10.5%",
+   "unit_price": "",
+   "cover": {
+    "bySize": {
+     "small_default": {
+      "url": "https://www.armytech.com.ar/7812-small_default/procesador-intel-ultra-7-265k-socket-1851-c-video-tray-sin-cooler-y-sin-caja.jpg",
+      "width": 98,
+      "height": 127
+     },
+     "cart_default": {
+      "url": "https://www.armytech.com.ar/7812-cart_default/procesador-intel-ultra-7-265k-socket-1851-c-video-tray-sin-cooler-y-sin-caja.jpg",
+      "width": 125,
+      "height": 162
+     },
+     "home_default": {
+      "url": "https://www.armytech.com.ar/7812-home_default/procesador-intel-ultra-7-265k-socket-1851-c-video-tray-sin-cooler-y-sin-caja.jpg",
+      "width": 236,
+      "height": 305
+     },
+     "medium_default": {
+      "url": "https://www.armytech.com.ar/7812-medium_default/procesador-intel-ultra-7-265k-socket-1851-c-video-tray-sin-cooler-y-sin-caja.jpg",
+      "width": 452,
+      "height": 452
+     },
+     "large_default": {
+      "url": "https://www.armytech.com.ar/7812-large_default/procesador-intel-ultra-7-265k-socket-1851-c-video-tray-sin-cooler-y-sin-caja.jpg",
+      "width": 492,
+      "height": 492
+     },
+     "thickbox_default": {
+      "url": "https://www.armytech.com.ar/7812-thickbox_default/procesador-intel-ultra-7-265k-socket-1851-c-video-tray-sin-cooler-y-sin-caja.jpg",
+      "width": 1100,
+      "height": 1422
+     }
+    },
+    "small": {
+     "url": "https://www.armytech.com.ar/7812-small_default/procesador-intel-ultra-7-265k-socket-1851-c-video-tray-sin-cooler-y-sin-caja.jpg",
+     "width": 98,
+     "height": 127
+    },
+    "medium": {
+     "url": "https://www.armytech.com.ar/7812-medium_default/procesador-intel-ultra-7-265k-socket-1851-c-video-tray-sin-cooler-y-sin-caja.jpg",
+     "width": 452,
+     "height": 452
+    },
+    "large": {
+     "url": "https://www.armytech.com.ar/7812-thickbox_default/procesador-intel-ultra-7-265k-socket-1851-c-video-tray-sin-cooler-y-sin-caja.jpg",
+     "width": 1100,
+     "height": 1422
+    },
+    "legend": "",
+    "id_image": "7812",
+    "cover": "1",
+    "position": "1",
+    "associatedVariants": []
+   },
+   "has_discount": false,
+   "discount_type": null,
+   "discount_percentage": null,
+   "discount_percentage_absolute": null,
+   "discount_amount": null,
+   "price_amount": 601506.58,
+   "regular_price_amount": 601506.58,
+   "regular_price": "$ 601.506,58",
+   "discount_to_display": null
+  },
+  {
+   "add_to_cart_url": "https://www.armytech.com.ar/carrito?add=1&id_product=6372&id_product_attribute=0&token=c328ffee3a3a577fa52620071f1662f6",
+   "url": "https://www.armytech.com.ar/procesadores/6372-procesador-amd-ryzen-7-7700x3d-am5-c-video-s-cooler.html",
+   "canonical_url": "https://www.armytech.com.ar/procesadores/6372-procesador-amd-ryzen-7-7700x3d-am5-c-video-s-cooler.html",
+   "labels": {
+    "tax_short": ".",
+    "tax_long": "Impuestos incluidos"
+   },
+   "main_variants": [],
+   "id_product": "6372",
+   "price": "$ 607.669,67",
+   "reference": "108008",
+   "active": "1",
+   "description_short": "<p>Potencia extrema para gaming y multitarea. El AMD Ryzen 7 7700X3D AM5 incorpora tecnología 3D V-Cache para maximizar el rendimiento en juegos y ofrece gráficos integrados para una mayor versatilidad.</p>",
+   "link_rewrite": "procesador-amd-ryzen-7-7700x3d-am5-c-video-s-cooler",
+   "name": "Procesador Amd Ryzen 7 7700x3d Am5 C/video S/cooler",
+   "manufacturer_name": "Amd",
+   "category_name": "Procesadores",
+   "link": "https://www.armytech.com.ar/procesadores/6372-procesador-amd-ryzen-7-7700x3d-am5-c-video-s-cooler.html",
+   "rate": 10.5,
+   "tax_name": "IVA AR 10.5%",
+   "unit_price": "",
+   "cover": {
+    "bySize": {
+     "small_default": {
+      "url": "https://www.armytech.com.ar/7948-small_default/procesador-amd-ryzen-7-7700x3d-am5-c-video-s-cooler.jpg",
+      "width": 98,
+      "height": 127
+     },
+     "cart_default": {
+      "url": "https://www.armytech.com.ar/7948-cart_default/procesador-amd-ryzen-7-7700x3d-am5-c-video-s-cooler.jpg",
+      "width": 125,
+      "height": 162
+     },
+     "home_default": {
+      "url": "https://www.armytech.com.ar/7948-home_default/procesador-amd-ryzen-7-7700x3d-am5-c-video-s-cooler.jpg",
+      "width": 236,
+      "height": 305
+     },
+     "medium_default": {
+      "url": "https://www.armytech.com.ar/7948-medium_default/procesador-amd-ryzen-7-7700x3d-am5-c-video-s-cooler.jpg",
+      "width": 452,
+      "height": 452
+     },
+     "large_default": {
+      "url": "https://www.armytech.com.ar/7948-large_default/procesador-amd-ryzen-7-7700x3d-am5-c-video-s-cooler.jpg",
+      "width": 492,
+      "height": 492
+     },
+     "thickbox_default": {
+      "url": "https://www.armytech.com.ar/7948-thickbox_default/procesador-amd-ryzen-7-7700x3d-am5-c-video-s-cooler.jpg",
+      "width": 1100,
+      "height": 1422
+     }
+    },
+    "small": {
+     "url": "https://www.armytech.com.ar/7948-small_default/procesador-amd-ryzen-7-7700x3d-am5-c-video-s-cooler.jpg",
+     "width": 98,
+     "height": 127
+    },
+    "medium": {
+     "url": "https://www.armytech.com.ar/7948-medium_default/procesador-amd-ryzen-7-7700x3d-am5-c-video-s-cooler.jpg",
+     "width": 452,
+     "height": 452
+    },
+    "large": {
+     "url": "https://www.armytech.com.ar/7948-thickbox_default/procesador-amd-ryzen-7-7700x3d-am5-c-video-s-cooler.jpg",
+     "width": 1100,
+     "height": 1422
+    },
+    "legend": "",
+    "id_image": "7948",
+    "cover": "1",
+    "position": "1",
+    "associatedVariants": []
+   },
+   "has_discount": false,
+   "discount_type": null,
+   "discount_percentage": null,
+   "discount_percentage_absolute": null,
+   "discount_amount": null,
+   "price_amount": 607669.67,
+   "regular_price_amount": 607669.67,
+   "regular_price": "$ 607.669,67",
+   "discount_to_display": null
+  },
+  {
+   "add_to_cart_url": "https://www.armytech.com.ar/carrito?add=1&id_product=5262&id_product_attribute=0&token=c328ffee3a3a577fa52620071f1662f6",
+   "url": "https://www.armytech.com.ar/procesadores/5262-procesador-intel-ultra-7-265f-socket-1851.html",
+   "canonical_url": "https://www.armytech.com.ar/procesadores/5262-procesador-intel-ultra-7-265f-socket-1851.html",
+   "labels": {
+    "tax_short": ".",
+    "tax_long": "Impuestos incluidos"
+   },
+   "main_variants": [],
+   "id_product": "5262",
+   "price": "$ 613.593,74",
+   "reference": "105639",
+   "active": "1",
+   "description_short": "<p>Descubre el poder del Intel Ultra 7 265F. Máximo rendimiento, eficiencia térmica y soporte para tecnologías de última generación con socket 1851. Ideal para gamers y creadores.</p>",
+   "link_rewrite": "procesador-intel-ultra-7-265f-socket-1851",
+   "name": "Procesador Intel Ultra 7 265f Socket 1851",
+   "manufacturer_name": "Intel",
+   "category_name": "Procesadores",
+   "link": "https://www.armytech.com.ar/procesadores/5262-procesador-intel-ultra-7-265f-socket-1851.html",
+   "rate": 10.5,
+   "tax_name": "IVA AR 10.5%",
+   "unit_price": "",
+   "cover": {
+    "bySize": {
+     "small_default": {
+      "url": "https://www.armytech.com.ar/7515-small_default/procesador-intel-ultra-7-265f-socket-1851.jpg",
+      "width": 98,
+      "height": 127
+     },
+     "cart_default": {
+      "url": "https://www.armytech.com.ar/7515-cart_default/procesador-intel-ultra-7-265f-socket-1851.jpg",
+      "width": 125,
+      "height": 162
+     },
+     "home_default": {
+      "url": "https://www.armytech.com.ar/7515-home_default/procesador-intel-ultra-7-265f-socket-1851.jpg",
+      "width": 236,
+      "height": 305
+     },
+     "medium_default": {
+      "url": "https://www.armytech.com.ar/7515-medium_default/procesador-intel-ultra-7-265f-socket-1851.jpg",
+      "width": 452,
+      "height": 452
+     },
+     "large_default": {
+      "url": "https://www.armytech.com.ar/7515-large_default/procesador-intel-ultra-7-265f-socket-1851.jpg",
+      "width": 492,
+      "height": 492
+     },
+     "thickbox_default": {
+      "url": "https://www.armytech.com.ar/7515-thickbox_default/procesador-intel-ultra-7-265f-socket-1851.jpg",
+      "width": 1100,
+      "height": 1422
+     }
+    },
+    "small": {
+     "url": "https://www.armytech.com.ar/7515-small_default/procesador-intel-ultra-7-265f-socket-1851.jpg",
+     "width": 98,
+     "height": 127
+    },
+    "medium": {
+     "url": "https://www.armytech.com.ar/7515-medium_default/procesador-intel-ultra-7-265f-socket-1851.jpg",
+     "width": 452,
+     "height": 452
+    },
+    "large": {
+     "url": "https://www.armytech.com.ar/7515-thickbox_default/procesador-intel-ultra-7-265f-socket-1851.jpg",
+     "width": 1100,
+     "height": 1422
+    },
+    "legend": "",
+    "id_image": "7515",
+    "cover": "1",
+    "position": "1",
+    "associatedVariants": []
+   },
+   "has_discount": false,
+   "discount_type": null,
+   "discount_percentage": null,
+   "discount_percentage_absolute": null,
+   "discount_amount": null,
+   "price_amount": 613593.74,
+   "regular_price_amount": 613593.74,
+   "regular_price": "$ 613.593,74",
+   "discount_to_display": null
+  },
+  {
+   "add_to_cart_url": "https://www.armytech.com.ar/carrito?add=1&id_product=1058&id_product_attribute=0&token=c328ffee3a3a577fa52620071f1662f6",
+   "url": "https://www.armytech.com.ar/procesadores/1058-procesador-intel-core-i7-12700-socket-1700.html",
+   "canonical_url": "https://www.armytech.com.ar/procesadores/1058-procesador-intel-core-i7-12700-socket-1700.html",
+   "labels": {
+    "tax_short": ".",
+    "tax_long": "Impuestos incluidos"
+   },
+   "main_variants": [],
+   "id_product": "1058",
+   "price": "$ 635.668,16",
+   "reference": "104062",
+   "active": "1",
+   "description_short": "<p>Impulsa tu PC con el Intel Core i7 12700. Velocidad excepcional, múltiples núcleos y eficiencia para juegos, creación y productividad. Disfruta de un rendimiento de nivel superior.</p>",
+   "link_rewrite": "procesador-intel-core-i7-12700-socket-1700",
+   "name": "Procesador Intel Core I7 12700 Socket 1700",
+   "manufacturer_name": "Intel",
+   "category_name": "Procesadores",
+   "link": "https://www.armytech.com.ar/procesadores/1058-procesador-intel-core-i7-12700-socket-1700.html",
+   "rate": 10.5,
+   "tax_name": "IVA AR 10.5%",
+   "unit_price": "",
+   "cover": {
+    "bySize": {
+     "small_default": {
+      "url": "https://www.armytech.com.ar/3700-small_default/procesador-intel-core-i7-12700-socket-1700.jpg",
+      "width": 98,
+      "height": 127
+     },
+     "cart_default": {
+      "url": "https://www.armytech.com.ar/3700-cart_default/procesador-intel-core-i7-12700-socket-1700.jpg",
+      "width": 125,
+      "height": 162
+     },
+     "home_default": {
+      "url": "https://www.armytech.com.ar/3700-home_default/procesador-intel-core-i7-12700-socket-1700.jpg",
+      "width": 236,
+      "height": 305
+     },
+     "medium_default": {
+      "url": "https://www.armytech.com.ar/3700-medium_default/procesador-intel-core-i7-12700-socket-1700.jpg",
+      "width": 452,
+      "height": 452
+     },
+     "large_default": {
+      "url": "https://www.armytech.com.ar/3700-large_default/procesador-intel-core-i7-12700-socket-1700.jpg",
+      "width": 492,
+      "height": 492
+     },
+     "thickbox_default": {
+      "url": "https://www.armytech.com.ar/3700-thickbox_default/procesador-intel-core-i7-12700-socket-1700.jpg",
+      "width": 1100,
+      "height": 1422
+     }
+    },
+    "small": {
+     "url": "https://www.armytech.com.ar/3700-small_default/procesador-intel-core-i7-12700-socket-1700.jpg",
+     "width": 98,
+     "height": 127
+    },
+    "medium": {
+     "url": "https://www.armytech.com.ar/3700-medium_default/procesador-intel-core-i7-12700-socket-1700.jpg",
+     "width": 452,
+     "height": 452
+    },
+    "large": {
+     "url": "https://www.armytech.com.ar/3700-thickbox_default/procesador-intel-core-i7-12700-socket-1700.jpg",
+     "width": 1100,
+     "height": 1422
+    },
+    "legend": "",
+    "id_image": "3700",
+    "cover": "1",
+    "position": "1",
+    "associatedVariants": []
+   },
+   "has_discount": false,
+   "discount_type": null,
+   "discount_percentage": null,
+   "discount_percentage_absolute": null,
+   "discount_amount": null,
+   "price_amount": 635668.16,
+   "regular_price_amount": 635668.16,
+   "regular_price": "$ 635.668,16",
+   "discount_to_display": null
+  },
+  {
+   "add_to_cart_url": "https://www.armytech.com.ar/carrito?add=1&id_product=1557&id_product_attribute=0&token=c328ffee3a3a577fa52620071f1662f6",
+   "url": "https://www.armytech.com.ar/procesadores/1557-procesador-amd-ryzen-9-7900x-am5-c-video-s-cooler-0730143314558.html",
+   "canonical_url": "https://www.armytech.com.ar/procesadores/1557-procesador-amd-ryzen-9-7900x-am5-c-video-s-cooler-0730143314558.html",
+   "labels": {
+    "tax_short": ".",
+    "tax_long": "Impuestos incluidos"
+   },
+   "main_variants": [],
+   "id_product": "1557",
+   "price": "$ 663.495,92",
+   "reference": "104398",
+   "active": "1",
+   "description_short": "<p>Potente procesador AMD Ryzen 9 7900X AM5 con gráficos integrados y refrigeración incluida para un rendimiento excepcional.</p>",
+   "link_rewrite": "procesador-amd-ryzen-9-7900x-am5-c-video-s-cooler",
+   "name": "Procesador Amd Ryzen 9 7900x Am5 C/video S/cooler",
+   "manufacturer_name": "Amd",
+   "category_name": "Procesadores",
+   "link": "https://www.armytech.com.ar/procesadores/1557-procesador-amd-ryzen-9-7900x-am5-c-video-s-cooler-0730143314558.html",
+   "rate": 10.5,
+   "tax_name": "IVA AR 10.5%",
+   "unit_price": "",
+   "cover": {
+    "bySize": {
+     "small_default": {
+      "url": "https://www.armytech.com.ar/1793-small_default/procesador-amd-ryzen-9-7900x-am5-c-video-s-cooler.jpg",
+      "width": 98,
+      "height": 127
+     },
+     "cart_default": {
+      "url": "https://www.armytech.com.ar/1793-cart_default/procesador-amd-ryzen-9-7900x-am5-c-video-s-cooler.jpg",
+      "width": 125,
+      "height": 162
+     },
+     "home_default": {
+      "url": "https://www.armytech.com.ar/1793-home_default/procesador-amd-ryzen-9-7900x-am5-c-video-s-cooler.jpg",
+      "width": 236,
+      "height": 305
+     },
+     "medium_default": {
+      "url": "https://www.armytech.com.ar/1793-medium_default/procesador-amd-ryzen-9-7900x-am5-c-video-s-cooler.jpg",
+      "width": 452,
+      "height": 452
+     },
+     "large_default": {
+      "url": "https://www.armytech.com.ar/1793-large_default/procesador-amd-ryzen-9-7900x-am5-c-video-s-cooler.jpg",
+      "width": 492,
+      "height": 492
+     },
+     "thickbox_default": {
+      "url": "https://www.armytech.com.ar/1793-thickbox_default/procesador-amd-ryzen-9-7900x-am5-c-video-s-cooler.jpg",
+      "width": 1100,
+      "height": 1422
+     }
+    },
+    "small": {
+     "url": "https://www.armytech.com.ar/1793-small_default/procesador-amd-ryzen-9-7900x-am5-c-video-s-cooler.jpg",
+     "width": 98,
+     "height": 127
+    },
+    "medium": {
+     "url": "https://www.armytech.com.ar/1793-medium_default/procesador-amd-ryzen-9-7900x-am5-c-video-s-cooler.jpg",
+     "width": 452,
+     "height": 452
+    },
+    "large": {
+     "url": "https://www.armytech.com.ar/1793-thickbox_default/procesador-amd-ryzen-9-7900x-am5-c-video-s-cooler.jpg",
+     "width": 1100,
+     "height": 1422
+    },
+    "legend": "",
+    "id_image": "1793",
+    "cover": "1",
+    "position": "1",
+    "associatedVariants": []
+   },
+   "has_discount": false,
+   "discount_type": null,
+   "discount_percentage": null,
+   "discount_percentage_absolute": null,
+   "discount_amount": null,
+   "price_amount": 663495.92,
+   "regular_price_amount": 663495.92,
+   "regular_price": "$ 663.495,92",
+   "discount_to_display": null
+  },
+  {
+   "add_to_cart_url": "https://www.armytech.com.ar/carrito?add=1&id_product=4841&id_product_attribute=0&token=c328ffee3a3a577fa52620071f1662f6",
+   "url": "https://www.armytech.com.ar/procesadores/4841-procesador-amd-ryzen-7-9800x3d-am5-c-video-s-cooler.html",
+   "canonical_url": "https://www.armytech.com.ar/procesadores/4841-procesador-amd-ryzen-7-9800x3d-am5-c-video-s-cooler.html",
+   "labels": {
+    "tax_short": ".",
+    "tax_long": "Impuestos incluidos"
+   },
+   "main_variants": [],
+   "id_product": "4841",
+   "price": "$ 887.859,43",
+   "reference": "105166",
+   "active": "1",
+   "description_short": "<p>El procesador AMD Ryzen 7 9800X3D con tecnología 3D V-Cache y gráficos integrados ofrece un rendimiento sin igual para gaming y tareas intensivas, compatible con AM5 y sin cooler incluido.</p>",
+   "link_rewrite": "procesador-amd-ryzen-7-9800x3d-am5-c-video-s-cooler",
+   "name": "Procesador Amd Ryzen 7 9800x3d Am5 C/video S/cooler",
+   "manufacturer_name": "Amd",
+   "category_name": "Procesadores",
+   "link": "https://www.armytech.com.ar/procesadores/4841-procesador-amd-ryzen-7-9800x3d-am5-c-video-s-cooler.html",
+   "rate": 10.5,
+   "tax_name": "IVA AR 10.5%",
+   "unit_price": "",
+   "cover": {
+    "bySize": {
+     "small_default": {
+      "url": "https://www.armytech.com.ar/5855-small_default/procesador-amd-ryzen-7-9800x3d-am5-c-video-s-cooler.jpg",
+      "width": 98,
+      "height": 127
+     },
+     "cart_default": {
+      "url": "https://www.armytech.com.ar/5855-cart_default/procesador-amd-ryzen-7-9800x3d-am5-c-video-s-cooler.jpg",
+      "width": 125,
+      "height": 162
+     },
+     "home_default": {
+      "url": "https://www.armytech.com.ar/5855-home_default/procesador-amd-ryzen-7-9800x3d-am5-c-video-s-cooler.jpg",
+      "width": 236,
+      "height": 305
+     },
+     "medium_default": {
+      "url": "https://www.armytech.com.ar/5855-medium_default/procesador-amd-ryzen-7-9800x3d-am5-c-video-s-cooler.jpg",
+      "width": 452,
+      "height": 452
+     },
+     "large_default": {
+      "url": "https://www.armytech.com.ar/5855-large_default/procesador-amd-ryzen-7-9800x3d-am5-c-video-s-cooler.jpg",
+      "width": 492,
+      "height": 492
+     },
+     "thickbox_default": {
+      "url": "https://www.armytech.com.ar/5855-thickbox_default/procesador-amd-ryzen-7-9800x3d-am5-c-video-s-cooler.jpg",
+      "width": 1100,
+      "height": 1422
+     }
+    },
+    "small": {
+     "url": "https://www.armytech.com.ar/5855-small_default/procesador-amd-ryzen-7-9800x3d-am5-c-video-s-cooler.jpg",
+     "width": 98,
+     "height": 127
+    },
+    "medium": {
+     "url": "https://www.armytech.com.ar/5855-medium_default/procesador-amd-ryzen-7-9800x3d-am5-c-video-s-cooler.jpg",
+     "width": 452,
+     "height": 452
+    },
+    "large": {
+     "url": "https://www.armytech.com.ar/5855-thickbox_default/procesador-amd-ryzen-7-9800x3d-am5-c-video-s-cooler.jpg",
+     "width": 1100,
+     "height": 1422
+    },
+    "legend": "",
+    "id_image": "5855",
+    "cover": "1",
+    "position": "1",
+    "associatedVariants": []
+   },
+   "has_discount": false,
+   "discount_type": null,
+   "discount_percentage": null,
+   "discount_percentage_absolute": null,
+   "discount_amount": null,
+   "price_amount": 887859.43,
+   "regular_price_amount": 887859.43,
+   "regular_price": "$ 887.859,43",
+   "discount_to_display": null
+  },
+  {
+   "add_to_cart_url": "https://www.armytech.com.ar/carrito?add=1&id_product=6097&id_product_attribute=0&token=c328ffee3a3a577fa52620071f1662f6",
+   "url": "https://www.armytech.com.ar/procesadores/6097-procesador-amd-ryzen-7-9850x3d-am5-c-video-s-cooler.html",
+   "canonical_url": "https://www.armytech.com.ar/procesadores/6097-procesador-amd-ryzen-7-9850x3d-am5-c-video-s-cooler.html",
+   "labels": {
+    "tax_short": ".",
+    "tax_long": "Impuestos incluidos"
+   },
+   "main_variants": [],
+   "id_product": "6097",
+   "price": "$ 958.060,53",
+   "reference": "106767",
+   "active": "1",
+   "description_short": "<p>Ryzen 7 9850X3D con 3D V-Cache y arquitectura Zen 5 ofrece rendimiento extremo en gaming. 8 núcleos y 16 hilos, hasta 5.6GHz y soporte DDR5 para máxima velocidad y eficiencia.</p>",
+   "link_rewrite": "procesador-amd-ryzen-7-9850x3d-am5-c-video-s-cooler",
+   "name": "Procesador Amd Ryzen 7 9850x3d Am5 C/video S/cooler",
+   "manufacturer_name": "Amd",
+   "category_name": "Procesadores",
+   "link": "https://www.armytech.com.ar/procesadores/6097-procesador-amd-ryzen-7-9850x3d-am5-c-video-s-cooler.html",
+   "rate": 10.5,
+   "tax_name": "IVA AR 10.5%",
+   "unit_price": "",
+   "cover": {
+    "bySize": {
+     "small_default": {
+      "url": "https://www.armytech.com.ar/7331-small_default/procesador-amd-ryzen-7-9850x3d-am5-c-video-s-cooler.jpg",
+      "width": 98,
+      "height": 127
+     },
+     "cart_default": {
+      "url": "https://www.armytech.com.ar/7331-cart_default/procesador-amd-ryzen-7-9850x3d-am5-c-video-s-cooler.jpg",
+      "width": 125,
+      "height": 162
+     },
+     "home_default": {
+      "url": "https://www.armytech.com.ar/7331-home_default/procesador-amd-ryzen-7-9850x3d-am5-c-video-s-cooler.jpg",
+      "width": 236,
+      "height": 305
+     },
+     "medium_default": {
+      "url": "https://www.armytech.com.ar/7331-medium_default/procesador-amd-ryzen-7-9850x3d-am5-c-video-s-cooler.jpg",
+      "width": 452,
+      "height": 452
+     },
+     "large_default": {
+      "url": "https://www.armytech.com.ar/7331-large_default/procesador-amd-ryzen-7-9850x3d-am5-c-video-s-cooler.jpg",
+      "width": 492,
+      "height": 492
+     },
+     "thickbox_default": {
+      "url": "https://www.armytech.com.ar/7331-thickbox_default/procesador-amd-ryzen-7-9850x3d-am5-c-video-s-cooler.jpg",
+      "width": 1100,
+      "height": 1422
+     }
+    },
+    "small": {
+     "url": "https://www.armytech.com.ar/7331-small_default/procesador-amd-ryzen-7-9850x3d-am5-c-video-s-cooler.jpg",
+     "width": 98,
+     "height": 127
+    },
+    "medium": {
+     "url": "https://www.armytech.com.ar/7331-medium_default/procesador-amd-ryzen-7-9850x3d-am5-c-video-s-cooler.jpg",
+     "width": 452,
+     "height": 452
+    },
+    "large": {
+     "url": "https://www.armytech.com.ar/7331-thickbox_default/procesador-amd-ryzen-7-9850x3d-am5-c-video-s-cooler.jpg",
+     "width": 1100,
+     "height": 1422
+    },
+    "legend": "",
+    "id_image": "7331",
+    "cover": "1",
+    "position": "1",
+    "associatedVariants": []
+   },
+   "has_discount": false,
+   "discount_type": null,
+   "discount_percentage": null,
+   "discount_percentage_absolute": null,
+   "discount_amount": null,
+   "price_amount": 958060.53,
+   "regular_price_amount": 958060.53,
+   "regular_price": "$ 958.060,53",
+   "discount_to_display": null
+  },
+  {
+   "add_to_cart_url": "https://www.armytech.com.ar/carrito?add=1&id_product=5299&id_product_attribute=0&token=c328ffee3a3a577fa52620071f1662f6",
+   "url": "https://www.armytech.com.ar/procesadores/5299-procesador-amd-ryzen-9-9900x3d-am5-s-cooler.html",
+   "canonical_url": "https://www.armytech.com.ar/procesadores/5299-procesador-amd-ryzen-9-9900x3d-am5-s-cooler.html",
+   "labels": {
+    "tax_short": ".",
+    "tax_long": "Impuestos incluidos"
+   },
+   "main_variants": [],
+   "id_product": "5299",
+   "price": "$ 1.110.020,62",
+   "reference": "105953",
+   "active": "1",
+   "description_short": "<p>Potencia sin límites con el AMD Ryzen 9 9900X3D. 16 núcleos, tecnología 3D V-Cache y socket AM5 para un rendimiento extremo en gaming y creación de contenido.</p>",
+   "link_rewrite": "procesador-amd-ryzen-9-9900x3d-am5-s-cooler",
+   "name": "Procesador Amd Ryzen 9 9900x3d Am5 S/cooler",
+   "manufacturer_name": "Amd",
+   "category_name": "Procesadores",
+   "link": "https://www.armytech.com.ar/procesadores/5299-procesador-amd-ryzen-9-9900x3d-am5-s-cooler.html",
+   "rate": 10.5,
+   "tax_name": "IVA AR 10.5%",
+   "unit_price": "",
+   "cover": {
+    "bySize": {
+     "small_default": {
+      "url": "https://www.armytech.com.ar/5190-small_default/procesador-amd-ryzen-9-9900x3d-am5-s-cooler.jpg",
+      "width": 98,
+      "height": 127
+     },
+     "cart_default": {
+      "url": "https://www.armytech.com.ar/5190-cart_default/procesador-amd-ryzen-9-9900x3d-am5-s-cooler.jpg",
+      "width": 125,
+      "height": 162
+     },
+     "home_default": {
+      "url": "https://www.armytech.com.ar/5190-home_default/procesador-amd-ryzen-9-9900x3d-am5-s-cooler.jpg",
+      "width": 236,
+      "height": 305
+     },
+     "medium_default": {
+      "url": "https://www.armytech.com.ar/5190-medium_default/procesador-amd-ryzen-9-9900x3d-am5-s-cooler.jpg",
+      "width": 452,
+      "height": 452
+     },
+     "large_default": {
+      "url": "https://www.armytech.com.ar/5190-large_default/procesador-amd-ryzen-9-9900x3d-am5-s-cooler.jpg",
+      "width": 492,
+      "height": 492
+     },
+     "thickbox_default": {
+      "url": "https://www.armytech.com.ar/5190-thickbox_default/procesador-amd-ryzen-9-9900x3d-am5-s-cooler.jpg",
+      "width": 1100,
+      "height": 1422
+     }
+    },
+    "small": {
+     "url": "https://www.armytech.com.ar/5190-small_default/procesador-amd-ryzen-9-9900x3d-am5-s-cooler.jpg",
+     "width": 98,
+     "height": 127
+    },
+    "medium": {
+     "url": "https://www.armytech.com.ar/5190-medium_default/procesador-amd-ryzen-9-9900x3d-am5-s-cooler.jpg",
+     "width": 452,
+     "height": 452
+    },
+    "large": {
+     "url": "https://www.armytech.com.ar/5190-thickbox_default/procesador-amd-ryzen-9-9900x3d-am5-s-cooler.jpg",
+     "width": 1100,
+     "height": 1422
+    },
+    "legend": "",
+    "id_image": "5190",
+    "cover": "1",
+    "position": "1",
+    "associatedVariants": []
+   },
+   "has_discount": false,
+   "discount_type": null,
+   "discount_percentage": null,
+   "discount_percentage_absolute": null,
+   "discount_amount": null,
+   "price_amount": 1110020.62,
+   "regular_price_amount": 1110020.62,
+   "regular_price": "$ 1.110.020,62",
+   "discount_to_display": null
+  },
+  {
+   "add_to_cart_url": "https://www.armytech.com.ar/carrito?add=1&id_product=5386&id_product_attribute=0&token=c328ffee3a3a577fa52620071f1662f6",
+   "url": "https://www.armytech.com.ar/procesadores/5386-procesador-intel-ultra-9-285k-socket-1851.html",
+   "canonical_url": "https://www.armytech.com.ar/procesadores/5386-procesador-intel-ultra-9-285k-socket-1851.html",
+   "labels": {
+    "tax_short": ".",
+    "tax_long": "Impuestos incluidos"
+   },
+   "main_variants": [],
+   "id_product": "5386",
+   "price": "$ 1.119.051,84",
+   "reference": "105782",
+   "active": "1",
+   "description_short": "<p data-start=\"150\" data-end=\"361\">El Intel Ultra 9 285K ofrece potencia extrema para gaming y tareas profesionales. Compatible con socket 1851, ideal para creadores, entusiastas y usuarios exigentes.</p>",
+   "link_rewrite": "procesador-intel-ultra-9-285k-socket-1851",
+   "name": "Procesador Intel Ultra 9 285k Socket 1851",
+   "manufacturer_name": "Intel",
+   "category_name": "Procesadores",
+   "link": "https://www.armytech.com.ar/procesadores/5386-procesador-intel-ultra-9-285k-socket-1851.html",
+   "rate": 10.5,
+   "tax_name": "IVA AR 10.5%",
+   "unit_price": "",
+   "cover": {
+    "bySize": {
+     "small_default": {
+      "url": "https://www.armytech.com.ar/5457-small_default/procesador-intel-ultra-9-285k-socket-1851.jpg",
+      "width": 98,
+      "height": 127
+     },
+     "cart_default": {
+      "url": "https://www.armytech.com.ar/5457-cart_default/procesador-intel-ultra-9-285k-socket-1851.jpg",
+      "width": 125,
+      "height": 162
+     },
+     "home_default": {
+      "url": "https://www.armytech.com.ar/5457-home_default/procesador-intel-ultra-9-285k-socket-1851.jpg",
+      "width": 236,
+      "height": 305
+     },
+     "medium_default": {
+      "url": "https://www.armytech.com.ar/5457-medium_default/procesador-intel-ultra-9-285k-socket-1851.jpg",
+      "width": 452,
+      "height": 452
+     },
+     "large_default": {
+      "url": "https://www.armytech.com.ar/5457-large_default/procesador-intel-ultra-9-285k-socket-1851.jpg",
+      "width": 492,
+      "height": 492
+     },
+     "thickbox_default": {
+      "url": "https://www.armytech.com.ar/5457-thickbox_default/procesador-intel-ultra-9-285k-socket-1851.jpg",
+      "width": 1100,
+      "height": 1422
+     }
+    },
+    "small": {
+     "url": "https://www.armytech.com.ar/5457-small_default/procesador-intel-ultra-9-285k-socket-1851.jpg",
+     "width": 98,
+     "height": 127
+    },
+    "medium": {
+     "url": "https://www.armytech.com.ar/5457-medium_default/procesador-intel-ultra-9-285k-socket-1851.jpg",
+     "width": 452,
+     "height": 452
+    },
+    "large": {
+     "url": "https://www.armytech.com.ar/5457-thickbox_default/procesador-intel-ultra-9-285k-socket-1851.jpg",
+     "width": 1100,
+     "height": 1422
+    },
+    "legend": "",
+    "id_image": "5457",
+    "cover": "1",
+    "position": "1",
+    "associatedVariants": []
+   },
+   "has_discount": false,
+   "discount_type": null,
+   "discount_percentage": null,
+   "discount_percentage_absolute": null,
+   "discount_amount": null,
+   "price_amount": 1119051.84,
+   "regular_price_amount": 1119051.84,
+   "regular_price": "$ 1.119.051,84",
+   "discount_to_display": null
+  },
+  {
+   "add_to_cart_url": "https://www.armytech.com.ar/carrito?add=1&id_product=6230&id_product_attribute=0&token=c328ffee3a3a577fa52620071f1662f6",
+   "url": "https://www.armytech.com.ar/procesadores/6230-procesador-amd-ryzen-9-9950x3d2-am5-c-video-s-cooler.html",
+   "canonical_url": "https://www.armytech.com.ar/procesadores/6230-procesador-amd-ryzen-9-9950x3d2-am5-c-video-s-cooler.html",
+   "labels": {
+    "tax_short": ".",
+    "tax_long": "Impuestos incluidos"
+   },
+   "main_variants": [],
+   "id_product": "6230",
+   "price": "$ 1.775.872,52",
+   "reference": "106873",
+   "active": "1",
+   "description_short": "<p>El máximo rendimiento para gaming y creación profesional. El AMD Ryzen 9 9950X3D AM5 combina tecnología 3D V-Cache, potencia extrema y eficiencia para los usuarios más exigentes.</p>",
+   "link_rewrite": "procesador-amd-ryzen-9-9950x3d2-am5-c-video-s-cooler",
+   "name": "Procesador Amd Ryzen 9 9950x3d2 Am5 C/video S/cooler",
+   "manufacturer_name": "Amd",
+   "category_name": "Procesadores",
+   "link": "https://www.armytech.com.ar/procesadores/6230-procesador-amd-ryzen-9-9950x3d2-am5-c-video-s-cooler.html",
+   "rate": 10.5,
+   "tax_name": "IVA AR 10.5%",
+   "unit_price": "",
+   "cover": {
+    "bySize": {
+     "small_default": {
+      "url": "https://www.armytech.com.ar/7594-small_default/procesador-amd-ryzen-9-9950x3d2-am5-c-video-s-cooler.jpg",
+      "width": 98,
+      "height": 127
+     },
+     "cart_default": {
+      "url": "https://www.armytech.com.ar/7594-cart_default/procesador-amd-ryzen-9-9950x3d2-am5-c-video-s-cooler.jpg",
+      "width": 125,
+      "height": 162
+     },
+     "home_default": {
+      "url": "https://www.armytech.com.ar/7594-home_default/procesador-amd-ryzen-9-9950x3d2-am5-c-video-s-cooler.jpg",
+      "width": 236,
+      "height": 305
+     },
+     "medium_default": {
+      "url": "https://www.armytech.com.ar/7594-medium_default/procesador-amd-ryzen-9-9950x3d2-am5-c-video-s-cooler.jpg",
+      "width": 452,
+      "height": 452
+     },
+     "large_default": {
+      "url": "https://www.armytech.com.ar/7594-large_default/procesador-amd-ryzen-9-9950x3d2-am5-c-video-s-cooler.jpg",
+      "width": 492,
+      "height": 492
+     },
+     "thickbox_default": {
+      "url": "https://www.armytech.com.ar/7594-thickbox_default/procesador-amd-ryzen-9-9950x3d2-am5-c-video-s-cooler.jpg",
+      "width": 1100,
+      "height": 1422
+     }
+    },
+    "small": {
+     "url": "https://www.armytech.com.ar/7594-small_default/procesador-amd-ryzen-9-9950x3d2-am5-c-video-s-cooler.jpg",
+     "width": 98,
+     "height": 127
+    },
+    "medium": {
+     "url": "https://www.armytech.com.ar/7594-medium_default/procesador-amd-ryzen-9-9950x3d2-am5-c-video-s-cooler.jpg",
+     "width": 452,
+     "height": 452
+    },
+    "large": {
+     "url": "https://www.armytech.com.ar/7594-thickbox_default/procesador-amd-ryzen-9-9950x3d2-am5-c-video-s-cooler.jpg",
+     "width": 1100,
+     "height": 1422
+    },
+    "legend": "",
+    "id_image": "7594",
+    "cover": "1",
+    "position": "1",
+    "associatedVariants": []
+   },
+   "has_discount": false,
+   "discount_type": null,
+   "discount_percentage": null,
+   "discount_percentage_absolute": null,
+   "discount_amount": null,
+   "price_amount": 1775872.52,
+   "regular_price_amount": 1775872.52,
+   "regular_price": "$ 1.775.872,52",
+   "discount_to_display": null
+  },
+  {
+   "add_to_cart_url": "https://www.armytech.com.ar/carrito?add=1&id_product=5869&id_product_attribute=0&token=c328ffee3a3a577fa52620071f1662f6",
+   "url": "https://www.armytech.com.ar/mousepad/5869-mousepad-fantech-basic-mp64-black-xl-64x21-cm.html",
+   "canonical_url": "https://www.armytech.com.ar/mousepad/5869-mousepad-fantech-basic-mp64-black-xl-64x21-cm.html",
+   "labels": {
+    "tax_short": ".",
+    "tax_long": "Impuestos incluidos"
+   },
+   "main_variants": [],
+   "id_product": "5869",
+   "price": "$ 5.038,89",
+   "reference": "106566",
+   "active": "1",
+   "description_short": "<p data-start=\"94\" data-end=\"312\">Mousepad Fantech Basic MP64 XL Black 64x21 cm. Superficie amplia y duradera que garantiza precisión y comodidad, ideal para gamers que buscan control y estabilidad.</p>",
+   "link_rewrite": "mousepad-fantech-basic-mp64-black-xl-64x21-cm",
+   "name": "Mousepad Fantech Basic Mp64 Black Xl 64x21 Cm",
+   "category_name": "Mousepad",
+   "link": "https://www.armytech.com.ar/mousepad/5869-mousepad-fantech-basic-mp64-black-xl-64x21-cm.html",
+   "rate": 21,
+   "tax_name": "IVA AR 21%",
+   "unit_price": "",
+   "cover": {
+    "bySize": {
+     "small_default": {
+      "url": "https://www.armytech.com.ar/6685-small_default/mousepad-fantech-basic-mp64-black-xl-64x21-cm.jpg",
+      "width": 98,
+      "height": 127
+     },
+     "cart_default": {
+      "url": "https://www.armytech.com.ar/6685-cart_default/mousepad-fantech-basic-mp64-black-xl-64x21-cm.jpg",
+      "width": 125,
+      "height": 162
+     },
+     "home_default": {
+      "url": "https://www.armytech.com.ar/6685-home_default/mousepad-fantech-basic-mp64-black-xl-64x21-cm.jpg",
+      "width": 236,
+      "height": 305
+     },
+     "medium_default": {
+      "url": "https://www.armytech.com.ar/6685-medium_default/mousepad-fantech-basic-mp64-black-xl-64x21-cm.jpg",
+      "width": 452,
+      "height": 452
+     },
+     "large_default": {
+      "url": "https://www.armytech.com.ar/6685-large_default/mousepad-fantech-basic-mp64-black-xl-64x21-cm.jpg",
+      "width": 492,
+      "height": 492
+     },
+     "thickbox_default": {
+      "url": "https://www.armytech.com.ar/6685-thickbox_default/mousepad-fantech-basic-mp64-black-xl-64x21-cm.jpg",
+      "width": 1100,
+      "height": 1422
+     }
+    },
+    "small": {
+     "url": "https://www.armytech.com.ar/6685-small_default/mousepad-fantech-basic-mp64-black-xl-64x21-cm.jpg",
+     "width": 98,
+     "height": 127
+    },
+    "medium": {
+     "url": "https://www.armytech.com.ar/6685-medium_default/mousepad-fantech-basic-mp64-black-xl-64x21-cm.jpg",
+     "width": 452,
+     "height": 452
+    },
+    "large": {
+     "url": "https://www.armytech.com.ar/6685-thickbox_default/mousepad-fantech-basic-mp64-black-xl-64x21-cm.jpg",
+     "width": 1100,
+     "height": 1422
+    },
+    "legend": "",
+    "id_image": "6685",
+    "cover": "1",
+    "position": "1",
+    "associatedVariants": []
+   },
+   "has_discount": true,
+   "discount_type": "amount",
+   "discount_percentage": "-251.369%",
+   "discount_percentage_absolute": "251.369%",
+   "discount_amount": "$ 2.513,69",
+   "price_amount": 5038.89,
+   "regular_price_amount": 7552.578,
+   "regular_price": "$ 7.552,58",
+   "discount_to_display": "$ 2.513,69"
+  },
+  {
+   "add_to_cart_url": "https://www.armytech.com.ar/carrito?add=1&id_product=1787&id_product_attribute=0&token=c328ffee3a3a577fa52620071f1662f6",
+   "url": "https://www.armytech.com.ar/selecciona-tu-marca/1787-marca-intel.html",
+   "canonical_url": "https://www.armytech.com.ar/selecciona-tu-marca/1787-marca-intel.html",
+   "labels": {
+    "tax_short": ".",
+    "tax_long": "Impuestos incluidos"
+   },
+   "main_variants": [],
+   "id_product": "1787",
+   "price": "$ 0,00",
+   "reference": "",
+   "active": "1",
+   "description_short": "<p>No borrar - Se utiliza para el builder</p>",
+   "link_rewrite": "marca-intel",
+   "name": "Marca - Intel",
+   "category_name": "Selecciona tu marca",
+   "link": "https://www.armytech.com.ar/selecciona-tu-marca/1787-marca-intel.html",
+   "rate": 10.5,
+   "tax_name": "IVA AR 10.5%",
+   "unit_price": "",
+   "cover": {
+    "bySize": {
+     "small_default": {
+      "url": "https://www.armytech.com.ar/284-small_default/marca-intel.jpg",
+      "width": 98,
+      "height": 127
+     },
+     "cart_default": {
+      "url": "https://www.armytech.com.ar/284-cart_default/marca-intel.jpg",
+      "width": 125,
+      "height": 162
+     },
+     "home_default": {
+      "url": "https://www.armytech.com.ar/284-home_default/marca-intel.jpg",
+      "width": 236,
+      "height": 305
+     },
+     "medium_default": {
+      "url": "https://www.armytech.com.ar/284-medium_default/marca-intel.jpg",
+      "width": 452,
+      "height": 452
+     },
+     "large_default": {
+      "url": "https://www.armytech.com.ar/284-large_default/marca-intel.jpg",
+      "width": 492,
+      "height": 492
+     },
+     "thickbox_default": {
+      "url": "https://www.armytech.com.ar/284-thickbox_default/marca-intel.jpg",
+      "width": 1100,
+      "height": 1422
+     }
+    },
+    "small": {
+     "url": "https://www.armytech.com.ar/284-small_default/marca-intel.jpg",
+     "width": 98,
+     "height": 127
+    },
+    "medium": {
+     "url": "https://www.armytech.com.ar/284-medium_default/marca-intel.jpg",
+     "width": 452,
+     "height": 452
+    },
+    "large": {
+     "url": "https://www.armytech.com.ar/284-thickbox_default/marca-intel.jpg",
+     "width": 1100,
+     "height": 1422
+    },
+    "legend": "",
+    "id_image": "284",
+    "cover": "1",
+    "position": "1",
+    "associatedVariants": []
+   },
+   "has_discount": false,
+   "discount_type": null,
+   "discount_percentage": null,
+   "discount_percentage_absolute": null,
+   "discount_amount": null,
+   "price_amount": 0,
+   "regular_price_amount": 0,
+   "regular_price": "$ 0,00",
+   "discount_to_display": "$ 0,00"
+  },
+  {
+   "add_to_cart_url": "https://www.armytech.com.ar/carrito?add=1&id_product=1785&id_product_attribute=0&token=c328ffee3a3a577fa52620071f1662f6",
+   "url": "https://www.armytech.com.ar/selecciona-tu-marca/1785-marca-amd.html",
+   "canonical_url": "https://www.armytech.com.ar/selecciona-tu-marca/1785-marca-amd.html",
+   "labels": {
+    "tax_short": ".",
+    "tax_long": "Impuestos incluidos"
+   },
+   "main_variants": [],
+   "id_product": "1785",
+   "price": "$ 0,00",
+   "reference": "",
+   "active": "1",
+   "description_short": "<p>NO BORRAR - Se utiliza para el builder</p>",
+   "link_rewrite": "marca-amd",
+   "name": "Marca - AMD",
+   "category_name": "Selecciona tu marca",
+   "link": "https://www.armytech.com.ar/selecciona-tu-marca/1785-marca-amd.html",
+   "rate": 10.5,
+   "tax_name": "IVA AR 10.5%",
+   "unit_price": "",
+   "cover": {
+    "bySize": {
+     "small_default": {
+      "url": "https://www.armytech.com.ar/283-small_default/marca-amd.jpg",
+      "width": 98,
+      "height": 127
+     },
+     "cart_default": {
+      "url": "https://www.armytech.com.ar/283-cart_default/marca-amd.jpg",
+      "width": 125,
+      "height": 162
+     },
+     "home_default": {
+      "url": "https://www.armytech.com.ar/283-home_default/marca-amd.jpg",
+      "width": 236,
+      "height": 305
+     },
+     "medium_default": {
+      "url": "https://www.armytech.com.ar/283-medium_default/marca-amd.jpg",
+      "width": 452,
+      "height": 452
+     },
+     "large_default": {
+      "url": "https://www.armytech.com.ar/283-large_default/marca-amd.jpg",
+      "width": 492,
+      "height": 492
+     },
+     "thickbox_default": {
+      "url": "https://www.armytech.com.ar/283-thickbox_default/marca-amd.jpg",
+      "width": 1100,
+      "height": 1422
+     }
+    },
+    "small": {
+     "url": "https://www.armytech.com.ar/283-small_default/marca-amd.jpg",
+     "width": 98,
+     "height": 127
+    },
+    "medium": {
+     "url": "https://www.armytech.com.ar/283-medium_default/marca-amd.jpg",
+     "width": 452,
+     "height": 452
+    },
+    "large": {
+     "url": "https://www.armytech.com.ar/283-thickbox_default/marca-amd.jpg",
+     "width": 1100,
+     "height": 1422
+    },
+    "legend": "",
+    "id_image": "283",
+    "cover": "1",
+    "position": "1",
+    "associatedVariants": []
+   },
+   "has_discount": false,
+   "discount_type": null,
+   "discount_percentage": null,
+   "discount_percentage_absolute": null,
+   "discount_amount": null,
+   "price_amount": 0,
+   "regular_price_amount": 0,
+   "regular_price": "$ 0,00",
+   "discount_to_display": "$ 0,00"
+  }
+ ],
+ "sort_selected": "Precio: de más bajo a más alto",
+ "pagination": {
+  "total_items": 21,
+  "items_shown_from": 1,
+  "items_shown_to": 21,
+  "current_page": 1,
+  "pages_count": 1,
+  "pages": {
+   "1": {
+    "type": "page",
+    "page": 1,
+    "clickable": false,
+    "current": true,
+    "url": "https://www.armytech.com.ar/419-procesadores"
+   }
+  },
+  "should_be_displayed": false
+ },
+ "current_url": "https://www.armytech.com.ar/419-procesadores"
+}

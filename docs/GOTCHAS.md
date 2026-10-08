@@ -385,6 +385,14 @@ Flyway corre cada `.sql` como una transacción. Arreglo: `SET CONSTRAINTS ALL
 IMMEDIATE;` antes del DDL, o partir el fix de datos y el `ALTER` en dos
 migraciones — detalle en `docs/DATABASE.md` § `V40`.
 
+**Un bean que lee la base al construirse tiene que esperar a Flyway, y Boot sólo
+lo garantiza para beans `JdbcTemplate`.** Uno que arma su `JdbcTemplate` con
+`new` sobre el `DataSource` se construye en cualquier orden. `SiteRegistry` (vía
+`JdbcSiteSource`) leyó `sitio` antes de que corriera `V43`: la primera corrida
+después del deploy le dio **0 productos sin error** a Flowin y Armytech, ruteados
+al default `tiendanube` (2026-10-08). Arreglo: `@DependsOnDatabaseInitialization`
+en la clase; `JdbcSiteSourceBootOrderTest` lo fija.
+
 ### Leer un sitio
 
 **Chromium sale por `EgressProxy`: un sitio en loopback o en la LAN no se
