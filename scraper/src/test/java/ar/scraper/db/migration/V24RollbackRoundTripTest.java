@@ -64,7 +64,7 @@ class V24RollbackRoundTripTest extends PostgresTestBase {
                 assertThat(checkDomain(st)).containsExactlyInAnyOrder(
                         "tiendanube", "shopify", "vtex", "vaypol", "woocommerce",
                         "monkyforce", "maximus", "fullh4rd", "compragamer",
-                        "qloud", "oscommerce", "inpro", "morashop");
+                        "qloud", "oscommerce", "inpro", "morashop", "prestashop");
                 assertThat(sitioKeys(st)).contains("rockethard", "venex");
 
                 // Rollbacks compose in reverse order, newest first: both V27
@@ -77,6 +77,7 @@ class V24RollbackRoundTripTest extends PostgresTestBase {
                 // ese valor— es RECHAZADO por Postgres, que valida las filas
                 // existentes al re-agregar el CHECK. Los rollbacks componen al
                 // revés: de más nuevo a más viejo.
+                st.execute(DocumentedRollback.sqlFor("V43"));
                 st.execute(DocumentedRollback.sqlFor("V30"));
                 st.execute(DocumentedRollback.sqlFor("V28"));
                 st.execute(DocumentedRollback.sqlFor("V27"));
