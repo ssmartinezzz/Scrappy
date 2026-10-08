@@ -25,6 +25,8 @@
 | inpro | Inpro (Tiendanube headless) | oficina | Sillas ergonómicas, standing desks, brazos de monitor, iluminación. **NO es plataforma `tiendanube`**: sirve los objetos crudos de la API de Tiendanube pero la vidriera es un Next.js propio en Vercel, y el storefront clásico no es alcanzable (`inpro.mitiendanube.com` redirige a *otra* tienda, `inproindumentaria.com.ar`; los slugs candidatos dan 410). El catálogo se lee del payload RSC (`self.__next_f`), no del DOM. Enumera por `/server-sitemap.xml` (106 productos, 16 categorías) → páginas de categoría (100 productos en 16 fetches) → los 6 handles que ninguna categoría mostró, de a uno. **101 productos** en una corrida real (2026-08-20); los 5 `pod-*` restantes son cabinas con `price: null`, se venden a consultar. El orden de las claves del JSON **no** es estable: en categoría el objeto abre con `id`, en producto con `name` — anclar en `{"id":` da 0 en la mitad de las superficies, en silencio |
 | zentra | Tiendanube | oficina | Sillas ergonómicas y standing desks — mismo catálogo que INPRO, pero Tiendanube **clásico**, no headless: `[data-product-id]` en el DOM y el extractor compartido lo lee sin tocar nada. **44 productos, todos en UNA página** (medido 2026-08-26): `?page=2` sirve una página vacía, así que corta el chequeo de dos vacías seguidas. La imagen viene SÓLO en `data-srcset` — el `src` es un GIF base64 de lazy-load en 44/44 cards; el extractor ya prueba `data-srcset` primero y descarta base64/placeholder |
 | mmartinez | Tiendanube | moda | Calzado. **37 productos de a 12 por página** (medido 2026-08-26); pagina con `?page=N` y `?mpage=N` devuelve la página 1 (marcador client-side, igual que entreno). Sus cards traen **seis** elementos de precio: el real, dos de descuento por transferencia, uno de cuota, un contenedor con todo concatenado y un `js-compare-price-display` **oculto que dice `$0`**. El extractor toma la primera HOJA que parsea a > 0, así que saltea el `$0` y agarra bien (12/12); ese `$0` además llega a `compare`, pero `PrecioParser` excluye el cero y devuelve `empty`, así que `precioOriginal` queda NULL y no fabrica un descuento contra cero |
+| flowin | Shopify | oficina | Escritorios regulables y sillas ergonómicas. **8 productos**, todos en la página 1 de `/products.json` (medido 2026-10-08, 8/8 con foto). Sólo fila de seed (`V43`), sin código. Los dos combos escritorio + silla se clasifican `Silla` |
+| armytech | PrestaShop (`PrestashopPage`) | tecnologia | Hardware/PC. `/2-productos` es la categoría raíz: pedida con `Accept: application/json` + `X-Requested-With: XMLHttpRequest` devuelve el JSON de listado de PrestaShop 1.7 (`products[]` + `pagination.pages_count`, 48 por página). **546 productos** en una corrida real (2026-10-08): 549 `total_items` menos 3 filas "Marca - X" con precio 0, que se descartan explícitamente porque `precio.minimo` es 0. 529/546 con foto: el resto trae `cover: false`, no `null`. Listado vacío → `PrestashopPayloadException` |
 | vans | — | — | Comentado: plataforma Grimoldi custom, sin scraper |
 
 ### Detección de plataforma (`ScraperFactory.crear`, en orden)
@@ -41,9 +43,10 @@ QLOUD   → rockethard
 OSCOMMERCE → venex
 INPRO   → inpro
 VTEX    → sporting, o url contiene vtexcommercestable.com.br / vteximg.com.br
-SHOPIFY → freres, vcp, forever, o url contiene myshopify.com
+SHOPIFY → freres, vcp, forever, flowin, o url contiene myshopify.com
 MONKYFORCE → monkyforce
 MORASHOP → morashop
+PRESTASHOP → armytech
 default → TiendanubePage (JS heurístico)
 ```
 
