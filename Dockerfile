@@ -49,7 +49,7 @@ RUN python3 -m pip install --no-cache-dir --upgrade pip \
         transformers==4.44.2
 
 WORKDIR /app
-COPY --from=build /build/scraper/target/fashion-scraper-1.0.0.jar /app/fashion-scraper-1.0.0.jar
+COPY --from=build /build/scraper/target/fashion-scraper-1.0.1.jar /app/fashion-scraper-1.0.1.jar
 
 # Run as the image's own unprivileged pwuser (uid 1000). The app writes its ML
 # scripts and JSON next to the jar, so /app is its; /models and /app/logs are
@@ -65,4 +65,4 @@ ENV LOG_DIR=/app/logs
 
 EXPOSE 3000
 
-ENTRYPOINT ["java", "-jar", "/app/fashion-scraper-1.0.0.jar"]
+ENTRYPOINT ["java", "-jar", "/app/fashion-scraper-1.0.1.jar"]

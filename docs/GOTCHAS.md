@@ -244,7 +244,7 @@ corre los tests con JRE 21. El comando completo está en
 puede pasar contra clases viejas y fingir verde.
 
 **Jar stale:** `cli/core/builder.py` saltea el build si `scraper/scraper.jar`
-existe. Tras recompilar a mano: copiar `scraper/target/fashion-scraper-1.0.0.jar`
+existe. Tras recompilar a mano: copiar `scraper/target/fashion-scraper-1.0.1.jar`
 → `scraper/scraper.jar`, o borrar el jar y correr `build` desde el CLI.
 
 **Boot 4 (Framework 7): los tests y el JSON tienen trampas propias.**
