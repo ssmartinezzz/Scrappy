@@ -2,6 +2,7 @@ package ar.scraper.db;
 
 import ar.scraper.classification.SiteRegistry.Sitio;
 import ar.scraper.classification.SiteSource;
+import org.springframework.boot.sql.init.dependency.DependsOnDatabaseInitialization;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
@@ -9,7 +10,9 @@ import javax.sql.DataSource;
 import java.util.HashMap;
 import java.util.Map;
 
+/** Boot only orders JdbcTemplate beans after Flyway; this one is built by hand, so it must ask. */
 @Component
+@DependsOnDatabaseInitialization
 class JdbcSiteSource implements SiteSource {
 
     private final JdbcTemplate jdbc;
