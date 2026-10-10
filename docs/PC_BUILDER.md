@@ -10,7 +10,6 @@ certificacion, velocidadMhz, tipoAlmacenamiento)`, puro, fill-only y con
 abstención (`""`/`0`/`DESCONOCIDA`/`NINGUNA`, `EMPTY`) igual que `VisualAttrs`.
 Desde la fase 6 es un registry categoría → `LectorDeSpecs` (`specs/`, uno por
 categoría, sobre un `Tokens` que tokeniza una vez), con la firma pública intacta.
-Plan y cobertura medida en [`odd/tasks/pc-builder-specs.md`](../odd/tasks/pc-builder-specs.md).
 
 **Fase 2** es `PcBuilder.armar(productos, presupuesto, conGpu, excluir[, gama])`,
 servido por `GET /api/pcs/builder` (`AUTHENTICATED`). Molde de
@@ -20,8 +19,7 @@ sobre objetos: cada `SlotDeArmado` lleva su categoría, sus
 `ReglaCompatibilidad` y su `CriterioDeSeleccion`; `ContextoDeArmado` acumula lo
 ya elegido. `TechSpecs` se calcula **al armar** desde el snapshot — la tabla
 `producto_tech_specs` existe (ver abajo) pero el armador no la lee (D3d).
-Diseño en [`odd/tasks/pc-builder.md`](../odd/tasks/pc-builder.md) y
-[`odd/tasks/pc-builder-gama.md`](../odd/tasks/pc-builder-gama.md); lo que hay que saber:
+Lo que hay que saber:
 
 | | |
 |---|---|
@@ -83,21 +81,18 @@ picker de tipos porque los slots son fijos del lado del servidor; chips de
 gama excluyentes (`Cualquiera` = sin filtro) + presupuesto + checkbox `conGpu`
 + Generar/Regenerar con `excluir` por slot; `sinStock` y `sinCompatible` se
 pintan como placeholders distintos con su `mensaje`. La preferencia se
-persiste en Generar, no en Regenerar. Plan y evidencia en
-[`odd/tasks/pc-builder-ui.md`](../odd/tasks/pc-builder-ui.md).
+persiste en Generar, no en Regenerar.
 
 **Fase 4** persiste el build (`saved_pcs` + `saved_pc_item`, molde
 `saved_outfits`, `gama_id` nullable desde `V35`) con Guardar en `/pcs` y
 listado en `/armadores` — ver el párrafo de esa ruta más abajo.
 
 **Fase 5** es la tool `propose_pc` del agente (ver LLM Catalog Agent), que
-acepta `gama` como enum. Plan y evidencia en
-[`odd/tasks/pc-builder-agent-tool.md`](../odd/tasks/pc-builder-agent-tool.md).
+acepta `gama` como enum.
 
 **Fase 7** agrega seis preferencias técnicas pedidas como filtro duro y
 profundiza los ejes de ranking dentro de cada tier — pedido explícito del
-usuario ("muchas veces no me arma bien"). Diseño y medición completos en
-[`odd/tasks/pc-builder-deep-taxonomy.md`](../odd/tasks/pc-builder-deep-taxonomy.md).
+usuario ("muchas veces no me arma bien").
 
 | | |
 |---|---|
@@ -109,8 +104,7 @@ usuario ("muchas veces no me arma bien"). Diseño y medición completos en
 **Fase 8** arregla el tope del catálogo y el reparto del presupuesto — pedido
 del usuario (2026-09-22): "las fuentes que tiene el armador de PC no están
 certificadas" y, preguntando por el modo sin presupuesto, "si quiero ir a lo
-top top?". Diseño y medición completos en
-[`odd/tasks/pc-builder-top-tier.md`](../odd/tasks/pc-builder-top-tier.md).
+top top?".
 
 | | |
 |---|---|
@@ -143,8 +137,7 @@ cambio, y queda pendiente.
 **Fase 9** hace pedibles cuatro ejes que el armador decidía solo, y profundiza
 dos rankings — pedido del usuario (2026-09-22): *"que en /pcs se pueda elegir
 la cantidad de GB... profundidad del gabinete... más profundidad en los cooler,
-water, aire... más profundidad en los watts de las fuentes"*. Diseño y medición
-completos en [`odd/tasks/pc-builder-fine-grained-prefs.md`](../odd/tasks/pc-builder-fine-grained-prefs.md).
+water, aire... más profundidad en los watts de las fuentes"*.
 
 | | |
 |---|---|
@@ -180,8 +173,7 @@ que el bracket y el service de la fase 8:
   ninguna por su cuenta y por eso no entra al vocabulario.
 
 **Fase 10** agrega el perfil **homelab** con hardware de consumo, y una
-categoría `Mini PC` — pedido del usuario (2026-09-24). Diseño y medición en
-[`odd/tasks/pc-builder-homelab.md`](../odd/tasks/pc-builder-homelab.md).
+categoría `Mini PC` — pedido del usuario (2026-09-24).
 
 | | |
 |---|---|
