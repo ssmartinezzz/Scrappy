@@ -13,6 +13,8 @@ Antes de codear, determinar la plataforma del sitio:
 ¿`prestashop = {` en el HTML?   → PrestaShop 1.7  {armytech}
 ¿Es un SPA/SSR propio sobre     → HEADLESS: ver abajo, NO es la plataforma
   otra plataforma?                 de atrás  {inpro}
+¿SPA con `<div id="root">`      → API JSON propia: buscar `API_URL` en el bundle  {gamerfactory}
+  vacío y sin plataforma?
 ¿Otro?                          → Necesita Page custom
 ```
 
@@ -378,3 +380,20 @@ Dos trampas medidas en Armytech: las filas de marca ("Marca - Intel") vienen con
 precio 0 y la banda **no** las corta porque `precio.minimo` es 0, así que la page
 las descarta explícitamente; y un producto sin foto trae `cover: false`, no
 `null`.
+
+---
+
+## Caso 8: SPA propia sobre una API JSON pública
+
+Es el Caso 5 (plataforma nueva + page) cuando el HTML está vacío: la vidriera es un
+SPA y el catálogo sale de una API. Buscá la base (`API_URL`) en el bundle de Vite y
+probá el endpoint de búsqueda con `curl`. En Gamer Factory,
+`core.gamerfactory.com.ar/products/search?filter={}&page=1&perPage=1000&sort={}`
+(parámetros JSON URL-encoded) devuelve **todo el catálogo en una petición**, sin tope
+de 100 por página. `GamerFactoryPage` la pide con `fetch` desde la vidriera ya
+navegada.
+
+Reglas medidas ahí: una respuesta sin `total`/`data`, o con menos filas que `total`
+después de la última página, **lanza** (nunca 0 en silencio); y de los dos precios
+que trae, `price.list` es el de tarjeta y `price.special` el de transferencia, que es
+el que se muestra como precio. Sólo `strikethrough > special.ARS` es un descuento.

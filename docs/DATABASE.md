@@ -3143,3 +3143,32 @@ Es el bloque más nuevo de los que tocan `sitio`: corre antes que `V30`, `V28`,
 `V27` y `V24` (los rollbacks componen al revés). Sin sacar primero la fila de
 Armytech, el `CHECK` de esos bloques rechaza `plataforma='prestashop'`, y la de
 Flowin (`oficina`) rechaza el de `V27`.
+
+---
+
+## `V44` — seed de Gamer Factory, plataforma `gamerfactory`
+
+Gamer Factory es una SPA React propia sobre una API JSON pública, con page
+propia (`GamerFactoryPage`). El dominio de `sitio_plataforma_check` pasa de 14
+a 15 valores re-listando el **completo** de `V43` más `gamerfactory`, y su fila
+(`Gamerfactory`, el nombre que la config le da a `product.sitio`) lleva
+`rubro_forzado='tecnologia'`. `chk_productos_rubro_domain` y
+`sitio_rubro_forzado_check` no se tocan.
+
+### Rollback
+
+```sql
+-- >>> rollback:V44
+DELETE FROM sitio s WHERE s.sitio_key = 'gamerfactory'
+  AND NOT EXISTS (SELECT 1 FROM productos p WHERE p.sitio_key = s.sitio_key);
+ALTER TABLE sitio DROP CONSTRAINT sitio_plataforma_check;
+ALTER TABLE sitio ADD CONSTRAINT sitio_plataforma_check
+    CHECK (plataforma IN ('tiendanube','shopify','vtex','vaypol','woocommerce',
+                          'monkyforce','maximus','fullh4rd','compragamer',
+                          'qloud','oscommerce','inpro','morashop','prestashop'));
+-- <<< rollback:V44
+```
+
+Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el
+de `V43`. Sin sacar antes la fila de Gamer Factory, el `CHECK` de `V43` y los
+anteriores rechazan `plataforma='gamerfactory'`.

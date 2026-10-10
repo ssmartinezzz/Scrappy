@@ -1,0 +1,443 @@
+{
+ "total": 828,
+ "data": [
+  {
+   "_id": "6614d280737a75584ba3dea9",
+   "code": "BX8071512100",
+   "name": "Procesador Intel Core i3 12100 c/Video c/Cooler LGA1700",
+   "brand": "Intel",
+   "type": "cpu",
+   "specs": {
+    "watts": 89,
+    "igpu": true,
+    "has_cooler": true,
+    "socket": "1700",
+    "model": "i3",
+    "brand": "intel",
+    "tdpInWatts": 60
+   },
+   "warranty": "por 1 año",
+   "weight": 0.5,
+   "stock": 120,
+   "images": [
+    {
+     "filename": "d5e29ca0-f632-11ee-bffc-9be11df3bc70.png",
+     "title": "Procesador Intel Core I3 12100.png",
+     "url": "https://s3.nubi2go.com/mediagf/d5e29ca0-f632-11ee-bffc-9be11df3bc70.png"
+    }
+   ],
+   "customLabel": null,
+   "price": {
+    "special": {
+     "strikethrough": 246000,
+     "ARS": 246000,
+     "strikethroughPriceDiscountPercentage": 0
+    },
+    "list": {
+     "ARS": 281000
+    }
+   },
+   "slug": "microprocesador-intel-core-i3-12100-c-video-c-cooler-lga1700",
+   "gtin": "",
+   "id": "6614d280737a75584ba3dea9"
+  },
+  {
+   "_id": "66f59c56eb3f690daa2c0cd8",
+   "code": "90YV0K60-M0A",
+   "name": "Placa de video ASUS RTX 3050 6GB GDDR6 OC",
+   "brand": "Asus",
+   "type": "gpu",
+   "specs": {
+    "watts": 70,
+    "width": 201,
+    "chip": "nvidia",
+    "model": "RTX 3050",
+    "vramTech": "GDDR6",
+    "vramCapacity": "6GB",
+    "hdmi": 1,
+    "displayPorts": 1
+   },
+   "warranty": "por 1 año",
+   "weight": 1.5,
+   "stock": 3,
+   "slug": "placa-de-video-asus-rtx-3050-6gb-gddr6-oc",
+   "images": [
+    {
+     "filename": "c9f12300-7c31-11ef-9d55-f58b3acbe226.webp",
+     "title": "PLACA DE VIDEO ASUS RTX 3050 6GB GDDR6 OC - ORIGINAL 1.webp",
+     "url": "https://s3.nubi2go.com/mediagf/c9f12300-7c31-11ef-9d55-f58b3acbe226.webp"
+    },
+    {
+     "filename": "c9f14a10-7c31-11ef-9d55-f58b3acbe226.webp",
+     "title": "PLACA DE VIDEO ASUS RTX 3050 6GB GDDR6 OC - ORIGINAL 2.webp",
+     "url": "https://s3.nubi2go.com/mediagf/c9f14a10-7c31-11ef-9d55-f58b3acbe226.webp"
+    },
+    {
+     "filename": "c9f17120-7c31-11ef-9d55-f58b3acbe226.webp",
+     "title": "PLACA DE VIDEO ASUS RTX 3050 6GB GDDR6 OC - ORIGINAL 3.webp",
+     "url": "https://s3.nubi2go.com/mediagf/c9f17120-7c31-11ef-9d55-f58b3acbe226.webp"
+    },
+    {
+     "filename": "c9f17121-7c31-11ef-9d55-f58b3acbe226.webp",
+     "title": "PLACA DE VIDEO ASUS RTX 3050 6GB GDDR6 OC - ORIGINAL 4.webp",
+     "url": "https://s3.nubi2go.com/mediagf/c9f17121-7c31-11ef-9d55-f58b3acbe226.webp"
+    },
+    {
+     "filename": "c9f19830-7c31-11ef-9d55-f58b3acbe226.webp",
+     "title": "PLACA DE VIDEO ASUS RTX 3050 6GB GDDR6 OC - ORIGINAL 5.webp",
+     "url": "https://s3.nubi2go.com/mediagf/c9f19830-7c31-11ef-9d55-f58b3acbe226.webp"
+    }
+   ],
+   "customLabel": null,
+   "gtin": "4711387470640",
+   "price": {
+    "special": {
+     "strikethrough": 556000,
+     "ARS": 500400,
+     "strikethroughPriceDiscountPercentage": 10
+    },
+    "list": {
+     "ARS": 571500
+    }
+   },
+   "id": "66f59c56eb3f690daa2c0cd8"
+  },
+  {
+   "_id": "66da273aadc7bf1336d0c5b6",
+   "code": "GF-TARGUS-AMW575TT",
+   "name": "Mouse Targus W575 Wireless",
+   "brand": "Targus",
+   "type": "mouse",
+   "specs": {},
+   "warranty": "por 1 año",
+   "weight": 0.1,
+   "stock": 2,
+   "slug": "mouse-targus-w575-wireless",
+   "images": [
+    {
+     "filename": "0be971c0-6bd1-11ef-acdc-0582985e157c.webp",
+     "title": "MOUSE TARGUS W575 WIRELESS - ORIGINAL 1.webp",
+     "url": "https://s3.nubi2go.com/mediagf/0be971c0-6bd1-11ef-acdc-0582985e157c.webp"
+    },
+    {
+     "filename": "0be998d0-6bd1-11ef-acdc-0582985e157c.webp",
+     "title": "MOUSE TARGUS W575 WIRELESS - ORIGINAL 2.webp",
+     "url": "https://s3.nubi2go.com/mediagf/0be998d0-6bd1-11ef-acdc-0582985e157c.webp"
+    },
+    {
+     "filename": "0be9bfe0-6bd1-11ef-acdc-0582985e157c.webp",
+     "title": "MOUSE TARGUS W575 WIRELESS - ORIGINAL 3.webp",
+     "url": "https://s3.nubi2go.com/mediagf/0be9bfe0-6bd1-11ef-acdc-0582985e157c.webp"
+    }
+   ],
+   "customLabel": null,
+   "price": {
+    "special": {
+     "strikethrough": 29777,
+     "ARS": 26800,
+     "strikethroughPriceDiscountPercentage": 10
+    },
+    "list": {
+     "ARS": 30600
+    }
+   },
+   "gtin": "092636324643",
+   "id": "66da273aadc7bf1336d0c5b6"
+  },
+  {
+   "_id": "6810ccdd2f8426f34e2409f2",
+   "name": "Simulador Playseat Challenge Actifit",
+   "slug": "simulador-playseat-challenge-actifit",
+   "code": "RC.00312",
+   "gtin": "817496873026",
+   "brand": "Playseat",
+   "price": {
+    "special": {
+     "ARS": 747700,
+     "strikethrough": 747700,
+     "strikethroughPriceDiscountPercentage": 0
+    },
+    "list": {
+     "ARS": 871600
+    }
+   },
+   "stock": 2,
+   "type": "simulator",
+   "weight": 9,
+   "images": [
+    {
+     "filename": "979de750-24f9-11f0-bff1-e30bab9225e8.webp",
+     "title": "playseat-challenge-actifit-01.webp",
+     "url": "https://s3.nubi2go.com/mediagf/979de750-24f9-11f0-bff1-e30bab9225e8.webp"
+    },
+    {
+     "filename": "979e0e60-24f9-11f0-bff1-e30bab9225e8.webp",
+     "title": "playseat-challenge-actifit-02.webp",
+     "url": "https://s3.nubi2go.com/mediagf/979e0e60-24f9-11f0-bff1-e30bab9225e8.webp"
+    },
+    {
+     "filename": "979e3570-24f9-11f0-bff1-e30bab9225e8.webp",
+     "title": "playseat-challenge-actifit-03.webp",
+     "url": "https://s3.nubi2go.com/mediagf/979e3570-24f9-11f0-bff1-e30bab9225e8.webp"
+    },
+    {
+     "filename": "979e3571-24f9-11f0-bff1-e30bab9225e8.webp",
+     "title": "playseat-challenge-actifit-04.webp",
+     "url": "https://s3.nubi2go.com/mediagf/979e3571-24f9-11f0-bff1-e30bab9225e8.webp"
+    },
+    {
+     "filename": "979e3572-24f9-11f0-bff1-e30bab9225e8.webp",
+     "title": "playseat-challenge-actifit-05.webp",
+     "url": "https://s3.nubi2go.com/mediagf/979e3572-24f9-11f0-bff1-e30bab9225e8.webp"
+    },
+    {
+     "filename": "979e5c80-24f9-11f0-bff1-e30bab9225e8.webp",
+     "title": "playseat-challenge-actifit-06.webp",
+     "url": "https://s3.nubi2go.com/mediagf/979e5c80-24f9-11f0-bff1-e30bab9225e8.webp"
+    }
+   ],
+   "warranty": "por 1 año",
+   "id": "6810ccdd2f8426f34e2409f2"
+  },
+  {
+   "_id": "6967d174628737b17790285e",
+   "name": "PC Gamer - Ryzen 5 8500G - 16GB RAM - 512GB SSD",
+   "slug": "pc-gamer-ryzen-5-8500g-16gb-ram-512gb-ssd",
+   "code": "CUCU",
+   "gtin": "",
+   "brand": "AMD",
+   "price": {
+    "special": {
+     "ARS": 1376900,
+     "strikethroughPriceDiscountPercentage": 0,
+     "strikethrough": 1376900
+    },
+    "list": {
+     "ARS": 1605200
+    }
+   },
+   "stock": 1,
+   "type": "build",
+   "weight": 7,
+   "images": [
+    {
+     "filename": "6af491f0-4261-11f1-91a8-83614a1626d5.webp",
+     "url": "https://s3.nubi2go.com/mediagf/6af491f0-4261-11f1-91a8-83614a1626d5.webp"
+    }
+   ],
+   "warranty": "por 1 año",
+   "specs": {
+    "mother": {
+     "products": [
+      "684b0e5e16b394ed31d74229"
+     ]
+    },
+    "cpu": {
+     "products": [
+      "6614d280737a75584ba3debf"
+     ]
+    },
+    "cpuCooler": {
+     "products": []
+    },
+    "ram": {
+     "products": [
+      "6945fb9275c8b37c45c3d9ce"
+     ]
+    },
+    "gpu": {
+     "products": []
+    },
+    "storage": {
+     "products": [
+      "66330e8ec112daae8cf248db"
+     ]
+    },
+    "case": {
+     "products": [
+      "688a213a376f1356d1646cd9"
+     ]
+    },
+    "power": {
+     "products": [
+      "697bb075628737b177d1d86a"
+     ]
+    },
+    "fans": {
+     "products": []
+    },
+    "monitor": {
+     "products": []
+    },
+    "mouse": {
+     "products": []
+    },
+    "keyboard": {
+     "products": []
+    },
+    "customizable": false,
+    "cpu_brand": "amd",
+    "games_compatibility": [
+     {
+      "game": "613a78d8e89a0778caf22b10",
+      "isCompatible": true,
+      "_id": "6aa011e9a313316c5a17fc80"
+     },
+     {
+      "game": "613a78f8e89a0778caf22b14",
+      "isCompatible": false,
+      "_id": "6aa011e9a313316c5a17fc81"
+     },
+     {
+      "game": "613a7903e89a0778caf22b19",
+      "isCompatible": false,
+      "_id": "6aa011e9a313316c5a17fc82"
+     },
+     {
+      "game": "613a790be89a0778caf22b1f",
+      "isCompatible": false,
+      "_id": "6aa011e9a313316c5a17fc83"
+     },
+     {
+      "game": "613a793de89a0778caf22b37",
+      "isCompatible": false,
+      "_id": "6aa011e9a313316c5a17fc84"
+     },
+     {
+      "game": "613a7952e89a0778caf22b43",
+      "isCompatible": false,
+      "_id": "6aa011e9a313316c5a17fc85"
+     },
+     {
+      "game": "6197a50faecf024e3338a777",
+      "isCompatible": true,
+      "_id": "6aa011e9a313316c5a17fc86"
+     },
+     {
+      "game": "6384a6c38d34effc92296f2c",
+      "isCompatible": false,
+      "_id": "6aa011e9a313316c5a17fc87"
+     }
+    ]
+   },
+   "id": "6967d174628737b17790285e"
+  },
+  {
+   "_id": "663a969a12d301783d26ce24",
+   "code": "CF-9010058-W",
+   "name": "Silla Gamer Corsair T3 Rush Grey/White",
+   "brand": "Corsair",
+   "type": "chair",
+   "warranty": "por 1 año",
+   "weight": 10,
+   "stock": 4,
+   "images": [
+    {
+     "filename": "4088b650-0cb5-11ef-a4d1-e9e5e37a6617.png",
+     "title": "SILLA GAMER CORSAIR T3 RUSH CHARCOAL  23 - original 1_edit2.png",
+     "url": "https://s3.nubi2go.com/mediagf/4088b650-0cb5-11ef-a4d1-e9e5e37a6617.png"
+    },
+    {
+     "filename": "40890470-0cb5-11ef-a4d1-e9e5e37a6617.avif",
+     "title": "SILLA GAMER CORSAIR T3 RUSH CHARCOAL  23 - original 2.avif",
+     "url": "https://s3.nubi2go.com/mediagf/40890470-0cb5-11ef-a4d1-e9e5e37a6617.avif"
+    },
+    {
+     "filename": "40890471-0cb5-11ef-a4d1-e9e5e37a6617.avif",
+     "title": "SILLA GAMER CORSAIR T3 RUSH CHARCOAL  23 - original 3.avif",
+     "url": "https://s3.nubi2go.com/mediagf/40890471-0cb5-11ef-a4d1-e9e5e37a6617.avif"
+    }
+   ],
+   "customLabel": null,
+   "price": {
+    "special": {
+     "strikethrough": 704333,
+     "ARS": 633900,
+     "strikethroughPriceDiscountPercentage": 10
+    },
+    "list": {
+     "ARS": 738900
+    }
+   },
+   "slug": "silla-gamer-corsair-t3-rush-grey-white-2023",
+   "gtin": "840006695820",
+   "specs": {
+    "material": "fabric",
+    "maximumSupportedWeight": "120kg"
+   },
+   "id": "663a969a12d301783d26ce24"
+  },
+  {
+   "_id": "66509ede945d96476db67ed9",
+   "price": {
+    "special": {
+     "ARS": 7700,
+     "strikethrough": 7700,
+     "strikethroughPriceDiscountPercentage": 0
+    },
+    "list": {
+     "ARS": 8800
+    }
+   },
+   "type": "other",
+   "warranty": "por 1 mes",
+   "name": "Prueba",
+   "code": "PRUEBA",
+   "slug": "prueba",
+   "stock": 3,
+   "weight": 12,
+   "images": [
+    {
+     "filename": "ebed1ea0-979d-11ef-bf14-59daeac3be85.jpeg",
+     "title": "Imagen prueba GF.jpeg",
+     "url": "https://s3.nubi2go.com/mediagf/ebed1ea0-979d-11ef-bf14-59daeac3be85.jpeg"
+    }
+   ],
+   "brand": "AMD",
+   "customLabel": null,
+   "gtin": "",
+   "id": "66509ede945d96476db67ed9"
+  },
+  {
+   "_id": "6626a719026166e2a5b866b2",
+   "code": "PSD416G32002",
+   "name": "Memoria RAM Patriot 16GB DDR4 3200 MHz",
+   "brand": "Patriot",
+   "type": "ram",
+   "specs": {
+    "type": "dimm",
+    "watts": 5,
+    "capacity": "16gb",
+    "quantity": 1,
+    "stick_type": "ddr4",
+    "cl": "CL22",
+    "clock_frequency": "3200",
+    "clockFrequencyUnit": "mhz"
+   },
+   "warranty": "por 1 año",
+   "weight": 0.05,
+   "stock": 1347,
+   "images": [
+    {
+     "filename": "8c3eb960-8be4-11ef-b1eb-a16a145fe07d.webp",
+     "title": "memo1.webp",
+     "url": "https://s3.nubi2go.com/mediagf/8c3eb960-8be4-11ef-b1eb-a16a145fe07d.webp"
+    }
+   ],
+   "customLabel": null,
+   "price": {
+    "special": {
+     "strikethrough": 236000,
+     "ARS": 236000,
+     "strikethroughPriceDiscountPercentage": 0
+    },
+    "list": {
+     "ARS": 269600
+    }
+   },
+   "slug": "memoria-ram-patriot-16gb-ddr4-3200-mhz",
+   "gtin": "0814914027288",
+   "id": "6626a719026166e2a5b866b2"
+  }
+ ]
+}

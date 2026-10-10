@@ -6,6 +6,7 @@ import ar.scraper.config.ScraperConfig;
 import ar.scraper.config.ScraperConfig.SiteConfig;
 import ar.scraper.pages.CatalogPage;
 import ar.scraper.pages.FullH4rdPage;
+import ar.scraper.pages.GamerFactoryPage;
 import ar.scraper.pages.InproPage;
 import ar.scraper.pages.MonkyforcePage;
 import ar.scraper.pages.MorashopPage;
@@ -58,6 +59,7 @@ public class ScraperFactory {
             entry("oscommerce",  simple(OsCommercePage::new)),
             entry("inpro",       simple(InproPage::new)),
             entry("prestashop",  simple(PrestashopPage::new)),
+            entry("gamerfactory", simple(GamerFactoryPage::new)),
             entry("vtex",        simple(VtexPage::new)),
             entry("shopify",     simple(ShopifyPage::new)),
             entry("monkyforce",  paginated(MonkyforcePage::new)),
@@ -66,7 +68,7 @@ public class ScraperFactory {
 
     /** Platforms whose registry value wins over a VTEX or Shopify URL; the rest yield to the URL. */
     private static final Set<String> GANAN_A_LA_URL = Set.of(
-            "woocommerce", "maximus", "fullh4rd", "compragamer", "vaypol", "qloud", "oscommerce", "inpro", "prestashop", "vtex");
+            "woocommerce", "maximus", "fullh4rd", "compragamer", "vaypol", "qloud", "oscommerce", "inpro", "prestashop", "gamerfactory", "vtex");
 
     public static BaseScraper crear(ScraperConfig config, SiteConfig site, SiteRegistry siteRegistry) {
         String n       = site.nombre().toLowerCase();
