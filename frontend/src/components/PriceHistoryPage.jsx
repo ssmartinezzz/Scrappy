@@ -44,7 +44,8 @@ function PuntoReal({ cx, cy, index, payload, stroke }) {
 
 function SelectorRango({ valor, onChange }) {
   return (
-    <div role="group" aria-label="Rango" className="inline-flex rounded-btn border border-bd2 bg-s2 p-[2px]">
+    <fieldset className="inline-flex rounded-btn border border-bd2 bg-s2 p-[2px]">
+      <legend className="sr-only">Rango</legend>
       {RANGOS.map(r => (
         <button
           key={r.id}
@@ -60,7 +61,7 @@ function SelectorRango({ valor, onChange }) {
           {r.id}
         </button>
       ))}
-    </div>
+    </fieldset>
   );
 }
 
@@ -99,7 +100,9 @@ export default function PriceHistoryPage() {
 
   // Optional context: a failed or empty /api/tendencias just drops the median.
   useEffect(() => {
-    fetchTendencias().then(r => setDistribucion(r.data?.distribucionCategorias ?? null));
+    fetchTendencias()
+      .then(r => setDistribucion(r.data?.distribucionCategorias ?? null))
+      .catch(() => setDistribucion(null));
   }, []);
 
   if (loading) return <div className="p-3 text-t4">Cargando historial…</div>;

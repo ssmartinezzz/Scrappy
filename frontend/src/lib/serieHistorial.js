@@ -56,7 +56,7 @@ export function serieEnRango(puntos, rangoId, hoyIso) {
   const hasta = Math.max(hoyIso ? aInstante(hoyIso) : hoyLocal(), ultimo.t);
   const desde = Math.max(inicioDeRango(RANGOS.find(r => r.id === rangoId), hasta), todos[0].t);
 
-  const previo = todos.filter(p => p.t < desde).at(-1);
+  const previo = todos.findLast(p => p.t < desde);
   const enVentana = todos.filter(p => p.t >= desde && p.t <= hasta);
   const serie = [...enVentana];
   if (previo && (!serie.length || serie[0].t > desde)) {
