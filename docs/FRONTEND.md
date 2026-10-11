@@ -18,6 +18,21 @@ armadores y nada más (`/outfits` · `/suplementos` · `/pcs`); el menú
 un menú, porque hay un solo destino. `Marcas` salió a primer nivel: es una
 vista de exploración del catálogo, no un armador.
 
+**`/historial/:key` dibuja una función escalón, no una serie de muestras.**
+`precio_historico.fecha` es un `DATE` y el upsert escribe una fila sólo cuando
+el precio cambia: el precio rige hasta el próximo registro. Por eso el eje X es
+temporal (no un slot por registro), la línea es `stepAfter`, una ventana que
+empieza entre registros abre con el precio vigente, toda ventana cierra hoy, y
+el **promedio se pondera por tiempo**. Los rangos (`1D`…`1A`, `Todo`) acotan
+gráfico **y** stats; `1D` sobre datos diarios es casi siempre una recta.
+El eje Y es el del **producto**, nunca uno fijo por categoría: una escala de
+categoría aplasta un -20% a unos pocos píxeles. La categoría entra como
+contexto — mediana y banda q1–q3 de `distribucionCategorias` (`/api/tendencias`,
+precios **unitarios**, se multiplican por `cantidadUnidades`) — y la mediana se
+mete en la escala sólo si está a menos de un rango propio de la serie; más
+lejos, un aviso "fuera de escala". Sin stats o con `n < 5`, se abstiene.
+Lógica pura en `lib/serieHistorial.js`.
+
 ⚠️ **`/armadores` NO existe más.** Era la misma idea que `/favoritos` en otra
 ruta, y el reparto no cerraba: los outfits guardados habían salido de
 `/favoritos` hacia `/armadores` en `saved-pcs-armadores`, mientras `Outfits`
