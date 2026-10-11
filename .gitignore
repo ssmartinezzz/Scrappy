@@ -103,3 +103,7 @@ tests/perf/locust/.venv/
 tests/perf/locust/.resultados/
 tests/perf/locust/.pytest_cache/
 tests/perf/jmeter/target/
+
+# Artefactos de trabajo locales (SDD y ODD): no se versionan.
+openspec/
+odd/

@@ -38,7 +38,8 @@ class V28RollbackRoundTripTest extends PostgresTestBase {
                 assertThat(checkDomain(st)).contains("morashop");
                 assertThat(sitioKeys(st)).contains("morashop");
 
-                // V43 (prestashop) sits on top: newest rollback first.
+                // V44 and V43 sit on top: newest rollback first.
+                st.execute(DocumentedRollback.sqlFor("V44"));
                 st.execute(DocumentedRollback.sqlFor("V43"));
                 st.execute(DocumentedRollback.sqlFor("V28"));
 

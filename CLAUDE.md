@@ -67,7 +67,7 @@ tendencias ML con clasificación de imagen zero-shot.
 | Scoring, badges, clustering, stage 1b, taxonomía de `categoria` | [`docs/ML_PIPELINE.md`](./docs/ML_PIPELINE.md) |
 | Armador de outfits | [`docs/OUTFITS.md`](./docs/OUTFITS.md) |
 | Combo de suplementos | [`docs/SUPPLEMENTS.md`](./docs/SUPPLEMENTS.md) |
-| Armador de PCs (`ar.scraper.pcs`, fases 1–10) | [`docs/PC_BUILDER.md`](./docs/PC_BUILDER.md) + `odd/tasks/pc-builder-*.md` |
+| Armador de PCs (`ar.scraper.pcs`, fases 1–10) | [`docs/PC_BUILDER.md`](./docs/PC_BUILDER.md) |
 | El agente LLM (`ar.scraper.agent`) | [`docs/LLM_EMBED.md`](./docs/LLM_EMBED.md) · setup: [`docs/LLM_AGENT_SETUP.md`](./docs/LLM_AGENT_SETUP.md) |
 | Rutas, nav, `/favoritos`, `/apidocs` | [`docs/FRONTEND.md`](./docs/FRONTEND.md) |
 | Servir a otro dispositivo por HTTPS (`start lan`) | [`docs/LAN_HTTPS_SETUP.md`](./docs/LAN_HTTPS_SETUP.md) |
@@ -91,8 +91,6 @@ tendencias ML con clasificación de imagen zero-shot.
 
 | Dónde | Qué |
 |---|---|
-| [`odd/tasks/`](./odd/tasks/) | Documentos de feature ODD: objetivo, tareas, evidencia medida |
-| [`openspec/`](./openspec/) | SDD: `changes/` activos, `changes/archive/` cerrados, `specs/` vigentes |
 | [`ml-tests/eval/`](./ml-tests/eval/README.md) | Set de evaluación del clasificador sobre el catálogo real |
 
 ---
@@ -191,7 +189,7 @@ Una línea cada una; el porqué está en el doc enlazado.
 | Una decisión y su porqué | `docs/ARCHITECTURE.md` |
 | Cualquier cosa de la base | `docs/DATABASE.md` |
 | Un sitio nuevo o un cambio de plataforma | `docs/SITES.md` + `docs/ADD_SCRAPER.md` |
-| Una fase del armador de PCs | `docs/PC_BUILDER.md` + `odd/tasks/<feature>.md` |
+| Una fase del armador de PCs | `docs/PC_BUILDER.md` |
 | Un cambio de proceso | `CONTRIBUTING.md` |
 | Un doc nuevo | Agregarlo a `SKILL.md` — **no** a este archivo sin pedido del usuario |
 

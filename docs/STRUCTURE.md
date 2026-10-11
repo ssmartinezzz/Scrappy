@@ -23,8 +23,6 @@ Scrappy/
 │   └── __main__.py              ←   detección de capacidad + routing
 ├── docs/                        ← DATABASE, ARCHITECTURE, API_REFERENCE, ADD_SCRAPER,
 │                                  ML_PIPELINE, LLM_EMBED, LLM_AGENT_SETUP
-├── openspec/                    ← Artefactos SDD (changes/ activos, changes/archive/ cerrados, specs/)
-├── odd/tasks/                   ← Documentos de feature ODD (objetivo, tareas, evidencia medida)
 ├── scripts/
 │   ├── dev-db.sh                ← Postgres de dev on-demand (up/down/status)
 │   └── hooks/commit-msg         ← bloquea COMMIT-1 y COMMIT-3 (activar: git config core.hooksPath scripts/hooks)
