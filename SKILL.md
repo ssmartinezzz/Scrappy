@@ -44,7 +44,6 @@ cuarto** — ni `CLAUDE.md` ni `ARCHITECTURE.md` guardan una segunda copia.
 | Dónde | Qué es | Cuándo entrar |
 |-------|--------|---------------|
 | [`cli/`](./cli/) | CLI nativo en Python: consola por comandos (Textual) + fallback texto plano + `core/` headless (build, `.env`, REST, procesos, logs). Arranca backend y frontend. Reemplazó a `menu.ps1`/`menu.sh` | Al modificar el launcher, el build, la generación de `.env` o el arranque de servicios |
-| [`openspec/`](./openspec/) | Artefactos SDD: `changes/<nombre>/` los activos, `changes/archive/<fecha>-<nombre>/` los cerrados, `specs/` las specs vigentes | Al retomar un cambio en curso o buscar por qué se especificó algo así |
 | [`scripts/dev-db.sh`](./scripts/dev-db.sh) | Launcher on-demand del Postgres de desarrollo (`up`/`down`/`status`) | Al levantar la DB local sin el instalador completo |
 | [`scripts/hooks/`](./scripts/hooks/) | Hook `commit-msg` que bloquea `COMMIT-1` y `COMMIT-3`. Se activa una vez por clon: `git config core.hooksPath scripts/hooks` | Al clonar el repo, o si un commit te rebota |
 

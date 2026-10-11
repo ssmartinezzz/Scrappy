@@ -3,8 +3,6 @@
 Primer set de etiquetas de categoría **independiente del clasificador por
 keywords**. Generado 2026-09-23 contra la dev DB (16.052 productos activos).
 
-Plan, decisiones y porqué: [`odd/tasks/eval-set-categorias.md`](../../odd/tasks/eval-set-categorias.md).
-
 ## Qué es, y qué NO es
 
 **No es ground truth.** Son dos opiniones sobre los mismos 300 productos:

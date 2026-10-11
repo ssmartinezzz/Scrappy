@@ -358,8 +358,8 @@ Distinguí dos cosas al limpiar comentarios viejos:
 ### `SDD-1` · Los cambios sustanciales pasan por el ciclo — SHOULD
 
 `explore → proposal → spec → design → tasks → apply → verify → archive`.
-Artefactos en `openspec/changes/<nombre>/`; al cerrar se mueven a
-`openspec/changes/archive/<fecha>-<nombre>/`.
+Los artefactos (`openspec/`, `odd/`) son locales: están en `.gitignore` y no
+se versionan.
 
 Un fix acotado con su test no necesita el ciclo. Un cambio que toca varias capas
 o inventa un criterio nuevo, sí.
