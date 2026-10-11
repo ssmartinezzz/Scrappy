@@ -261,8 +261,8 @@ function CatalogoRoute() {
     : S.prods;
 
   // useCallback here (dispatch/deleteProducto are stable) is what lets
-  // ProductCard's memo actually short-circuit — see ProductGrid.jsx:165 and
-  // odd/tasks/frontend-perf.md. A fresh arrow per render defeated it before.
+  // ProductCard's memo actually short-circuit — see ProductGrid.jsx:165.
+  // A fresh arrow per render defeated it before.
   const handleDelete = useCallback(async prod => {
     const ok = await deleteProducto(prod.url);
     if (ok) dispatch({ type: 'REMOVE_PROD', url: prod.url });

@@ -2420,8 +2420,7 @@ en vez de un TEXT con su propio CHECK — la diferencia que **Regla de
 admisión** (arriba en este documento) fija entre las dos formas es si el
 vocabulario se administra desde la app o queda fijo en el schema; acá además
 importa que una FK real es lo único que impide que la gama de un PC guardado
-sea un string inventado, que es exactamente el pedido original (D8 en
-`odd/tasks/pc-builder-gama.md`).
+sea un string inventado, que es exactamente el pedido original.
 
 `preferencia_armador` es **una fila por usuario** (D9), no un historial: es un
 ajuste de UI que se relee, y un historial sería una tabla distinta que nadie
@@ -2606,7 +2605,7 @@ referencia a estos ocho objetos, así que no hace falta `CASCADE`.
 
 Tres lookups más, mismo molde que los seis de `V35`: `smallint` identity +
 `nombre` UNIQUE + un CHECK de dominio, sembrados. Respaldan las preferencias
-técnicas pedidas (D1/D7 en `odd/tasks/pc-builder-deep-taxonomy.md`) — marca
+técnicas pedidas — marca
 del chip (CPU/GPU), tier de chipset de motherboard, tecnología de cooler — y
 los ejes correspondientes que `TechSpecsParser` ya lee desde T3/T4 de esa
 misma feature, ahora persistidos en `producto_tech_specs`.
@@ -2712,8 +2711,7 @@ falta `CASCADE`.
 
 Un lookup más, mismo molde que los nueve de `V35`/`V36`: `smallint` identity +
 `nombre` UNIQUE + un CHECK de dominio, sembrado con `MINI`/`MID`/`FULL`.
-Respalda el tamaño de torre del gabinete (D1 en
-`odd/tasks/pc-builder-fine-grained-prefs.md`), que es un eje **distinto** de
+Respalda el tamaño de torre del gabinete, que es un eje **distinto** de
 `form_factor`: el tamaño es cuánto ocupa el gabinete, el form factor es qué
 placa entra adentro. El veto Gabinete ⊇ Mother sigue corriendo sobre
 `form_factor`, sin tocarse.
@@ -2799,7 +2797,7 @@ ellos vivían en `CPU`** — `"Mini Pc Cx Amd Ryzen 7 6800H..."` tiene `" amd "`
 y caía en `KW_CPU`, la misma clase de bug que las PCs armadas de la fase 7
 (ver `docs/GOTCHAS.md`, "El sustantivo líder beats keyword order").
 
-**`Mini PC` es distinta de `PC`** (D1 de `odd/tasks/pc-builder-homelab.md`):
+**`Mini PC` es distinta de `PC`**:
 las dos son un equipo completo, pero el armador homelab necesita elegirla como
 una pieza única (D6, el modo mini PC) — no compite por los mismos slots que
 una torre armada con componentes sueltos.
@@ -2827,7 +2825,7 @@ Igual que `V31`/`V32`, **este rollback no obliga a tocar ningún test ajeno**:
 
 Un lookup más, mismo molde que los diez de `V35`/`V36`/`V37`: `smallint`
 identity + `nombre` UNIQUE + un CHECK de dominio. Respalda el perfil de uso
-pedible del armador (D3/D7 en `odd/tasks/pc-builder-homelab.md`): `GAMING`
+pedible del armador: `GAMING`
 (el armado de hoy, default) y `HOMELAB` (fase 10).
 
 ```sql
@@ -2850,7 +2848,7 @@ normalizada, igual que las tres de `gama` (`ECONOMICA`/`MEDIA`/`ALTA`) o las
 dos de `tipo_cooler`. Guardar una fórmula tipo TEXT con CHECK repetido, o un
 booleano `es_homelab`, habría duplicado el mismo hecho en dos formas — el
 lookup + FK es la única representación (pedido explícito del usuario,
-2026-09-24, ver D7 en `odd/tasks/pc-builder-homelab.md`).
+2026-09-24).
 
 `uso_id` es **NULLABLE**, y por una sola razón: toda fila de
 `preferencia_armador` guardada **antes** de esta migración no tiene ningún

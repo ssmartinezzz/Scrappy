@@ -11,8 +11,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * {@link PcBuilder} — one pick per slot, best-effort, with hard compatibility
- * vetoes that only fire when both sides of a rule parsed. See
- * odd/tasks/pc-builder.md for the design this pins.
+ * vetoes that only fire when both sides of a rule parsed.
  */
 class PcBuilderTest {
 
@@ -564,7 +563,7 @@ class PcBuilderTest {
         assertThat(ram.url()).isEqualTo("https://t/ram-barata");
     }
 
-    // ── T18: targets medidos contra la dev DB (odd/tasks/pc-builder-homelab.md) ──
+    // ── T18: targets medidos contra la dev DB ──
 
     @Test
     @DisplayName("T18: sin presupuesto, dos AIO 420mm empatados en radiador desempatan por precio DESC")

@@ -130,7 +130,7 @@ Entre el 2026-09-22 y el 2026-10-05 los endpoints SQL bajaron de 4x a 40x
 (`facets` 150 → 4 ms, `grupos` 97 → 4, `data` 160 → 24) y el catálogo creció
 45%, con lo que los armadores subieron (`pcs_builder` 23 → 39). La caída de
 `grupos`, `mejores` y `marcas` la explica el A/B de backend-hardening
-(`odd/tasks/release-performance.md`: snapshot caches); la de `data` y `facets` es
+(snapshot caches); la de `data` y `facets` es
 anterior a esa base y no está atribuida. Con los techos viejos, `facets` podía
 empeorar 50x y la suite seguía en verde. Re-medir cuando cambia el catálogo o el
 backend.
