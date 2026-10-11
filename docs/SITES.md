@@ -27,6 +27,7 @@
 | mmartinez | Tiendanube | moda | Calzado. **37 productos de a 12 por página** (medido 2026-08-26); pagina con `?page=N` y `?mpage=N` devuelve la página 1 (marcador client-side, igual que entreno). Sus cards traen **seis** elementos de precio: el real, dos de descuento por transferencia, uno de cuota, un contenedor con todo concatenado y un `js-compare-price-display` **oculto que dice `$0`**. El extractor toma la primera HOJA que parsea a > 0, así que saltea el `$0` y agarra bien (12/12); ese `$0` además llega a `compare`, pero `PrecioParser` excluye el cero y devuelve `empty`, así que `precioOriginal` queda NULL y no fabrica un descuento contra cero |
 | flowin | Shopify | oficina | Escritorios regulables y sillas ergonómicas. **8 productos**, todos en la página 1 de `/products.json` (medido 2026-10-08, 8/8 con foto). Sólo fila de seed (`V43`), sin código. Los dos combos escritorio + silla se clasifican `Silla` |
 | armytech | PrestaShop (`PrestashopPage`) | tecnologia | Hardware/PC. `/2-productos` es la categoría raíz: pedida con `Accept: application/json` + `X-Requested-With: XMLHttpRequest` devuelve el JSON de listado de PrestaShop 1.7 (`products[]` + `pagination.pages_count`, 48 por página). **546 productos** en una corrida real (2026-10-08): 549 `total_items` menos 3 filas "Marca - X" con precio 0, que se descartan explícitamente porque `precio.minimo` es 0. 529/546 con foto: el resto trae `cover: false`, no `null`. Listado vacío → `PrestashopPayloadException` |
+| gamerfactory | `GamerFactoryPage` | tecnologia | Hardware/PC y periféricos (SPA React propia, sin plataforma conocida detrás). El catálogo sale de la API pública `core.gamerfactory.com.ar/products/search`: **una sola petición** con `perPage=1000` devuelve los 828 productos (`{total, data[]}`); la page pagina sólo si llegan menos que `total` y **lanza** si al final faltan. `precio` = `price.special.ARS` (el precio de transferencia, ~12 % bajo `price.list.ARS`, que es el de tarjeta en 1 pago); `precioOriginal` sólo si `special.strikethrough > special.ARS` (171 de 828 en la captura 2026-10-10) — lista vs. especial es un medio de pago, no un descuento. URL `/producto/<slug>`, foto `images[0].url`, marca de `brand`. No filtra por `type`: clasifica `CategoryClassifier`. Payload vacío o malformado → `GamerFactoryPayloadException`, nunca 0 en silencio |
 | vans | — | — | Comentado: plataforma Grimoldi custom, sin scraper |
 
 ### Detección de plataforma (`ScraperFactory.crear`, en orden)
@@ -47,6 +48,7 @@ SHOPIFY → freres, vcp, forever, flowin, o url contiene myshopify.com
 MONKYFORCE → monkyforce
 MORASHOP → morashop
 PRESTASHOP → armytech
+GAMERFACTORY → gamerfactory
 default → TiendanubePage (JS heurístico)
 ```
 
