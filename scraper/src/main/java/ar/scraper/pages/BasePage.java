@@ -127,6 +127,15 @@ public abstract class BasePage {
         return (String) page.evaluate(SHADOW_DOM_JS);
     }
 
+    /** Un challenge de Cloudflare no es un catálogo vacío (captura real en fixtures/cloudflare). */
+    static boolean esBloqueoCloudflare(String html) {
+        if (StringUtils.isBlank(html)) return false;
+        return html.contains("challenge-platform")
+                || html.contains("__cf_chl")
+                || html.contains("<title>Just a moment...")
+                || html.contains("<title>Attention Required");
+    }
+
     protected Optional<Double> parsePrecio(String raw) {
         if (StringUtils.isBlank(raw)) return Optional.empty();
         try {

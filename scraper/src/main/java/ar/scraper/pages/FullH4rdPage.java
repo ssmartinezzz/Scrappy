@@ -69,15 +69,26 @@ public class FullH4rdPage extends StorePage implements CatalogPage {
             try {
                 navigateTo(url);
                 html = page.content();
-                int cards = contarCards(html);
-                if (cards > 0 || esFinDeCatalogo(cards, pagina, total)) return html;
             } catch (Exception e) {
                 log.debug("[{}] p{} intento {}: {}", sitio, pagina, intento, e.getMessage());
+            }
+            if (html != null && esBloqueo(html)) {
+                throw new CloudflareBlockedException("[" + sitio + "] p" + pagina
+                        + ": challenge de Cloudflare sin resolver (cf_clearance no alcanzo)");
+            }
+            if (html != null) {
+                int cards = contarCards(html);
+                if (cards > 0 || esFinDeCatalogo(cards, pagina, total)) return html;
             }
             if (intento < INTENTOS) page.waitForTimeout(ESPERA_BASE_MS * intento);
         }
         if (html == null) log.warn("[{}] p{}: la navegación falló {} veces", sitio, pagina, INTENTOS);
         return html;
+    }
+
+    /** Seam de clasificación: un challenge de Cloudflare nunca es "fin de catálogo". */
+    static boolean esBloqueo(String html) {
+        return esBloqueoCloudflare(html);
     }
 
     private static final Pattern TOTAL = Pattern.compile("(\\d+)\\s+productos disponibles");
