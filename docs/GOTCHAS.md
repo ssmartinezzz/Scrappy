@@ -137,6 +137,12 @@ en `App.test.jsx` (la cadena de bootstrap de auth no drena bajo fake timers y la
 baseline leería cero): vive en `src/SplashRoute.test.jsx`, que mockea `useAuth` y
 fija la baseline en 1 antes de medir.
 
+**El porcentaje del splash sólo se mueve cuando termina un sitio.** Un sitio largo se ve
+"clavado" en el mismo `x/N sitios`: es la verdad, no un bug. El backend no expone progreso
+dentro de un sitio (páginas/productos en curso), así que no hay nada real que dibujar; la
+barra ya no inventa avance con un timer. El CLI (`watch`) tiene la misma limitación: el
+count de un sitio aparece recién cuando termina.
+
 **El estado llega por un stream, no por un intervalo.** La UI no pollea `/api/status`, `/api/ml/estado` ni `/api/ml/resultado`: abre UNA
 conexión a `GET /api/events` (`EventStreamProvider`, montado en `App.jsx` dentro
 de `AuthGate`) y todo lo que muestra estado —splash, topbar, overlay GPU, panel ML,

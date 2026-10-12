@@ -6,7 +6,7 @@ Base URL: `http://localhost:3000/api`
 > client of this API — it owns the lifecycle of the backend and the frontend
 > `npm run preview` process but adds no new endpoints. `cli/core/rest.py` is
 > the single source of truth for which endpoints it calls (status, scrape,
-> `ml/entrenar`, `sitios` CRUD); `tests/cli/test_rest.py` asserts no other
+> `ml/entrenar`, `sitios` CRUD, y el stream `events` para `watch`); `tests/cli/test_rest.py` asserts no other
 > endpoint is ever invoked. Supersedes the retired `menu.ps1`/`menu.sh`
 > (`interactive-cli-launcher`, PR #108), which carried the same contract.
 
@@ -472,6 +472,9 @@ El primer evento es siempre `snapshot`; los siguientes son cambios:
 - **Dura 10 minutos** y se cierra, antes de que venza el access token (15 min). El cliente
   reconecta por su fetch autenticado, que renueva el token si hace falta, y recibe otro `snapshot`.
 - Un 401 antes de empezar el stream tiene el envelope de siempre (`no_autenticado`).
+- **Segundo consumidor: el CLI nativo.** `watch` / `scrape --watch` (`cli/core/sse.py`) lee este
+  mismo stream con `urllib` y el Bearer del `RestClient`; ante un `resync` o una reconexión relee
+  `/status`. No hay endpoint ni evento propio del CLI.
 
 ---
 
