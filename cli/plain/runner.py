@@ -13,6 +13,7 @@ from __future__ import annotations
 import sys
 import time
 import webbrowser
+from datetime import datetime, timezone
 from typing import Callable, Optional, TextIO
 
 from cli.core import lan_report, logs
@@ -24,7 +25,9 @@ from cli.core.lan_proxy import stop_proxy
 from cli.core.runtime_config import LOCAL, Origins, apply_mode, preflight
 from cli.core.errors import CliError
 from cli.core.processes import ProcessManager
+from cli.core.progress import ChangeLog, ScrapeView, render_lines
 from cli.core.rest import RestClient, build_rest_client
+from cli.core.sse import EventFollower
 
 # Grace period before believing a just-launched service, mirroring the
 # console's STARTUP_GRACE_SECONDS. Kept local so this module stays free
@@ -37,6 +40,10 @@ MENU = (
     "Fashion Scraper -- plain mode (non-interactive terminal detected)\n"
     + menu_text()
 )
+
+
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 def _payload_text(payload: object) -> str:
@@ -109,8 +116,10 @@ class PlainRunner:
         out: TextIO = sys.stdout,
         in_: TextIO = sys.stdin,
         opener: Callable[[str], object] = webbrowser.open,
+        follower_factory: Callable[[RestClient], EventFollower] = EventFollower,
     ) -> None:
         self.cfg = cfg
+        self.follower_factory = follower_factory
         self.rest = rest or build_rest_client(cfg)
         self.processes = processes or ProcessManager()
         self.out = out
@@ -122,6 +131,39 @@ class PlainRunner:
 
     def _print(self, text: str) -> None:
         print(text, file=self.out)
+
+    def _watch(self) -> None:
+        """Follow the running scrape and print what changes, until it leaves
+        RUNNING. The initial `/api/status` read decides "nothing to watch"; a
+        run that ends between that read and the stream opening still ends the
+        loop, because the stream's first event is a snapshot."""
+        view = ScrapeView()
+        view.apply("status", self.rest.status())
+        if not view.running:
+            self._print(f"No hay un scrape en curso (estado: {view.status or 'desconocido'}).")
+            return
+        changes = ChangeLog()
+        for line in changes.lines(view, _utcnow()) or [view.mensaje or view.status]:
+            self._print(line)
+        follower = self.follower_factory(self.rest)
+        try:
+            for event in follower.events():
+                if event.name == "reconnecting":
+                    self._print(f"reconectando (intento {event.data['attempt']})…")
+                    continue
+                view.apply(event.name, event.data)
+                for line in changes.lines(view, _utcnow()):
+                    self._print(line)
+                if not view.running:
+                    break
+        except KeyboardInterrupt:
+            self._print("watch detenido (el scrape sigue corriendo).")
+            return
+        finally:
+            follower.close()
+        self._print(f"Scrape terminó: {view.status} — {view.mensaje}".rstrip(" —"))
+        for line in render_lines(view, _utcnow()):
+            self._print(line)
 
     def _env(self) -> dict:
         return parse_env(self.cfg.repo_root / ".env")
@@ -186,6 +228,10 @@ class PlainRunner:
                 self._print("Backend + frontend stopped.")
             elif name == "scrape":
                 self._print(cmd_scrape(self.rest))
+                if "--watch" in args:
+                    self._watch()
+            elif name == "watch":
+                self._watch()
             elif name == "retrain":
                 self._print(cmd_retrain(self.rest))
             elif name == "status":

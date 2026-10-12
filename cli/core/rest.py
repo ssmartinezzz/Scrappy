@@ -206,7 +206,7 @@ class RestClient:
         except json.JSONDecodeError:
             return {}
 
-    def _enviar(self, method: str, url: str, data, headers: dict[str, str]) -> bytes:
+    def _enviar(self, method: str, url: str, data, headers: dict[str, str], stream: bool = False):
         """One attempt, plus exactly one re-login-and-retry on a 401.
 
         The retry is capped at one on purpose. A backend that keeps answering
@@ -220,6 +220,8 @@ class RestClient:
                 enviados["Authorization"] = f"Bearer {self.tokens.access_token}"
             request = urllib.request.Request(url, data=data, headers=enviados, method=method)
             try:
+                if stream:
+                    return self._open(request)
                 with self._open(request) as response:
                     return response.read()
             except urllib.error.HTTPError as exc:
@@ -259,6 +261,14 @@ class RestClient:
                     action=BACKEND_UNREACHABLE_ACTION,
                 ) from exc
         raise AssertionError("unreachable: el loop siempre retorna o levanta")
+
+    def open_stream(self, path: str):
+        """Open a `text/event-stream` response, authenticated like any other
+        call. The caller owns the response and must close it."""
+        if self._autentica and not self.tokens.is_valid(self.now()):
+            self._login()
+        url = self.base_url.rstrip("/") + path
+        return self._enviar("GET", url, None, {"Accept": "text/event-stream"}, stream=True)
 
     # -- existing endpoints only (spec: cli-rest-contract, "No New Backend
     # Endpoints") --------------------------------------------------------

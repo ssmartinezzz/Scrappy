@@ -109,6 +109,8 @@ no pollea y mantiene su nombre), `AppLayout` (overlay GPU, banner ML, `scrapeSta
 reducer), `Topbar` (indicador "Entrenando ML"), `MlStatusPanel` (progreso y toast de
 fin), `CronjobsPage` y `CronJobCard` (releen al llegar `db.changed` de `cron_execution`
 o un `resync`). Lo único con reloj que queda es cosmético: el `tick` de 2 s que
-refresca el "tiempo transcurrido" de `MlStatusPanel` y la animación de la barra del
-splash; ninguno hace un request. Ver [`GOTCHAS.md`](./GOTCHAS.md) → "El estado llega
+refresca el "tiempo transcurrido" de `MlStatusPanel`; no hace un request. El porcentaje del
+splash **no** tiene reloj: sale de `sitiosTerminados(progreso)` (`lib/scrapeProgress.js`:
+`done`+`error`+`skipped` sobre el total de `sitios`), se muestra como `x/N sitios` y puede
+bajar al resetear o retomar una corrida. Ver [`GOTCHAS.md`](./GOTCHAS.md) → "El estado llega
 por un stream".

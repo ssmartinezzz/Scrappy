@@ -98,6 +98,25 @@ class StatusBar(Static):
         self.update(self.last_line)
 
 
+class LiveScrape(Static):
+    """Panel for a followed scrape: hidden until `show()`, then repainted with
+    the plain-text lines from `core.progress`. The lines are data, so they go
+    in as `Text`, never markup. `last_text` records what was last rendered."""
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.last_text = ""
+        self.display = False
+
+    def show(self, lines: Iterable[str]) -> None:
+        self.last_text = "\n".join(lines)
+        self.update(Text(self.last_text))
+        self.display = True
+
+    def hide(self) -> None:
+        self.display = False
+
+
 class HintBar(Static):
     """One-line contextual hint under the prompt: the usage of the verb
     currently being typed, or the default nudge toward `help`."""

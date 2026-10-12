@@ -428,3 +428,117 @@ def test_start_local_prints_no_trust_report(tmp_path):
     printed = out.getvalue()
     assert "docs/LAN_HTTPS_SETUP.md" not in printed
     assert "Ajustes" not in printed
+
+
+# -- watch --------------------------------------------------------------------
+
+
+class _FakeFollower:
+    def __init__(self, *events, raises=None):
+        self._events = list(events)
+        self._raises = raises
+        self.closed = False
+        self.consumed = 0
+
+    def events(self):
+        for ev in self._events:
+            self.consumed += 1
+            yield ev
+        if self._raises:
+            raise self._raises
+
+    def close(self):
+        self.closed = True
+
+
+def _watch_runner(tmp_path, status, follower):
+    rest = _FakeRest()
+    rest.status = lambda: (rest.calls.append(("status",)), status)[1]
+    out = io.StringIO()
+    runner = PlainRunner(
+        _cfg(tmp_path), rest=rest, processes=_FakeProcesses(), out=out,
+        in_=io.StringIO(""), follower_factory=lambda _rest: follower,
+    )
+    return runner, rest, out
+
+
+def _ev(name, data):
+    from cli.core.sse import StreamEvent
+
+    return StreamEvent(name, data)
+
+
+def _prog(*sitios):
+    done = sum(1 for s in sitios if s["estado"] in ("done", "error"))
+    return {"total": len(sitios), "completados": done, "productos": 0, "sitios": list(sitios)}
+
+
+def _s(nombre, estado, count=0, durMs=0):
+    return {"nombre": nombre, "estado": estado, "count": count, "durMs": durMs}
+
+
+def test_watch_with_nothing_running_says_so_and_never_opens_the_stream(tmp_path):
+    follower = _FakeFollower(_ev("scrape.status", {"status": "RUNNING", "mensaje": ""}))
+    r, _, out = _watch_runner(tmp_path, {"status": "IDLE", "mensaje": "ocioso"}, follower)
+
+    assert r.dispatch("watch") is True
+
+    assert "No hay un scrape en curso" in out.getvalue()
+    assert follower.consumed == 0
+
+
+def test_watch_prints_each_change_once_and_ends_when_the_run_leaves_running(tmp_path):
+    start = {"status": "RUNNING", "mensaje": "",
+             "progreso": _prog(_s("a", "en_curso"), _s("b", "esperando"))}
+    follower = _FakeFollower(
+        _ev("scrape.progress", _prog(_s("a", "en_curso"), _s("b", "esperando"))),  # no change
+        _ev("scrape.progress", _prog(_s("a", "done", 9, 2000), _s("b", "en_curso"))),
+        _ev("scrape.status", {"status": "DONE", "mensaje": "fin"}),
+        _ev("scrape.progress", _prog(_s("zzz", "done"))),  # after the end: never read
+    )
+    r, _, out = _watch_runner(tmp_path, start, follower)
+
+    r.dispatch("w")
+
+    text = out.getvalue()
+    live = text.split("Scrape terminó")[0]
+    assert live.count("en_curso") == 2  # a at start, b later; the repeat printed nothing
+    assert "9" in text and "2.0s" in text
+    assert "terminó" in text and "DONE" in text
+    assert "zzz" not in text
+    assert follower.closed is True
+
+
+def test_watch_reports_reconnects(tmp_path):
+    start = {"status": "RUNNING", "mensaje": "", "progreso": _prog(_s("a", "en_curso"))}
+    follower = _FakeFollower(
+        _ev("reconnecting", {"attempt": 2, "error": "boom"}),
+        _ev("status", {"status": "DONE", "mensaje": ""}),
+    )
+    r, _, out = _watch_runner(tmp_path, start, follower)
+
+    r.dispatch("watch")
+
+    assert "reconectando" in out.getvalue() and "2" in out.getvalue()
+
+
+def test_watch_ctrl_c_exits_cleanly_and_closes_the_stream(tmp_path):
+    start = {"status": "RUNNING", "mensaje": "", "progreso": _prog(_s("a", "en_curso"))}
+    follower = _FakeFollower(raises=KeyboardInterrupt())
+    r, _, out = _watch_runner(tmp_path, start, follower)
+
+    assert r.dispatch("watch") is True
+
+    assert follower.closed is True
+    assert "watch detenido" in out.getvalue()
+
+
+def test_scrape_watch_triggers_the_scrape_then_follows_it(tmp_path):
+    follower = _FakeFollower(_ev("scrape.status", {"status": "DONE", "mensaje": ""}))
+    r, rest, out = _watch_runner(tmp_path, {"status": "RUNNING", "mensaje": ""}, follower)
+
+    r.dispatch("scrape --watch")
+
+    assert rest.calls[0] == ("scrape",)
+    assert ("status",) in rest.calls
+    assert "terminó" in out.getvalue()

@@ -27,7 +27,7 @@ def test_registry_covers_the_documented_verbs():
     assert {
         "build", "start", "stop", "scrape", "retrain", "status",
         "sites", "add-site", "del-site", "logs", "open", "clear",
-        "help", "quit",
+        "help", "quit", "watch",
     } <= names
 
 
@@ -114,3 +114,15 @@ def test_the_canonical_name_still_leads_the_usage_column():
     the suggester teaches has to be the first thing read."""
     for cmd in COMMANDS:
         assert "alias" not in cmd.usage
+
+
+def test_watch_is_registered_with_a_short_alias_and_help():
+    cmd = find("w")
+
+    assert cmd is not None and cmd.name == "watch"
+    assert "SSE" in cmd.help or "en vivo" in cmd.help
+    assert any("watch" in line and "w" in line for line in help_lines())
+
+
+def test_scrape_advertises_the_watch_flag():
+    assert "--watch" in find("scrape").usage

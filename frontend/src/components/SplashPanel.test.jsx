@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -72,5 +72,65 @@ describe('SplashPanel — /splash siempre tiene salida al catálogo (breadcrumb)
     renderSplash({ scrapeStatus: 'IDLE', tieneData: false });
 
     expect(screen.queryByRole('navigation', { name: /migas de pan/i })).not.toBeInTheDocument();
+  });
+});
+
+describe('SplashPanel — la barra refleja sitios terminados, no el reloj', () => {
+  const sitios = (estados) => estados.map((estado, i) => ({ nombre: `s${i}`, estado }));
+  const run = (estados, extra = {}) => ({
+    scrapeStatus: 'RUNNING',
+    progreso: { total: estados.length, completados: 0, sitios: sitios(estados), ...extra },
+  });
+
+  it('no avanza con el tiempo mientras ningún sitio termina', () => {
+    vi.useFakeTimers();
+    try {
+      renderSplash(run(['running', 'idle', 'idle']));
+      expect(screen.getByText('0%')).toBeInTheDocument();
+
+      act(() => { vi.advanceTimersByTime(60_000); });
+
+      expect(screen.getByText('0%')).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('muestra terminados/total y su porcentaje exacto', () => {
+    renderSplash(run(['done', 'done', 'done', ...Array(7).fill('idle')]));
+
+    expect(screen.getByText('30%')).toBeInTheDocument();
+    expect(screen.getByText('3/10 sitios')).toBeInTheDocument();
+  });
+
+  it('cuenta un sitio con error como terminado', () => {
+    renderSplash(run(['done', 'error', 'running', 'idle']));
+
+    expect(screen.getByText('50%')).toBeInTheDocument();
+  });
+
+  it('baja cuando el progreso se reinicia', () => {
+    const { rerender } = renderSplash(run(['done', 'done', 'idle', 'idle']));
+    expect(screen.getByText('50%')).toBeInTheDocument();
+
+    rerender(<SplashPanel {...BASE_PROPS} {...run(['done', 'idle', 'idle', 'idle'])} />);
+
+    expect(screen.getByText('25%')).toBeInTheDocument();
+  });
+
+  it('llega a 100% sólo cuando todos los sitios terminaron', () => {
+    renderSplash(run(['done', 'error']));
+
+    expect(screen.getByText('100%')).toBeInTheDocument();
+  });
+
+  it('cae a completados/total si la lista de sitios no viene', () => {
+    renderSplash({
+      scrapeStatus: 'RUNNING',
+      progreso: { total: 4, completados: 1 },
+    });
+
+    expect(screen.getByText('25%')).toBeInTheDocument();
+    expect(screen.getByText('1/4 sitios')).toBeInTheDocument();
   });
 });

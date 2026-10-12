@@ -1253,6 +1253,13 @@ en `core/commands.py`, del que salen el autocompletado, el `help` y el menú del
 runner plano, así que no pueden divergir. Se eliminaron los bindings de una
 sola letra (se comían caracteres tipeables); quedan `ctrl+c` y `ctrl+l`.
 
+**Seguimiento en vivo (`watch`, `scrape --watch`):** `cli/core/sse.py` consume el SSE
+existente `GET /api/events` (reconecta con backoff y relee `/api/status` ante `resync`),
+`cli/core/progress.py` es el modelo puro `progreso` → filas por sitio + porcentaje. El runner
+plano imprime sólo las filas que cambian y cierra con la tabla final cuando el status deja
+`RUNNING`; la TUI muestra un panel vivo. No hay `python -m cli watch` de un solo tiro: se tipea
+`watch` en el prompt (decisión deliberada).
+
 **Por qué el stdio de los hijos está atado (el bug de fondo):** Spring Boot y
 Vite escribían ANSI crudo sobre el mismo TTY que Textual estaba pintando, y el
 frame quedaba destruido — Textual no se entera, así que ningún repaint lo

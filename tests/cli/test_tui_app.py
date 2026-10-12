@@ -902,3 +902,145 @@ async def test_start_local_prints_no_trust_report(tmp_path, monkeypatch):
 
     assert "docs/LAN_HTTPS_SETUP.md" not in text
     assert "Ajustes" not in text
+
+
+# -- live scrape view (watch) --------------------------------------------
+
+
+class _LiveFollower:
+    """Yields scripted events; with `gate` set, parks after the first one
+    until the test releases it, so the test can look at the mid-run panel."""
+
+    def __init__(self, *events, gate=None):
+        import threading
+
+        self._events = list(events)
+        self._gate = gate
+        self.closed = False
+        self.thread = None
+        self.parked = threading.Event()
+
+    def events(self):
+        import threading
+
+        self.thread = threading.current_thread()
+        for index, ev in enumerate(self._events):
+            yield ev
+            if self._gate is not None and index == 0:
+                self.parked.set()
+                self._gate.wait(5)
+
+    def close(self):
+        self.closed = True
+
+
+def _live_prog(*sitios):
+    done = sum(1 for s in sitios if s[1] in ("done", "error"))
+    return {"total": len(sitios), "completados": done, "productos": 0,
+            "sitios": [{"nombre": n, "estado": e, "count": c, "durMs": d} for n, e, c, d in sitios]}
+
+
+def _watch_app(tmp_path, status, follower):
+    app, rest, processes = _make_app(tmp_path)
+    rest.status = lambda: (rest.calls.append(("status",)), status)[1]
+    app.follower_factory = lambda _rest: follower
+    return app, rest
+
+
+def _ev(name, data):
+    from cli.core.sse import StreamEvent
+
+    return StreamEvent(name, data)
+
+
+_RUNNING = {"status": "RUNNING", "mensaje": "",
+            "progreso": _live_prog(("freres", "en_curso", 0, 0), ("vaypol", "esperando", 0, 0))}
+
+
+@pytest.mark.asyncio
+async def test_watch_with_nothing_running_says_so(tmp_path):
+    follower = _LiveFollower()
+    app, _ = _watch_app(tmp_path, {"status": "IDLE", "mensaje": ""}, follower)
+    async with app.run_test() as pilot:
+        await _submit(app, pilot, "watch")
+        assert "No hay un scrape en curso" in _console_text(app)
+        assert follower.thread is None
+        assert app.query_one("#live").display is False
+
+
+@pytest.mark.asyncio
+async def test_watch_shows_live_rows_while_the_run_is_going_then_summarises(tmp_path):
+    import threading
+
+    gate = threading.Event()
+    follower = _LiveFollower(
+        _ev("scrape.progress", _live_prog(("freres", "done", 12, 3000), ("vaypol", "en_curso", 0, 0))),
+        _ev("scrape.status", {"status": "DONE", "mensaje": "fin"}),
+        gate=gate,
+    )
+    app, _ = _watch_app(tmp_path, _RUNNING, follower)
+    async with app.run_test() as pilot:
+        app.query_one("#prompt").value = "watch"
+        await pilot.press("enter")
+        for _ in range(100):
+            if follower.parked.is_set():
+                break
+            await pilot.pause(0.02)
+        await pilot.pause()
+
+        live = app.query_one("#live")
+        assert live.display is True
+        assert "freres" in live.last_text and "50%" in live.last_text
+
+        gate.set()
+        await _settle(app)
+        await pilot.pause()
+
+        assert live.display is False
+        assert "terminó" in _console_text(app) and "DONE" in _console_text(app)
+        assert follower.closed is True
+
+
+@pytest.mark.asyncio
+async def test_watch_consumes_the_stream_off_the_ui_thread(tmp_path):
+    import threading
+
+    follower = _LiveFollower(_ev("scrape.status", {"status": "DONE", "mensaje": ""}))
+    app, _ = _watch_app(tmp_path, _RUNNING, follower)
+    async with app.run_test() as pilot:
+        await _submit(app, pilot, "watch")
+
+    assert follower.thread is not None
+    assert follower.thread is not threading.main_thread()
+
+
+@pytest.mark.asyncio
+async def test_scrape_watch_triggers_the_scrape_then_follows_it(tmp_path):
+    follower = _LiveFollower(_ev("scrape.status", {"status": "DONE", "mensaje": ""}))
+    app, rest = _watch_app(tmp_path, _RUNNING, follower)
+    async with app.run_test() as pilot:
+        await _submit(app, pilot, "scrape --watch")
+        assert "terminó" in _console_text(app)
+
+    assert rest.calls[0] == ("scrape",)
+
+
+@pytest.mark.asyncio
+async def test_quitting_closes_a_live_stream(tmp_path):
+    import threading
+
+    gate = threading.Event()
+    follower = _LiveFollower(_ev("scrape.status", {"status": "RUNNING", "mensaje": ""}),
+                             _ev("scrape.status", {"status": "DONE", "mensaje": ""}), gate=gate)
+    app, _ = _watch_app(tmp_path, _RUNNING, follower)
+    async with app.run_test() as pilot:
+        app.query_one("#prompt").value = "watch"
+        await pilot.press("enter")
+        for _ in range(100):
+            if follower.parked.is_set():
+                break
+            await pilot.pause(0.02)
+
+        app.action_quit_app()
+        assert follower.closed is True
+        gate.set()
