@@ -4,6 +4,7 @@ import ar.scraper.config.ScraperConfig;
 import ar.scraper.model.Product;
 import ar.scraper.model.ScrapeResult;
 import ar.scraper.pages.CatalogPage;
+import ar.scraper.pages.CloudflareSolver;
 import com.microsoft.playwright.*;
 import com.microsoft.playwright.options.Cookie;
 import com.microsoft.playwright.options.Proxy;
@@ -13,6 +14,8 @@ import org.slf4j.LoggerFactory;
 import ar.scraper.security.egress.EgressProxy;
 import java.net.URI;
 import java.util.List;
+import java.util.Optional;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 public final class BaseScraper {
@@ -20,7 +23,8 @@ public final class BaseScraper {
     static final String DEFAULT_USER_AGENT =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0.0.0 Safari/537.36";
 
-    record PageContext(ScraperConfig config, String sitio, String baseUrl, List<String> extraUrls) {}
+    record PageContext(ScraperConfig config, String sitio, String baseUrl, List<String> extraUrls,
+                       CloudflareSolver cloudflare) {}
 
     @FunctionalInterface
     interface PageFactory {
@@ -67,11 +71,18 @@ public final class BaseScraper {
     }
 
     private static final Logger log = LoggerFactory.getLogger(BaseScraper.class);
+
+    /** Tope de refrescos de clearance por run: evita loops si el challenge no cede. */
+    static final int MAX_REFRESCOS_CLOUDFLARE = 3;
+
     private final String sitio;
     private final ScraperConfig config;
     private final PageContext pageContext;
     private final PageFactory pageFactory;
     private final Supplier<String> proxyServer;
+    private final Function<String, FlareSolverrClient> solverFactory;
+    private String cloudflareUserAgent;
+    private int refrescos;
 
     BaseScraper(ScraperConfig config, String sitio, String baseUrl, List<String> extraUrls, PageFactory pageFactory) {
         this(config, sitio, baseUrl, extraUrls, pageFactory, () -> EgressProxy.shared().server());
@@ -79,10 +90,16 @@ public final class BaseScraper {
 
     BaseScraper(ScraperConfig config, String sitio, String baseUrl, List<String> extraUrls, PageFactory pageFactory,
                 Supplier<String> proxyServer) {
+        this(config, sitio, baseUrl, extraUrls, pageFactory, proxyServer, FlareSolverrClient::new);
+    }
+
+    BaseScraper(ScraperConfig config, String sitio, String baseUrl, List<String> extraUrls, PageFactory pageFactory,
+                Supplier<String> proxyServer, Function<String, FlareSolverrClient> solverFactory) {
         this.proxyServer = proxyServer;
+        this.solverFactory = solverFactory;
         this.sitio = sitio;
         this.config = config;
-        this.pageContext = new PageContext(config, sitio, baseUrl, extraUrls);
+        this.pageContext = new PageContext(config, sitio, baseUrl, extraUrls, this::refrescar);
         this.pageFactory = pageFactory;
     }
 
@@ -97,6 +114,7 @@ public final class BaseScraper {
             log.warn("[{}] {}", sitio, msg);
             return new ScrapeResult(sitio, List.of(), msg, ms);
         }
+        cloudflareUserAgent = requiereCloudflare ? userAgentDe(cloudflare) : null;
         try (Browser browser = pw.chromium().launch(launchOptions(config.isHeadless(), proxyServer.get()))) {
             try (BrowserContext ctx = browser.newContext(newContextOptions(cloudflare))) {
                 if (cloudflare != null) aplicarCookiesCloudflare(ctx, cloudflare);
@@ -126,16 +144,54 @@ public final class BaseScraper {
             return null;
         }
         log.info("[{}] resolviendo challenge de Cloudflare via FlareSolverr ({})", sitio, url);
-        return new FlareSolverrClient(url).resolver(pageContext.baseUrl(), config.getTimeoutMs()).orElse(null);
+        return resolverCon(url).orElse(null);
+    }
+
+    /** Seam para re-resolver a mitad de run: reusa el clearance solo si sirve para el UA ya armado. */
+    private boolean refrescar(BrowserContext ctx) {
+        return refrescarCloudflare(ctx, cloudflareUserAgent);
+    }
+
+    boolean refrescarCloudflare(BrowserContext ctx, String uaArmado) {
+        if (StringUtils.isBlank(uaArmado)) return false;
+        if (refrescos >= MAX_REFRESCOS_CLOUDFLARE) {
+            log.warn("[{}] tope de {} refrescos de Cloudflare alcanzado en este run",
+                    sitio, MAX_REFRESCOS_CLOUDFLARE);
+            return false;
+        }
+        String url = config.getFlareSolverrUrl();
+        if (StringUtils.isBlank(url)) return false;
+        FlareSolverrClient.Ticket ticket = resolverCon(url).orElse(null);
+        if (ticket == null) {
+            log.warn("[{}] no se pudo re-resolver el challenge para refrescar el clearance", sitio);
+            return false;
+        }
+        if (!uaArmado.equals(userAgentDe(ticket))) {
+            // Playwright no permite cambiar el UA de un contexto vivo: reintentar no serviría.
+            log.warn("[{}] el UA del ticket no coincide con el del contexto; no se refresca", sitio);
+            return false;
+        }
+        aplicarCookiesCloudflare(ctx, ticket);
+        refrescos++;
+        log.info("[{}] clearance refrescado ({}/{})", sitio, refrescos, MAX_REFRESCOS_CLOUDFLARE);
+        return true;
+    }
+
+    private Optional<FlareSolverrClient.Ticket> resolverCon(String url) {
+        return solverFactory.apply(url).resolver(pageContext.baseUrl(), config.getTimeoutMs());
+    }
+
+    /** UA efectivo del contexto: el del ticket si vino, si no el default. */
+    private static String userAgentDe(FlareSolverrClient.Ticket cloudflare) {
+        return cloudflare != null && StringUtils.isNotBlank(cloudflare.userAgent())
+                ? cloudflare.userAgent()
+                : DEFAULT_USER_AGENT;
     }
 
     private Browser.NewContextOptions newContextOptions(FlareSolverrClient.Ticket cloudflare) {
-        String userAgent = cloudflare != null && StringUtils.isNotBlank(cloudflare.userAgent())
-                ? cloudflare.userAgent()
-                : DEFAULT_USER_AGENT;
         return new Browser.NewContextOptions()
                 .setViewportSize(1366, 768)
-                .setUserAgent(userAgent)
+                .setUserAgent(userAgentDe(cloudflare))
                 .setLocale("es-AR");
     }
 

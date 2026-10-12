@@ -24,10 +24,13 @@ public class FullH4rdPage extends StorePage implements CatalogPage {
     private static final int INTENTOS = 3;
     private static final long ESPERA_BASE_MS = 3_000;
 
+    /** Puede ser null: sin bypass de Cloudflare armado el page solo detecta y corta. */
+    private final CloudflareSolver cloudflare;
 
     public FullH4rdPage(Page page, int timeoutMs, String sitio, String baseUrl,
-                         double precioMin, double precioMax) {
+                         double precioMin, double precioMax, CloudflareSolver cloudflare) {
         super(page, timeoutMs, sitio, sinBarraFinal(baseUrl), precioMin, precioMax);
+        this.cloudflare = cloudflare;
     }
 
     public List<Product> scrapeAll() {
@@ -73,6 +76,12 @@ public class FullH4rdPage extends StorePage implements CatalogPage {
                 log.debug("[{}] p{} intento {}: {}", sitio, pagina, intento, e.getMessage());
             }
             if (html != null && esBloqueo(html)) {
+                // El clearance puede vencer a mitad de un crawl largo: se pide uno fresco y se
+                // reintenta la MISMA página, conservando lo acumulado. Acotado por INTENTOS.
+                if (cloudflare != null && intento < INTENTOS && cloudflare.refrescar(page.context())) {
+                    log.info("[{}] p{}: clearance refrescado, reintento la misma pagina", sitio, pagina);
+                    continue;
+                }
                 throw new CloudflareBlockedException("[" + sitio + "] p" + pagina
                         + ": challenge de Cloudflare sin resolver (cf_clearance no alcanzo)");
             }

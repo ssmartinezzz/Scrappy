@@ -52,7 +52,8 @@ public class ScraperFactory {
     private static final Map<String, PageFactory> PAGINAS = Map.ofEntries(
             entry("woocommerce", simple(WooCommercePage::new)),
             entry("maximus",     simple((p, t, s, u, min, max) -> new TechStorePage(p, t, s, u, min, max, TechStoreType.MAXIMUS))),
-            entry("fullh4rd",    simple(FullH4rdPage::new)),
+            entry("fullh4rd",    (page, c) -> new FullH4rdPage(page, c.config().getTimeoutMs(), c.sitio(), c.baseUrl(),
+                    c.config().getPrecioMinimo(), c.config().getPrecioMaximo(), c.cloudflare())),
             entry("compragamer", simple((p, t, s, u, min, max) -> new TechStorePage(p, t, s, u, min, max, TechStoreType.COMPRAGAMER))),
             entry("vaypol",      simple(VaypolPage::new)),
             entry("qloud",       simple(QloudPage::new)),
