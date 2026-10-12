@@ -5,7 +5,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.microsoft.playwright.Page;
-import org.apache.commons.lang3.StringUtils;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -95,7 +94,8 @@ public class GamerFactoryPage extends StorePage implements CatalogPage {
                     .categoria("")
                     .genero("")
                     .talles(List.of())
-                    .marca(StringUtils.defaultString(n.path("brand").asText(null)).trim())
+                    // the API brand is not a seeded marca and breaks fk_productos_marca; BrandExtractor fills it
+                    .marca("")
                     .rubro("tecnologia")
                     .build());
         }
