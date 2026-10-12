@@ -44,14 +44,15 @@ class GamerFactoryPageSearchTest {
     }
 
     @Test
-    @DisplayName("maps name, URL from the slug, first image, brand and the tecnologia rubro")
+    @DisplayName("maps name, URL from the slug, first image and the tecnologia rubro; leaves marca to BrandExtractor")
     void mapsFields() {
         Product p = porNombre(parse(SEARCH).productos(), "Placa de video ASUS");
 
         assertThat(p.sitio()).isEqualTo("Gamer Factory");
         assertThat(p.url()).isEqualTo(BASE + "/producto/placa-de-video-asus-rtx-3050-6gb-gddr6-oc");
         assertThat(p.imagenUrl()).startsWith("https://s3.nubi2go.com/mediagf/").endsWith(".webp");
-        assertThat(p.marca()).isEqualTo("Asus");
+        // the raw API brand is not in the marca table and breaks fk_productos_marca on upsert
+        assertThat(p.marca()).isEmpty();
         assertThat(p.rubro()).isEqualTo("tecnologia");
     }
 

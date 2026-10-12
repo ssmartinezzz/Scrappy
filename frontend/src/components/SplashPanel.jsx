@@ -1,10 +1,11 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { fetchSitios, startScrape, limpiarCatalogo, limpiarMl } from '../api';
 import { cn } from '../lib/utils';
 import MlStatusPanel from './MlStatusPanel';
 import { SEMANTIC } from '../lib/colors';
 import { PRECIO_MIN_DEFAULT, PRECIO_MAX_DEFAULT } from '../lib/scrapeDefaults';
 import { groupByRubro } from '../lib/rubros';
+import { sitiosTerminados } from '../lib/scrapeProgress';
 
 const RUBRO_META = {
   indumentaria: { icon:'👕', color: 'var(--p)',       label:'Indumentaria' },
@@ -69,11 +70,9 @@ export default function SplashPanel({
   const [precioMin, setPrecioMin] = useState(config?.precioMin || PRECIO_MIN_DEFAULT);
   const [precioMax, setPrecioMax] = useState(config?.precioMax || PRECIO_MAX_DEFAULT);
   const [tab,          setTab]          = useState('launch'); // launch | config
-  const [pct,          setPct]          = useState(5);
   const [forceRetrain, setForceRetrain] = useState(false);
   const [clearMsg,     setClearMsg]     = useState('');
   const [clearOk,      setClearOk]      = useState(null);
-  const pctRef    = useRef(5);
   // `scrapeStatus` mirrors the backend's own ScraperStatus, so this component
   // never invents a value for it: when the stream cannot reach the backend, the
   // last thing it said is still RUNNING. What that costs us is the right to
@@ -82,6 +81,7 @@ export default function SplashPanel({
   // launch controls stay locked meanwhile: as far as anyone knows a run is live.
   const isRunning    = scrapeStatus === 'RUNNING';
   const showProgress = isRunning && !backendUnreachable;
+  const { terminados, total, pct } = sitiosTerminados(progreso);
 
   useEffect(() => {
     fetchSitios().then(data => {
@@ -94,23 +94,8 @@ export default function SplashPanel({
     });
   }, []);
 
-  // Progress animation
-  useEffect(() => {
-    if (!showProgress) return;
-    const t = setInterval(() => {
-      const real = progreso?.total > 0
-        ? Math.round((progreso.completados / progreso.total) * 92)
-        : 0;
-      const next = Math.max(pctRef.current + 1.2, real);
-      const capped = Math.min(next, 94);
-      setPct(capped); pctRef.current = capped;
-    }, 600);
-    return () => clearInterval(t);
-  }, [showProgress, progreso]);
-
   async function handleScrape() {
     if (selected.length === 0) return;
-    setPct(5); pctRef.current = 5;
     onScrapeStart();
     // Armed in `finally`: a rejected POST may still have started the run
     // (2026-08-26 it did). The backend's status is the truth, not this response.
@@ -300,7 +285,10 @@ export default function SplashPanel({
                 <div className="flex flex-col gap-1.5">
                   <div className="mb-0.5 flex justify-between text-[.7rem] text-t4">
                     <span>{scrapeMsg || 'Procesando...'}</span>
-                    <span className="font-bold text-primary2">{Math.round(pct)}%</span>
+                    <span className="font-bold text-primary2">
+                      {total > 0 && <span className="mr-2 font-normal text-t4">{terminados}/{total} sitios</span>}
+                      {Math.round(pct)}%
+                    </span>
                   </div>
                   <div className="h-1.5 overflow-hidden rounded-btn bg-s3">
                     <div
