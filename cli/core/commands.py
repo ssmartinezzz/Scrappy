@@ -51,7 +51,16 @@ COMMANDS: tuple[Command, ...] = (
     ),
     Command("stop", "baja backend + frontend sin salir de la consola", aliases=("down",)),
     Command("status", "GET /api/status", aliases=("st",)),
-    Command("scrape", "POST /api/scrape — dispara un run de scraping"),
+    Command(
+        "scrape",
+        "POST /api/scrape — dispara un run de scraping; --watch lo sigue en vivo",
+        args="[--watch]",
+    ),
+    Command(
+        "watch",
+        "sigue el scrape en curso en vivo (SSE /api/events) hasta que termina",
+        aliases=("w",),
+    ),
     Command("retrain", "POST /api/ml/entrenar — reentrena texto + backfill de embeddings"),
     Command("sites", "GET /api/sitios — lista los sitios configurados", aliases=("ls",)),
     Command("add-site", "POST /api/sitios", args="<nombre> <url> [plataforma]"),

@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import time
 import webbrowser
+from datetime import datetime, timezone
 from typing import Callable, Optional
 
 from textual import work
@@ -45,12 +46,15 @@ from cli.core.errors import CliError
 from cli.core.health import ConnectFn
 from cli.core.processes import ProcessManager
 from cli.core.lan_proxy import stop_proxy
+from cli.core.progress import ScrapeView, render_lines
 from cli.core.rest import RestClient, build_rest_client
+from cli.core.sse import EventFollower
 from cli.core.runtime_config import LOCAL, apply_mode, preflight
 from cli.tui.widgets import (
     CommandSuggester,
     Console,
     HintBar,
+    LiveScrape,
     StatusBar,
     format_payload,
     verb_completion,
@@ -132,6 +136,17 @@ class ScrappyConsole(App):
         color: $fg-muted;
     }
 
+    /* -- live scrape view: only shown while following a run ---------- */
+    #live {
+        height: auto;
+        max-height: 14;
+        width: 100%;
+        padding: 0 1;
+        background: $bg-raised;
+        color: $fg;
+        overflow-y: auto;
+    }
+
     /* -- the console: the only thing that grows --------------------- */
     #console {
         height: 1fr;
@@ -198,8 +213,11 @@ class ScrappyConsole(App):
         open_url: Optional[str] = None,
         opener: Callable[[str], object] = webbrowser.open,
         connect: Optional[ConnectFn] = None,
+        follower_factory: Callable[[RestClient], EventFollower] = EventFollower,
     ) -> None:
         super().__init__()
+        self.follower_factory = follower_factory
+        self._follower: Optional[EventFollower] = None
         self.cfg = cfg
         self.rest = rest or build_rest_client(cfg)
         self.processes = processes or ProcessManager()
@@ -215,6 +233,7 @@ class ScrappyConsole(App):
 
     def compose(self) -> ComposeResult:
         yield StatusBar(id="statusbar")
+        yield LiveScrape(id="live")
         yield Console(id="console")
         with Horizontal(id="promptrow"):
             yield Static("❯ ", id="sigil")
@@ -420,7 +439,74 @@ class ScrappyConsole(App):
         self._run_core("stop", _stop)
 
     def _cmd_scrape(self, args: list[str]) -> None:
-        self._run_core("scrape", self.rest.scrape)
+        if "--watch" in args:
+            self._follow_scrape(trigger=True)
+        else:
+            self._run_core("scrape", self.rest.scrape)
+
+    def _cmd_watch(self, args: list[str]) -> None:
+        self._follow_scrape(trigger=False)
+
+    @work(thread=True, exclusive=False, group="watch")
+    def _follow_scrape(self, trigger: bool) -> None:
+        """Follow the running scrape on a worker thread, repainting the live
+        panel as events arrive, and leave a final summary in the console."""
+        self._stop_follower()
+        follower = None
+        view = ScrapeView()
+        try:
+            if trigger:
+                self._ui(self._emit, "out", self.rest.scrape())
+            view.apply("status", self.rest.status())
+            if not view.running:
+                self._ui(self._emit, "info", f"No hay un scrape en curso (estado: {view.status or 'desconocido'}).")
+                return
+            follower = self._follower = self.follower_factory(self.rest)
+            self._ui(self._paint_live, render_lines(view, _utcnow()))
+            for event in follower.events():
+                if event.name == "reconnecting":
+                    notice = [f"reconectando (intento {event.data['attempt']})…"]
+                    self._ui(self._paint_live, render_lines(view, _utcnow()) + notice)
+                    continue
+                view.apply(event.name, event.data)
+                self._ui(self._paint_live, render_lines(view, _utcnow()))
+                if not view.running:
+                    break
+        except CliError as exc:
+            self._ui(self._emit_error, exc)
+        except Exception as exc:  # noqa: BLE001 - a worker must never crash the app
+            self._ui(self._emit, "err", f"watch: {exc}")
+        finally:
+            if follower is not None:
+                follower.close()
+                if self._follower is follower:
+                    self._follower = None
+            self._ui(self._finish_live, view)
+
+    def _ui(self, fn: Callable, *args) -> None:
+        """`call_from_thread`, tolerating an app that already exited."""
+        try:
+            self.call_from_thread(fn, *args)
+        except Exception:  # noqa: BLE001
+            pass
+
+    def _paint_live(self, lines: list[str]) -> None:
+        self.query_one("#live", LiveScrape).show(lines)
+
+    def _finish_live(self, view: ScrapeView) -> None:
+        try:
+            self.query_one("#live", LiveScrape).hide()
+        except Exception:  # noqa: BLE001 - widget may be gone
+            return
+        if view.progreso is not None and not view.running:
+            self._emit("info", f"Scrape terminó: {view.status} — {view.mensaje}".rstrip(" —"))
+            for line in render_lines(view, _utcnow()):
+                self._emit("raw", line)
+
+    def _stop_follower(self) -> None:
+        follower, self._follower = self._follower, None
+        if follower is not None:
+            follower.close()
 
     def _cmd_retrain(self, args: list[str]) -> None:
         self._run_core("retrain", self.rest.entrenar)
@@ -501,8 +587,13 @@ class ScrappyConsole(App):
         """Bound to `ctrl+c` and reached by the `quit` verb — the single
         clean-teardown funnel (spec: native-cli-orchestration, "Clean
         teardown on exit")."""
+        self._stop_follower()
         self.processes.shutdown_all()
         self.exit()
+
+
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 def run(cfg: Config, force_env: bool = False) -> int:
