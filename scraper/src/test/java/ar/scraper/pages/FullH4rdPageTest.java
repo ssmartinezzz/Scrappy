@@ -229,4 +229,17 @@ class FullH4rdPageTest {
         assertThat(FullH4rdPage.esFinDeCatalogo(0, 53, OptionalInt.empty())).isTrue();
         assertThat(FullH4rdPage.esFinDeCatalogo(12, 53, OptionalInt.of(1918))).isFalse();
     }
+
+    @Test
+    @DisplayName("una página de challenge de Cloudflare es un bloqueo, no el fin del catálogo")
+    void challengePageIsABlockNotTheEnd() throws Exception {
+        String challenge = new String(java.util.Objects.requireNonNull(
+                getClass().getResourceAsStream("/fixtures/cloudflare/challenge.html")).readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8);
+
+        assertThat(FullH4rdPage.esBloqueo(challenge)).isTrue();
+        // La clasificación vieja la habría tomado como fin (0 cards, sin total declarado):
+        assertThat(FullH4rdPage.contarCards(challenge)).isZero();
+        assertThat(FullH4rdPage.totalDisponibles(challenge)).isEmpty();
+    }
 }

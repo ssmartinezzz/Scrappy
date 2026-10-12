@@ -45,6 +45,23 @@ services:
       - models:/models
       - logs:/app/logs
 
+  # Resuelve el managed challenge de Cloudflare para los sitios marcados con
+  # sitio.<nombre>.cloudflare=true (hoy fullh4rd). Corre un Chromium propio; el
+  # backend le pide UN clearance por run y lo replica en su contexto de Playwright.
+  # Mismo NAT saliente que el backend, así que el cf_clearance atado a IP se mantiene.
+  flare-solverr:
+    image: ghcr.io/flaresolverr/flaresolverr:latest
+    container_name: flare-solverr
+    restart: unless-stopped
+    environment:
+      LOG_LEVEL: info
+      TZ: America/Argentina/Buenos_Aires
+    # Chromium se cae sin shm suficiente en el default de 64MB.
+    shm_size: 1g
+    ports:
+      - "${BIND_HOST:-127.0.0.1}:8191:8191"
+    mem_limit: 1g
+
   backend:
     build:
       context: .
@@ -55,6 +72,8 @@ services:
         condition: service_healthy
       volume-permissions:
         condition: service_completed_successfully
+      flare-solverr:
+        condition: service_started
     environment:
       DATABASE_URL: ${DATABASE_URL:-jdbc:postgresql://postgres:5432/scraper}
       DATABASE_USERNAME: ${DATABASE_USERNAME:-postgres}
@@ -92,6 +111,10 @@ services:
       SCRAPER_MODELS_ROOT: /models
       HF_HOME: /models/marqo
       LOG_DIR: /app/logs
+      # El jar hornea localhost:8191 en config.properties; dentro de la red de
+      # compose el solver es otro contenedor, así que pisa la property con el
+      # nombre del servicio.
+      SCRAPER_FLARESOLVERR_URL: ${SCRAPER_FLARESOLVERR_URL:-http://flare-solverr:8191}
     # Loopback by default: the API (login, password reset) must not be exposed
     # to the whole LAN unless asked. Set BIND_HOST=0.0.0.0 to serve other devices.
     ports:

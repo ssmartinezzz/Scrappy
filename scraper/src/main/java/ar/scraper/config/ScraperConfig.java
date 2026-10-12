@@ -50,6 +50,22 @@ public class ScraperConfig {
     public int getTimeoutMs()        { return Integer.parseInt(props.getProperty("timeout.ms", "30000")); }
     public boolean isHeadless()      { return Boolean.parseBoolean(props.getProperty("headless", "true")); }
 
+    /** URL del FlareSolverr. {@code SCRAPER_FLARESOLVERR_URL} pisa la property: en Docker el jar
+     *  lleva {@code localhost} horneado y el compose necesita el nombre del servicio. */
+    public String getFlareSolverrUrl() {
+        return getFlareSolverrUrl(System.getenv("SCRAPER_FLARESOLVERR_URL"));
+    }
+
+    String getFlareSolverrUrl(String envOverride) {
+        String env = StringUtils.defaultString(envOverride).trim();
+        return env.isEmpty() ? props.getProperty("scraper.flaresolverr.url", "") : env;
+    }
+
+    public boolean requiereBypassCloudflare(String nombreSitio) {
+        String key = (nombreSitio != null ? nombreSitio : "").toLowerCase();
+        return Boolean.parseBoolean(props.getProperty("sitio." + key + ".cloudflare", "false"));
+    }
+
     public List<SiteConfig> getSitiosActivos() {
         List<SiteConfig> list = new ArrayList<>();
         for (String key : props.stringPropertyNames()) {

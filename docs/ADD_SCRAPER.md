@@ -15,6 +15,8 @@ Antes de codear, determinar la plataforma del sitio:
   otra plataforma?                 de atrás  {inpro}
 ¿SPA con `<div id="root">`      → API JSON propia: buscar `API_URL` en el bundle  {gamerfactory}
   vacío y sin plataforma?
+¿Devuelve 403 con `cf-mitigated`  → Challenge de Cloudflare: ver Caso 9  {fullh4rd}
+  o `<title>Just a moment...`?
 ¿Otro?                          → Necesita Page custom
 ```
 
@@ -397,3 +399,35 @@ Reglas medidas ahí: una respuesta sin `total`/`data`, o con menos filas que `to
 después de la última página, **lanza** (nunca 0 en silencio); y de los dos precios
 que trae, `price.list` es el de tarjeta y `price.special` el de transferencia, que es
 el que se muestra como precio. Sólo `strikethrough > special.ARS` es un descuento.
+
+---
+
+## Caso 9: Sitio detrás de un challenge de Cloudflare
+
+El síntoma no es un 403 común: el dominio entero (incluido `robots.txt`) responde
+`403` con el header `cf-mitigated: challenge` y un HTML con `<title>Just a moment...</title>`,
+`__cf_chl` y `challenge-platform`. Playwright pelado **no alcanza** — el challenge es la
+razón de ser de ese HTML — y el peor error es tratar esa página como "catálogo vacío":
+el run termina en 0 productos y un log verde. Es exactamente la clase de bug que cierra
+`FullH4rdPage` al tirar `CloudflareBlockedException`.
+
+El bypass es FlareSolverr (`ghcr.io/flaresolverr/flaresolverr:latest`), que resuelve el
+challenge con un Chromium propio y devuelve `cf_clearance` + el UA que lo ganó:
+
+1. Sembrá `sitio.<nombre>.cloudflare=true` en `config.properties` para que el sitio quede ruteado
+   por el bypass, y dejá `scraper.flaresolverr.url=http://localhost:8191` (el default ya sirve
+   para la instalación portable).
+2. `BaseScraper.ejecutar` resuelve **un solo** clearance por run (`FlareSolverrClient`) y
+   replica esas cookies + el UA en su propio `BrowserContext`. No se resuelve por página: el
+   clearance dura toda la corrida y volver a pedirlo solo agrega minutos.
+3. La cookie `cf_clearance` está atada a la IP que la ganó. Con `EgressProxy` de loopback y el
+   solver en la misma red, ambos salen por el mismo NAT, y por eso el replay funciona. Si movés
+   el solver a otra red u otro host, el clearance deja de valer aunque las cookies lleguen.
+4. En Docker la URL es `http://flare-solverr:8191` (el servicio ya vive en `docker-compose.yml`);
+   el jar hornea `localhost`, así que pasá `SCRAPER_FLARESOLVERR_URL` — `ScraperConfig` deja que
+   la env gane sobre la property.
+
+Sin solver accesible, `FlareSolverrClient.resolver` devuelve `Optional.empty()` y `BaseScraper`
+corta con `ScrapeResult` en error ("bloqueado por Cloudflare: no se pudo resolver el challenge"),
+nunca un 0 silencioso. Verificá el bypass con una corrida real y compará contra el total que el
+sitio declara (FullH4rd: 1869 de 1890 el 2026-10-12).
