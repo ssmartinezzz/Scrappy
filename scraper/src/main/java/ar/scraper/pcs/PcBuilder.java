@@ -25,12 +25,14 @@ import org.apache.commons.lang3.StringUtils;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -107,6 +109,10 @@ public class PcBuilder {
             insertarCoolerYGpu(slots, gamaPedida, conGpu, preferencias);
         }
 
+        Map<String, List<Product>> poolsDisponibles = new HashMap<>();
+        Function<String, List<Product>> pools = categoria -> poolsDisponibles.computeIfAbsent(categoria,
+                c -> poolDisponible(porCategoria, c, excluir));
+
         List<PcPick> picks = new ArrayList<>();
         List<String> sinStock = new ArrayList<>();
         List<String> sinCompatible = new ArrayList<>();
@@ -132,10 +138,10 @@ public class PcBuilder {
         Map<String, Product> cpuObjetivo = Map.of();
         if (iCpu >= 0) {
             Map<String, Double> techos = presupuesto > 0
-                    ? techoCpuPorSocket(porCategoria, excluir, slots, cuotas, presupuesto, contexto)
+                    ? techoCpuPorSocket(pools, slots, cuotas, presupuesto, contexto)
                     : Map.of();
             double techoSinMother = presupuesto > 0 ? cuotas.cuota("cpu", presupuesto) : Double.MAX_VALUE;
-            cpuObjetivo = cpuObjetivoPorSocket(porCategoria, excluir, slots.get(iCpu), techos, techoSinMother,
+            cpuObjetivo = cpuObjetivoPorSocket(pools, slots.get(iCpu), techos, techoSinMother,
                     contexto);
             Map<String, TechSpecs> mejorCpu = new LinkedHashMap<>();
             for (Map.Entry<String, Product> e : cpuObjetivo.entrySet()) {
@@ -146,7 +152,7 @@ public class PcBuilder {
         final Map<String, Product> cpuObjetivoFinal = cpuObjetivo;
 
         for (SlotDeArmado slot : slots) {
-            List<Product> pool = poolDisponible(porCategoria, slot.categoria(), excluir);
+            List<Product> pool = pools.apply(slot.categoria());
             // A diferencia de `excluir` (soft: cae si vacía el pool), esto es DURO: el mismo
             // producto físico no puede ser dos picks del mismo armado.
             if (!picks.isEmpty()) {
@@ -253,14 +259,14 @@ public class PcBuilder {
      * The cpu slot gets its cuota plus whatever the mother leaves, so a socket's ceiling counts the
      * cheapest eligible board on it. Mother is always the first slot, so nothing else carries over.
      */
-    private static Map<String, Double> techoCpuPorSocket(Map<String, List<Product>> porCategoria,
-            Set<String> excluir, List<SlotDeArmado> slots, CuotasDePresupuesto cuotas, double presupuesto,
+    private static Map<String, Double> techoCpuPorSocket(Function<String, List<Product>> pools,
+            List<SlotDeArmado> slots, CuotasDePresupuesto cuotas, double presupuesto,
             ContextoDeArmado contexto) {
         int iMother = indiceDeSiExiste(slots, "mother");
         if (iMother < 0) return Map.of();
         SlotDeArmado slotMother = slots.get(iMother);
         Map<String, Double> motherMasBarata = new LinkedHashMap<>();
-        for (Product p : poolDisponible(porCategoria, slotMother.categoria(), excluir)) {
+        for (Product p : pools.apply(slotMother.categoria())) {
             TechSpecs specs = contexto.specsDe(p);
             if (specs.socket().isEmpty()) continue;
             if (slotMother.reglas().stream().anyMatch(regla -> !regla.permite(specs, contexto))) continue;
@@ -278,14 +284,14 @@ public class PcBuilder {
      * Runs before any mother is picked, so {@link ReglaSocket} abstains and the cpu slot's own rules
      * decide eligibility. Ranked like the cpu slot ranks with a budget: axes, then cheaper.
      */
-    private static Map<String, Product> cpuObjetivoPorSocket(Map<String, List<Product>> porCategoria,
-            Set<String> excluir, SlotDeArmado slotCpu, Map<String, Double> techos, double techoSinMother,
+    private static Map<String, Product> cpuObjetivoPorSocket(Function<String, List<Product>> pools,
+            SlotDeArmado slotCpu, Map<String, Double> techos, double techoSinMother,
             ContextoDeArmado contexto) {
         Comparator<Product> mejor = Comparator.comparing(contexto::specsDe, EjesTecnicos.CPU)
                 .thenComparingDouble(Product::precio)
                 .thenComparing(p -> StringUtils.defaultString(p.url()));
         Map<String, Product> objetivo = new LinkedHashMap<>();
-        for (Product p : poolDisponible(porCategoria, slotCpu.categoria(), excluir)) {
+        for (Product p : pools.apply(slotCpu.categoria())) {
             TechSpecs specs = contexto.specsDe(p);
             if (specs.socket().isEmpty()) continue;
             if (p.precio() > techos.getOrDefault(specs.socket(), techoSinMother)) continue;
