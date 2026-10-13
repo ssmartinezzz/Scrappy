@@ -29,7 +29,7 @@
 | armytech | PrestaShop (`PrestashopPage`) | tecnologia | Hardware/PC. `/2-productos` es la categoría raíz: pedida con `Accept: application/json` + `X-Requested-With: XMLHttpRequest` devuelve el JSON de listado de PrestaShop 1.7 (`products[]` + `pagination.pages_count`, 48 por página). **546 productos** en una corrida real (2026-10-08): 549 `total_items` menos 3 filas "Marca - X" con precio 0, que se descartan explícitamente porque `precio.minimo` es 0. 529/546 con foto: el resto trae `cover: false`, no `null`. Listado vacío → `PrestashopPayloadException` |
 | gamerfactory | `GamerFactoryPage` | tecnologia | Hardware/PC y periféricos (SPA React propia, sin plataforma conocida detrás). El catálogo sale de la API pública `core.gamerfactory.com.ar/products/search`: **una sola petición** con `perPage=1000` devuelve los 828 productos (`{total, data[]}`); la page pagina sólo si llegan menos que `total` y **lanza** si al final faltan. `precio` = `price.special.ARS` (el precio de transferencia, ~12 % bajo `price.list.ARS`, que es el de tarjeta en 1 pago); `precioOriginal` sólo si `special.strikethrough > special.ARS` (171 de 828 en la captura 2026-10-10) — lista vs. especial es un medio de pago, no un descuento. URL `/producto/<slug>`, foto `images[0].url`, marca de `brand`. No filtra por `type`: clasifica `CategoryClassifier`. Payload vacío o malformado → `GamerFactoryPayloadException`, nunca 0 en silencio |
 | mrplacadeco, vayzenhome | Tiendanube | construccion | Revestimientos autoadhesivos (placas, vinilos, pisos, plantas artificiales). ~23 y ~42 productos (2026-10-13). Sólo fila de seed (`V45`) |
-| ambiancedeco | Tiendanube | hogar | Se scrapea entero: ~108 productos, ~90 textiles de hogar y ~17 revestimientos. El rubro forzado es `hogar`, pero `RubroResolver` manda cada revestimiento a `construccion` por su categoría (`V45`) |
+| ambiancedeco | Tiendanube (page propia, `AmbiancedecoPage`) | hogar | Se scrapea entero: ~108 productos, ~90 textiles de hogar y ~17 revestimientos. El rubro forzado es `hogar`, pero `RubroResolver` manda cada revestimiento a `construccion` por su categoría (`V45`). La page propia existe porque en `?page=2` el primer `a[href*='page=']` es el link de la página actual y el genérico navegaba a p3 como p2 (perdía 8 productos); sobreescribe `nextPageUrl` (`V46`) |
 | vans | — | — | Comentado: plataforma Grimoldi custom, sin scraper |
 
 ### Detección de plataforma (`ScraperFactory.crear`, en orden)
@@ -51,6 +51,7 @@ MONKYFORCE → monkyforce
 MORASHOP → morashop
 PRESTASHOP → armytech
 GAMERFACTORY → gamerfactory
+AMBIANCEDECO → ambiancedeco
 default → TiendanubePage (JS heurístico)
 ```
 

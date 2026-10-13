@@ -3222,3 +3222,32 @@ fila de `sitio` y angostar `sitio_rubro_forzado_check` choca contra ella, así
 que el bloque falla entero en vez de perder datos. El `UPDATE ... SET rubro =
 NULL` cubre el producto de **otro** sitio reclasificado a mano a uno de los dos
 rubros nuevos.
+
+---
+
+## `V46` — plataforma `ambiancedeco`
+
+Ambiancedeco sigue siendo Tiendanube, pero necesita page propia
+(`AmbiancedecoPage`): el paginador del tema pone el link de la página actual
+antes que el de la siguiente y el extractor genérico lo seguía. El dominio de
+`sitio_plataforma_check` pasa de 15 a 16 valores re-listando el **completo** de
+`V44` más `ambiancedeco`, y la fila sembrada por `V45` pasa de `tiendanube` a
+`ambiancedeco`.
+
+### Rollback
+
+```sql
+-- >>> rollback:V46
+UPDATE sitio SET plataforma = 'tiendanube' WHERE sitio_key = 'ambiancedeco';
+ALTER TABLE sitio DROP CONSTRAINT sitio_plataforma_check;
+ALTER TABLE sitio ADD CONSTRAINT sitio_plataforma_check
+    CHECK (plataforma IN ('tiendanube','shopify','vtex','vaypol','woocommerce',
+                          'monkyforce','maximus','fullh4rd','compragamer',
+                          'qloud','oscommerce','inpro','morashop','prestashop',
+                          'gamerfactory'));
+-- <<< rollback:V46
+```
+
+Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el
+de `V45`. Sin devolver antes la fila a `tiendanube`, el `CHECK` de 15 valores
+la rechaza.
