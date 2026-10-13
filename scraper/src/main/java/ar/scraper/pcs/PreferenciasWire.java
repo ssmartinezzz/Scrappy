@@ -20,11 +20,19 @@ public final class PreferenciasWire {
     public static PreferenciasDeArmado parse(String ddrWire, String marcaCpuWire, String marcaGpuWire,
             String tipoAlmacenamientoWire, Boolean ramDual, Boolean wifi,
             Integer capacidadMinimaGb, String tamanioGabineteWire, String tipoCoolerWire, Integer wattsMinimos) {
+        return parse(ddrWire, marcaCpuWire, marcaGpuWire, tipoAlmacenamientoWire, ramDual, wifi,
+                capacidadMinimaGb, tamanioGabineteWire, tipoCoolerWire, wattsMinimos, null);
+    }
+
+    public static PreferenciasDeArmado parse(String ddrWire, String marcaCpuWire, String marcaGpuWire,
+            String tipoAlmacenamientoWire, Boolean ramDual, Boolean wifi,
+            Integer capacidadMinimaGb, String tamanioGabineteWire, String tipoCoolerWire, Integer wattsMinimos,
+            Integer ramMinimaGb) {
         return new PreferenciasDeArmado(
                 parseDdr(ddrWire), parseMarcaCpu(marcaCpuWire), parseMarcaGpu(marcaGpuWire),
                 parseTipoAlmacenamiento(tipoAlmacenamientoWire), ramDual, wifi,
                 capacidadMinimaGb, parseTamanioGabinete(tamanioGabineteWire),
-                parseTipoCooler(tipoCoolerWire), wattsMinimos);
+                parseTipoCooler(tipoCoolerWire), wattsMinimos, ramMinimaGb);
     }
 
     public static TamanioGabinete parseTamanioGabinete(String wire) {

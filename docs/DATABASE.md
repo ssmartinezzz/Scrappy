@@ -128,6 +128,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V40` | `catalog_version` (una fila) + triggers: versión del catálogo para cachear facetas |
 | `V41` | `notify_status_change()` + triggers `pg_notify` sobre `scrape_run`, `scrape_run_site` y `cron_executions` |
 | `V42` | `productos.nombre` y `productos.sitio` no pueden ser vacíos ni sólo espacios (CHECK) |
+| `V47` | `preferencia_armador.ram_minima_gb`: piso de GB de RAM pedido por el armador de PCs |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 
@@ -3251,3 +3252,29 @@ ALTER TABLE sitio ADD CONSTRAINT sitio_plataforma_check
 Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el
 de `V45`. Sin devolver antes la fila a `tiendanube`, el `CHECK` de 15 valores
 la rechaza.
+
+---
+
+## `V47` — `preferencia_armador.ram_minima_gb`
+
+Suma el piso de RAM del armador de PCs ("al menos N GB", sobre el total del kit:
+`2x16GB` es 32). **Nullable = "no pedida"**, y lleva su propio `CHECK (ram_minima_gb
+IS NULL OR ram_minima_gb > 0)`: `PreferenciasDeArmado` rechaza un piso de `0` a
+propósito, y la base no puede contradecirla (mismo criterio que
+`capacidad_minima_gb` en `V37`). Es del PEDIDO, no del producto: no toca
+`producto_tech_specs`. Una columna que depende de la clave completa de su tabla,
+así que no cambia nada para 1FN/3FN.
+
+### Rollback
+
+```sql
+-- >>> rollback:V47
+ALTER TABLE preferencia_armador
+    DROP CONSTRAINT chk_preferencia_armador_ram_minima_positiva,
+    DROP COLUMN ram_minima_gb;
+-- <<< rollback:V47
+```
+
+Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO. No depende de
+ningún otro objeto y ningún otro depende de él, así que ningún rollback anterior
+necesita saber de esta columna.

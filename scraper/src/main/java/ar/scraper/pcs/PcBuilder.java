@@ -12,6 +12,7 @@ import ar.scraper.pcs.reglas.ReglaGama;
 import ar.scraper.pcs.reglas.ReglaMarcaChip;
 import ar.scraper.pcs.reglas.ReglaPlataformaConCpu;
 import ar.scraper.pcs.reglas.ReglaRamDual;
+import ar.scraper.pcs.reglas.ReglaRamMinimaGb;
 import ar.scraper.pcs.reglas.ReglaSocket;
 import ar.scraper.pcs.reglas.ReglaSocketCooler;
 import ar.scraper.pcs.reglas.ReglaSodimm;
@@ -354,7 +355,7 @@ public class PcBuilder {
     private static SlotDeArmado slotRam(PreferenciasDeArmado prefs, Comparator<TechSpecs> ejes) {
         return new SlotDeArmado("ram", "RAM",
                 List.of(new ReglaDdr(), new ReglaSodimm(), new ReglaDdrPedidaRam(prefs.ddr()),
-                        new ReglaRamDual(prefs.ramDual())),
+                        new ReglaRamDual(prefs.ramDual()), new ReglaRamMinimaGb(prefs.ramMinimaGb())),
                 new CriterioPorEjesTecnicos(ejes));
     }
 

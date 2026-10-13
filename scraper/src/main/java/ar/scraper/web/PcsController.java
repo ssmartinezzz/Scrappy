@@ -66,6 +66,15 @@ public class PcsController {
                 ramDual, wifi, capacidadMinimaGb, tamanioGabinete, tipoCooler, wattsMinimos, "");
     }
 
+    ResponseEntity<ApiResponse<ObjectNode>> builder(double presupuesto, boolean conGpu, String excluir, String gama,
+            String ddr, String marcaCpu, String marcaGpu, String tipoAlmacenamiento,
+            Boolean ramDual, Boolean wifi,
+            Integer capacidadMinimaGb, String tamanioGabinete, String tipoCooler, Integer wattsMinimos,
+            String uso) {
+        return builder(presupuesto, conGpu, excluir, gama, ddr, marcaCpu, marcaGpu, tipoAlmacenamiento,
+                ramDual, wifi, capacidadMinimaGb, tamanioGabinete, tipoCooler, wattsMinimos, uso, null);
+    }
+
     @GetMapping("/pcs/builder")
     public ResponseEntity<ApiResponse<ObjectNode>> builder(@RequestParam(defaultValue = "0") double presupuesto,
             @RequestParam(defaultValue = "false") boolean conGpu,
@@ -81,14 +90,15 @@ public class PcsController {
             @RequestParam(defaultValue = "") String tamanioGabinete,
             @RequestParam(defaultValue = "") String tipoCooler,
             @RequestParam(required = false) Integer wattsMinimos,
-            @RequestParam(defaultValue = "") String uso) {
+            @RequestParam(defaultValue = "") String uso,
+            @RequestParam(required = false) Integer ramMinimaGb) {
         Gama gamaPedida;
         PreferenciasDeArmado prefs;
         Uso usoPedido;
         try {
             gamaPedida = GamaWire.parse(gama);
             prefs = PreferenciasWire.parse(ddr, marcaCpu, marcaGpu, tipoAlmacenamiento, ramDual, wifi,
-                    capacidadMinimaGb, tamanioGabinete, tipoCooler, wattsMinimos);
+                    capacidadMinimaGb, tamanioGabinete, tipoCooler, wattsMinimos, ramMinimaGb);
             usoPedido = UsoWire.parse(uso);
         } catch (IllegalArgumentException e) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "solicitud_invalida", e.getMessage());
@@ -122,7 +132,8 @@ public class PcsController {
                     stringDe(body, "ddr"), stringDe(body, "marcaCpu"), stringDe(body, "marcaGpu"),
                     stringDe(body, "tipoAlmacenamiento"), booleanDe(body, "ramDual"), booleanDe(body, "wifi"),
                     enteroDe(body, "capacidadMinimaGb"), stringDe(body, "tamanioGabinete"),
-                    stringDe(body, "tipoCooler"), enteroDe(body, "wattsMinimos"));
+                    stringDe(body, "tipoCooler"), enteroDe(body, "wattsMinimos"),
+                    enteroDe(body, "ramMinimaGb"));
             uso = UsoWire.parse(stringDe(body, "uso"));
         } catch (IllegalArgumentException e) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "solicitud_invalida", e.getMessage());
@@ -174,7 +185,7 @@ public class PcsController {
                 prefs.capacidadMinimaGb(),
                 PreferenciasWire.wireTamanioGabinete(prefs.tamanioGabinete()),
                 PreferenciasWire.wireTipoCooler(prefs.tipoCooler()),
-                prefs.wattsMinimos(), UsoWire.wire(p.uso()));
+                prefs.wattsMinimos(), UsoWire.wire(p.uso()), prefs.ramMinimaGb());
     }
 
     @PostMapping("/pcs/save")

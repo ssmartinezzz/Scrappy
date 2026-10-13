@@ -216,4 +216,20 @@ class PreferenciaArmadorRepositoryTest extends PostgresTestBase {
             }
         }
     }
+
+    @Test
+    void ramMinimaGbRoundTripeaYUnSegundoGuardarLaSobreescribe() {
+        UUID usuario = UsuarioDePrueba.yo(dataSource());
+        PreferenciasDeArmado con32 = new PreferenciasDeArmado(
+                null, null, null, null, null, null, null, null, null, null, 32);
+        repository.guardar(usuario, new PreferenciaArmador(Gama.ALTA, null, false, con32));
+
+        assertThat(repository.cargar(usuario)).isPresent()
+                .get().satisfies(p -> assertThat(p.preferencias()).isEqualTo(con32));
+
+        repository.guardar(usuario, new PreferenciaArmador(Gama.ALTA, null, false, PreferenciasDeArmado.NINGUNA));
+
+        assertThat(repository.cargar(usuario)).isPresent()
+                .get().satisfies(p -> assertThat(p.preferencias().ramMinimaGb()).isNull());
+    }
 }

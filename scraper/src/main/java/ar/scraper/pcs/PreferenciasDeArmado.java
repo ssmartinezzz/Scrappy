@@ -15,10 +15,11 @@ public record PreferenciasDeArmado(
         Integer capacidadMinimaGb,
         TamanioGabinete tamanioGabinete,    // MINI | MID | FULL | null — nunca DESCONOCIDO
         TipoCooler tipoCooler,              // LIQUIDO | AIRE | null — nunca DESCONOCIDO
-        Integer wattsMinimos
+        Integer wattsMinimos,
+        Integer ramMinimaGb                 // piso del kit de RAM, en GB
 ) {
     public static final PreferenciasDeArmado NINGUNA =
-            new PreferenciasDeArmado(null, null, null, null, null, null, null, null, null, null);
+            new PreferenciasDeArmado(null, null, null, null, null, null, null, null, null, null, null);
 
     public PreferenciasDeArmado {
         if (ddr != null && !ddr.equals("DDR4") && !ddr.equals("DDR5")) {
@@ -50,11 +51,22 @@ public record PreferenciasDeArmado(
         if (wattsMinimos != null && wattsMinimos <= 0) {
             throw new IllegalArgumentException("wattsMinimos tiene que ser > 0: " + wattsMinimos);
         }
+        if (ramMinimaGb != null && ramMinimaGb <= 0) {
+            throw new IllegalArgumentException("ramMinimaGb tiene que ser > 0: " + ramMinimaGb);
+        }
+    }
+
+    public PreferenciasDeArmado(String ddr, String marcaCpu, String marcaGpu,
+            TipoAlmacenamiento tipoAlmacenamiento, Boolean ramDual, Boolean wifi,
+            Integer capacidadMinimaGb, TamanioGabinete tamanioGabinete, TipoCooler tipoCooler,
+            Integer wattsMinimos) {
+        this(ddr, marcaCpu, marcaGpu, tipoAlmacenamiento, ramDual, wifi, capacidadMinimaGb, tamanioGabinete,
+                tipoCooler, wattsMinimos, null);
     }
 
     /** The four new fields default to "not requested", same as {@link #NINGUNA}. */
     public PreferenciasDeArmado(String ddr, String marcaCpu, String marcaGpu,
             TipoAlmacenamiento tipoAlmacenamiento, Boolean ramDual, Boolean wifi) {
-        this(ddr, marcaCpu, marcaGpu, tipoAlmacenamiento, ramDual, wifi, null, null, null, null);
+        this(ddr, marcaCpu, marcaGpu, tipoAlmacenamiento, ramDual, wifi, null, null, null, null, null);
     }
 }
