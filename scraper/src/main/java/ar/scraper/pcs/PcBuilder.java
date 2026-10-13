@@ -207,22 +207,26 @@ public class PcBuilder {
 
         double totalEstimado = picks.stream().mapToDouble(PcPick::precio).sum();
         return new PcBuild(picks, sinStock, sinCompatible, presupuesto, totalEstimado, mensajes,
-                referencias(picks, porCategoria, contexto, usoResuelto));
+                referencias(picks, excluir.isEmpty() ? pools : c -> poolDisponible(porCategoria, c, Set.of()),
+                        contexto, usoResuelto));
     }
 
-    /** Sólo CPU y GPU, y sólo si el armado las eligió; mismo pool que `armar` pero sin el `excluir` suave. */
+    /**
+     * Sólo CPU y GPU, y sólo si el armado las eligió. {@code catalogo} es el pool de `armar` sin el
+     * `excluir` suave: sin exclusiones es el mismo pool ya filtrado, y no se vuelve a pasar el regex de combos.
+     */
     private static Map<String, ReferenciaDeRendimiento> referencias(List<PcPick> picks,
-            Map<String, List<Product>> porCategoria, ContextoDeArmado contexto, Uso uso) {
+            Function<String, List<Product>> catalogo, ContextoDeArmado contexto, Uso uso) {
         Map<String, ReferenciaDeRendimiento> referencias = new LinkedHashMap<>();
         for (PcPick pick : picks) {
             boolean cpu = "cpu".equals(pick.slot());
             if (!cpu && !"gpu".equals(pick.slot())) continue;
             boolean gaming = cpu && uso == Uso.GAMING;
             ToIntFunction<TechSpecs> puntaje = gaming ? TechSpecs::rendimientoGaming : TechSpecs::rendimiento;
-            List<TechSpecs> catalogo = poolDisponible(porCategoria, cpu ? "CPU" : "GPU", Set.of()).stream()
+            List<TechSpecs> specs = catalogo.apply(cpu ? "CPU" : "GPU").stream()
                     .map(contexto::specsDe).collect(Collectors.toList());
             referencias.put(pick.slot(), ReferenciaDeRendimiento.de(
-                    cpu ? (gaming ? "gaming" : "blender") : "gpu", pick.specs(), catalogo, puntaje));
+                    cpu ? (gaming ? "gaming" : "blender") : "gpu", pick.specs(), specs, puntaje));
         }
         return referencias;
     }
