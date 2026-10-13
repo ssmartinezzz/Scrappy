@@ -3167,6 +3167,87 @@ ALTER TABLE sitio ADD CONSTRAINT sitio_plataforma_check
 -- <<< rollback:V44
 ```
 
-Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el
-de `V43`. Sin sacar antes la fila de Gamer Factory, el `CHECK` de `V43` y los
+En una cadena de rollbacks corre después del de `V45` y antes que el de `V43`. Sin sacar antes la fila de Gamer Factory, el `CHECK` de `V43` y los
 anteriores rechazan `plataforma='gamerfactory'`.
+
+---
+
+## `V45` — rubros `construccion` y `hogar`, tres sitios de revestimientos
+
+Revestimientos autoadhesivos (placas, vinilos, pisos, césped, adhesivos) y
+textiles de decoración (almohadones, fundas, mantas, manteles, alfombras) no son
+de ninguno de los cuatro rubros. `chk_productos_rubro_domain` pasa de 4 a 6
+valores y `sitio_rubro_forzado_check` de 3 a 5, re-listando el dominio
+**completo** (sin eso se pierde el `oficina` de `V27`). Entran 13 filas a
+`categoria` y 3 a `sitio`, las tres `tiendanube` clásico:
+
+| Sitio | `rubro_forzado` |
+|---|---|
+| `mrplacadeco`, `vayzenhome` | `construccion` |
+| `ambiancedeco` | `hogar` (su catálogo mezcla ~17 revestimientos y ~90 textiles; la categoría decide el rubro de cada uno) |
+
+### Rollback
+
+```sql
+-- >>> rollback:V45
+DELETE FROM sitio s WHERE s.sitio_key IN ('mrplacadeco','vayzenhome','ambiancedeco')
+  AND NOT EXISTS (SELECT 1 FROM productos p WHERE p.sitio_key = s.sitio_key);
+UPDATE productos SET rubro = NULL WHERE rubro IN ('construccion','hogar');
+UPDATE productos SET categoria = NULL WHERE categoria IN
+    ('Placa Decorativa','Vinilo Decorativo','Piso','Césped Sintético','Adhesivo',
+     'Moldura','Planta Artificial','Almohadón','Funda','Manta','Mantel','Alfombra',
+     'Respaldo');
+DELETE FROM categoria_stats WHERE categoria IN
+    ('Placa Decorativa','Vinilo Decorativo','Piso','Césped Sintético','Adhesivo',
+     'Moldura','Planta Artificial','Almohadón','Funda','Manta','Mantel','Alfombra',
+     'Respaldo');
+DELETE FROM categoria WHERE nombre IN
+    ('Placa Decorativa','Vinilo Decorativo','Piso','Césped Sintético','Adhesivo',
+     'Moldura','Planta Artificial','Almohadón','Funda','Manta','Mantel','Alfombra',
+     'Respaldo');
+ALTER TABLE sitio DROP CONSTRAINT sitio_rubro_forzado_check;
+ALTER TABLE sitio ADD CONSTRAINT sitio_rubro_forzado_check
+    CHECK (rubro_forzado IN ('tecnologia','suplementos','oficina'));
+ALTER TABLE productos DROP CONSTRAINT chk_productos_rubro_domain;
+ALTER TABLE productos
+    ADD CONSTRAINT chk_productos_rubro_domain
+        CHECK (rubro IS NULL OR rubro IN ('indumentaria', 'tecnologia', 'suplementos', 'oficina'));
+-- <<< rollback:V45
+```
+
+Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el
+de `V44`. **Sólo aplica antes del primer scrape** (probado en
+`V45RollbackRoundTripTest`): con productos vivos el `NOT EXISTS` conserva la
+fila de `sitio` y angostar `sitio_rubro_forzado_check` choca contra ella, así
+que el bloque falla entero en vez de perder datos. El `UPDATE ... SET rubro =
+NULL` cubre el producto de **otro** sitio reclasificado a mano a uno de los dos
+rubros nuevos.
+
+---
+
+## `V46` — plataforma `ambiancedeco`
+
+Ambiancedeco sigue siendo Tiendanube, pero necesita page propia
+(`AmbiancedecoPage`): el paginador del tema pone el link de la página actual
+antes que el de la siguiente y el extractor genérico lo seguía. El dominio de
+`sitio_plataforma_check` pasa de 15 a 16 valores re-listando el **completo** de
+`V44` más `ambiancedeco`, y la fila sembrada por `V45` pasa de `tiendanube` a
+`ambiancedeco`.
+
+### Rollback
+
+```sql
+-- >>> rollback:V46
+UPDATE sitio SET plataforma = 'tiendanube' WHERE sitio_key = 'ambiancedeco';
+ALTER TABLE sitio DROP CONSTRAINT sitio_plataforma_check;
+ALTER TABLE sitio ADD CONSTRAINT sitio_plataforma_check
+    CHECK (plataforma IN ('tiendanube','shopify','vtex','vaypol','woocommerce',
+                          'monkyforce','maximus','fullh4rd','compragamer',
+                          'qloud','oscommerce','inpro','morashop','prestashop',
+                          'gamerfactory'));
+-- <<< rollback:V46
+```
+
+Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el
+de `V45`. Sin devolver antes la fila a `tiendanube`, el `CHECK` de 15 valores
+la rechaza.

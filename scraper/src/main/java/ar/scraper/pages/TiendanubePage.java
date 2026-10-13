@@ -516,7 +516,7 @@ public class TiendanubePage extends StorePage implements CatalogPage {
         return (maxN > currentPage && maxN < 1000) ? OptionalInt.of(maxN + 1) : OptionalInt.empty();
     }
 
-    private String nextPageUrl(String paginBase, int currentPage) {
+    protected String nextPageUrl(String paginBase, int currentPage) {
         try {
             String headNext = (String) page.evaluate(
                 "var l=document.querySelector('link[rel=next]');l?l.getAttribute('href'):null");

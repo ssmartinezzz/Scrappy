@@ -82,6 +82,7 @@ class V27RollbackRoundTripTest extends PostgresTestBase {
                 // ese valor— es RECHAZADO por Postgres, que valida las filas
                 // existentes al re-agregar el CHECK. Los rollbacks componen al
                 // revés: de más nuevo a más viejo.
+                st.execute(DocumentedRollback.sqlFor("V45"));
                 st.execute(DocumentedRollback.sqlFor("V44"));
                 st.execute(DocumentedRollback.sqlFor("V43"));
                 st.execute(DocumentedRollback.sqlFor("V30"));
@@ -122,6 +123,7 @@ class V27RollbackRoundTripTest extends PostgresTestBase {
         try (Connection c = dataSource().getConnection()) {
             c.setAutoCommit(false);
             try (Statement st = c.createStatement()) {
+                st.execute(DocumentedRollback.sqlFor("V45"));
                 // sitio_key es GENERATED ALWAYS (V23) — se deriva de `sitio`,
                 // no se inserta. 'Inpro' -> 'inpro', que es la fila que V27 sembró.
                 st.executeUpdate("""

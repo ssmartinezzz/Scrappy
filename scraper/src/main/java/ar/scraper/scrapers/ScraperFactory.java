@@ -4,6 +4,7 @@ import ar.scraper.classification.SiteClassification;
 import ar.scraper.classification.SiteRegistry;
 import ar.scraper.config.ScraperConfig;
 import ar.scraper.config.ScraperConfig.SiteConfig;
+import ar.scraper.pages.AmbiancedecoPage;
 import ar.scraper.pages.CatalogPage;
 import ar.scraper.pages.FullH4rdPage;
 import ar.scraper.pages.GamerFactoryPage;
@@ -65,6 +66,7 @@ public class ScraperFactory {
             entry("shopify",     simple(ShopifyPage::new)),
             entry("monkyforce",  paginated(MonkyforcePage::new)),
             entry("morashop",    paginated(MorashopPage::new)),
+            entry("ambiancedeco", paginated(AmbiancedecoPage::new)),
             entry(TIENDANUBE,    paginated(TiendanubePage::new)));
 
     /** Platforms whose registry value wins over a VTEX or Shopify URL; the rest yield to the URL. */

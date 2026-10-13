@@ -15,16 +15,26 @@ public class RubroResolver {
     public String resolver(String sitioKey, String cat, String rubroExistente) {
         boolean catEsTextil = CategoryGroups.esIndumentariaOCalzado(cat);
         boolean catEsSuppl  = CategoryGroups.esCategoriaSuplemento(cat);
+        boolean catEsConstr = CategoryGroups.esCategoriaConstruccion(cat);
+        boolean catEsHogar  = CategoryGroups.esCategoriaHogar(cat);
         String rubroForzado = siteRegistry.rubroForzado(sitioKey);
 
         if ("tecnologia".equals(rubroForzado) && !catEsTextil) {
             return "tecnologia";
         } else if ("oficina".equals(rubroForzado) && !catEsTextil && !catEsSuppl) {
             return "oficina";
+        } else if (catEsConstr) {
+            return "construccion";
+        } else if (catEsHogar) {
+            return "hogar";
         } else if (catEsSuppl) {
             return "suplementos";
         } else if ("suplementos".equals(rubroForzado) && !catEsTextil) {
             return "suplementos";
+        } else if ("construccion".equals(rubroForzado) && !catEsTextil) {
+            return "construccion";
+        } else if ("hogar".equals(rubroForzado) && !catEsTextil) {
+            return "hogar";
         } else if (catEsTextil) {
             return "indumentaria";
         } else if (StringUtils.isNotBlank(rubroExistente)) {

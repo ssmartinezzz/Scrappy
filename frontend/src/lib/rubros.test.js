@@ -8,8 +8,8 @@ import { RUBROS, RUBRO_KEYS, rubroLabel } from './rubros';
 // aparecen. Este test existe para que la lista tenga un solo dueño.
 
 describe('RUBROS', () => {
-  it('incluye el rubro vacío como "todos" y los cuatro rubros reales', () => {
-    expect(RUBRO_KEYS).toEqual(['', 'indumentaria', 'tecnologia', 'suplementos', 'oficina']);
+  it('incluye el rubro vacío como "todos" y los rubros reales', () => {
+    expect(RUBRO_KEYS).toEqual(['', 'indumentaria', 'tecnologia', 'suplementos', 'oficina', 'construccion', 'hogar']);
   });
 
   it('el primero es el neutro: sin clave, para no filtrar nada', () => {
@@ -29,7 +29,7 @@ describe('RUBROS', () => {
     // frontend manda otra cosa a /api/data?rubro=, filtra por un valor que
     // ninguna fila tiene y la vista sale vacía.
     const conValor = RUBRO_KEYS.filter(Boolean);
-    expect(conValor).toEqual(['indumentaria', 'tecnologia', 'suplementos', 'oficina']);
+    expect(conValor).toEqual(['indumentaria', 'tecnologia', 'suplementos', 'oficina', 'construccion', 'hogar']);
   });
 
   it('rubroLabel devuelve la etiqueta, y la clave cruda si no la conoce', () => {

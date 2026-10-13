@@ -430,6 +430,61 @@ public final class GarmentTaxonomy {
         "stand para laptop","laptop stand"
     };
 
+    public static final String[] KW_PLANTA_ARTIFICIAL = {
+        " jardin vertical"," planta artificial"," plantas artificiales"
+    };
+    public static final String[] KW_PLANTA_ARTIFICIAL_LIDER = {
+        " ave de paraiso "," bambu "," olivo "," palmera "
+    };
+    public static final String[] KW_CESPED_LIDER = {
+        " cesped sintetico "," cesped artificial "
+    };
+    public static final String[] KW_ADHESIVO_LIDER = {
+        " adhesivo polimero"," adhesivo sellador"," adhesivo hibrido"," adhesivo de montaje",
+        " cartucho adhesivo"," sellador "
+    };
+    public static final String[] KW_MOLDURA_LIDER = {
+        " moldura "," cinta/moldura "
+    };
+    public static final String[] KW_PISO = {
+        " piso autoadhesivo"," piso pvc"," piso vinilico"," pisos vinilicos"
+    };
+    public static final String[] KW_PLACA_DECORATIVA = {
+        " placa decorativa"," placas decorativas"," wall panel"," paneles acusticos",
+        " panel acustico"," panel marmol"," azulejo"," mosaico autoadhesivo"," mosaico sticker",
+        " piedra de pvc"," rollo piedra"," rollo de piedra"
+    };
+    public static final String[] KW_PLACA = { " placa "," placas " };
+    public static final String[] KW_PLACA_CALIFICADOR = {
+        " marmol"," autoadhesiv"," espejo"," simil "," piedra"
+    };
+    public static final String[] KW_PLACA_VETO = {
+        " de video"," de red"," madre"," solar"," wifi"," de sonido"," capturadora"
+    };
+    public static final String[] KW_VINILO_DECORATIVO = {
+        " vinilo "," vinilos "," papel marmol"," papel texturado"," rollo marmol",
+        " rollo autoadhesivo"," rollo lino"," rollo esmerilado"," rollo velvet"," texturado simil "
+    };
+
+    public static final String[] KW_FUNDA_LIDER = { " funda "," fundas " };
+    public static final String[] KW_FUNDA_CONTEXTO = {
+        " almohadon"," silla"," sillon"," respaldo"," sofa"," cama"," cuerpos"," pana "," tusor "
+    };
+    public static final String[] KW_RESPALDO_LIDER = { " respaldo " };
+    public static final String[] KW_RESPALDO_CONTEXTO = { " cama "," modular "," cabecera " };
+    public static final String[] KW_ALMOHADON_LIDER = { " almohadon "," almohadones "," pillow " };
+    public static final String[] KW_MANTA_LIDER = { " manta "," mantas " };
+    public static final String[] KW_MANTEL_LIDER = {
+        " mantel "," manteles "," servilleta "," servilletas "
+    };
+    public static final String[] KW_ALFOMBRA_LIDER = {
+        " alfombra "," alfombras "," protector bajo escritorio "
+    };
+    public static final String[] KW_ALFOMBRA_VETO = {
+        " gamer "," floor mat "," para silla "," simulador"," cockpit"
+    };
+    public static final String[] KW_FUNDA_VETO = { " gamer " };
+
     public static final String[] KW_ILUMINACION = {
         "lampara"," lamp ","luminaria","paneles led","panel led","tira led","aro de luz"
     };
