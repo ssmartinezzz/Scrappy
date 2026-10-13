@@ -34,7 +34,8 @@ public record TechSpecs(
         ClaseDisipador claseDisipador,
         int heatpipes,
         String modelo,    // CPU/GPU only; "" = abstención. Clave canónica del modelo con sufijo (rtx-5070-ti)
-        int rendimiento   // CPU/GPU only; 0 = abstención. Puntaje de TablaDeRendimiento para `modelo`
+        int rendimiento,  // CPU/GPU only; 0 = abstención. Puntaje de TablaDeRendimiento para `modelo`
+        int latenciaCl    // RAM only; 0 = abstención. CAS latency en ciclos (CL30)
 ) {
     public static final TechSpecs EMPTY = builder().build();
 
@@ -45,7 +46,7 @@ public record TechSpecs(
             ClaseDisipador claseDisipador, int heatpipes) {
         this(socket, ddr, formFactor, watts, capacidadGb, tipoMemoria, gama, certificacion, velocidadMhz,
                 tipoAlmacenamiento, socketsSoportados, marcaChip, generacion, tierChipset, modulos, wifi, tipoCooler,
-                nivel, tamanioGabinete, radiadorMm, claseDisipador, heatpipes, "", 0);
+                nivel, tamanioGabinete, radiadorMm, claseDisipador, heatpipes, "", 0, 0);
     }
 
     public static TechSpecsBuilder builder() {

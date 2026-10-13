@@ -35,6 +35,7 @@ public final class EjesTecnicos {
     public static final Comparator<TechSpecs> RAM =
             Comparator.<TechSpecs>comparingInt(specs -> ddrRank(specs.ddr()))
                     .thenComparingInt(specs -> masEsMejor(specs.modulos()))
+                    .thenComparingInt(EjesTecnicos::latenciaPs)
                     .thenComparingInt(specs -> masEsMejor(specs.velocidadMhz()))
                     .thenComparingInt(specs -> masEsMejor(specs.capacidadGb()));
 
@@ -188,6 +189,12 @@ public final class EjesTecnicos {
             };
         }
         return 0;
+    }
+
+    /** Nanoseconds to the first word, CL·2000/MHz, in ps to stay integral; abstention last. */
+    private static int latenciaPs(TechSpecs specs) {
+        if (specs.latenciaCl() == 0 || specs.velocidadMhz() == 0) return Integer.MAX_VALUE;
+        return specs.latenciaCl() * 2_000_000 / specs.velocidadMhz();
     }
 
     /** "Más es mejor" para un entero >= 0, con 0 (abstención) siempre al final, nunca primero. */
