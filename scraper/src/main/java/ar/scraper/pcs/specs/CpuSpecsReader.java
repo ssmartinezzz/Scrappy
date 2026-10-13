@@ -22,6 +22,7 @@ public final class CpuSpecsReader implements LectorDeSpecs {
                 .marcaChip(marcaChip(tokens))
                 .generacion(generacion(tokens))
                 .nivel(nivel(tokens))
+                .modelo(ClaveDeModelo.cpu(tokens))
                 .build();
     }
 

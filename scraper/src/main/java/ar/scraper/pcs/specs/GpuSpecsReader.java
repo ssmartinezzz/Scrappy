@@ -29,6 +29,7 @@ public final class GpuSpecsReader implements LectorDeSpecs {
                 .marcaChip(marcaChip(tokens))
                 .generacion(generacion(tokens))
                 .nivel(nivel(tokens))
+                .modelo(ClaveDeModelo.gpu(tokens))
                 .build();
     }
 
