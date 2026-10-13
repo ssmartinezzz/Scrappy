@@ -10,13 +10,19 @@ import java.util.regex.Pattern;
 public final class CpuSpecsReader implements LectorDeSpecs {
 
     private final TablaDeRendimiento tabla;
+    private final TablaDeRendimiento tablaGaming;
 
     public CpuSpecsReader() {
         this(TablaDeRendimientoCsv.cpu());
     }
 
     public CpuSpecsReader(TablaDeRendimiento tabla) {
+        this(tabla, TablaDeRendimientoCsv.cpuGaming());
+    }
+
+    public CpuSpecsReader(TablaDeRendimiento tabla, TablaDeRendimiento tablaGaming) {
         this.tabla = tabla;
+        this.tablaGaming = tablaGaming;
     }
 
     @Override
@@ -35,6 +41,7 @@ public final class CpuSpecsReader implements LectorDeSpecs {
                 .nivel(nivel(tokens))
                 .modelo(modelo)
                 .rendimiento(modelo.isEmpty() ? 0 : tabla.puntaje(modelo))
+                .rendimientoGaming(modelo.isEmpty() ? 0 : tablaGaming.puntaje(modelo))
                 .build();
     }
 

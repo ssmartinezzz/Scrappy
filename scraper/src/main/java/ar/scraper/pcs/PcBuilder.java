@@ -142,7 +142,7 @@ public class PcBuilder {
                     : Map.of();
             double techoSinMother = presupuesto > 0 ? cuotas.cuota("cpu", presupuesto) : Double.MAX_VALUE;
             cpuObjetivo = cpuObjetivoPorSocket(pools, slots.get(iCpu), techos, techoSinMother,
-                    contexto);
+                    contexto, EjesTecnicos.cpu(usoResuelto));
             Map<String, TechSpecs> mejorCpu = new LinkedHashMap<>();
             for (Map.Entry<String, Product> e : cpuObjetivo.entrySet()) {
                 mejorCpu.put(e.getKey(), contexto.specsDe(e.getValue()));
@@ -286,8 +286,8 @@ public class PcBuilder {
      */
     private static Map<String, Product> cpuObjetivoPorSocket(Function<String, List<Product>> pools,
             SlotDeArmado slotCpu, Map<String, Double> techos, double techoSinMother,
-            ContextoDeArmado contexto) {
-        Comparator<Product> mejor = Comparator.comparing(contexto::specsDe, EjesTecnicos.CPU)
+            ContextoDeArmado contexto, Comparator<TechSpecs> ejeCpu) {
+        Comparator<Product> mejor = Comparator.comparing(contexto::specsDe, ejeCpu)
                 .thenComparingDouble(Product::precio)
                 .thenComparing(p -> StringUtils.defaultString(p.url()));
         Map<String, Product> objetivo = new LinkedHashMap<>();
@@ -329,26 +329,26 @@ public class PcBuilder {
     /** Existing rules stay first, preference rules after, per slot. */
     private static List<SlotDeArmado> slotsFijos(PreferenciasDeArmado prefs) {
         return List.of(
-                slotMother(prefs),
-                slotCpu(prefs),
+                slotMother(prefs, EjesTecnicos.cpu(Uso.GAMING)),
+                slotCpu(prefs, EjesTecnicos.cpu(Uso.GAMING)),
                 slotRam(prefs, EjesTecnicos.RAM),
                 slotGabinete(prefs),
                 slotFuente(),
                 slotAlmacenamiento("almacenamiento", prefs, EjesTecnicos.ALMACENAMIENTO));
     }
 
-    private static SlotDeArmado slotMother(PreferenciasDeArmado prefs) {
+    private static SlotDeArmado slotMother(PreferenciasDeArmado prefs, Comparator<TechSpecs> ejeCpu) {
         return new SlotDeArmado("mother", "Motherboard",
                 List.of(new ReglaDdrPedidaMother(prefs.ddr()), new ReglaMarcaChip(prefs.marcaCpu()),
                         new ReglaWifi(prefs.wifi()), new ReglaPlataformaConCpu()),
                 new CriterioPorEjesTecnicos((ContextoDeArmado ctx) ->
-                        EjesTecnicos.mother(ctx.gamaPedida(), ctx.mejorCpuPorSocket())));
+                        EjesTecnicos.mother(ctx.gamaPedida(), ctx.mejorCpuPorSocket(), ejeCpu)));
     }
 
-    private static SlotDeArmado slotCpu(PreferenciasDeArmado prefs) {
+    private static SlotDeArmado slotCpu(PreferenciasDeArmado prefs, Comparator<TechSpecs> ejeCpu) {
         return new SlotDeArmado("cpu", "CPU",
                 List.of(new ReglaSocket(), new ReglaGama(), new ReglaMarcaChip(prefs.marcaCpu())),
-                new CriterioPorEjesTecnicos(EjesTecnicos.CPU));
+                new CriterioPorEjesTecnicos(ejeCpu));
     }
 
     private static SlotDeArmado slotRam(PreferenciasDeArmado prefs, Comparator<TechSpecs> ejes) {
@@ -386,8 +386,8 @@ public class PcBuilder {
     /** El hard-exclude de {@code armar} es lo que evita que los dos elijan el mismo disco. */
     private static List<SlotDeArmado> slotsFijosHomelab(PreferenciasDeArmado prefs) {
         return List.of(
-                slotMother(prefs),
-                slotCpu(prefs),
+                slotMother(prefs, EjesTecnicos.cpu(Uso.HOMELAB)),
+                slotCpu(prefs, EjesTecnicos.cpu(Uso.HOMELAB)),
                 slotRam(prefs, EjesTecnicos.RAM_HOMELAB),
                 slotGabinete(prefs),
                 slotFuente(),

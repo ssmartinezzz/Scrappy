@@ -16,10 +16,15 @@ public final class EjesTecnicos {
         return mother(gamaPedida, Map.of());
     }
 
-    /** The platform follows the CPU: a board ranks by the best CPU its socket can take, before its own axes. */
     public static Comparator<TechSpecs> mother(Gama gamaPedida, Map<String, TechSpecs> mejorCpuPorSocket) {
+        return mother(gamaPedida, mejorCpuPorSocket, CPU);
+    }
+
+    /** The platform follows the CPU: a board ranks by the best CPU its socket can take, before its own axes. */
+    public static Comparator<TechSpecs> mother(Gama gamaPedida, Map<String, TechSpecs> mejorCpuPorSocket,
+            Comparator<TechSpecs> ejeCpu) {
         return Comparator.<TechSpecs, TechSpecs>comparing(specs -> mejorCpuPorSocket.get(specs.socket()),
-                        Comparator.nullsLast(CPU))
+                        Comparator.nullsLast(ejeCpu))
                 .thenComparingInt(specs -> ddrRank(ContextoDeArmado.derivarMotherDdr(specs)))
                 .thenComparingInt(specs -> tierChipsetRank(specs.tierChipset(), gamaPedida))
                 .thenComparingInt(specs -> masEsMejor(specs.anioChipset()));
@@ -30,6 +35,17 @@ public final class EjesTecnicos {
                     .thenComparingInt(specs -> masEsMejor(specs.rendimiento()))
                     .thenComparingInt(specs -> masEsMejor(specs.nivel()))
                     .thenComparingInt(specs -> masEsMejor(anioCpu(specs.marcaChip(), specs.generacion())));
+
+    /** {@link #CPU} ranks Blender render throughput, where an X3D loses to its own non-X3D twin. */
+    public static final Comparator<TechSpecs> CPU_GAMING =
+            Comparator.<TechSpecs>comparingInt(specs -> gamaRank(specs.gama()))
+                    .thenComparingInt(specs -> masEsMejor(specs.rendimientoGaming()))
+                    .thenComparingInt(specs -> masEsMejor(specs.nivel()))
+                    .thenComparingInt(specs -> masEsMejor(anioCpu(specs.marcaChip(), specs.generacion())));
+
+    public static Comparator<TechSpecs> cpu(Uso uso) {
+        return uso == Uso.HOMELAB ? CPU : CPU_GAMING;
+    }
 
     public static final Comparator<TechSpecs> MOTHER = mother(null);
 
