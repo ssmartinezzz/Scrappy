@@ -2,6 +2,7 @@ package ar.scraper.json;
 
 import ar.scraper.pcs.PcBuild;
 import ar.scraper.pcs.PcPick;
+import ar.scraper.pcs.ReferenciaDeRendimiento;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -41,6 +42,11 @@ public class PcBuildJson {
             specs.put("tipoCooler",         pick.specs().tipoCooler().name());
             specs.put("tamanioGabinete",    pick.specs().tamanioGabinete().name());
             specs.put("radiadorMm",         pick.specs().radiadorMm());
+            specs.put("modelo",             safe(pick.specs().modelo()));
+            specs.put("rendimiento",        pick.specs().rendimiento());
+            specs.put("rendimientoGaming",  pick.specs().rendimientoGaming());
+            specs.put("latenciaCl",         pick.specs().latenciaCl());
+            specs.put("anioChipset",        pick.specs().anioChipset());
         }
         ArrayNode sinStockArr = root.putArray("sinStock");
         build.sinStock().forEach(sinStockArr::add);
@@ -50,6 +56,25 @@ public class PcBuildJson {
         root.put("totalEstimado", build.totalEstimado());
         ObjectNode mensajes = root.putObject("mensajes");
         build.mensajes().forEach(mensajes::put);
+        ObjectNode referencias = root.putObject("referencias");
+        build.referencias().forEach((slot, r) -> {
+            ObjectNode n = referencias.putObject(slot);
+            n.put("escala", r.escala());
+            puntaje(n, "pick", r.pick());
+            puntaje(n, "mejorDeGama", r.mejorDeGama());
+            puntaje(n, "mejorDelCatalogo", r.mejorDelCatalogo());
+        });
         return root;
+    }
+
+    private static void puntaje(ObjectNode parent, String campo, ReferenciaDeRendimiento.Puntaje p) {
+        if (p == null) {
+            parent.putNull(campo);
+            return;
+        }
+        ObjectNode n = parent.putObject(campo);
+        n.put("modelo", safe(p.modelo()));
+        n.put("puntaje", p.puntaje());
+        n.put("gama", p.gama().name());
     }
 }

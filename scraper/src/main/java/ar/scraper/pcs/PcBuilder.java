@@ -34,6 +34,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.ToIntFunction;
 import java.util.stream.Collectors;
 
 /**
@@ -205,7 +206,25 @@ public class PcBuilder {
         }
 
         double totalEstimado = picks.stream().mapToDouble(PcPick::precio).sum();
-        return new PcBuild(picks, sinStock, sinCompatible, presupuesto, totalEstimado, mensajes);
+        return new PcBuild(picks, sinStock, sinCompatible, presupuesto, totalEstimado, mensajes,
+                referencias(picks, porCategoria, contexto, usoResuelto));
+    }
+
+    /** Sólo CPU y GPU, y sólo si el armado las eligió; mismo pool que `armar` pero sin el `excluir` suave. */
+    private static Map<String, ReferenciaDeRendimiento> referencias(List<PcPick> picks,
+            Map<String, List<Product>> porCategoria, ContextoDeArmado contexto, Uso uso) {
+        Map<String, ReferenciaDeRendimiento> referencias = new LinkedHashMap<>();
+        for (PcPick pick : picks) {
+            boolean cpu = "cpu".equals(pick.slot());
+            if (!cpu && !"gpu".equals(pick.slot())) continue;
+            boolean gaming = cpu && uso == Uso.GAMING;
+            ToIntFunction<TechSpecs> puntaje = gaming ? TechSpecs::rendimientoGaming : TechSpecs::rendimiento;
+            List<TechSpecs> catalogo = poolDisponible(porCategoria, cpu ? "CPU" : "GPU", Set.of()).stream()
+                    .map(contexto::specsDe).collect(Collectors.toList());
+            referencias.put(pick.slot(), ReferenciaDeRendimiento.de(
+                    cpu ? (gaming ? "gaming" : "blender") : "gpu", pick.specs(), catalogo, puntaje));
+        }
+        return referencias;
     }
 
     private Optional<ReglaCompatibilidad> primeraQueVeta(SlotDeArmado slot, Product candidato, ContextoDeArmado contexto) {

@@ -35,6 +35,7 @@ Lo que hay que saber:
 | **El piso de watts y la certificación mínima salen de la gama pedida** (`EstimadorDeConsumo`) | alta: 750 / 1000 W con GPU, GOLD · media: 550 / 750, BRONZE · económica o sin gama: 450 / 650, NINGUNA. Siguen siendo constantes, ahora por tier; el consumo de la GPU sigue sin parsearse |
 | **El slot `cooler` sólo existe en gama alta** (D4) | Se inserta después del cpu, sin reglas y sin eje (sólo precio). La condición "y si el CPU no trae cooler" se cayó en T1: 309/313 CPUs no dicen nada al respecto |
 | `sinStock` ≠ `sinCompatible`, y ambos traen **motivo** (D6) | Sin candidatos en la categoría vs. candidatos que todos cayeron por veto. `PcBuild.mensajes` (slot → motivo de la regla que vació el slot) es lo que la UI pinta debajo del placeholder. Ninguno aborta el armado |
+| **`referencias`: el pick contra el mercado** | `PcBuild.referencias` (`cpu`/`gpu`, sólo si hay pick) trae, por slot, `escala` (`gaming` / `blender` / `gpu`, según `uso`), el `pick` y la `mejorDeGama` y `mejorDelCatalogo` (puntaje > 0, `null` si nadie califica). Se calcula sobre el pool de la categoría **sin** el `excluir`, así Regenerar no las mueve; puntaje 0 en el pick es abstención. `PcBuildJson` también serializa `modelo`, `rendimiento`, `rendimientoGaming`, `latenciaCl` y `anioChipset` por pick |
 
 **Escala de gama** (`Gama`, `BAJA < MEDIA < ALTA` + `DESCONOCIDA`; en el cable
 es `economica|media|alta`, dueño único `GamaWire`, que nunca emite `DESCONOCIDA`):

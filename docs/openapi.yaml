@@ -1311,7 +1311,15 @@ paths:
           schema: { type: string, enum: [gaming, homelab] }
       responses:
         "200":
-          description: Assembled build, with sinStock/sinCompatible/mensajes per unfillable slot.
+          description: >-
+            Assembled build, with sinStock/sinCompatible/mensajes per unfillable slot. Each pick's
+            `specs` carries `modelo`, `rendimiento` (CPU Blender / GPU score), `rendimientoGaming`
+            (CPU gaming index), `latenciaCl` and `anioChipset`; 0 or "" means no benchmark. `referencias`
+            is keyed by `cpu` and/or `gpu` (only slots that have a pick; `{}` otherwise). Each entry has
+            `escala` (`gaming` for a gaming CPU, `blender` for a homelab CPU, `gpu`), `pick`
+            ({modelo, puntaje}; puntaje 0 = no benchmark), and `mejorDeGama` / `mejorDelCatalogo`
+            ({modelo, puntaje, gama} or null): the highest-scoring product of the pick's gama and of
+            the whole category's catalog, unaffected by `excluir`.
           content:
             application/json:
               schema:
