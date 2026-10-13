@@ -4,6 +4,7 @@ import { Cpu, PackageSearch, Unplug } from 'lucide-react';
 import { fetchIndices, fetchPcPreferencia, fetchPcsBuilder, fmt, savePcPreferencia } from '../api';
 import { MoneyInput } from './ui/money-input';
 import { cn } from '@/lib/utils';
+import BenchmarkChart from './BenchmarkChart';
 
 const SLOT_LABELS = {
   mother: 'Motherboard',
@@ -641,6 +642,8 @@ export default function PcsPanel({ onSavePc } = {}) {
                 </div>
               ))}
             </div>
+
+            <BenchmarkChart referencias={data.referencias} />
 
             <div className="flex flex-wrap items-center justify-center gap-[12px]">
               <button

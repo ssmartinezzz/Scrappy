@@ -531,3 +531,32 @@ describe('PcsPanel — resumenSpecs de los ejes profundos', () => {
     expect(screen.queryByText(/gen \d|serie \d|AIO|X\/Z/)).not.toBeInTheDocument();
   });
 });
+
+describe('PcsPanel — gráfico de rendimiento', () => {
+  it('dibuja las referencias del armado bajo los picks', async () => {
+    const user = userEvent.setup();
+    fetchPcsBuilder.mockResolvedValue(respuesta({
+      referencias: {
+        cpu: {
+          escala: 'gaming',
+          pick: { modelo: 'ryzen-7-9800x3d', puntaje: 970 },
+          mejorDeGama: { modelo: 'ryzen-7-9850x3d', puntaje: 1000, gama: 'ALTA' },
+          mejorDelCatalogo: { modelo: 'ryzen-7-9850x3d', puntaje: 1000 },
+        },
+      },
+    }));
+    render(<PcsPanel />);
+    await armar(user);
+
+    const grafico = await screen.findByRole('region', { name: 'Rendimiento del armado' });
+    expect(within(grafico).getByRole('meter', { name: 'Tu CPU: Ryzen 7 9800X3D' })).toBeInTheDocument();
+  });
+
+  it('una respuesta sin referencias no dibuja el gráfico', async () => {
+    const user = userEvent.setup();
+    render(<PcsPanel />);
+    await armar(user);
+
+    expect(screen.queryByRole('region', { name: 'Rendimiento del armado' })).not.toBeInTheDocument();
+  });
+});
