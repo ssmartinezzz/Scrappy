@@ -21,7 +21,8 @@ public final class EjesTecnicos {
         return Comparator.<TechSpecs, TechSpecs>comparing(specs -> mejorCpuPorSocket.get(specs.socket()),
                         Comparator.nullsLast(CPU))
                 .thenComparingInt(specs -> ddrRank(ContextoDeArmado.derivarMotherDdr(specs)))
-                .thenComparingInt(specs -> tierChipsetRank(specs.tierChipset(), gamaPedida));
+                .thenComparingInt(specs -> tierChipsetRank(specs.tierChipset(), gamaPedida))
+                .thenComparingInt(specs -> masEsMejor(specs.anioChipset()));
     }
 
     public static final Comparator<TechSpecs> CPU =
