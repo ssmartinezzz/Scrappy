@@ -158,6 +158,14 @@ describe('fetchSuplementosTipos', () => {
 });
 
 describe('fetchPcsBuilder', () => {
+  it('ramMinimaGb travels only when a floor was asked', async () => {
+    await fetchPcsBuilder({ ramMinimaGb: 0 });
+    expect(calledUrl().searchParams.has('ramMinimaGb')).toBe(false);
+
+    await fetchPcsBuilder({ ramMinimaGb: 32 });
+    expect(calledUrl().searchParams.get('ramMinimaGb')).toBe('32');
+  });
+
   it('hits /api/pcs/builder with no query params by default', async () => {
     await fetchPcsBuilder({});
 

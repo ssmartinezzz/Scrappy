@@ -531,6 +531,8 @@ export async function fetchPcsBuilder({
   // pc-builder-homelab (D3): '' es GAMING, el default de siempre — igual que
   // gama, sólo viaja cuando el pedido difiere del default (UsoWire.parse).
   uso = '',
+  // Piso del kit de RAM: mismo contrato que capacidadMinimaGb.
+  ramMinimaGb = 0,
 } = {}) {
   // [param, viaja?, valor] en el orden en que siempre viajaron.
   const campos = [
@@ -549,6 +551,7 @@ export async function fetchPcsBuilder({
     ['tipoCooler', tipoCooler, tipoCooler],
     ['wattsMinimos', wattsMinimos > 0, wattsMinimos],
     ['uso', uso, uso],
+    ['ramMinimaGb', ramMinimaGb > 0, ramMinimaGb],
   ];
   const p = new URLSearchParams();
   for (const [param, viaja, valor] of campos) {

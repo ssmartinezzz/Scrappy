@@ -109,4 +109,33 @@ class PreferenciasFase9Test {
         assertThat(PreferenciasWire.parse(null, null, null, null, null, null))
                 .isEqualTo(PreferenciasDeArmado.NINGUNA);
     }
+
+    // ── ramMinimaGb ──────────────────────────────────────────────────────
+
+    @Test
+    void ramMinimaGbEsUnPisoNoPositivoSeRechazaYNuloEsNoPedida() {
+        assertThat(PreferenciasDeArmado.NINGUNA.ramMinimaGb()).isNull();
+        assertThat(new PreferenciasDeArmado(null, null, null, null, null, null,
+                null, null, null, null, 32).ramMinimaGb()).isEqualTo(32);
+        assertThatThrownBy(() -> new PreferenciasDeArmado(null, null, null, null, null, null,
+                null, null, null, null, 0)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new PreferenciasDeArmado(null, null, null, null, null, null,
+                null, null, null, null, -8)).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void elConstructorDe10ArgsDefaulteaLaRamANoPedida() {
+        assertThat(new PreferenciasDeArmado(null, null, null, null, null, null,
+                1024, null, null, 850).ramMinimaGb()).isNull();
+    }
+
+    @Test
+    void parseDe11ArgsCablearamMinimaGb() {
+        PreferenciasDeArmado p = PreferenciasWire.parse(null, null, null, null, null, null,
+                null, null, null, null, 64);
+
+        assertThat(p.ramMinimaGb()).isEqualTo(64);
+        assertThat(PreferenciasWire.parse(null, null, null, null, null, null, 1024, "mid", "aire", 850)
+                .ramMinimaGb()).isNull();
+    }
 }

@@ -66,7 +66,7 @@ class TablaDeRendimientoCsvTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"pcs/benchmarks/cpu.csv", "pcs/benchmarks/gpu.csv"})
+    @ValueSource(strings = {"pcs/benchmarks/cpu.csv", "pcs/benchmarks/cpu_gaming.csv", "pcs/benchmarks/gpu.csv"})
     void lasTablasRealesCarganSinErrores(String recurso) {
         assertThat(getClass().getClassLoader().getResource(recurso)).isNotNull();
         TablaDeRendimientoCsv.desdeRecurso(recurso);
@@ -99,7 +99,23 @@ class TablaDeRendimientoCsvTest {
     }
 
     @Test
+    void laTablaGamingEstaEnEscala9850x3dIgual1000() {
+        assertThat(TablaDeRendimientoCsv.cpuGaming().puntaje("ryzen-7-9850x3d")).isEqualTo(1000);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "ryzen-7-7800x3d>ryzen-7-7700x", "ryzen-7-9800x3d>ryzen-7-9700x", "ryzen-7-9800x3d>ryzen-9-9900x",
+            "ryzen-7-9800x3d>core-i7-14700k", "ryzen-7-5800x3d>ryzen-7-5800x"})
+    void enGamingElX3dLeGanaASuGemeloYAlChipDeMasNucleos(String par) {
+        String[] claves = par.split(">");
+        TablaDeRendimiento gaming = TablaDeRendimientoCsv.cpuGaming();
+        assertThat(gaming.puntaje(claves[0])).isGreaterThan(gaming.puntaje(claves[1]));
+    }
+
+    @Test
     void lasTablasCompartidasSeCarganUnaSolaVez() {
+        assertThat(TablaDeRendimientoCsv.cpuGaming()).isSameAs(TablaDeRendimientoCsv.cpuGaming());
         assertThat(TablaDeRendimientoCsv.cpu()).isSameAs(TablaDeRendimientoCsv.cpu());
         assertThat(TablaDeRendimientoCsv.gpu()).isSameAs(TablaDeRendimientoCsv.gpu());
     }

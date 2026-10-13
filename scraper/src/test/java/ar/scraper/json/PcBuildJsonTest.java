@@ -113,4 +113,45 @@ class PcBuildJsonTest {
 
         assertThat(specs.get("tipoCooler").asText()).isEqualTo("LIQUIDO");
     }
+
+    @Test
+    @DisplayName("modelo, rendimiento, rendimientoGaming, latenciaCl and anioChipset are serialized per pick")
+    void benchmarkSpecsAreSerialized() {
+        PcPick pick = new PcPick("cpu", "S", "CPU X", 1, "u", "i", "m",
+                TechSpecs.builder().modelo("ryzen-7-9800x3d").rendimiento(3339).rendimientoGaming(970)
+                        .latenciaCl(30).anioChipset(2024).build());
+
+        ObjectNode specs = (ObjectNode) PcBuildJson.toJson(
+                new PcBuild(List.of(pick), List.of(), List.of(), 0, 1)).get("picks").get(0).get("specs");
+
+        assertThat(specs.get("modelo").asText()).isEqualTo("ryzen-7-9800x3d");
+        assertThat(specs.get("rendimiento").asInt()).isEqualTo(3339);
+        assertThat(specs.get("rendimientoGaming").asInt()).isEqualTo(970);
+        assertThat(specs.get("latenciaCl").asInt()).isEqualTo(30);
+        assertThat(specs.get("anioChipset").asInt()).isEqualTo(2024);
+    }
+
+    @Test
+    @DisplayName("referencias is an object keyed by slot; absent references serialize as JSON null, none as {}")
+    void referenciasSerialize() {
+        assertThat(PcBuildJson.toJson(new PcBuild(List.of(), List.of(), List.of(), 0, 0))
+                .get("referencias").isObject()).isTrue();
+        assertThat(PcBuildJson.toJson(new PcBuild(List.of(), List.of(), List.of(), 0, 0))
+                .get("referencias").size()).isZero();
+
+        var ref = new ar.scraper.pcs.ReferenciaDeRendimiento("gaming",
+                new ar.scraper.pcs.ReferenciaDeRendimiento.Puntaje("a", 970, Gama.ALTA),
+                null,
+                new ar.scraper.pcs.ReferenciaDeRendimiento.Puntaje("b", 1000, Gama.ALTA));
+        ObjectNode json = PcBuildJson.toJson(new PcBuild(List.of(), List.of(), List.of(), 0, 0, Map.of(),
+                Map.of("cpu", ref)));
+
+        var cpu = json.get("referencias").get("cpu");
+        assertThat(cpu.get("escala").asText()).isEqualTo("gaming");
+        assertThat(cpu.get("pick").get("modelo").asText()).isEqualTo("a");
+        assertThat(cpu.get("pick").get("puntaje").asInt()).isEqualTo(970);
+        assertThat(cpu.get("mejorDeGama").isNull()).isTrue();
+        assertThat(cpu.get("mejorDelCatalogo").get("puntaje").asInt()).isEqualTo(1000);
+        assertThat(cpu.get("mejorDelCatalogo").get("gama").asText()).isEqualTo("ALTA");
+    }
 }

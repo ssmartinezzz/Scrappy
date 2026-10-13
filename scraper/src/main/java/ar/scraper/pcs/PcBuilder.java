@@ -12,6 +12,7 @@ import ar.scraper.pcs.reglas.ReglaGama;
 import ar.scraper.pcs.reglas.ReglaMarcaChip;
 import ar.scraper.pcs.reglas.ReglaPlataformaConCpu;
 import ar.scraper.pcs.reglas.ReglaRamDual;
+import ar.scraper.pcs.reglas.ReglaRamMinimaGb;
 import ar.scraper.pcs.reglas.ReglaSocket;
 import ar.scraper.pcs.reglas.ReglaSocketCooler;
 import ar.scraper.pcs.reglas.ReglaSodimm;
@@ -33,6 +34,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.ToIntFunction;
 import java.util.stream.Collectors;
 
 /**
@@ -142,7 +144,7 @@ public class PcBuilder {
                     : Map.of();
             double techoSinMother = presupuesto > 0 ? cuotas.cuota("cpu", presupuesto) : Double.MAX_VALUE;
             cpuObjetivo = cpuObjetivoPorSocket(pools, slots.get(iCpu), techos, techoSinMother,
-                    contexto);
+                    contexto, EjesTecnicos.cpu(usoResuelto));
             Map<String, TechSpecs> mejorCpu = new LinkedHashMap<>();
             for (Map.Entry<String, Product> e : cpuObjetivo.entrySet()) {
                 mejorCpu.put(e.getKey(), contexto.specsDe(e.getValue()));
@@ -204,7 +206,29 @@ public class PcBuilder {
         }
 
         double totalEstimado = picks.stream().mapToDouble(PcPick::precio).sum();
-        return new PcBuild(picks, sinStock, sinCompatible, presupuesto, totalEstimado, mensajes);
+        return new PcBuild(picks, sinStock, sinCompatible, presupuesto, totalEstimado, mensajes,
+                referencias(picks, excluir.isEmpty() ? pools : c -> poolDisponible(porCategoria, c, Set.of()),
+                        contexto, usoResuelto));
+    }
+
+    /**
+     * Sólo CPU y GPU, y sólo si el armado las eligió. {@code catalogo} es el pool de `armar` sin el
+     * `excluir` suave: sin exclusiones es el mismo pool ya filtrado, y no se vuelve a pasar el regex de combos.
+     */
+    private static Map<String, ReferenciaDeRendimiento> referencias(List<PcPick> picks,
+            Function<String, List<Product>> catalogo, ContextoDeArmado contexto, Uso uso) {
+        Map<String, ReferenciaDeRendimiento> referencias = new LinkedHashMap<>();
+        for (PcPick pick : picks) {
+            boolean cpu = "cpu".equals(pick.slot());
+            if (!cpu && !"gpu".equals(pick.slot())) continue;
+            boolean gaming = cpu && uso == Uso.GAMING;
+            ToIntFunction<TechSpecs> puntaje = gaming ? TechSpecs::rendimientoGaming : TechSpecs::rendimiento;
+            List<TechSpecs> specs = catalogo.apply(cpu ? "CPU" : "GPU").stream()
+                    .map(contexto::specsDe).collect(Collectors.toList());
+            referencias.put(pick.slot(), ReferenciaDeRendimiento.de(
+                    cpu ? (gaming ? "gaming" : "blender") : "gpu", pick.specs(), specs, puntaje));
+        }
+        return referencias;
     }
 
     private Optional<ReglaCompatibilidad> primeraQueVeta(SlotDeArmado slot, Product candidato, ContextoDeArmado contexto) {
@@ -286,8 +310,8 @@ public class PcBuilder {
      */
     private static Map<String, Product> cpuObjetivoPorSocket(Function<String, List<Product>> pools,
             SlotDeArmado slotCpu, Map<String, Double> techos, double techoSinMother,
-            ContextoDeArmado contexto) {
-        Comparator<Product> mejor = Comparator.comparing(contexto::specsDe, EjesTecnicos.CPU)
+            ContextoDeArmado contexto, Comparator<TechSpecs> ejeCpu) {
+        Comparator<Product> mejor = Comparator.comparing(contexto::specsDe, ejeCpu)
                 .thenComparingDouble(Product::precio)
                 .thenComparing(p -> StringUtils.defaultString(p.url()));
         Map<String, Product> objetivo = new LinkedHashMap<>();
@@ -329,32 +353,32 @@ public class PcBuilder {
     /** Existing rules stay first, preference rules after, per slot. */
     private static List<SlotDeArmado> slotsFijos(PreferenciasDeArmado prefs) {
         return List.of(
-                slotMother(prefs),
-                slotCpu(prefs),
+                slotMother(prefs, EjesTecnicos.cpu(Uso.GAMING)),
+                slotCpu(prefs, EjesTecnicos.cpu(Uso.GAMING)),
                 slotRam(prefs, EjesTecnicos.RAM),
                 slotGabinete(prefs),
                 slotFuente(),
                 slotAlmacenamiento("almacenamiento", prefs, EjesTecnicos.ALMACENAMIENTO));
     }
 
-    private static SlotDeArmado slotMother(PreferenciasDeArmado prefs) {
+    private static SlotDeArmado slotMother(PreferenciasDeArmado prefs, Comparator<TechSpecs> ejeCpu) {
         return new SlotDeArmado("mother", "Motherboard",
                 List.of(new ReglaDdrPedidaMother(prefs.ddr()), new ReglaMarcaChip(prefs.marcaCpu()),
                         new ReglaWifi(prefs.wifi()), new ReglaPlataformaConCpu()),
                 new CriterioPorEjesTecnicos((ContextoDeArmado ctx) ->
-                        EjesTecnicos.mother(ctx.gamaPedida(), ctx.mejorCpuPorSocket())));
+                        EjesTecnicos.mother(ctx.gamaPedida(), ctx.mejorCpuPorSocket(), ejeCpu)));
     }
 
-    private static SlotDeArmado slotCpu(PreferenciasDeArmado prefs) {
+    private static SlotDeArmado slotCpu(PreferenciasDeArmado prefs, Comparator<TechSpecs> ejeCpu) {
         return new SlotDeArmado("cpu", "CPU",
                 List.of(new ReglaSocket(), new ReglaGama(), new ReglaMarcaChip(prefs.marcaCpu())),
-                new CriterioPorEjesTecnicos(EjesTecnicos.CPU));
+                new CriterioPorEjesTecnicos(ejeCpu));
     }
 
     private static SlotDeArmado slotRam(PreferenciasDeArmado prefs, Comparator<TechSpecs> ejes) {
         return new SlotDeArmado("ram", "RAM",
                 List.of(new ReglaDdr(), new ReglaSodimm(), new ReglaDdrPedidaRam(prefs.ddr()),
-                        new ReglaRamDual(prefs.ramDual())),
+                        new ReglaRamDual(prefs.ramDual()), new ReglaRamMinimaGb(prefs.ramMinimaGb())),
                 new CriterioPorEjesTecnicos(ejes));
     }
 
@@ -386,8 +410,8 @@ public class PcBuilder {
     /** El hard-exclude de {@code armar} es lo que evita que los dos elijan el mismo disco. */
     private static List<SlotDeArmado> slotsFijosHomelab(PreferenciasDeArmado prefs) {
         return List.of(
-                slotMother(prefs),
-                slotCpu(prefs),
+                slotMother(prefs, EjesTecnicos.cpu(Uso.HOMELAB)),
+                slotCpu(prefs, EjesTecnicos.cpu(Uso.HOMELAB)),
                 slotRam(prefs, EjesTecnicos.RAM_HOMELAB),
                 slotGabinete(prefs),
                 slotFuente(),

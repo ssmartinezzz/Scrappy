@@ -262,4 +262,32 @@ class PcsControllerPreferenciaTest {
         assertThat(e.getMessage()).contains("uso");
         verifyNoInteractions(preferenciaArmador);
     }
+
+    @Test
+    void putRamMinimaGbPersisteYVuelveEnLaRespuesta() {
+        ResponseEntity<?> resp = controller.putPreferencia(Map.of("gama", "alta", "ramMinimaGb", 32));
+
+        assertThat(resp.getStatusCode().value()).isEqualTo(200);
+        assertThat(Wire.data(resp).get("ramMinimaGb").asInt()).isEqualTo(32);
+        verify(preferenciaArmador).guardar(any(), eq(new PreferenciaArmador(Gama.ALTA, null, false,
+                new PreferenciasDeArmado(null, null, null, null, null, null, null, null, null, null, 32))));
+    }
+
+    @Test
+    void putRamMinimaGbEnCeroReturns400AndNeverPersists() {
+        ApiException e = Wire.apiError(() -> controller.putPreferencia(Map.of("gama", "alta", "ramMinimaGb", 0)));
+
+        assertThat(e.status().value()).isEqualTo(400);
+        assertThat(e.code()).isEqualTo("solicitud_invalida");
+        assertThat(e.getMessage()).contains("ramMinimaGb");
+        verifyNoInteractions(preferenciaArmador);
+    }
+
+    @Test
+    void getDevuelveRamMinimaGbONull() {
+        when(preferenciaArmador.cargar(any())).thenReturn(Optional.of(new PreferenciaArmador(Gama.ALTA, null, false,
+                new PreferenciasDeArmado(null, null, null, null, null, null, null, null, null, null, 16))));
+
+        assertThat(Wire.data(controller.getPreferencia()).get("ramMinimaGb").asInt()).isEqualTo(16);
+    }
 }

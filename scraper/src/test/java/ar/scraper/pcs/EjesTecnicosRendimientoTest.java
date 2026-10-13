@@ -63,4 +63,26 @@ class EjesTecnicosRendimientoTest {
                 parse("Procesador Intel Core i5 14600K LGA1700", "CPU"),
                 parse("Procesador Intel Core i5 14400F LGA1700", "CPU"));
     }
+
+    private static TechSpecs cpu(int rendimiento, int rendimientoGaming) {
+        return chip(Gama.ALTA, 7, 9, rendimiento).toBuilder().rendimientoGaming(rendimientoGaming).build();
+    }
+
+    @Test
+    void enGamingDecideElPuntajeGamingYEnHomelabElDeBlender() {
+        TechSpecs x3d = cpu(3339, 970);
+        TechSpecs muchosNucleos = cpu(5010, 739);
+        primeroGana(EjesTecnicos.cpu(Uso.GAMING), x3d, muchosNucleos);
+        primeroGana(EjesTecnicos.cpu(Uso.HOMELAB), muchosNucleos, x3d);
+    }
+
+    @Test
+    void homelabSigueSiendoElEjeDeSiempre() {
+        assertThat(EjesTecnicos.cpu(Uso.HOMELAB)).isSameAs(EjesTecnicos.CPU);
+    }
+
+    @Test
+    void sinPuntajeGamingVaUltimoDentroDeLaGama() {
+        primeroGana(EjesTecnicos.cpu(Uso.GAMING), cpu(100, 1), cpu(9000, 0));
+    }
 }

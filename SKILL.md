@@ -35,7 +35,7 @@ cuarto** — ni `CLAUDE.md` ni `ARCHITECTURE.md` guardan una segunda copia.
 | [`docs/GROUPING.md`](./docs/GROUPING.md) | Agrupado de `/api/grupos`: criterio de mismo producto, guardas, medición | Al tocar `ar.scraper.aggregator.grouping` |
 | [`docs/OUTFITS.md`](./docs/OUTFITS.md) | Armadores de outfits: pesos, MCKP, coherencia visual, vetos | Al tocar `OutfitService`, `OutfitBudgetBuilder` o `OutfitRules` |
 | [`docs/SUPPLEMENTS.md`](./docs/SUPPLEMENTS.md) | Combo de suplementos: subtipos, marca preferida, rotación de "Regenerar" | Al tocar `SupplementCombo` |
-| [`docs/PC_BUILDER.md`](./docs/PC_BUILDER.md) | Armador de PCs, fases 1–10 | Al tocar `ar.scraper.pcs` |
+| [`docs/PC_BUILDER.md`](./docs/PC_BUILDER.md) | Armador de PCs, fases 1–12 | Al tocar `ar.scraper.pcs` |
 | [`docs/FRONTEND.md`](./docs/FRONTEND.md) | Rutas, nav, `/favoritos`, `/apidocs` | Al tocar rutas o vistas |
 | [`docs/GOTCHAS.md`](./docs/GOTCHAS.md) | Trampas conocidas, por síntoma | Cuando algo no anda y no sabés por qué |
 | [`docs/KNOWN_ISSUES.md`](./docs/KNOWN_ISSUES.md) | Bugs abiertos, pendientes, banda de precios | Antes de abrir un bug o cambiar la banda |
@@ -47,6 +47,7 @@ cuarto** — ni `CLAUDE.md` ni `ARCHITECTURE.md` guardan una segunda copia.
 | [`cli/`](./cli/) | CLI nativo en Python: consola por comandos (Textual) + fallback texto plano + `core/` headless (build, `.env`, REST, procesos, logs). Arranca backend y frontend. Reemplazó a `menu.ps1`/`menu.sh` | Al modificar el launcher, el build, la generación de `.env` o el arranque de servicios |
 | [`scripts/dev-db.sh`](./scripts/dev-db.sh) | Launcher on-demand del Postgres de desarrollo (`up`/`down`/`status`) | Al levantar la DB local sin el instalador completo |
 | [`scripts/benchmarks/blender_cpu.py`](./scripts/benchmarks/blender_cpu.py) | Genera `pcs/benchmarks/cpu.csv` desde Blender Open Data (stdlib, `python3 -I`). Ver [`docs/PC_BUILDER.md`](./docs/PC_BUILDER.md) → Fase 11 | Al refrescar los benchmarks de CPU del armador |
+| [`scripts/benchmarks/gaming_cpu.py`](./scripts/benchmarks/gaming_cpu.py) | Genera `pcs/benchmarks/cpu_gaming.csv` desde la jerarquía de CPUs de Tom's Hardware: encadena tablas viejas y aplica gemelos/cocientes medidos (stdlib, `python3 -I`). Ver [`docs/PC_BUILDER.md`](./docs/PC_BUILDER.md) → Fase 12 | Al refrescar el índice gaming de CPU del armador |
 | [`scripts/hooks/`](./scripts/hooks/) | Hook `commit-msg` que bloquea `COMMIT-1` y `COMMIT-3`. Se activa una vez por clon: `git config core.hooksPath scripts/hooks` | Al clonar el repo, o si un commit te rebota |
 
 ## Suites de test
@@ -56,7 +57,7 @@ cuarto** — ni `CLAUDE.md` ni `ARCHITECTURE.md` guardan una segunda copia.
 | `scraper/src/test/` | Backend Java: normalización, aggregator, DB (Postgres real), API, agente, armadores | `mvn -f scraper/pom.xml clean test` — ver `CONTRIBUTING.md` para el `JAVA_HOME` de esta máquina |
 | [`ml-tests/`](./ml-tests/) | Pipeline Python: clustering, embeddings, clasificación zero-shot, cache Postgres | `pytest ml-tests` |
 | [`tests/cli/`](./tests/cli/) | CLI nativo: `core/` headless, Textual vía `Pilot`, routing de degradación, injection-safety | `pytest tests/cli` |
-| [`tests/scripts/`](./tests/scripts/) | Utilidades de `scripts/` (hoy, `blender_cpu.py` contra el fixture compartido `claves.csv`). No corre en ningún workflow de CI | `uv run --with pytest pytest tests/scripts` |
+| [`tests/scripts/`](./tests/scripts/) | Utilidades de `scripts/` (hoy, `blender_cpu.py` contra el fixture compartido `claves.csv`, y `gaming_cpu.py` contra páginas HTML recortadas). No corre en ningún workflow de CI | `uv run --with pytest pytest tests/scripts` |
 | `frontend/src/**/*.test.jsx` | Componentes React (Vitest) | `cd frontend && npm test` |
 
 ## Instalación y despliegue

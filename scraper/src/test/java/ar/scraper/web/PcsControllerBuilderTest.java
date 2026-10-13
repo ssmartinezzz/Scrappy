@@ -363,4 +363,31 @@ class PcsControllerBuilderTest {
         assertThat(e.code()).isEqualTo("solicitud_invalida");
         assertThat(e.getMessage()).contains("uso");
     }
+
+    // ── ramMinimaGb ──────────────────────────────────────────────────────
+
+    @Test
+    void ramMinimaGbElijeElKitQueLlegaAlPiso() {
+        when(service.getLastResult()).thenReturn(mockResult(List.of(
+                producto("Memoria RAM Corsair Vengeance DDR5 16GB (2x8GB) 6000MHz", 90_000, "RAM", "https://t/16"),
+                producto("Memoria RAM Kingston Fury DDR5 32GB (2x16GB) 5200MHz", 150_000, "RAM", "https://t/32"))));
+
+        var resp = controller.builder(0, false, "", "", "", "", "", "", null, null,
+                null, "", "", null, "", 32);
+        JsonNode body = Wire.data(resp);
+
+        java.util.List<String> urls = new java.util.ArrayList<>();
+        body.get("picks").forEach(p -> urls.add(p.get("url").asText()));
+        assertThat(urls).containsExactly("https://t/32");
+    }
+
+    @Test
+    void ramMinimaGbEnCeroReturns400() {
+        ApiException e = Wire.apiError(() -> controller.builder(0, false, "", "", "", "", "", "", null, null,
+                null, "", "", null, "", 0));
+
+        assertThat(e.status().value()).isEqualTo(400);
+        assertThat(e.code()).isEqualTo("solicitud_invalida");
+        assertThat(e.getMessage()).contains("ramMinimaGb");
+    }
 }

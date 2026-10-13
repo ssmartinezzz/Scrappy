@@ -4,6 +4,7 @@ import { Cpu, PackageSearch, Unplug } from 'lucide-react';
 import { fetchIndices, fetchPcPreferencia, fetchPcsBuilder, fmt, savePcPreferencia } from '../api';
 import { MoneyInput } from './ui/money-input';
 import { cn } from '@/lib/utils';
+import BenchmarkChart from './BenchmarkChart';
 
 const SLOT_LABELS = {
   mother: 'Motherboard',
@@ -91,6 +92,14 @@ const CAPACIDADES = [
   { value: 500, label: '500 GB' },
   { value: 1024, label: '1 TB' },
   { value: 2048, label: '2 TB' },
+];
+// Medido sobre el catálogo activo: los kits son de 8, 16, 32 o 64 GB.
+const RAM_MINIMA = [
+  { value: 0, label: 'Cualquiera' },
+  { value: 8, label: '8 GB' },
+  { value: 16, label: '16 GB' },
+  { value: 32, label: '32 GB' },
+  { value: 64, label: '64 GB' },
 ];
 const WATTS = [
   { value: 0, label: 'Cualquiera' },
@@ -206,6 +215,7 @@ export default function PcsPanel({ onSavePc } = {}) {
   const [tipoCooler, setTipoCooler] = useState('');
   const [capacidadMinimaGb, setCapacidadMinimaGb] = useState(0);
   const [wattsMinimos, setWattsMinimos] = useState(0);
+  const [ramMinimaGb, setRamMinimaGb] = useState(0);
   // Cotización del MISMO servicio que el badge del header (GET /api/indices,
   // dólar oficial de indices-service). null = no hay dato: no se muestra la
   // línea en dólares en vez de inventar una tasa — ver CLAUDE.md, "Un factor
@@ -260,6 +270,7 @@ export default function PcsPanel({ onSavePc } = {}) {
         setTipoCooler(pref.tipoCooler ?? '');
         setCapacidadMinimaGb(pref.capacidadMinimaGb ?? 0);
         setWattsMinimos(pref.wattsMinimos ?? 0);
+        setRamMinimaGb(pref.ramMinimaGb ?? 0);
       })
       .catch(() => {});
     return () => { vivo = false; };
@@ -307,6 +318,8 @@ export default function PcsPanel({ onSavePc } = {}) {
         // ausente/null como GAMING, así que omitir la clave en Gaming deja
         // el payload de siempre byte a byte igual (D3).
         ...(usoWire === 'homelab' ? { uso: usoWire } : {}),
+        // Ausente y null se guardan igual (sin piso); omitirla deja el payload de siempre.
+        ...(ramMinimaGb ? { ramMinimaGb } : {}),
       }).catch(() => {});
     }
     const previos = acumulando ? vistos : {};
@@ -328,6 +341,7 @@ export default function PcsPanel({ onSavePc } = {}) {
         uso: usoWire,
         capacidadMinimaGb,
         wattsMinimos,
+        ramMinimaGb,
       });
       setData(resp);
       const nuevos = resp?.picks ?? [];
@@ -404,6 +418,7 @@ export default function PcsPanel({ onSavePc } = {}) {
           {!esMiniPc && (
             <>
               <ChipGroup label="Memoria" options={DDRS} value={ddr} onChange={setDdr} />
+              <ChipGroup label="RAM mínima" options={RAM_MINIMA} value={ramMinimaGb} onChange={setRamMinimaGb} />
               <ChipGroup label="CPU" options={MARCAS_CPU} value={marcaCpu} onChange={setMarcaCpu} />
               {conGpu && (
                 <ChipGroup label="Placa de video" options={MARCAS_GPU} value={marcaGpu} onChange={setMarcaGpu} />
@@ -627,6 +642,8 @@ export default function PcsPanel({ onSavePc } = {}) {
                 </div>
               ))}
             </div>
+
+            <BenchmarkChart referencias={data.referencias} />
 
             <div className="flex flex-wrap items-center justify-center gap-[12px]">
               <button

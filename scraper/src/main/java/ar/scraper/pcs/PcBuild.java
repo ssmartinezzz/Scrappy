@@ -9,7 +9,13 @@ import java.util.Map;
  */
 public record PcBuild(
         List<PcPick> picks, List<String> sinStock, List<String> sinCompatible,
-        double presupuesto, double totalEstimado, Map<String, String> mensajes) {
+        double presupuesto, double totalEstimado, Map<String, String> mensajes,
+        Map<String, ReferenciaDeRendimiento> referencias) {
+
+    public PcBuild(List<PcPick> picks, List<String> sinStock, List<String> sinCompatible,
+            double presupuesto, double totalEstimado, Map<String, String> mensajes) {
+        this(picks, sinStock, sinCompatible, presupuesto, totalEstimado, mensajes, Map.of());
+    }
 
     public PcBuild(List<PcPick> picks, List<String> sinStock, List<String> sinCompatible,
             double presupuesto, double totalEstimado) {

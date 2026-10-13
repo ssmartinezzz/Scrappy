@@ -37,4 +37,18 @@ class RendimientoDesdeTablaTest {
         assertThat(new CpuSpecsReader(todoPuntua).leer(Tokens.de("Procesador Intel Celeron G5905")).rendimiento())
                 .isZero();
     }
+
+    @Test
+    void cpuLeeElPuntajeGamingDeSuPropiaTabla() {
+        TablaDeRendimiento gaming = clave -> Map.of("core-i5-14600k", 728).getOrDefault(clave, 0);
+        var specs = new CpuSpecsReader(TABLA, gaming).leer(Tokens.de("Procesador Intel Core i5 14600K"));
+        assertThat(specs.rendimiento()).isEqualTo(3015);
+        assertThat(specs.rendimientoGaming()).isEqualTo(728);
+    }
+
+    @Test
+    void elLectorPorDefectoUsaLaTablaGamingReal() {
+        assertThat(new CpuSpecsReader().leer(Tokens.de("Procesador AMD Ryzen 7 9850X3D AM5")).rendimientoGaming())
+                .isEqualTo(1000);
+    }
 }

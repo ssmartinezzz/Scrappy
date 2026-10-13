@@ -29,6 +29,10 @@ public final class TablaDeRendimientoCsv implements TablaDeRendimiento {
         return Cpu.TABLA;
     }
 
+    public static TablaDeRendimiento cpuGaming() {
+        return CpuGaming.TABLA;
+    }
+
     public static TablaDeRendimiento gpu() {
         return Gpu.TABLA;
     }
@@ -86,6 +90,10 @@ public final class TablaDeRendimientoCsv implements TablaDeRendimiento {
 
     private static final class Cpu {
         static final TablaDeRendimiento TABLA = desdeRecurso("pcs/benchmarks/cpu.csv");
+    }
+
+    private static final class CpuGaming {
+        static final TablaDeRendimiento TABLA = desdeRecurso("pcs/benchmarks/cpu_gaming.csv");
     }
 
     private static final class Gpu {
