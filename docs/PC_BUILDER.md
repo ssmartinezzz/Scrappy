@@ -1,8 +1,8 @@
 # Armador de PCs
 
-> Fases 1 a 10 del armador `ar.scraper.pcs`: parser, reglas, ranking, gama, preferencias, homelab. Movido desde `CLAUDE.md` (2026-09-28), que pasó a ser sólo índice.
+> Fases 1 a 11 del armador `ar.scraper.pcs`: parser, reglas, ranking, gama, preferencias, homelab, benchmarks. Movido desde `CLAUDE.md` (2026-09-28), que pasó a ser sólo índice.
 
-## Armador de PCs (`ar.scraper.pcs`) — fases 1 a 10
+## Armador de PCs (`ar.scraper.pcs`) — fases 1 a 11
 
 **Fase 1** es el parser: `TechSpecsParser.parse(nombre, categoria)` →
 `TechSpecs(socket, ddr, formFactor, watts, capacidadGb, tipoMemoria, gama,
@@ -26,10 +26,10 @@ Lo que hay que saber:
 | **El presupuesto se reparte por cuotas, no lo agarra el primer slot** (D3, fase 8) | `CuotasDePresupuesto` le da a cada slot `share × presupuesto` más lo que los anteriores dejaron sin gastar. Con GPU: mother 12 · cpu 20 · ram 10 · gabinete 6 · fuente 10 · gpu 30 · almacenamiento 12; se **normalizan sobre los slots presentes**, así que sin GPU ese 30 se reparte solo y el cooler de gama ALTA entra con su 6 sin tabla nueva. Las proporciones son **supuestas, no medidas**, igual que el piso de watts. Antes cada slot veía TODO el restante y, con el precio como mero desempate, se llevaba el mejor que entrara: medido con $2.000.000, la RAM se llevaba $1.102.200 —el 55% de la caja— y al llegar el slot `fuente` no quedaba nada asequible, así que caía al fallback *"gastá lo mínimo"* y elegía la más barata del catálogo, **sin certificar**. El ranking de fuente ya era correcto; nunca llegaba a ejercerse |
 | **Presupuesto vacío es el modo "top top"** (D4, fase 8) | Sin presupuesto no hay cuotas ni filtro de precio: gana el mejor de cada slot por eje técnico, cueste lo que cueste. Es un modo, no un caso borde |
 | **El fallback "el más barato" se conserva** (D5, fase 8) | Cuando ni con el arrastre entra nada en la cuota, el slot elige el más barato compatible en vez de salir vacío: un armado incompleto es peor que uno con un componente flojo, y `sinCompatible` sigue reservado para los vetos |
-| **La mother es el ancla y se elige primero** | Los vetos de socket, DDR y form factor la referencian. Orden: mother → cpu → (cooler, sólo gama alta) → ram → gabinete → fuente → gpu (sólo con `conGpu=true`) → almacenamiento. Es greedy: si ninguna CPU es compatible con la mother elegida, el slot sale en `sinCompatible`, no se prueba otra mother |
+| **La mother es el ancla y se elige primero** | Los vetos de socket, DDR y form factor la referencian. Orden: mother → cpu → (cooler, sólo gama alta) → ram → gabinete → fuente → gpu (sólo con `conGpu=true`) → almacenamiento. Es greedy: si ninguna CPU es compatible con la mother elegida, el slot sale en `sinCompatible`, no se prueba otra mother. Desde la fase 11 la mother se rankea primero por la mejor CPU que su socket puede pagar (ver Fase 11) |
 | **Un veto sólo dispara cuando los DOS lados parsearon** | socket CPU↔mother · DDR RAM↔mother · gabinete ⊇ mother (`ITX < MATX < ATX < EATX`) · watts fuente ≥ piso · certificación fuente ≥ mínima. Abstención = sin veto, la política de `VisualCoherence`. Con 7% de cobertura en gabinete, lo contrario vaciaría el slot |
 | ⚠️ **La gama es la ÚNICA regla donde la abstención VETA** (D2) | `ReglaGama` exige `candidato.gama() == pedida`, así que `DESCONOCIDA` cae. Es al revés a propósito: el usuario pidió un tier, y de un nombre que no se pudo leer no se puede afirmar que esté en ese tier. Sin gama pedida (`null`) la regla no filtra nada. El costo es el 17% de CPUs sin tier legible, y el mensaje del slot lo dice |
-| **El ranking es una escalera de tecnología por slot; el precio es sólo desempate** (D12, extendida en fase 7 por D4/D9) | `baseMlScore` salió del armador entero: es un percentil de PRECIO y donde participe vuelve "lo más barato" por la ventana — el mismo defecto que ya se arregló en `OutfitBudgetBuilder`. Desde fase 8: cpu: gama → **nivel** de familia desc → **año** desc · gpu: gama → **año** desc → **nivel** de modelo desc → VRAM (`capacidadGb`) desc · mother: DDR → tier de chipset, rankeado por **distancia a la gama pedida** (D9: ALTA→X/Z, MEDIA→B, BAJA→A/H; sin gama pedida cae al orden absoluto X/Z<B<A/H de fase 6) · ram: DDR → módulos (kit `NxMGB`) desc → MHz → GB · fuente: certificación desc · almacenamiento: NVMe > SSD > HDD · cooler: `TipoCooler` LIQUIDO > AIRE (fase 7, antes sólo precio) · gabinete: sólo precio (más grande ≠ mejor; el ruido que hacía elegir un service se corrigió en el clasificador, no acá — ver Taxonomía y clasificación). Siempre precio asc → url asc al final, abstención última en todo sub-eje nuevo (D13) |
+| **El ranking es una escalera de tecnología por slot; el precio es sólo desempate** (D12, extendida en fase 7 por D4/D9) | `baseMlScore` salió del armador entero: es un percentil de PRECIO y donde participe vuelve "lo más barato" por la ventana — el mismo defecto que ya se arregló en `OutfitBudgetBuilder`. Desde fase 8 (con los ejes de la fase 11): cpu: gama → **rendimiento** desc → **nivel** de familia desc → **año** desc · gpu: gama → **rendimiento** desc → **año** desc → **nivel** de modelo desc → VRAM (`capacidadGb`) desc · mother: mejor CPU de su socket → DDR → tier de chipset, rankeado por **distancia a la gama pedida** (D9: ALTA→X/Z, MEDIA→B, BAJA→A/H; sin gama pedida cae al orden absoluto X/Z<B<A/H de fase 6) · ram: DDR → módulos (kit `NxMGB`) desc → **latencia** asc → MHz → GB · fuente: certificación desc · almacenamiento: NVMe > SSD > HDD · cooler: `TipoCooler` LIQUIDO > AIRE (fase 7, antes sólo precio) · gabinete: sólo precio (más grande ≠ mejor; el ruido que hacía elegir un service se corrigió en el clasificador, no acá — ver Taxonomía y clasificación). Siempre precio asc → url asc al final, abstención última en todo sub-eje nuevo (D13) |
 | **La abstención va ÚLTIMA en todo eje de ranking** (D13) | `DESCONOCIDA`/`DESCONOCIDO` se mapean al último escalón a mano, nunca por ordinal; `0` y `""` son el mismo centinela para su eje. Un pendrive (sin tecnología legible) ya no puede ganarle a un NVMe como "el disco de la PC" — se hunde solo, sin veto nuevo. `Certificacion.NINGUNA` sí compara por ordinal: es el escalón real de abajo, no abstención |
 | **La DDR de la mother se deriva del socket cuando el nombre no la dice** | `AM5`/`LGA1851` → DDR5, `AM4` → DDR4, `LGA1700` queda abstenida (plataforma mixta). Vive en `ContextoDeArmado`, no en el parser, y el ranking de mother la comparte (D14): "la más barata" clavaba AM4/DDR4 y después `ReglaDdr` vetaba toda la RAM DDR5 |
 | **El piso de watts y la certificación mínima salen de la gama pedida** (`EstimadorDeConsumo`) | alta: 750 / 1000 W con GPU, GOLD · media: 550 / 750, BRONZE · económica o sin gama: 450 / 650, NINGUNA. Siguen siendo constantes, ahora por tier; el consumo de la GPU sigue sin parsearse |
@@ -192,6 +192,48 @@ Limpieza de taxonomía que salió de armar de verdad: mini PCs fuera de `CPU`
 gana antes que la marca de CPU (35 RAM "AMD EXPO / Intel XMP" vivían en `CPU`),
 thermal pad → `Cooler`, y RAM/SSD "c/disipador", joystick, auricular y
 controladora fuera de `Cooler`.
+
+**Fase 11** rankea CPU y GPU por **rendimiento medido**, no por el nombre —
+pedido del usuario (2026-10-13). Hasta acá la escalera no distinguía sufijos:
+`9070` = `9070 XT`, `5070` = `5070 Ti`, `14600K` = `14400F`, y decidía el precio.
+
+| | |
+|---|---|
+| **Fuente híbrida** | CPU: mediana de [Blender Open Data](https://opendata.blender.org/) (sin licencia restrictiva, API JSON), generada por `scripts/benchmarks/blender_cpu.py`. GPU: índice 1440p raster curado a mano de la jerarquía de Tom's Hardware (RTX 4090 = 1000). Blender GPU no sirve para gaming: es cómputo y favorece a Nvidia (RX 9070 XT 3279 vs RTX 5070 6173, al revés que en juegos). PassMark (ToS) y Geekbench (403) descartados |
+| **Las tablas son datos versionados, no estado del catálogo** | `scraper/src/main/resources/pcs/benchmarks/cpu.csv` y `gpu.csv` (`clave,puntaje,muestras`) + `fuentes.properties` (URL, versión, fecha, licencia, método). Sin migración, sin port, sin bean: `TablaDeRendimiento` + `TablaDeRendimientoCsv`, cargadas una vez. Recurso ausente → tabla vacía → todo se abstiene y decide la escalera de antes. Línea malformada → falla al cargar con `archivo:línea`, y un test carga los archivos reales |
+| **La clave canónica incluye el sufijo** | `ryzen-9-9950x3d`, `core-i5-14400f`, `core-ultra-7-265k`, `rtx-5070-ti`, `rx-9070-xt`. Java (`ClaveDeModelo`, desde el nombre del producto) y Python (desde el device de Blender) la calculan por separado y los ata el fixture `scraper/src/test/resources/pcs/benchmarks/claves.csv`, que leen las dos suites: si una se desvía, rompe un test. Mobile y pro abstienen (`6600m`, `RTX A1000`, `RTX PRO`) |
+| **Abstención última dentro de la gama** (D13) | `TechSpecs.modelo` (`""`) y `rendimiento` (`0`), no persistidos (precedente `nivel`). Un modelo sin puntaje pierde contra cualquiera con puntaje de su gama — aunque sea más rápido de verdad |
+| **La gama sigue primero** | Es el tier pedido y un filtro duro; el rendimiento ordena **dentro** de ella |
+| **La plataforma sigue a la CPU** | La mother se rankea primero por la mejor CPU que su socket puede pagar. Con presupuesto, el techo por socket es la cuota de cpu **más lo que deja la mother más barata elegible de ese socket** (el arrastre real), y la mother descarta placas que, sumadas a esa CPU objetivo, pasan mother + cpu: un chipset mejor no puede comerse la plata de la CPU. Sin presupuesto, gana la mejor CPU del catálogo |
+| **RAM: latencia real** | `CL30`, `Cl46`, `C16`, `CL30-38-38-96` → `latenciaCl`; eje en ps (`CL · 2 000 000 / MHz`), abstención última. Un código de modelo (`CMK16GX4M2B3200C16`) es un solo token y abstiene. Cobertura 39%: un kit que dice su CL le gana a uno más rápido que no lo dice |
+| **Mother: año del chipset dentro del tier** | `X870E > X670E`, `B850 > B650`, `Z890 > Z790`, `anioChipset` desde una sola tabla en `MotherboardSpecsReader`. **B840 baja al tier de A620**: es silicio A620 (PCIe 3.0, sin OC de CPU) y el año la ponía arriba de B650 |
+| ⚠️ **Límite conocido: Blender CPU es render multihilo** | Para `uso=gaming`, un `9800X3D` queda debajo de un `9950X` o un `14900K`. No hay tabla gaming de CPU con licencia usable |
+
+**Refrescar las tablas.** CPU:
+`python3 -I scripts/benchmarks/blender_cpu.py [--version 4.5.0]` — sin
+`--version` usa la versión de Blender con más corridas. No mezcla versiones (las
+medianas no son comparables), descarta `muestras < 3`, multi-socket, laptop y
+sufijos mobile, y actualiza las claves `cpu.*` de `fuentes.properties`. GPU: a
+mano, contra la jerarquía vigente; método y abstenciones en `gpu.*` del mismo
+archivo. Después de cualquiera de los dos, correr `TablaDeRendimientoCsvTest` y
+`ClaveDeModeloTest`, y los tests del script (`uv run --with pytest pytest tests/scripts`).
+
+Cobertura medida (dev DB, filas activas, 2026-10-13): clave canónica en CPU
+**484/500 = 96.8%** y GPU **364/374 = 97.3%** de los nombres con gama; con
+puntaje, CPU **446/489 = 91.2%** y GPU **367/390 = 94.1%** de las filas con
+clave. Lo que falta son Athlon/Celeron/Pentium, modelos con menos de 3 corridas
+en Blender (5600T, 5600GE, Ultra 5 225), GT/legacy y RX 9050/9060. 25 GPUs con
+nombre pegado (`Rtx5070`) tienen clave pero gama `DESCONOCIDA`: el lector de
+gama no separa tokens pegados.
+
+Efecto sobre el catálogo real (24 configs: presupuesto 0/1M/2M/3M × sin
+gama/MEDIA/ALTA × con/sin GPU, contra master): la CPU mejora en 16, queda igual
+en 8 y no empeora en ninguna — p. ej. 3M sin GPU `14900KF` → `9950X`, 2M con
+GPU `9700X` → `5900XT`, MEDIA `9600X` → `Ultra 5 250K`. Para pagar la CPU, la
+plataforma a veces baja a placas baratas (A520, A620, B860M). `armar` quedó
+9–29% más rápido que master en las configs más pesadas: la clave de GPU se lee
+en una pasada de tokens y cada pool se arma una vez por `armar`. El 80% restante
+del tiempo es tokenizar y parsear los pools en cada request.
 
 **El total estimado de `/pcs` va en pesos y en dólares**, con la cotización del
 **mismo servicio que el badge del header** (`GET /api/indices` → `usd.ultimoValor`,

@@ -9,6 +9,16 @@ import java.util.regex.Pattern;
 
 public final class CpuSpecsReader implements LectorDeSpecs {
 
+    private final TablaDeRendimiento tabla;
+
+    public CpuSpecsReader() {
+        this(TablaDeRendimientoCsv.cpu());
+    }
+
+    public CpuSpecsReader(TablaDeRendimiento tabla) {
+        this.tabla = tabla;
+    }
+
     @Override
     public String categoria() {
         return "CPU";
@@ -16,12 +26,15 @@ public final class CpuSpecsReader implements LectorDeSpecs {
 
     @Override
     public TechSpecs leer(Tokens tokens) {
+        String modelo = ClaveDeModelo.cpu(tokens);
         return TechSpecs.builder()
                 .socket(cpuSocket(tokens))
                 .gama(gama(tokens))
                 .marcaChip(marcaChip(tokens))
                 .generacion(generacion(tokens))
                 .nivel(nivel(tokens))
+                .modelo(modelo)
+                .rendimiento(modelo.isEmpty() ? 0 : tabla.puntaje(modelo))
                 .build();
     }
 

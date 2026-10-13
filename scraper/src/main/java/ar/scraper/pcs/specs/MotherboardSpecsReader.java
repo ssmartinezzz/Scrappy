@@ -23,27 +23,57 @@ public final class MotherboardSpecsReader implements LectorDeSpecs {
                 .formFactor(motherboardFormFactor(tokens, chipsetToken))
                 .marcaChip(marcaChip(socket))
                 .tierChipset(tierChipset(chipsetToken))
+                .anioChipset(anioChipset(chipsetToken))
                 .wifi(wifi(tokens))
                 .build();
     }
 
-    private static final Map<String, String> CHIPSET_SOCKET = Map.ofEntries(
-            Map.entry("a620", "AM5"), Map.entry("b650", "AM5"), Map.entry("b840", "AM5"),
-            Map.entry("b850", "AM5"), Map.entry("x670", "AM5"), Map.entry("x870", "AM5"),
-            Map.entry("a520", "AM4"), Map.entry("b450", "AM4"), Map.entry("b550", "AM4"),
-            Map.entry("x570", "AM4"),
-            Map.entry("h610", "LGA1700"), Map.entry("b660", "LGA1700"), Map.entry("b760", "LGA1700"),
-            Map.entry("z690", "LGA1700"), Map.entry("z790", "LGA1700"),
-            Map.entry("h810", "LGA1851"), Map.entry("b860", "LGA1851"), Map.entry("z890", "LGA1851"),
-            Map.entry("h310", "LGA1151"), Map.entry("b360", "LGA1151"), Map.entry("b365", "LGA1151"),
-            Map.entry("z390", "LGA1151"), Map.entry("h370", "LGA1151"),
-            Map.entry("h410", "LGA1200"), Map.entry("b460", "LGA1200"), Map.entry("z490", "LGA1200"),
-            Map.entry("h510", "LGA1200"), Map.entry("b560", "LGA1200"), Map.entry("z590", "LGA1200"));
+    private record Chipset(String socket, int anio) {
+    }
+
+    private static Map.Entry<String, Chipset> entrada(String prefijo, String socket, int anio) {
+        return Map.entry(prefijo, new Chipset(socket, anio));
+    }
+
+    private static final Map<String, Chipset> CHIPSETS = Map.ofEntries(
+            entrada("a620", "AM5", 2023),
+            entrada("b650", "AM5", 2022),
+            entrada("b840", "AM5", 2025),
+            entrada("b850", "AM5", 2025),
+            entrada("x670", "AM5", 2022),
+            entrada("x870", "AM5", 2024),
+            entrada("a520", "AM4", 2020),
+            entrada("b450", "AM4", 2018),
+            entrada("b550", "AM4", 2020),
+            entrada("x570", "AM4", 2019),
+            entrada("h610", "LGA1700", 2022),
+            entrada("b660", "LGA1700", 2022),
+            entrada("b760", "LGA1700", 2023),
+            entrada("z690", "LGA1700", 2021),
+            entrada("z790", "LGA1700", 2022),
+            entrada("h810", "LGA1851", 2025),
+            entrada("b860", "LGA1851", 2025),
+            entrada("z890", "LGA1851", 2024),
+            entrada("h310", "LGA1151", 2018),
+            entrada("b360", "LGA1151", 2018),
+            entrada("b365", "LGA1151", 2018),
+            entrada("z390", "LGA1151", 2018),
+            entrada("h370", "LGA1151", 2018),
+            entrada("h410", "LGA1200", 2020),
+            entrada("b460", "LGA1200", 2020),
+            entrada("z490", "LGA1200", 2020),
+            entrada("h510", "LGA1200", 2021),
+            entrada("b560", "LGA1200", 2021),
+            entrada("z590", "LGA1200", 2021));
+
+    private static Chipset chipset(String chipsetToken) {
+        return chipsetToken == null ? null : CHIPSETS.get(chipsetToken.substring(0, 4));
+    }
 
     private static String chipsetToken(Tokens tokens) {
         for (String t : tokens.array()) {
             if (t.length() < 4 || t.length() > 6) continue;
-            if (CHIPSET_SOCKET.containsKey(t.substring(0, 4))) return t;
+            if (CHIPSETS.containsKey(t.substring(0, 4))) return t;
         }
         return null;
     }
@@ -51,8 +81,8 @@ public final class MotherboardSpecsReader implements LectorDeSpecs {
     private static String motherboardSocket(Tokens tokens, String chipsetToken) {
         String explicit = tokens.socketExplicito();
         if (!explicit.isEmpty()) return explicit;
-        if (chipsetToken == null) return "";
-        return CHIPSET_SOCKET.getOrDefault(chipsetToken.substring(0, 4), "");
+        Chipset chipset = chipset(chipsetToken);
+        return chipset == null ? "" : chipset.socket();
     }
 
     private static final Pattern DDR = Pattern.compile(" ddr([345]) ");
@@ -81,15 +111,21 @@ public final class MotherboardSpecsReader implements LectorDeSpecs {
         return "";
     }
 
-    /** X/Z=1 (top), B=2, A/H=3, sin chipset legible=0 (abstención). */
+    /** X/Z=1 (top), B=2, A/H=3, sin chipset legible=0 (abstención). B840 is A620 silicon (PCIe 3.0, no CPU OC). */
     private static int tierChipset(String chipsetToken) {
         if (chipsetToken == null) return 0;
+        if (chipsetToken.startsWith("b840")) return 3;
         return switch (chipsetToken.charAt(0)) {
             case 'x', 'z' -> 1;
             case 'b' -> 2;
             case 'a', 'h' -> 3;
             default -> 0;
         };
+    }
+
+    private static int anioChipset(String chipsetToken) {
+        Chipset chipset = chipset(chipsetToken);
+        return chipset == null ? 0 : chipset.anio();
     }
 
     private static boolean wifi(Tokens tokens) {

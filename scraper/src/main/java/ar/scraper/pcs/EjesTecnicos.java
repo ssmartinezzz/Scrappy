@@ -1,6 +1,7 @@
 package ar.scraper.pcs;
 
 import java.util.Comparator;
+import java.util.Map;
 
 /**
  * Wired into {@link CriterioPorEjesTecnicos}, which always appends precio asc then url asc after
@@ -11,21 +12,31 @@ public final class EjesTecnicos {
     private EjesTecnicos() {
     }
 
-    public static final Comparator<TechSpecs> MOTHER = mother(null);
-
     public static Comparator<TechSpecs> mother(Gama gamaPedida) {
-        return Comparator.<TechSpecs>comparingInt(specs -> ddrRank(ContextoDeArmado.derivarMotherDdr(specs)))
-                .thenComparingInt(specs -> tierChipsetRank(specs.tierChipset(), gamaPedida));
+        return mother(gamaPedida, Map.of());
+    }
+
+    /** The platform follows the CPU: a board ranks by the best CPU its socket can take, before its own axes. */
+    public static Comparator<TechSpecs> mother(Gama gamaPedida, Map<String, TechSpecs> mejorCpuPorSocket) {
+        return Comparator.<TechSpecs, TechSpecs>comparing(specs -> mejorCpuPorSocket.get(specs.socket()),
+                        Comparator.nullsLast(CPU))
+                .thenComparingInt(specs -> ddrRank(ContextoDeArmado.derivarMotherDdr(specs)))
+                .thenComparingInt(specs -> tierChipsetRank(specs.tierChipset(), gamaPedida))
+                .thenComparingInt(specs -> masEsMejor(specs.anioChipset()));
     }
 
     public static final Comparator<TechSpecs> CPU =
             Comparator.<TechSpecs>comparingInt(specs -> gamaRank(specs.gama()))
+                    .thenComparingInt(specs -> masEsMejor(specs.rendimiento()))
                     .thenComparingInt(specs -> masEsMejor(specs.nivel()))
                     .thenComparingInt(specs -> masEsMejor(anioCpu(specs.marcaChip(), specs.generacion())));
+
+    public static final Comparator<TechSpecs> MOTHER = mother(null);
 
     public static final Comparator<TechSpecs> RAM =
             Comparator.<TechSpecs>comparingInt(specs -> ddrRank(specs.ddr()))
                     .thenComparingInt(specs -> masEsMejor(specs.modulos()))
+                    .thenComparingInt(EjesTecnicos::latenciaPs)
                     .thenComparingInt(specs -> masEsMejor(specs.velocidadMhz()))
                     .thenComparingInt(specs -> masEsMejor(specs.capacidadGb()));
 
@@ -49,6 +60,7 @@ public final class EjesTecnicos {
      */
     public static final Comparator<TechSpecs> GPU =
             Comparator.<TechSpecs>comparingInt(specs -> gamaRank(specs.gama()))
+                    .thenComparingInt(specs -> masEsMejor(specs.rendimiento()))
                     .thenComparingInt(specs -> masEsMejor(anioGpu(specs.marcaChip(), specs.generacion())))
                     .thenComparingInt(specs -> masEsMejor(specs.nivel()))
                     .thenComparingInt(specs -> masEsMejor(specs.capacidadGb()));
@@ -178,6 +190,12 @@ public final class EjesTecnicos {
             };
         }
         return 0;
+    }
+
+    /** Nanoseconds to the first word, CL·2000/MHz, in ps to stay integral; abstention last. */
+    private static int latenciaPs(TechSpecs specs) {
+        if (specs.latenciaCl() == 0 || specs.velocidadMhz() == 0) return Integer.MAX_VALUE;
+        return specs.latenciaCl() * 2_000_000 / specs.velocidadMhz();
     }
 
     /** "Más es mejor" para un entero >= 0, con 0 (abstención) siempre al final, nunca primero. */

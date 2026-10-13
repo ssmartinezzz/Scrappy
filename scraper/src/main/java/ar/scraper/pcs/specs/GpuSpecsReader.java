@@ -16,6 +16,16 @@ public final class GpuSpecsReader implements LectorDeSpecs {
     private static final Pattern RX_MODEL = Pattern.compile(" rx (\\d{3,4}) ");
     private static final Pattern GTX_MODEL = Pattern.compile(" gtx (\\d{3,4}) ");
 
+    private final TablaDeRendimiento tabla;
+
+    public GpuSpecsReader() {
+        this(TablaDeRendimientoCsv.gpu());
+    }
+
+    public GpuSpecsReader(TablaDeRendimiento tabla) {
+        this.tabla = tabla;
+    }
+
     @Override
     public String categoria() {
         return "GPU";
@@ -23,12 +33,15 @@ public final class GpuSpecsReader implements LectorDeSpecs {
 
     @Override
     public TechSpecs leer(Tokens tokens) {
+        String modelo = ClaveDeModelo.gpu(tokens);
         return TechSpecs.builder()
                 .capacidadGb(tokens.gbSuelto().orElse(0))
                 .gama(gama(tokens))
                 .marcaChip(marcaChip(tokens))
                 .generacion(generacion(tokens))
                 .nivel(nivel(tokens))
+                .modelo(modelo)
+                .rendimiento(modelo.isEmpty() ? 0 : tabla.puntaje(modelo))
                 .build();
     }
 

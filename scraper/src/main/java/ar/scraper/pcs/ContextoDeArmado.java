@@ -1,5 +1,9 @@
 package ar.scraper.pcs;
 
+import ar.scraper.model.Product;
+
+import java.util.IdentityHashMap;
+import java.util.Map;
 import java.util.Set;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -18,7 +22,9 @@ public final class ContextoDeArmado {
     private final Certificacion certificacionMinima;
     private final PreferenciasDeArmado preferencias;
     private final Set<String> socketsConCpuElegible;
+    private final Map<String, TechSpecs> mejorCpuPorSocket;
     private final boolean sinPresupuesto;
+    private final Map<Product, TechSpecs> specsPorProducto;
 
     public static ContextoDeArmado inicial(int wattsMin) {
         return inicial(wattsMin, null, Certificacion.NINGUNA, PreferenciasDeArmado.NINGUNA);
@@ -57,12 +63,30 @@ public final class ContextoDeArmado {
     public static ContextoDeArmado inicial(int wattsMin, Gama gamaPedida, Certificacion certificacionMinima,
             PreferenciasDeArmado preferencias, Set<String> socketsConCpuElegible, boolean sinPresupuesto) {
         return new ContextoDeArmado(TechSpecs.EMPTY, "", wattsMin, gamaPedida, certificacionMinima, preferencias,
-                socketsConCpuElegible, sinPresupuesto);
+                socketsConCpuElegible, Map.of(), sinPresupuesto, new IdentityHashMap<>());
     }
 
     public ContextoDeArmado conMother(TechSpecs motherSpecs) {
         return new ContextoDeArmado(motherSpecs, derivarMotherDdr(motherSpecs), wattsMin, gamaPedida,
-                certificacionMinima, preferencias, socketsConCpuElegible, sinPresupuesto);
+                certificacionMinima, preferencias, socketsConCpuElegible, mejorCpuPorSocket, sinPresupuesto,
+                specsPorProducto);
+    }
+
+    public ContextoDeArmado conSocketsConCpuElegible(Set<String> sockets) {
+        return new ContextoDeArmado(motherSpecs, motherDdr, wattsMin, gamaPedida,
+                certificacionMinima, preferencias, sockets, mejorCpuPorSocket, sinPresupuesto, specsPorProducto);
+    }
+
+    public ContextoDeArmado conMejorCpuPorSocket(Map<String, TechSpecs> mejorCpu) {
+        return new ContextoDeArmado(motherSpecs, motherDdr, wattsMin, gamaPedida,
+                certificacionMinima, preferencias, socketsConCpuElegible, Map.copyOf(mejorCpu), sinPresupuesto,
+                specsPorProducto);
+    }
+
+    /** Every contexto derived from one {@code inicial} shares the memo: one parse per product per build. */
+    public TechSpecs specsDe(Product producto) {
+        return specsPorProducto.computeIfAbsent(producto,
+                p -> TechSpecsParser.parse(p.nombre(), p.categoria()));
     }
 
     public TechSpecs motherSpecs() {
@@ -96,6 +120,11 @@ public final class ContextoDeArmado {
     /** Never null — empty means "no platform restriction". */
     public Set<String> socketsConCpuElegible() {
         return socketsConCpuElegible;
+    }
+
+    /** Never null — empty when no CPU in the pool reads a socket or fits its cuota. */
+    public Map<String, TechSpecs> mejorCpuPorSocket() {
+        return mejorCpuPorSocket;
     }
 
     public boolean sinPresupuesto() {

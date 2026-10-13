@@ -17,6 +17,8 @@ public final class RamSpecsReader implements LectorDeSpecs {
     private static final Pattern MHZ_ATTACHED = Pattern.compile("^(\\d{3,5})mhz$");
     private static final Pattern DIGITS_3_5 = Pattern.compile("^\\d{3,5}$");
     private static final Pattern DIGITS_ONLY = Pattern.compile("^\\d+$");
+    private static final Pattern CL_ATTACHED = Pattern.compile("^cl?(\\d{2})$");
+    private static final Pattern DIGITS_2 = Pattern.compile("^\\d{2}$");
 
     // Un número pelado de 3-5 dígitos sin "mhz" en ningún lado ("MEMORIA 8GB DDR5 6000 KINGSTON")
     // es indistinguible de un número de modelo — sólo se acepta si además cae en esta whitelist Y
@@ -38,6 +40,7 @@ public final class RamSpecsReader implements LectorDeSpecs {
                 .tipoMemoria(tipoMemoria(tokens))
                 .velocidadMhz(velocidadMhz(tokens))
                 .modulos(modulos(tokens))
+                .latenciaCl(latenciaCl(tokens))
                 .build();
     }
 
@@ -68,6 +71,18 @@ public final class RamSpecsReader implements LectorDeSpecs {
         for (String t : tokens.array()) {
             Matcher m = GB_MULTIPLIER.matcher(t);
             if (m.matches()) return Integer.parseInt(m.group(1));
+        }
+        return 0;
+    }
+
+    private static int latenciaCl(Tokens tokens) {
+        String[] arr = tokens.array();
+        for (int i = 0; i < arr.length; i++) {
+            Matcher m = CL_ATTACHED.matcher(arr[i]);
+            if (m.matches()) return Integer.parseInt(m.group(1));
+            if (arr[i].equals("cl") && i + 1 < arr.length && DIGITS_2.matcher(arr[i + 1]).matches()) {
+                return Integer.parseInt(arr[i + 1]);
+            }
         }
         return 0;
     }
