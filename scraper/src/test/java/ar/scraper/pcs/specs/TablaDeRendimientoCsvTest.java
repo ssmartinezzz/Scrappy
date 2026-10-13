@@ -72,6 +72,32 @@ class TablaDeRendimientoCsvTest {
         TablaDeRendimientoCsv.desdeRecurso(recurso);
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "rtx-2060", "rtx-2070", "rtx-2080-super", "rtx-3050", "rtx-3060", "rtx-3070-ti", "rtx-3080",
+            "rtx-4060", "rtx-4070-super", "rtx-5050", "rtx-5060", "rtx-5060-ti", "rtx-5070", "rtx-5070-ti",
+            "rtx-5080", "rx-570", "rx-580", "rx-590", "rx-5500-xt", "rx-5600-xt", "rx-5700", "rx-5700-xt",
+            "rx-6900-xt", "rx-7600", "rx-9060-xt", "rx-9070", "rx-9070-gre", "rx-9070-xt",
+            "arc-a380", "arc-b570", "arc-b580"})
+    void laTablaGpuCubreLosModelosDelCatalogo(String clave) {
+        assertThat(TablaDeRendimientoCsv.gpu().puntaje(clave)).isPositive();
+    }
+
+    @Test
+    void laTablaGpuEstaEnEscalaRtx4090Igual1000() {
+        assertThat(TablaDeRendimientoCsv.gpu().puntaje("rtx-4090")).isEqualTo(1000);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "rtx-5080>rtx-5070-ti", "rtx-5070-ti>rtx-5070", "rtx-5060-ti>rtx-5060",
+            "rx-9070-xt>rx-9070", "rx-9070>rx-9070-gre", "rx-5700-xt>rx-5700", "arc-b580>arc-b570"})
+    void elSufijoSeparaModelosQueLaEscaleraEmpata(String par) {
+        String[] claves = par.split(">");
+        TablaDeRendimiento gpu = TablaDeRendimientoCsv.gpu();
+        assertThat(gpu.puntaje(claves[0])).isGreaterThan(gpu.puntaje(claves[1]));
+    }
+
     @Test
     void lasTablasCompartidasSeCarganUnaSolaVez() {
         assertThat(TablaDeRendimientoCsv.cpu()).isSameAs(TablaDeRendimientoCsv.cpu());
