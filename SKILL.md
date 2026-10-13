@@ -32,6 +32,7 @@ cuarto** — ni `CLAUDE.md` ni `ARCHITECTURE.md` guardan una segunda copia.
 | [`docs/LAN_HTTPS_SETUP.md`](./docs/LAN_HTTPS_SETUP.md) | Servir el dashboard a un celular u otro dispositivo de la red, por HTTPS: certificado, proxy que termina TLS, los **dos** `.env` de orígenes | Al probar desde otro dispositivo, o antes de armar el TLS de un deploy real |
 | [`docs/STRUCTURE.md`](./docs/STRUCTURE.md) | Árbol comentado de archivos y paquetes | Al ubicar dónde vive algo |
 | [`docs/SITES.md`](./docs/SITES.md) | Sitios configurados, plataformas, rubros, detección de plataforma | Al tocar un sitio o scraper |
+| [`docs/GROUPING.md`](./docs/GROUPING.md) | Agrupado de `/api/grupos`: criterio de mismo producto, guardas, medición | Al tocar `ar.scraper.aggregator.grouping` |
 | [`docs/OUTFITS.md`](./docs/OUTFITS.md) | Armadores de outfits: pesos, MCKP, coherencia visual, vetos | Al tocar `OutfitService`, `OutfitBudgetBuilder` o `OutfitRules` |
 | [`docs/SUPPLEMENTS.md`](./docs/SUPPLEMENTS.md) | Combo de suplementos: subtipos, marca preferida, rotación de "Regenerar" | Al tocar `SupplementCombo` |
 | [`docs/PC_BUILDER.md`](./docs/PC_BUILDER.md) | Armador de PCs, fases 1–10 | Al tocar `ar.scraper.pcs` |

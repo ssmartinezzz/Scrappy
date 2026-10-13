@@ -12,8 +12,9 @@ import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 
 /**
- * Criterio de identidad: categoría + marca + modelo normalizado (sin color, talle, género ni
- * descriptores variables).
+ * Criterio de identidad: se bloquea por familia de categoría y, dentro de cada bloque, se agrupan
+ * productos de sitios distintos con la misma marca, modelo y versión (firma de palabras sin color,
+ * talle, género ni relleno), quedándose con la mejor coincidencia por sitio.
  */
 @Component
 @RequiredArgsConstructor
@@ -29,8 +30,8 @@ public class GroupingService {
             preGrupos.computeIfAbsent(key, k -> new ArrayList<>()).add(p);
         }
 
-        // Paso 2: dentro de cada pregrupo, verificar similitud Jaccard real Evita que productos con
-        // mismo prefijo pero diferente modelo se agrupen
+        // Paso 2: dentro de cada bloque, agrupar por similitud Jaccard de la firma, con guardas de
+        // marca, código de modelo, versión y niños
         List<List<Product>> gruposFinales = new ArrayList<>();
         for (List<Product> preGrupo : preGrupos.values()) {
             if (preGrupo.size() == 1) {

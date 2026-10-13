@@ -106,4 +106,28 @@ class JaccardSimilarityTest {
 
         assertThat(grupos).hasSize(2);
     }
+
+    // ── firma() ─────────────────────────────────────────────────────────────
+
+    @Test
+    void firmaDropsCategoryWordsTolerantToTrailingS() {
+        Product p = product("A", "Zapatillas Running adidas Response Runner", "adidas", "Zapatilla Running", 1);
+
+        assertThat(jaccard.firma(p)).contains("adidas", "response", "runner")
+                .doesNotContain("zapatillas", "zapatilla", "running");
+    }
+
+    @Test
+    void firmaDropsPluralOfSingularCategory() {
+        Product p = product("A", "Shorts Nike Pro", "Nike", "Short", 1);
+
+        assertThat(jaccard.firma(p)).contains("nike", "pro").doesNotContain("shorts");
+    }
+
+    @Test
+    void firmaStillDropsOneAndTwoDigitNumbers() {
+        Product p = product("A", "Zapatillas adidas Supernova Rise 2", "adidas", "Zapatilla", 1);
+
+        assertThat(jaccard.firma(p)).doesNotContain("2");
+    }
 }

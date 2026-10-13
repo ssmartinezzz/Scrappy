@@ -1472,6 +1472,10 @@ prohíbe que el bean dependa de `ActorResolver`. Las anotaciones de cache viven
 en un único bean, `CatalogoDerivadoCache`, que los controllers reciben por inyección. Las claves normalizan a minúsculas (los filtros ya comparan sin
 mayúsculas) pero no hacen `trim`: los endpoints tampoco.
 
+### Agrupado de `/api/grupos` → [`GROUPING.md`](./GROUPING.md)
+
+Criterio de "mismo producto" entre sitios, guardas y medición.
+
 ### ¿Por qué `JdbcTemplate` en cada repositorio y no un bean, y por qué no se ganan líneas?
 
 `spring-boot-starter-jdbc` era dependencia y `JdbcTemplate` no se usaba en ningún

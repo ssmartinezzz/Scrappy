@@ -14,6 +14,8 @@ final class StopWords {
         "hombre","mujer","masculino","femenino","unisex","dama","caballero",
         "xs","xxs","s","m","l","xl","xxl","xxxl","unico","talle","talla","size",
         "nuevo","nueva","original","importado","coleccion","edicion","temporada",
+        "running","urbana","urbanas","entrenamiento","training","lifestyle",
+        "deportiva","deportivas","deportivo","skate",
         "de","la","el","los","las","con","para","en","y","a","e"
     );
 }

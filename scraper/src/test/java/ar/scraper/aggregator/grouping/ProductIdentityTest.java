@@ -24,38 +24,38 @@ class ProductIdentityTest {
     private final ProductIdentity identity = new ProductIdentity();
 
     @Test
-    void samePrefixSameCategoryYieldsSameIdentityKey() {
-        Product a = product("VCP", "Nike Air Force 1 Blanco Talle 42", "Nike", "Zapatilla Urbana", 100000);
-        Product b = product("Freres", "Nike Air Force 1 Negro", "Nike", "Zapatilla Urbana", 90000);
+    void sameFamilyDifferentWordOrderAndFillerYieldsSameKey() {
+        Product a = product("Vaypol", "Zapatillas adidas Streettalk", "adidas", "Zapatilla Urbana", 1);
+        Product b = product("Sporting", "Zapatillas Urbanas adidas Streettalk de Hombre", "adidas", "Zapatilla Urbana", 1);
 
         assertThat(identity.calcularIdentidad(a)).isEqualTo(identity.calcularIdentidad(b));
     }
 
     @Test
-    void differentCategoryYieldsDifferentIdentityKey() {
-        Product a = product("VCP", "Nike Air Force 1", "Nike", "Zapatilla Urbana", 100000);
-        Product b = product("VCP", "Nike Air Force 1", "Nike", "Sneaker", 100000);
+    void subcategoriesOfTheSameFamilyShareTheKey() {
+        Product a = product("A", "Nike Pegasus", "Nike", "Zapatilla Urbana", 1);
+        Product b = product("B", "Nike Pegasus", "Nike", "Zapatilla Running", 1);
+
+        assertThat(identity.calcularIdentidad(a)).isEqualTo(identity.calcularIdentidad(b)).isEqualTo("zapatilla");
+    }
+
+    @Test
+    void differentFamiliesYieldDifferentKeys() {
+        Product a = product("A", "Nike Air", "Nike", "Remera", 1);
+        Product b = product("B", "Nike Air", "Nike", "Zapatilla", 1);
 
         assertThat(identity.calcularIdentidad(a)).isNotEqualTo(identity.calcularIdentidad(b));
     }
 
     @Test
-    void stopWordsAndSizeDigitsAreFilteredFromKey() {
-        Product p = product("VCP", "Nike Air Force 1 Blanco Talle 42 Hombre", "Nike", "Zapatilla Urbana", 100000);
-
-        String key = identity.calcularIdentidad(p);
-
-        assertThat(key).doesNotContain("blanco").doesNotContain("hombre").doesNotContain("talle");
+    void familyIsAccentStrippedAndLettersOnly() {
+        assertThat(identity.calcularIdentidad(product("A", "x", "m", "Proteína Isolada", 1))).isEqualTo("proteina");
+        assertThat(identity.calcularIdentidad(product("A", "x", "m", "  Placa-de Video", 1))).isEqualTo("placade");
     }
 
     @Test
-    void accentsInMarcaAndNombreAreNormalizedBeforeKeyComputation() {
-        // categoria itself is NOT accent-stripped by calcularIdentidad (only
-        // marca+nombre are) — keep it identical (and accent-free) across both
-        // fixtures so this test isolates the marca/nombre normalization step.
-        Product a = product("VCP", "Pantalón Cargo", "Adidás", "Pantalon", 50000);
-        Product b = product("Freres", "Pantalon Cargo", "Adidas", "Pantalon", 50000);
-
-        assertThat(identity.calcularIdentidad(a)).isEqualTo(identity.calcularIdentidad(b));
+    void blankOrNullCategoryYieldsEmptyKey() {
+        assertThat(identity.calcularIdentidad(product("A", "x", "m", "", 1))).isEmpty();
+        assertThat(identity.calcularIdentidad(product("A", "x", "m", null, 1))).isEmpty();
     }
 }
