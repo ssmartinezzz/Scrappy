@@ -62,6 +62,15 @@ public final class CategoryGroups {
         "Iluminación", "Mat Escritorio", "Organización"
     );
 
+    private static final Set<String> CATEGORIAS_CONSTRUCCION = Set.of(
+        "Placa Decorativa", "Vinilo Decorativo", "Piso", "Césped Sintético",
+        "Adhesivo", "Moldura", "Planta Artificial"
+    );
+
+    private static final Set<String> CATEGORIAS_HOGAR = Set.of(
+        "Almohadón", "Funda", "Manta", "Mantel", "Alfombra", "Respaldo"
+    );
+
     /** Standalone canonical categories not covered by the sets above. */
     private static final Set<String> CATEGORIAS_OTRAS = Set.of("Conjunto","Perfume","Otros");
 
@@ -77,6 +86,8 @@ public final class CategoryGroups {
         all.addAll(CATEGORIAS_TECH);
         all.addAll(CATEGORIAS_DEPORTE);
         all.addAll(CATEGORIAS_OFICINA);
+        all.addAll(CATEGORIAS_CONSTRUCCION);
+        all.addAll(CATEGORIAS_HOGAR);
         all.addAll(CATEGORIAS_OTRAS);
         return java.util.Collections.unmodifiableSet(all);
     }
@@ -96,6 +107,22 @@ public final class CategoryGroups {
 
     public static boolean esCategoriaSuplemento(String cat) {
         return cat != null && CATEGORIAS_SUPLEMENTO.contains(cat);
+    }
+
+    public static boolean esCategoriaConstruccion(String cat) {
+        return cat != null && CATEGORIAS_CONSTRUCCION.contains(cat);
+    }
+
+    public static boolean esCategoriaHogar(String cat) {
+        return cat != null && CATEGORIAS_HOGAR.contains(cat);
+    }
+
+    public static Set<String> categoriasConstruccion() {
+        return CATEGORIAS_CONSTRUCCION;
+    }
+
+    public static Set<String> categoriasHogar() {
+        return CATEGORIAS_HOGAR;
     }
 
     /**

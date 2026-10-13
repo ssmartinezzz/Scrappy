@@ -166,6 +166,10 @@ suplemento es un suplemento lo venda quien lo venda.
 El esquema, las tres ampliaciones de `CHECK` y su rollback están en
 [`DATABASE.md`, `V27`](./DATABASE.md).
 
+`construccion` (revestimientos autoadhesivos) y `hogar` (textiles de
+decoración) entran por la misma razón en `V45`. `hogar` existe para que un
+almohadón o una funda no caigan en la taxonomía de indumentaria.
+
 ---
 
 ### Bloqueo conocido: Logg queda fuera de `fix-zero-yield-tech-sites`
@@ -1514,13 +1518,15 @@ cantidadUnidades, subCategoria, visual (VisualAttrs)
 Un único parser, `ar.scraper.aggregator.text.PrecioParser`, lo resuelve al
 momento del scrape — ver `V17` más abajo.
 
-`rubro` tiene **cuatro** valores desde `V27`: `indumentaria` · `tecnologia` ·
-`suplementos` · `oficina`. Lo resuelve `RubroResolver` por
+`rubro` tiene **seis** valores desde `V45`: `indumentaria` · `tecnologia` ·
+`suplementos` · `oficina` · `construccion` · `hogar`. Lo resuelve `RubroResolver` por
 `sitio.rubro_forzado`, **nunca** por la categoría: una silla la vende una
 tienda de oficina, pero una silla suelta en una tienda de ropa no convierte a
 esa tienda en otra cosa. La excepción es `suplementos`, donde la categoría sí
 manda —un suplemento es un suplemento lo venda quien lo venda— y por eso gana
-sobre el rubro forzado del sitio.
+sobre el rubro forzado del sitio. `construccion` y `hogar` también deciden por
+categoría (después de los forzados `tecnologia` y `oficina`): `ambiancedeco`
+vende revestimientos y textiles de hogar bajo un solo rubro forzado.
 
 Helpers: `esPack()`, `esTech()`, `esGymrat()`, `esMarcaPremium()`.
 `MlScore` incluye scoreP/badges/ofertaReal/tendencia/pctilCategoria/zScore/segment;

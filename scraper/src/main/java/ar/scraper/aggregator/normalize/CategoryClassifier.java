@@ -16,6 +16,9 @@ public class CategoryClassifier {
     private static final Pattern PESO_VOLUMEN =
         Pattern.compile("\\d+\\s*(g|ml|kg|mg|oz|l)\\s*$", Pattern.CASE_INSENSITIVE);
 
+    private static final Pattern PREFIJO_DE_VENTA = Pattern.compile(
+        "^ (?:(?:pack|grande|chico|x|de|caja|promo|combo|outlet|m2|2x1|x?\\d+(?:[.,]\\d+)?)\\s+)+");
+
     public String normalizarCategoria(String raw, String nombre) {
         String fromName = clasificar(nombre);
         if (!fromName.isEmpty()) return fromName;
@@ -59,6 +62,46 @@ public class CategoryClassifier {
         return "";
     }
 
+    private String clasificarHogar(String t) {
+        String l = sinPrefijoDeVenta(t);
+        if (startsWithAny(l, GarmentTaxonomy.KW_FUNDA_LIDER)
+                && GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_FUNDA_CONTEXTO)
+                && !GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_FUNDA_VETO))
+            return "Funda";
+        if (startsWithAny(l, GarmentTaxonomy.KW_RESPALDO_LIDER)
+                && GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_RESPALDO_CONTEXTO))
+            return "Respaldo";
+        if (startsWithAny(l, GarmentTaxonomy.KW_ALMOHADON_LIDER)) return "Almohadón";
+        if (startsWithAny(l, GarmentTaxonomy.KW_MANTA_LIDER))     return "Manta";
+        if (startsWithAny(l, GarmentTaxonomy.KW_MANTEL_LIDER))    return "Mantel";
+        if (startsWithAny(l, GarmentTaxonomy.KW_ALFOMBRA_LIDER)
+                && !GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_ALFOMBRA_VETO))
+            return "Alfombra";
+        return "";
+    }
+
+    private String clasificarConstruccion(String t) {
+        String l = sinPrefijoDeVenta(t);
+        if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_PLANTA_ARTIFICIAL)
+                || startsWithAny(l, GarmentTaxonomy.KW_PLANTA_ARTIFICIAL_LIDER))
+            return "Planta Artificial";
+        if (startsWithAny(l, GarmentTaxonomy.KW_CESPED_LIDER))    return "Césped Sintético";
+        if (startsWithAny(l, GarmentTaxonomy.KW_ADHESIVO_LIDER))  return "Adhesivo";
+        if (startsWithAny(l, GarmentTaxonomy.KW_MOLDURA_LIDER))   return "Moldura";
+        if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_PISO))                 return "Piso";
+        if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_PLACA_DECORATIVA)
+                || (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_PLACA)
+                    && GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_PLACA_CALIFICADOR)
+                    && !GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_PLACA_VETO)))
+            return "Placa Decorativa";
+        if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_VINILO_DECORATIVO))    return "Vinilo Decorativo";
+        return "";
+    }
+
+    private static String sinPrefijoDeVenta(String t) {
+        return PREFIJO_DE_VENTA.matcher(t).replaceFirst(" ");
+    }
+
     private boolean tieneIndicadorPeso(String nombre) {
         if (StringUtils.isBlank(nombre)) return false;
         return PESO_VOLUMEN.matcher(nombre.trim()).find();
@@ -75,6 +118,11 @@ public class CategoryClassifier {
                         .replaceAll("[áàä]","a").replaceAll("[éèë]","e")
                         .replaceAll("[íìï]","i").replaceAll("[óòö]","o")
                         .replaceAll("[úùü]","u").replaceAll("[ñ]","n") + " ";
+
+        String hogar = clasificarHogar(t);
+        if (!hogar.isEmpty()) return hogar;
+        String construccion = clasificarConstruccion(t);
+        if (!construccion.isEmpty()) return construccion;
 
         // ── PORTÓN DE NUTRICIÓN (antes de ropa) ───────────────────────────── Señal fuerte de
         // comida/suplemento: sustantivo culinario inequívoco o nombre de marca de alimento.

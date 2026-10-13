@@ -88,7 +88,7 @@ class CheckDomainTest extends PostgresTestBase {
     @DisplayName("rubro CHECK accepts every domain value and NULL")
     void rubroAcceptsDomainValuesAndNull() {
         int i = 0;
-        for (String rubro : List.of("indumentaria", "tecnologia", "suplementos")) {
+        for (String rubro : List.of("indumentaria", "tecnologia", "suplementos", "oficina", "construccion", "hogar")) {
             String url = "https://check-domain.test/rubro-" + (i++);
             assertThatCode(() -> insertarConRubro(url, rubro)).doesNotThrowAnyException();
         }
