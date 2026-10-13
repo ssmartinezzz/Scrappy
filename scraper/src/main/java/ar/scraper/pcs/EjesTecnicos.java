@@ -1,6 +1,7 @@
 package ar.scraper.pcs;
 
 import java.util.Comparator;
+import java.util.Map;
 
 /**
  * Wired into {@link CriterioPorEjesTecnicos}, which always appends precio asc then url asc after
@@ -11,10 +12,15 @@ public final class EjesTecnicos {
     private EjesTecnicos() {
     }
 
-    public static final Comparator<TechSpecs> MOTHER = mother(null);
-
     public static Comparator<TechSpecs> mother(Gama gamaPedida) {
-        return Comparator.<TechSpecs>comparingInt(specs -> ddrRank(ContextoDeArmado.derivarMotherDdr(specs)))
+        return mother(gamaPedida, Map.of());
+    }
+
+    /** The platform follows the CPU: a board ranks by the best CPU its socket can take, before its own axes. */
+    public static Comparator<TechSpecs> mother(Gama gamaPedida, Map<String, TechSpecs> mejorCpuPorSocket) {
+        return Comparator.<TechSpecs, TechSpecs>comparing(specs -> mejorCpuPorSocket.get(specs.socket()),
+                        Comparator.nullsLast(CPU))
+                .thenComparingInt(specs -> ddrRank(ContextoDeArmado.derivarMotherDdr(specs)))
                 .thenComparingInt(specs -> tierChipsetRank(specs.tierChipset(), gamaPedida));
     }
 
@@ -23,6 +29,8 @@ public final class EjesTecnicos {
                     .thenComparingInt(specs -> masEsMejor(specs.rendimiento()))
                     .thenComparingInt(specs -> masEsMejor(specs.nivel()))
                     .thenComparingInt(specs -> masEsMejor(anioCpu(specs.marcaChip(), specs.generacion())));
+
+    public static final Comparator<TechSpecs> MOTHER = mother(null);
 
     public static final Comparator<TechSpecs> RAM =
             Comparator.<TechSpecs>comparingInt(specs -> ddrRank(specs.ddr()))

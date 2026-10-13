@@ -128,20 +128,17 @@ public class PcBuilder {
             contexto = contexto.conSocketsConCpuElegible(
                     socketsConCpuElegible(porCategoria, excluir, gamaPedida, preferencias, contexto));
         }
+        int iCpu = indiceDeSiExiste(slots, "cpu");
+        if (iCpu >= 0) {
+            double techo = presupuesto > 0 ? cuotas.cuota("cpu", presupuesto) : Double.MAX_VALUE;
+            contexto = contexto.conMejorCpuPorSocket(
+                    mejorCpuPorSocket(porCategoria, excluir, slots.get(iCpu), techo, contexto));
+        }
 
         for (SlotDeArmado slot : slots) {
-            List<Product> pool = porCategoria.getOrDefault(slot.categoria(), List.of());
-            if (!excluir.isEmpty()) {
-                List<Product> frescos = pool.stream()
-                        .filter(p -> !excluir.contains(p.url()))
-                        .collect(Collectors.toList());
-                if (!frescos.isEmpty()) pool = frescos;
-            }
+            List<Product> pool = poolDisponible(porCategoria, slot.categoria(), excluir);
             // A diferencia de `excluir` (soft: cae si vacía el pool), esto es DURO: el mismo
-            // producto físico no puede ser dos picks del mismo armado. Soft, como `excluir`: un
-            // combo sólo entra si es lo único del slot.
-            List<Product> sinCombos = pool.stream().filter(p -> !esCombo(p.nombre())).collect(Collectors.toList());
-            if (!sinCombos.isEmpty()) pool = sinCombos;
+            // producto físico no puede ser dos picks del mismo armado.
             if (!picks.isEmpty()) {
                 Set<String> yaElegidos = picks.stream().map(PcPick::url).collect(Collectors.toSet());
                 pool = pool.stream().filter(p -> !yaElegidos.contains(p.url())).collect(Collectors.toList());
@@ -218,6 +215,37 @@ public class PcBuilder {
         return -1;
     }
 
+    /** Soft filters: excluded urls, then combos — each one dropped only if something else is left. */
+    private static List<Product> poolDisponible(Map<String, List<Product>> porCategoria, String categoria,
+            Set<String> excluir) {
+        List<Product> pool = porCategoria.getOrDefault(categoria, List.of());
+        if (!excluir.isEmpty()) {
+            List<Product> frescos = pool.stream()
+                    .filter(p -> !excluir.contains(p.url()))
+                    .collect(Collectors.toList());
+            if (!frescos.isEmpty()) pool = frescos;
+        }
+        List<Product> sinCombos = pool.stream().filter(p -> !esCombo(p.nombre())).collect(Collectors.toList());
+        return sinCombos.isEmpty() ? pool : sinCombos;
+    }
+
+    /**
+     * Runs before any mother is picked, so {@link ReglaSocket} abstains and the cpu slot's own rules
+     * decide eligibility. The cuota is the cpu slot's own, without the mother's leftover.
+     */
+    private static Map<String, TechSpecs> mejorCpuPorSocket(Map<String, List<Product>> porCategoria,
+            Set<String> excluir, SlotDeArmado slotCpu, double techo, ContextoDeArmado contexto) {
+        Map<String, TechSpecs> mejor = new LinkedHashMap<>();
+        for (Product p : poolDisponible(porCategoria, slotCpu.categoria(), excluir)) {
+            if (p.precio() > techo) continue;
+            TechSpecs specs = contexto.specsDe(p);
+            if (specs.socket().isEmpty()) continue;
+            if (slotCpu.reglas().stream().anyMatch(regla -> !regla.permite(specs, contexto))) continue;
+            mejor.merge(specs.socket(), specs, (a, b) -> EjesTecnicos.CPU.compare(a, b) <= 0 ? a : b);
+        }
+        return mejor;
+    }
+
     /**
      * Ignora a propósito {@link ReglaSocket} (es justo el emparejamiento que está bajo prueba) —
      * sólo mira gama y marca, y exige socket legible: un CPU sin socket no puede afirmar una
@@ -258,7 +286,8 @@ public class PcBuilder {
         return new SlotDeArmado("mother", "Motherboard",
                 List.of(new ReglaDdrPedidaMother(prefs.ddr()), new ReglaMarcaChip(prefs.marcaCpu()),
                         new ReglaWifi(prefs.wifi()), new ReglaPlataformaConCpu()),
-                new CriterioPorEjesTecnicos((ContextoDeArmado ctx) -> EjesTecnicos.mother(ctx.gamaPedida())));
+                new CriterioPorEjesTecnicos((ContextoDeArmado ctx) ->
+                        EjesTecnicos.mother(ctx.gamaPedida(), ctx.mejorCpuPorSocket())));
     }
 
     private static SlotDeArmado slotCpu(PreferenciasDeArmado prefs) {
