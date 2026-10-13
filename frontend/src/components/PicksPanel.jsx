@@ -19,6 +19,8 @@ const RUBRO_THEME = {
   tecnologia:   '222 40% 30%',
   suplementos:  '147 46% 33%',
   oficina:      '36 60% 30%',
+  construccion: '20 18% 38%',
+  hogar:        '340 35% 42%',
 };
 const RUBROS_ENTRADA = RUBROS.filter(r => r.key);
 

@@ -18,6 +18,8 @@ export const RUBROS = [
   { key: 'tecnologia',   icon: '💻', label: 'Tecnología'   },
   { key: 'suplementos',  icon: '💊', label: 'Suplementos'  },
   { key: 'oficina',      icon: '🪑', label: 'Oficina'      },
+  { key: 'construccion', icon: '🧱', label: 'Construcción' },
+  { key: 'hogar',        icon: '🛋', label: 'Hogar'        },
 ];
 
 export const RUBRO_KEYS = RUBROS.map((r) => r.key);
