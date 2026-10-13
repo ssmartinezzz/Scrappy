@@ -253,6 +253,14 @@ puede pasar contra clases viejas y fingir verde.
 existe. Tras recompilar a mano: copiar `scraper/target/fashion-scraper-1.0.1.jar`
 → `scraper/scraper.jar`, o borrar el jar y correr `build` desde el CLI.
 
+**Bootear el jar contra la dev DB arranca un scrape real.** `CronJobService.tick`
+dispara en el boot todo cronjob con `next_run_at` vencido. Antes de un boot de
+verificación o de `run-e2e.sh`: `UPDATE cron_jobs SET enabled=false`, y restaurarlo
+**recién cuando la JVM está muerta**, confirmado con `ps -p <pid>`. Tomá el pid con
+`$!` al lanzar: `pgrep -f <jar>` también devuelve la shell que lo ejecuta, el
+`kill` con dos pids falla y un `kill -0` sobre esa variable dice "muerta" con la
+JVM viva. La JVM puede tardar más de 15 s en atender un SIGTERM.
+
 **Boot 4 (Framework 7): los tests y el JSON tienen trampas propias.**
 - Un test que serializa con su propio `new ObjectMapper()` (Jackson 2) **no ve** lo que escribe el
   converter HTTP de Boot (Jackson 3): la suite pasó en verde con seis endpoints devolviendo
