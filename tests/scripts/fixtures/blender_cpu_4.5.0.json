@@ -1,0 +1,131 @@
+{
+ "columns": [
+  {
+   "display_name": "Device Name",
+   "sortable": true,
+   "filterable": true
+  },
+  {
+   "display_name": "Median Score",
+   "sortable": true,
+   "filterable": false
+  },
+  {
+   "display_name": "Number of Benchmarks",
+   "sortable": true,
+   "filterable": false
+  }
+ ],
+ "rows": [
+  [
+   "13th Gen Intel Core i5-13450HX",
+   206.10021343822683,
+   111
+  ],
+  [
+   "13th Gen Intel Core i5-13600",
+   228.61155253103863,
+   1
+  ],
+  [
+   "13th Gen Intel Core i5-13600K",
+   302.32777606385844,
+   35
+  ],
+  [
+   "8X Intel Core Ultra 7 265K",
+   237.845661304046,
+   1
+  ],
+  [
+   "AMD Ryzen 5 3500U with Radeon Vega Mobile Gfx",
+   40.63959666421043,
+   36
+  ],
+  [
+   "AMD Ryzen 5 5600G with Radeon Graphics",
+   145.70984587506166,
+   164
+  ],
+  [
+   "AMD Ryzen 7 7840HS with Radeon 780M Graphics",
+   258.2998307782599,
+   9
+  ],
+  [
+   "AMD Ryzen 7 7840HS w/ Radeon 780M Graphics",
+   213.22630963901196,
+   47
+  ],
+  [
+   "AMD Ryzen 7 9800X3D 8-Core Processor",
+   333.89588735762266,
+   1084
+  ],
+  [
+   "AMD Ryzen 9 9950X3D 16-Core Processor",
+   663.4623443791653,
+   1289
+  ],
+  [
+   "AMD Ryzen 9 9950X3D2 16-Core Processor",
+   687.0479682470925,
+   3
+  ],
+  [
+   "AMD Ryzen AI 9 HX 370 w/ Radeon 890M",
+   300.1572461711365,
+   76
+  ],
+  [
+   "AMD Ryzen Threadripper 7970X 32-Cores",
+   1304.9191906905255,
+   147
+  ],
+  [
+   "Apple M4",
+   223.54121130422237,
+   258
+  ],
+  [
+   "Intel Core i5-14400F",
+   202.40731279633624,
+   45
+  ],
+  [
+   "Intel Core i5-14600K",
+   301.4646435225568,
+   102
+  ],
+  [
+   "Intel Core i7-1165G7 @ 2.80GHz",
+   53.90189364023227,
+   75
+  ],
+  [
+   "Intel Core Ultra 7 255HX",
+   395.92411347243905,
+   40
+  ],
+  [
+   "Intel Core Ultra 7 258V",
+   123.80558146132901,
+   35
+  ],
+  [
+   "Intel Core Ultra 7 265K",
+   478.04153620588545,
+   279
+  ],
+  [
+   "Intel Core Ultra 7 270K Plus",
+   611.1243963402596,
+   20
+  ],
+  [
+   "Intel Xeon w9-3495X",
+   1164.6658153792825,
+   7
+  ]
+ ]
+}
