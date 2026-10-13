@@ -20,6 +20,7 @@ public final class EjesTecnicos {
 
     public static final Comparator<TechSpecs> CPU =
             Comparator.<TechSpecs>comparingInt(specs -> gamaRank(specs.gama()))
+                    .thenComparingInt(specs -> masEsMejor(specs.rendimiento()))
                     .thenComparingInt(specs -> masEsMejor(specs.nivel()))
                     .thenComparingInt(specs -> masEsMejor(anioCpu(specs.marcaChip(), specs.generacion())));
 
@@ -49,6 +50,7 @@ public final class EjesTecnicos {
      */
     public static final Comparator<TechSpecs> GPU =
             Comparator.<TechSpecs>comparingInt(specs -> gamaRank(specs.gama()))
+                    .thenComparingInt(specs -> masEsMejor(specs.rendimiento()))
                     .thenComparingInt(specs -> masEsMejor(anioGpu(specs.marcaChip(), specs.generacion())))
                     .thenComparingInt(specs -> masEsMejor(specs.nivel()))
                     .thenComparingInt(specs -> masEsMejor(specs.capacidadGb()));
