@@ -1,8 +1,8 @@
 # Armador de PCs
 
-> Fases 1 a 11 del armador `ar.scraper.pcs`: parser, reglas, ranking, gama, preferencias, homelab, benchmarks. Movido desde `CLAUDE.md` (2026-09-28), que pasó a ser sólo índice.
+> Fases 1 a 12 del armador `ar.scraper.pcs`: parser, reglas, ranking, gama, preferencias, homelab, benchmarks, índice gaming. Movido desde `CLAUDE.md` (2026-09-28), que pasó a ser sólo índice.
 
-## Armador de PCs (`ar.scraper.pcs`) — fases 1 a 11
+## Armador de PCs (`ar.scraper.pcs`) — fases 1 a 12
 
 **Fase 1** es el parser: `TechSpecsParser.parse(nombre, categoria)` →
 `TechSpecs(socket, ddr, formFactor, watts, capacidadGb, tipoMemoria, gama,
@@ -209,7 +209,7 @@ pedido del usuario (2026-10-13). Hasta acá la escalera no distinguía sufijos:
 | **La plataforma sigue a la CPU** | La mother se rankea primero por la mejor CPU que su socket puede pagar. Con presupuesto, el techo por socket es la cuota de cpu **más lo que deja la mother más barata elegible de ese socket** (el arrastre real), y la mother descarta placas que, sumadas a esa CPU objetivo, pasan mother + cpu: un chipset mejor no puede comerse la plata de la CPU. Sin presupuesto, gana la mejor CPU del catálogo |
 | **RAM: latencia real** | `CL30`, `Cl46`, `C16`, `CL30-38-38-96` → `latenciaCl`; eje en ps (`CL · 2 000 000 / MHz`), abstención última. Un código de modelo (`CMK16GX4M2B3200C16`) es un solo token y abstiene. Cobertura 39%: un kit que dice su CL le gana a uno más rápido que no lo dice |
 | **Mother: año del chipset dentro del tier** | `X870E > X670E`, `B850 > B650`, `Z890 > Z790`, `anioChipset` desde una sola tabla en `MotherboardSpecsReader`. **B840 baja al tier de A620**: es silicio A620 (PCIe 3.0, sin OC de CPU) y el año la ponía arriba de B650 |
-| ⚠️ **Límite conocido: Blender CPU es render multihilo** | Para `uso=gaming`, un `9800X3D` queda debajo de un `9950X` o un `14900K`. No hay tabla gaming de CPU con licencia usable |
+| **Blender CPU es render multihilo: sólo para `homelab`** | En gaming dejaba un `9800X3D` debajo de un `9950X` o un `14900K`. Resuelto en la fase 12 con un índice gaming aparte |
 
 **Refrescar las tablas.** CPU:
 `python3 -I scripts/benchmarks/blender_cpu.py [--version 4.5.0]` — sin
@@ -236,6 +236,25 @@ plataforma a veces baja a placas baratas (A520, A620, B860M). `armar` quedó
 9–29% más rápido que master en las configs más pesadas: la clave de GPU se lee
 en una pasada de tokens y cada pool se arma una vez por `armar`. El 80% restante
 del tiempo es tokenizar y parsear los pools en cada request.
+
+**Fase 12** separa el ranking de CPU por `uso`, deja pedir un piso de RAM y
+muestra el rendimiento del armado — pedido del usuario (2026-10-13).
+
+| | |
+|---|---|
+| **Índice gaming de CPU** | `cpu_gaming.csv`: puntaje 1080p gaming de la jerarquía de Tom's Hardware, **Ryzen 7 9850X3D = 1000**, sólo el índice derivado. La tabla vigente tiene 30 CPUs (35% del catálogo), así que `scripts/benchmarks/gaming_cpu.py` encadena tres tablas viejas (un snapshot de archive.org de 2025-06 y las dos de la página legado) por la **mediana del cociente sobre los chips que comparten** con lo ya armado; la primera que mide un chip gana. `~` no es un dato, y Tom's titula "Ryzen 7" al `7900X3D` |
+| **Reglas para lo que nadie midió** | F/KF = el mismo chip; XT = el X de igual cantidad de núcleos (`5900XT` ← `5950X`); Cezanne sin iGPU = su G (`5700` ← `5700G`, `5500` ← `5600G`); GE/T y PRO ← su G (limitados por TDP: sobreestiman, a sabiendas); `9950X3D2` ← `9950X3D`; Ryzen no-X = X × mediana no-X/X medida; Intel no-K = K × `8700/8700K` (un solo par); Phoenix (`8700G/F`, `8600G`, `8500G`, `8400F`) = su Zen 4 de escritorio × el costo de caché de APU medido en Zen 3. Se abstienen `7700X3D` (no existe), `4500`, `4100`, `3500X`, i3 12ª–14ª, Ultra 5 235 y `10400T`. Todo está en `cpu_gaming.*` de `fuentes.properties` |
+| **Cobertura** | 452/489 = **92%** de las filas activas de CPU con clave. Orden resultante: `9850X3D` 1000 > `9800X3D` 970 > `7800X3D` 856 > `9700X` 774 > `14700K` 764 > `9900X` 739 > `7700X` 706 |
+| **Dos puntajes, el eje lo elige el `uso`** | `TechSpecs.rendimientoGaming` junto a `rendimiento` (no persistido). `EjesTecnicos.cpu(Uso)`: `CPU_GAMING` en gaming, `CPU` (Blender) en homelab. Lo usan el slot cpu, la CPU objetivo por socket y la mother (que sigue a la mejor CPU de su socket), así que **la plataforma cambia con el uso** |
+| **Efecto (24 configs × uso)** | Homelab: picks **idénticos** a master. Gaming: la CPU pasa a X3D (sin presupuesto `9850X3D` en vez de `9950X3D2`; ALTA con presupuesto `9800X3D`/`7800X3D`/`7600X3D` en vez de `9950X`, Ultra 7 270K Plus o `9700X`) y la mother va a AM5 |
+| **Piso de RAM** | Ver `ramMinimaGb` en la tabla de la fase 9. Chips de la UI: 8/16/32/64 GB, los tamaños de kit del catálogo activo (133/197/105/8 filas) |
+| **Gráfico de rendimiento** | Bajo los picks, CPU y GPU: el pick contra la mejor de su gama y la mejor del catálogo, cada uno en su escala (`referencias`, descrito en la primera tabla de este doc). Un pick sin benchmark dice "sin benchmark" en vez de dibujar un cero. Barras `role="meter"`, no Recharts: tres barras no necesitan ejes y así se testean en jsdom |
+| **Costo** | MedirUno, 1000 corridas intercaladas contra master: +2.2% / +0.1% / +1.5% / +0.2% en las configs más pesadas. Las referencias reusan el pool ya filtrado; recalcularlo (combos) costaba +6–9% |
+
+**Refrescar el índice gaming:** `python3 -I scripts/benchmarks/gaming_cpu.py`
+(baja las tres páginas, reescribe `cpu_gaming.csv` y las claves `cpu_gaming.*`),
+después `uv run --with pytest pytest tests/scripts` y `TablaDeRendimientoCsvTest`,
+que exige el orden X3D de arriba.
 
 **El total estimado de `/pcs` va en pesos y en dólares**, con la cotización del
 **mismo servicio que el badge del header** (`GET /api/indices` → `usd.ultimoValor`,

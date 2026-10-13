@@ -671,6 +671,15 @@ en [`docs/API_REFERENCE.md`](./API_REFERENCE.md).
 
 ### Frontend: layout
 
+**`grid` sin `grid-cols-*` sale en dos columnas, en cualquier ancho.**
+`styles.css` tiene una clase global legacy `.grid` (`repeat(2, 1fr)`, con variantes
+por media query) que le gana a la utilidad de Tailwind del mismo nombre. El
+gráfico de rendimiento de `/pcs` salía en dos columnas a 390px y desbordaba
+horizontalmente; jsdom no lo ve. O se fijan las columnas explícitas
+(`grid-cols-[...]`, como la grilla de picks), o la base es `flex flex-col` y la
+grilla entra con `md:grid` (la clase `md:grid` no matchea `.grid`). Los hijos de
+una grilla con texto `truncate` necesitan `min-w-0`.
+
 **El selector de suplementos scrollea adentro de su tarjeta, y el header fijo
 depende de un `bg-s1` que no se ve.** Con 33 subtipos, dejar crecer el picker
 empuja presupuesto, botón y resultados abajo de todo — en un teléfono son ~1000px

@@ -35,7 +35,7 @@ cuarto** — ni `CLAUDE.md` ni `ARCHITECTURE.md` guardan una segunda copia.
 | [`docs/GROUPING.md`](./docs/GROUPING.md) | Agrupado de `/api/grupos`: criterio de mismo producto, guardas, medición | Al tocar `ar.scraper.aggregator.grouping` |
 | [`docs/OUTFITS.md`](./docs/OUTFITS.md) | Armadores de outfits: pesos, MCKP, coherencia visual, vetos | Al tocar `OutfitService`, `OutfitBudgetBuilder` o `OutfitRules` |
 | [`docs/SUPPLEMENTS.md`](./docs/SUPPLEMENTS.md) | Combo de suplementos: subtipos, marca preferida, rotación de "Regenerar" | Al tocar `SupplementCombo` |
-| [`docs/PC_BUILDER.md`](./docs/PC_BUILDER.md) | Armador de PCs, fases 1–10 | Al tocar `ar.scraper.pcs` |
+| [`docs/PC_BUILDER.md`](./docs/PC_BUILDER.md) | Armador de PCs, fases 1–12 | Al tocar `ar.scraper.pcs` |
 | [`docs/FRONTEND.md`](./docs/FRONTEND.md) | Rutas, nav, `/favoritos`, `/apidocs` | Al tocar rutas o vistas |
 | [`docs/GOTCHAS.md`](./docs/GOTCHAS.md) | Trampas conocidas, por síntoma | Cuando algo no anda y no sabés por qué |
 | [`docs/KNOWN_ISSUES.md`](./docs/KNOWN_ISSUES.md) | Bugs abiertos, pendientes, banda de precios | Antes de abrir un bug o cambiar la banda |
