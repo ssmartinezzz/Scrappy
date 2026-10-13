@@ -118,15 +118,16 @@ public class PcBuilder {
         int wattsMin = Math.max(EstimadorDeConsumo.wattsMinimos(gamaPedida, conGpu),
                 preferencias.wattsMinimos() != null ? preferencias.wattsMinimos() : 0);
         Certificacion certMin = EstimadorDeConsumo.certificacionMinima(gamaPedida);
-        Set<String> socketsElegibles = (gamaPedida != null && indiceDeSiExiste(slots, "cpu") >= 0)
-                ? socketsConCpuElegible(porCategoria, excluir, gamaPedida, preferencias)
-                : Set.of();
         // "sin presupuesto" es el modo top-top — invierte el desempate de precio de cada slot a
         // favor del más caro. Se calcula acá, UNA vez, porque contexto es lo único que
         // CriterioPorEjesTecnicos recibe por llamada.
         ContextoDeArmado contexto =
-                ContextoDeArmado.inicial(wattsMin, gamaPedida, certMin, preferencias, socketsElegibles,
+                ContextoDeArmado.inicial(wattsMin, gamaPedida, certMin, preferencias, Set.of(),
                         presupuesto <= 0);
+        if (gamaPedida != null && indiceDeSiExiste(slots, "cpu") >= 0) {
+            contexto = contexto.conSocketsConCpuElegible(
+                    socketsConCpuElegible(porCategoria, excluir, gamaPedida, preferencias, contexto));
+        }
 
         for (SlotDeArmado slot : slots) {
             List<Product> pool = porCategoria.getOrDefault(slot.categoria(), List.of());
@@ -179,7 +180,7 @@ public class PcBuilder {
                 elegido = slot.criterio().elegir(compatibles, contextoActual);
             }
 
-            TechSpecs specs = TechSpecsParser.parse(elegido.nombre(), elegido.categoria());
+            TechSpecs specs = contexto.specsDe(elegido);
             if ("mother".equals(slot.nombre())) {
                 contexto = contexto.conMother(specs);
             }
@@ -191,7 +192,7 @@ public class PcBuilder {
     }
 
     private Optional<ReglaCompatibilidad> primeraQueVeta(SlotDeArmado slot, Product candidato, ContextoDeArmado contexto) {
-        TechSpecs specs = TechSpecsParser.parse(candidato.nombre(), candidato.categoria());
+        TechSpecs specs = contexto.specsDe(candidato);
         return slot.reglas().stream().filter(regla -> !regla.permite(specs, contexto)).findFirst();
     }
 
@@ -223,7 +224,7 @@ public class PcBuilder {
      * plataforma, aunque el slot cpu igual lo dejaría pasar por abstención.
      */
     private static Set<String> socketsConCpuElegible(Map<String, List<Product>> porCategoria, Set<String> excluir,
-            Gama gamaPedida, PreferenciasDeArmado preferencias) {
+            Gama gamaPedida, PreferenciasDeArmado preferencias, ContextoDeArmado contexto) {
         List<Product> cpuPool = porCategoria.getOrDefault("CPU", List.of());
         if (!excluir.isEmpty()) {
             List<Product> frescos = cpuPool.stream().filter(p -> !excluir.contains(p.url()))
@@ -233,7 +234,7 @@ public class PcBuilder {
         String marcaCpuPedida = preferencias.marcaCpu();
         Set<String> sockets = new LinkedHashSet<>();
         for (Product p : cpuPool) {
-            TechSpecs specs = TechSpecsParser.parse(p.nombre(), p.categoria());
+            TechSpecs specs = contexto.specsDe(p);
             if (specs.socket().isEmpty()) continue;
             if (specs.gama() != gamaPedida) continue;
             if (marcaCpuPedida != null && !marcaCpuPedida.equals(specs.marcaChip())) continue;

@@ -1,5 +1,9 @@
 package ar.scraper.pcs;
 
+import ar.scraper.model.Product;
+
+import java.util.IdentityHashMap;
+import java.util.Map;
 import java.util.Set;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +23,7 @@ public final class ContextoDeArmado {
     private final PreferenciasDeArmado preferencias;
     private final Set<String> socketsConCpuElegible;
     private final boolean sinPresupuesto;
+    private final Map<Product, TechSpecs> specsPorProducto;
 
     public static ContextoDeArmado inicial(int wattsMin) {
         return inicial(wattsMin, null, Certificacion.NINGUNA, PreferenciasDeArmado.NINGUNA);
@@ -57,12 +62,23 @@ public final class ContextoDeArmado {
     public static ContextoDeArmado inicial(int wattsMin, Gama gamaPedida, Certificacion certificacionMinima,
             PreferenciasDeArmado preferencias, Set<String> socketsConCpuElegible, boolean sinPresupuesto) {
         return new ContextoDeArmado(TechSpecs.EMPTY, "", wattsMin, gamaPedida, certificacionMinima, preferencias,
-                socketsConCpuElegible, sinPresupuesto);
+                socketsConCpuElegible, sinPresupuesto, new IdentityHashMap<>());
     }
 
     public ContextoDeArmado conMother(TechSpecs motherSpecs) {
         return new ContextoDeArmado(motherSpecs, derivarMotherDdr(motherSpecs), wattsMin, gamaPedida,
-                certificacionMinima, preferencias, socketsConCpuElegible, sinPresupuesto);
+                certificacionMinima, preferencias, socketsConCpuElegible, sinPresupuesto, specsPorProducto);
+    }
+
+    public ContextoDeArmado conSocketsConCpuElegible(Set<String> sockets) {
+        return new ContextoDeArmado(motherSpecs, motherDdr, wattsMin, gamaPedida,
+                certificacionMinima, preferencias, sockets, sinPresupuesto, specsPorProducto);
+    }
+
+    /** Every contexto derived from one {@code inicial} shares the memo: one parse per product per build. */
+    public TechSpecs specsDe(Product producto) {
+        return specsPorProducto.computeIfAbsent(producto,
+                p -> TechSpecsParser.parse(p.nombre(), p.categoria()));
     }
 
     public TechSpecs motherSpecs() {

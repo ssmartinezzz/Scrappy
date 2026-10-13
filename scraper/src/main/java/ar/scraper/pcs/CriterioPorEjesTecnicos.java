@@ -35,14 +35,10 @@ public class CriterioPorEjesTecnicos implements CriterioDeSeleccion {
                 : Comparator.comparingDouble(Product::precio);
         return candidatos.stream()
                 .min(Comparator
-                        .comparing(CriterioPorEjesTecnicos::specsDe, ejes)
+                        .comparing(contexto::specsDe, ejes)
                         .thenComparing(precio)
                         .thenComparing(CriterioPorEjesTecnicos::urlDe))
                 .orElseThrow();
-    }
-
-    private static TechSpecs specsDe(Product p) {
-        return TechSpecsParser.parse(p.nombre(), p.categoria());
     }
 
     private static String urlDe(Product p) {
