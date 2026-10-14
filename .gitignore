@@ -77,6 +77,8 @@ identidad/
 # the launcher at process-start time only.
 .env
 frontend/.env
+# scripts/observability.sh: Grafana admin + grafana_ro passwords.
+observability/grafana.env
 
 # Portable Postgres data directory (provisioned by the installer under
 # _tools/pgsql, already covered by the _tools/ rule above, but the runtime

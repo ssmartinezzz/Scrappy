@@ -1,0 +1,19 @@
+apiVersion: 1
+
+datasources:
+  - name: Scrappy Postgres
+    uid: scrappy-postgres
+    type: grafana-postgresql-datasource
+    access: proxy
+    url: ${GRAFANA_DB_HOST}:${GRAFANA_DB_PORT}
+    user: grafana_ro
+    isDefault: true
+    editable: false
+    jsonData:
+      database: ${GRAFANA_DB_NAME}
+      sslmode: disable
+      postgresVersion: 1600
+      timescaledb: false
+      maxOpenConns: 5
+    secureJsonData:
+      password: ${GRAFANA_DB_PASSWORD}

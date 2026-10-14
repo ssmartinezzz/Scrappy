@@ -1,0 +1,96 @@
+apiVersion: 1
+
+# Without a contact point these only show up in Alerting → Alert rules (and the
+# bell). To get them by e-mail/Telegram/Discord, add a contact point in the UI
+# and point the default notification policy at it.
+groups:
+  - orgId: 1
+    name: scraper
+    folder: Scrappy
+    interval: 5m
+    rules:
+      - uid: scrappy-sitio-caido
+        title: Sitio con error, cortado o sin productos
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: scrappy-postgres
+            model:
+              refId: A
+              format: table
+              editorMode: code
+              rawQuery: true
+              # One row per site = one alert instance per site (label `sitio`).
+              rawSql: |
+                SELECT sitio_key AS sitio,
+                       CASE WHEN status = 'ERROR' OR productos_count = 0 OR error IS NOT NULL
+                            THEN 1 ELSE 0 END AS falla
+                FROM (
+                  SELECT DISTINCT ON (sitio_key) sitio_key, status, productos_count, error
+                  FROM scrape_run_site
+                  WHERE status IN ('DONE', 'ERROR')
+                  ORDER BY sitio_key, started_at DESC NULLS LAST
+                ) ult
+          - refId: B
+            datasourceUid: __expr__
+            model: { refId: B, type: reduce, expression: A, reducer: last }
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator: { type: gt, params: [0] }
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        annotations:
+          summary: "{{ $labels.sitio }} dio error, se cortó a mitad de la paginación o trajo 0 productos en su última corrida"
+        labels:
+          servicio: scrappy
+
+      - uid: scrappy-sitio-cayo
+        title: Sitio trajo menos de la mitad que la vez anterior
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: scrappy-postgres
+            model:
+              refId: A
+              format: table
+              editorMode: code
+              rawQuery: true
+              # Last DONE vs the DONE before it, per site: a partial run that only
+              # touched three sites must not compare everybody else against it.
+              rawSql: |
+                SELECT sitio_key AS sitio,
+                       100.0 * productos_count / NULLIF(anterior, 0) AS porcentaje
+                FROM (
+                  SELECT sitio_key, productos_count,
+                         lag(productos_count) OVER (PARTITION BY sitio_key ORDER BY started_at) AS anterior,
+                         row_number() OVER (PARTITION BY sitio_key ORDER BY started_at DESC) AS n
+                  FROM scrape_run_site
+                  WHERE status = 'DONE'
+                ) x
+                WHERE n = 1 AND anterior > 0
+          - refId: B
+            datasourceUid: __expr__
+            model: { refId: B, type: reduce, expression: A, reducer: last }
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator: { type: lt, params: [50] }
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        annotations:
+          summary: "{{ $labels.sitio }} trajo {{ humanize $values.B.Value }}% de lo que trajo la vez anterior"
+        labels:
+          servicio: scrappy

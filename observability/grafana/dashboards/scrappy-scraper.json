@@ -1,0 +1,1014 @@
+{
+  "uid": "scrappy-scraper",
+  "title": "Scrappy — Scraper",
+  "tags": [
+    "scrappy"
+  ],
+  "timezone": "browser",
+  "editable": true,
+  "schemaVersion": 41,
+  "refresh": "5m",
+  "time": {
+    "from": "now-30d",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "type": "query",
+        "name": "sitio",
+        "label": "Sitio",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "scrappy-postgres"
+        },
+        "query": "SELECT sitio_key FROM sitio ORDER BY 1",
+        "definition": "SELECT sitio_key FROM sitio ORDER BY 1",
+        "refresh": 1,
+        "multi": true,
+        "includeAll": true,
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "row",
+      "id": 1,
+      "title": "Corridas",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "id": 2,
+      "title": "Horas desde la última corrida completa",
+      "description": "Si pasa de un día y tenés un cronjob diario, algo no está corriendo.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "scrappy-postgres"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 1,
+        "w": 6,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "scrappy-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT extract(epoch FROM now() - max(finished_at)) / 3600 AS horas FROM scrape_run WHERE status = 'COMPLETED'"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "h",
+          "decimals": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 26
+              },
+              {
+                "color": "red",
+                "value": 50
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "id": 3,
+      "title": "Corridas en el rango",
+      "description": "Cuántas corridas terminaron en cada estado.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "scrappy-postgres"
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 1,
+        "w": 8,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "scrappy-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT count(*) FILTER (WHERE status = 'COMPLETED')   AS \"Completas\",\n       count(*) FILTER (WHERE status = 'CANCELLED')   AS \"Canceladas\",\n       count(*) FILTER (WHERE status = 'INTERRUPTED') AS \"Interrumpidas\",\n       count(*) FILTER (WHERE status = 'ERROR')       AS \"Con error\"\nFROM scrape_run WHERE $__timeFilter(started_at)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "Canceladas|Interrumpidas"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Con error"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "id": 4,
+      "title": "Catálogo",
+      "description": "Productos activos hoy (activo IS NOT FALSE) y sitios que aportan.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "scrappy-postgres"
+      },
+      "gridPos": {
+        "x": 14,
+        "y": 1,
+        "w": 10,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "scrappy-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT count(*) FILTER (WHERE activo IS NOT FALSE)                         AS \"Activos\",\n       count(*)                                                             AS \"Total histórico\",\n       count(DISTINCT sitio_key) FILTER (WHERE activo IS NOT FALSE)         AS \"Sitios con activos\"\nFROM productos"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "id": 5,
+      "title": "Productos por corrida",
+      "description": "Sólo corridas completas. Un escalón hacia abajo = algún sitio dejó de traer.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "scrappy-postgres"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 6,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "scrappy-postgres"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT started_at AS time, productos_count AS \"Productos\" FROM scrape_run WHERE $__timeFilter(started_at) AND status = 'COMPLETED' ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "showPoints": "always",
+            "pointSize": 6,
+            "spanNulls": true
+          }
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "type": "timeseries",
+      "id": 6,
+      "title": "Duración de cada corrida",
+      "description": "Minutos de punta a punta.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "scrappy-postgres"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 6,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "scrappy-postgres"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT started_at AS time, extract(epoch FROM finished_at - started_at) / 60 AS \"Minutos\" FROM scrape_run WHERE $__timeFilter(started_at) AND finished_at IS NOT NULL ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "m",
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 60,
+            "barAlignment": 0
+          }
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "type": "row",
+      "id": 7,
+      "title": "Sitios",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 14
+      },
+      "panels": []
+    },
+    {
+      "type": "table",
+      "id": 8,
+      "title": "Estado por sitio (última vez que corrió)",
+      "description": "Arriba quedan los que fallaron o trajeron 0, después los que más cayeron contra su corrida anterior. 'Vez anterior' es la última corrida completa de ESE sitio, no la corrida global anterior. 'Cortado' = la paginación se cortó por un error: esos productos se guardaron pero no se desactivó nada del sitio.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "scrappy-postgres"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 15,
+        "w": 24,
+        "h": 11
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "scrappy-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH ult AS (\n  SELECT DISTINCT ON (sitio_key) sitio_key,\n         -- DONE with an error = pagination cut mid-way: the products are partial.\n         CASE WHEN status = 'DONE' AND error IS NOT NULL THEN 'PARTIAL' ELSE status END AS status,\n         productos_count, started_at, finished_at, error\n  FROM scrape_run_site\n  WHERE started_at IS NOT NULL\n  ORDER BY sitio_key, started_at DESC\n), prev AS (\n  SELECT DISTINCT ON (s.sitio_key) s.sitio_key, s.productos_count\n  FROM scrape_run_site s JOIN ult u USING (sitio_key)\n  WHERE s.status = 'DONE' AND s.error IS NULL AND s.started_at < u.started_at\n  ORDER BY s.sitio_key, s.started_at DESC\n)\nSELECT u.sitio_key AS \"Sitio\",\n       u.status AS \"Estado\",\n       u.productos_count AS \"Productos\",\n       p.productos_count AS \"Vez anterior\",\n       CASE WHEN p.productos_count > 0\n            THEN round(100.0 * (u.productos_count - p.productos_count) / p.productos_count, 1)\n       END AS \"Variación %\",\n       round(extract(epoch FROM u.finished_at - u.started_at)::numeric / 60, 1) AS \"Minutos\",\n       u.started_at AS \"Corrió\",\n       u.error AS \"Error\"\nFROM ult u LEFT JOIN prev p USING (sitio_key)\nWHERE u.sitio_key IN (${sitio:sqlstring})\nORDER BY (u.status IN ('ERROR', 'PARTIAL') OR u.productos_count = 0) DESC,\n         CASE WHEN p.productos_count > 0\n              THEN (u.productos_count - p.productos_count)::numeric / p.productos_count\n         END ASC NULLS LAST,\n         u.sitio_key"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "filterable": true
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Estado"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "DONE": {
+                        "color": "green",
+                        "text": "OK"
+                      },
+                      "PARTIAL": {
+                        "color": "orange",
+                        "text": "Cortado"
+                      },
+                      "COMPLETED": {
+                        "color": "green",
+                        "text": "Completa"
+                      },
+                      "ERROR": {
+                        "color": "red",
+                        "text": "Error"
+                      },
+                      "SKIPPED": {
+                        "color": "text",
+                        "text": "Salteado"
+                      },
+                      "RUNNING": {
+                        "color": "blue",
+                        "text": "Corriendo"
+                      },
+                      "PENDING": {
+                        "color": "text",
+                        "text": "Pendiente"
+                      },
+                      "CANCELLED": {
+                        "color": "orange",
+                        "text": "Cancelada"
+                      },
+                      "INTERRUPTED": {
+                        "color": "orange",
+                        "text": "Interrumpida"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              },
+              {
+                "id": "custom.width",
+                "value": 110
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Variación %"
+            },
+            "properties": [
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "red",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": -50
+                    },
+                    {
+                      "color": "yellow",
+                      "value": -20
+                    },
+                    {
+                      "color": "green",
+                      "value": -5
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              },
+              {
+                "id": "unit",
+                "value": "percent"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Productos"
+            },
+            "properties": [
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "red",
+                      "value": null
+                    },
+                    {
+                      "color": "transparent",
+                      "value": 1
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Corrió"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeFromNow"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {}
+    },
+    {
+      "type": "timeseries",
+      "id": 9,
+      "title": "Productos por sitio en cada corrida",
+      "description": "Elegí sitios arriba (variable 'sitio'). Una línea que se hunde es un parser que se pudrió.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "scrappy-postgres"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 26,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "scrappy-postgres"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT started_at AS time, sitio_key AS metric, productos_count AS value FROM scrape_run_site WHERE $__timeFilter(started_at) AND status = 'DONE' AND sitio_key IN (${sitio:sqlstring}) ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "showPoints": "always",
+            "pointSize": 5,
+            "spanNulls": true
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "lastNotNull",
+            "min",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "id": 10,
+      "title": "Minutos por sitio",
+      "description": "Cuánto tarda cada sitio. Un salto suele ser un fallback lento (ver Vaypol).",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "scrappy-postgres"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 26,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "scrappy-postgres"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT started_at AS time, sitio_key AS metric, extract(epoch FROM finished_at - started_at) / 60 AS value FROM scrape_run_site WHERE $__timeFilter(started_at) AND finished_at IS NOT NULL AND sitio_key IN (${sitio:sqlstring}) ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "m",
+          "custom": {
+            "drawStyle": "line",
+            "showPoints": "always",
+            "pointSize": 5,
+            "spanNulls": true
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "type": "table",
+      "id": 11,
+      "title": "Fallas en el rango",
+      "description": "Cada vez que un sitio dio ERROR, se cortó a mitad de la paginación, o terminó con 0 productos.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "scrappy-postgres"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 35,
+        "w": 24,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "scrappy-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT started_at AS \"Cuándo\", sitio_key AS \"Sitio\", CASE WHEN status = 'DONE' AND error IS NOT NULL THEN 'PARTIAL' ELSE status END AS \"Estado\", productos_count AS \"Productos\", error AS \"Error\" FROM scrape_run_site WHERE $__timeFilter(started_at) AND (status = 'ERROR' OR (status = 'DONE' AND (productos_count = 0 OR error IS NOT NULL))) AND sitio_key IN (${sitio:sqlstring}) ORDER BY started_at DESC LIMIT 200"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Estado"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "DONE": {
+                        "color": "green",
+                        "text": "OK"
+                      },
+                      "PARTIAL": {
+                        "color": "orange",
+                        "text": "Cortado"
+                      },
+                      "COMPLETED": {
+                        "color": "green",
+                        "text": "Completa"
+                      },
+                      "ERROR": {
+                        "color": "red",
+                        "text": "Error"
+                      },
+                      "SKIPPED": {
+                        "color": "text",
+                        "text": "Salteado"
+                      },
+                      "RUNNING": {
+                        "color": "blue",
+                        "text": "Corriendo"
+                      },
+                      "PENDING": {
+                        "color": "text",
+                        "text": "Pendiente"
+                      },
+                      "CANCELLED": {
+                        "color": "orange",
+                        "text": "Cancelada"
+                      },
+                      "INTERRUPTED": {
+                        "color": "orange",
+                        "text": "Interrumpida"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              },
+              {
+                "id": "custom.width",
+                "value": 110
+              }
+            ]
+          }
+        ]
+      },
+      "options": {}
+    },
+    {
+      "type": "row",
+      "id": 12,
+      "title": "Catálogo",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 43
+      },
+      "panels": []
+    },
+    {
+      "type": "barchart",
+      "id": 13,
+      "title": "Activos por rubro",
+      "description": "",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "scrappy-postgres"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 44,
+        "w": 8,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "scrappy-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT coalesce(rubro, '(sin rubro)') AS rubro, count(*) AS productos FROM productos WHERE activo IS NOT FALSE GROUP BY 1 ORDER BY 2 DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "xField": "rubro",
+        "showValue": "always",
+        "legend": {
+          "showLegend": false
+        }
+      }
+    },
+    {
+      "type": "barchart",
+      "id": 14,
+      "title": "Activos por sitio",
+      "description": "",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "scrappy-postgres"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 44,
+        "w": 16,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "scrappy-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT sitio_key AS sitio, count(*) AS productos FROM productos WHERE activo IS NOT FALSE GROUP BY 1 ORDER BY 2 DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "xField": "sitio",
+        "showValue": "auto",
+        "legend": {
+          "showLegend": false
+        }
+      }
+    },
+    {
+      "type": "table",
+      "id": 15,
+      "title": "Calidad de clasificación por sitio",
+      "description": "Sobre activos. Mucho 'Otros' = faltan keywords; mucho 'sin marca' = falta la marca en BrandExtractor.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "scrappy-postgres"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 53,
+        "w": 12,
+        "h": 10
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "scrappy-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT sitio_key AS \"Sitio\",\n       count(*) AS \"Activos\",\n       round(100.0 * count(*) FILTER (WHERE categoria IS NULL OR categoria = 'Otros') / count(*), 1) AS \"% sin categoría\",\n       round(100.0 * count(*) FILTER (WHERE marca IS NULL) / count(*), 1) AS \"% sin marca\"\nFROM productos WHERE activo IS NOT FALSE\nGROUP BY 1 ORDER BY 3 DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "filterable": true
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "% sin.*"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "max",
+                "value": 100
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 15
+                    },
+                    {
+                      "color": "red",
+                      "value": 40
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {}
+    },
+    {
+      "type": "timeseries",
+      "id": 16,
+      "title": "Altas y precios registrados por día",
+      "description": "Productos nuevos (created_at) y puntos de precio_historico por día.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "scrappy-postgres"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 53,
+        "w": 12,
+        "h": 10
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "scrappy-postgres"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT date_trunc('day', created_at) AS time, count(*) AS \"Productos nuevos\" FROM productos WHERE $__timeFilter(created_at) GROUP BY 1 ORDER BY 1"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "scrappy-postgres"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT fecha::timestamptz AS time, count(*) AS \"Precios registrados\" FROM precio_historico WHERE $__timeFilter(fecha::timestamptz) GROUP BY 1 ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 50
+          }
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "type": "table",
+      "id": 17,
+      "title": "Cronjobs: últimas ejecuciones",
+      "description": "",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "scrappy-postgres"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 63,
+        "w": 24,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "scrappy-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT e.started_at AS \"Inicio\", j.name AS \"Job\", e.status AS \"Estado\", round(e.duration_ms / 60000.0, 1) AS \"Minutos\", e.skipped_reason AS \"Motivo\" FROM cron_executions e JOIN cron_jobs j ON j.id = e.job_id WHERE $__timeFilter(e.started_at) ORDER BY e.started_at DESC LIMIT 50"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
+    }
+  ]
+}

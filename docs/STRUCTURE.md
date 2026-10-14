@@ -15,6 +15,8 @@ Scrappy/
 ├── INSTALAR_Y_CORRER.bat        ← Windows: aprovisiona _tools/ e invoca `-m cli`
 ├── Ejecutar_instalar.sh         ← Mirror POSIX
 ├── docker-compose.yml + Dockerfile + docker.env.example
+├── docker-compose.observability.yml  ← Grafana opcional (se usa vía scripts/observability.sh)
+├── observability/               ← provisioning de Grafana (datasource, dashboards, alertas) + rol grafana_ro
 ├── cli/                         ← CLI nativo (Python)
 │   ├── core/                    ←   headless: config, env_file, builder, rest,
 │   │                                processes, commands, logs, errors
@@ -25,9 +27,11 @@ Scrappy/
 │                                  ML_PIPELINE, LLM_EMBED, LLM_AGENT_SETUP
 ├── scripts/
 │   ├── dev-db.sh                ← Postgres de dev on-demand (up/down/status)
+│   ├── observability.sh         ← Grafana opcional (up/down/status/logs/reset-admin [--stack])
 │   └── hooks/commit-msg         ← bloquea COMMIT-1 y COMMIT-3 (activar: git config core.hooksPath scripts/hooks)
 ├── ml-tests/                    ← pytest del pipeline Python
 ├── tests/cli/                   ← pytest del CLI nativo
+├── tests/observability/         ← pytest del provisioning de Grafana (queries como grafana_ro)
 ├── tests/e2e/                   ← e2e capa API (pytest) + `run-e2e.sh`, el runner de las dos capas
 │                                  Levanta backend + preview y los apaga. NUNCA contra `vite dev` (ver Gotchas)
 ├── frontend/e2e/                ← e2e capa browser (Playwright): sesión, pestañas, roles, reseteo

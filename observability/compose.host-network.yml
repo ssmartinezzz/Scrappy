@@ -1,0 +1,18 @@
+# Linux Docker Engine (not Desktop), native mode only — scripts/observability.sh
+# adds it on its own. There, host.docker.internal is the bridge gateway
+# (172.17.0.1), and a Postgres published on 127.0.0.1 (scripts/dev-db.sh, a
+# distro PG) is unreachable from it. On the host network, 127.0.0.1 is the host.
+services:
+  grafana-db-init:
+    network_mode: host
+    extra_hosts: !reset []
+
+  grafana:
+    network_mode: host
+    extra_hosts: !reset []
+    ports: !reset []
+    environment:
+      GF_SERVER_HTTP_ADDR: ${GRAFANA_BIND_HOST:-127.0.0.1}
+      GF_SERVER_HTTP_PORT: ${GRAFANA_PORT:-3001}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:${GRAFANA_PORT:-3001}/api/health >/dev/null || exit 1"]
