@@ -21,6 +21,8 @@ final class StatusEventJson {
 
     record StatusLine(String status, String mensaje) {}
 
+    record CloudflareLine(String sitio, String estado, String detalle) {}
+
     @JsonInclude(JsonInclude.Include.NON_NULL)
     record MlLine(String kind, boolean running, String phase, int pct, String msg, String startedAt) {}
 
@@ -42,6 +44,8 @@ final class StatusEventJson {
                     m.startedAt() != null ? m.startedAt() : "")));
             case StatusEvent.DbChanged d -> new Wire("db.changed", write(new DbLine(
                     d.table(), d.op(), d.id(), d.run(), d.site(), d.job(), d.status())));
+            case StatusEvent.ScrapeCloudflare c -> new Wire("scrape.cloudflare", write(new CloudflareLine(
+                    c.sitio(), c.estado().name().toLowerCase(), c.detalle())));
             case StatusEvent.Resync r -> new Wire(RESYNC, "{}");
         };
     }

@@ -459,6 +459,7 @@ El primer evento es siempre `snapshot`; los siguientes son cambios:
 | `snapshot` | `{ status, ml }`: el `data` de `GET /status` y de `GET /ml/estado` | al conectar |
 | `scrape.status` | `{ status, mensaje }` | cada cambio de estado o de mensaje de la corrida |
 | `scrape.progress` | `{ total, completados, productos, sitios[] }` (mismo `progreso` de `/status`) | avance por sitio; máximo 4 por segundo |
+| `scrape.cloudflare` | `{ sitio, estado: "detectada"\|"resuelta"\|"bloqueada", detalle }` | un scrape se topó con un challenge de Cloudflare: se detectó, se resolvió vía FlareSolverr o quedó bloqueado |
 | `ml.status` | `{ kind: "training"\|"backfill", running, phase, pct, msg, startedAt }` | entrenamiento o backfill de embeddings |
 | `db.changed` | `{ table, op, id?, run?, site?, job?, status }` | la base avisó un cambio de estado en `scrape_run`, `scrape_run_site` o `cron_executions` |
 | `resync` | `{}` | se pudieron perder eventos: releer el estado |
