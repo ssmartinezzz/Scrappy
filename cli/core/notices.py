@@ -59,22 +59,25 @@ class CloudflareNotices:
 
     def _run(self, stop: threading.Event) -> None:
         while not stop.is_set():
-            follower = None
             try:
-                follower = self._factory(self._rest)
-                with self._lock:
-                    if stop.is_set():
-                        follower.close()
-                        return
-                    self._follower = follower
-                for event in follower.events():
-                    if event.name == "scrape.cloudflare":
-                        payload = event.data
-                        level = "err" if isinstance(payload, dict) and payload.get("estado") == "bloqueada" else "info"
-                        self._emit(level, cloudflare_line(payload))
+                self._follow_once(stop)
             except Exception:  # noqa: BLE001 - a notice listener must never take the console down
                 pass
-            finally:
-                if follower is not None:
-                    follower.close()
             stop.wait(self._retry)
+
+    def _follow_once(self, stop: threading.Event) -> None:
+        follower = self._factory(self._rest)
+        try:
+            with self._lock:
+                if stop.is_set():
+                    return
+                self._follower = follower
+            for event in follower.events():
+                if event.name == "scrape.cloudflare":
+                    self._notify(event.data)
+        finally:
+            follower.close()
+
+    def _notify(self, payload) -> None:
+        bloqueada = isinstance(payload, dict) and payload.get("estado") == "bloqueada"
+        self._emit("err" if bloqueada else "info", cloudflare_line(payload))
