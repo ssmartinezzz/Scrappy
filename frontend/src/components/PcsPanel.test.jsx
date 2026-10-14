@@ -139,6 +139,23 @@ describe('PcsPanel — Regenerar', () => {
     ]));
     expect(llamada(2).excluir).toHaveLength(3);
   });
+
+  it('el historial de cada slot tiene tope, para que la URL no supere el límite del servidor', async () => {
+    const user = userEvent.setup();
+    render(<PcsPanel />);
+    fetchPcsBuilder.mockResolvedValue(respuesta({ picks: [pick('mother', 'M0')] }));
+    await armar(user);
+
+    for (let i = 1; i <= 6; i++) {
+      fetchPcsBuilder.mockResolvedValue(respuesta({ picks: [pick('mother', `M${i}`)] }));
+      await user.click(screen.getByRole('button', { name: 'Regenerar' }));
+      await waitFor(() => expect(fetchPcsBuilder).toHaveBeenCalledTimes(i + 1));
+    }
+
+    expect(llamada(6).excluir).toEqual([
+      'https://test/M2', 'https://test/M3', 'https://test/M4', 'https://test/M5',
+    ]);
+  });
 });
 
 describe('PcsPanel — conGpu', () => {

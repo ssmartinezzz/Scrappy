@@ -110,6 +110,10 @@ const WATTS = [
   { value: 1000, label: '1000 W' },
 ];
 
+// `excluir` viaja en la query string y Tomcat corta en 8 KB (request line + headers):
+// sin tope, ~6 clicks de Regenerar con 8 slots devolvían 400. 4 por slot ≈ 4 KB.
+const VISTOS_POR_SLOT = 4;
+
 const TIER_CHIPSET_LABEL = { 1: 'X/Z', 2: 'B', 3: 'A/H' };
 const TAMANIO_GABINETE_LABEL = { MINI: 'mini tower', MID: 'mid tower', FULL: 'full tower' };
 
@@ -351,7 +355,9 @@ export default function PcsPanel({ onSavePc } = {}) {
       for (const p of nuevos) {
         if (!p.url) continue;
         const yaVistos = siguientes[p.slot] ?? [];
-        siguientes[p.slot] = yaVistos.includes(p.url) ? [p.url] : [...yaVistos, p.url];
+        siguientes[p.slot] = yaVistos.includes(p.url)
+          ? [p.url]
+          : [...yaVistos, p.url].slice(-VISTOS_POR_SLOT);
       }
       setVistos(siguientes);
     } catch {
