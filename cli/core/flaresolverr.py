@@ -42,3 +42,13 @@ def stop_flaresolverr(cfg: Config, *, runner: Optional[Runner] = None) -> None:
         pass
     finally:
         marker.unlink(missing_ok=True)
+
+
+class FlareSolverrService:
+    """Injectable face of `stop_flaresolverr`, so presenters take a fake."""
+
+    def __init__(self, runner: Optional[Runner] = None) -> None:
+        self._runner = runner
+
+    def stop_flaresolverr(self, cfg: Config) -> None:
+        stop_flaresolverr(cfg, runner=self._runner)

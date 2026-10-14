@@ -266,3 +266,26 @@ def stop_proxy(cfg: Config, *, runner: Optional[Runner] = None) -> None:
         runner(["docker", "rm", "-f", CONTAINER])
     except Exception:
         pass
+
+
+class LanProxyService:
+    """Injectable face of this module; matches the `proxy=` duck type of
+    `runtime_config.apply_mode` / `preflight`."""
+
+    def __init__(self, runner: Optional[Runner] = None) -> None:
+        self._runner = runner
+
+    def preflight(self) -> None:
+        return preflight()
+
+    def detect_lan_ip(self) -> str:
+        return detect_lan_ip()
+
+    def ensure_cert(self, cfg: Config, ip: str) -> CertBundle:
+        return ensure_cert(cfg, ip)
+
+    def start_proxy(self, cfg: Config, ip: str) -> None:
+        start_proxy(cfg, ip, runner=self._runner)
+
+    def stop_proxy(self, cfg: Config) -> None:
+        stop_proxy(cfg, runner=self._runner)

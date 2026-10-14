@@ -93,7 +93,23 @@ class _FakeProcesses:
 opened: list[str] = []
 
 
-def _make_app(tmp_path, connect=lambda *a: False):
+class _FakeFlareSolverr:
+    def __init__(self) -> None:
+        self.stopped_with = []
+
+    def stop_flaresolverr(self, cfg):
+        self.stopped_with.append(cfg)
+
+
+class _FakeLanProxy:
+    def __init__(self) -> None:
+        self.stopped_with = []
+
+    def stop_proxy(self, cfg):
+        self.stopped_with.append(cfg)
+
+
+def _make_app(tmp_path, connect=lambda *a: False, **services):
     rest = _FakeRest()
     processes = _FakeProcesses()
     app = ScrappyConsole(
@@ -102,6 +118,7 @@ def _make_app(tmp_path, connect=lambda *a: False):
         processes=processes,
         opener=lambda url: opened.append(url),
         connect=connect,  # stubbed: health probes never touch a real port
+        **services,
     )
     return app, rest, processes
 
@@ -312,6 +329,15 @@ async def test_stop_tears_down_the_services_without_exiting(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_stop_takes_the_lan_proxy_down_through_the_injected_service(tmp_path):
+    lan_proxy = _FakeLanProxy()
+    app, _, _ = _make_app(tmp_path, lan_proxy=lan_proxy)
+    async with app.run_test() as pilot:
+        await _submit(app, pilot, "stop")
+        assert lan_proxy.stopped_with == [app.cfg]
+
+
+@pytest.mark.asyncio
 async def test_logs_renders_the_service_log_tail(tmp_path):
     from cli.core.logs import service_log_path
 
@@ -359,16 +385,12 @@ async def test_quit_verb_tears_down_processes_and_exits(tmp_path, how):
 
 
 @pytest.mark.asyncio
-async def test_quitting_stops_the_flaresolverr_the_installer_started(tmp_path, monkeypatch):
-    calls = []
-    monkeypatch.setattr("cli.core.flaresolverr._run_docker", lambda argv, **kw: calls.append(list(argv)))
-    marker = tmp_path / "_tools" / "flaresolverr.owned"
-    marker.parent.mkdir(parents=True)
-    marker.touch()
-    app, _, _ = _make_app(tmp_path)
+async def test_quitting_stops_the_flaresolverr_the_installer_started(tmp_path):
+    flaresolverr = _FakeFlareSolverr()
+    app, _, _ = _make_app(tmp_path, flaresolverr=flaresolverr)
     async with app.run_test() as pilot:
         await _submit(app, pilot, "quit")
-    assert calls == [["docker", "stop", "fashion-scraper-flaresolverr"]]
+    assert flaresolverr.stopped_with == [app.cfg]
 
 
 @pytest.mark.asyncio
@@ -847,7 +869,7 @@ async def test_start_lan_prints_the_trust_report_computed_not_transcribed(tmp_pa
     from cli.tui import app as app_mod
 
     monkeypatch.setattr(builder_mod, "is_built", lambda cfg: True)
-    monkeypatch.setattr(app_mod, "preflight", lambda mode: None)
+    monkeypatch.setattr(app_mod, "preflight", lambda mode, **kw: None)
     fixed = Startup(
         mode="lan",
         origins=Origins(frontend="https://192.0.2.10:8443", backend="https://192.0.2.10:8444"),
@@ -882,7 +904,7 @@ async def test_start_preflights_docker_before_any_build_work(tmp_path, monkeypat
     order: list[str] = []
     monkeypatch.setattr(builder_mod, "is_built", lambda cfg: False)
     monkeypatch.setattr(builder_mod, "build_project", lambda cfg, *a, **k: order.append("build"))
-    monkeypatch.setattr(app_mod, "preflight", lambda mode: order.append("preflight"))
+    monkeypatch.setattr(app_mod, "preflight", lambda mode, **kw: order.append("preflight"))
     monkeypatch.setattr(
         app_mod,
         "apply_mode",

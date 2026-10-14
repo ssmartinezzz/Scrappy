@@ -4,7 +4,7 @@ import pytest
 
 import cli.core.flaresolverr as flaresolverr_module
 from cli.core.config import Config, Ports, resolve_toolchain_paths
-from cli.core.flaresolverr import CONTAINER, owned_marker, stop_flaresolverr
+from cli.core.flaresolverr import CONTAINER, FlareSolverrService, owned_marker, stop_flaresolverr
 
 
 @pytest.fixture
@@ -76,3 +76,13 @@ def test_a_test_path_that_reaches_real_docker_fails_loudly():
         flaresolverr_module._run_docker(["docker", "version"])
 
     assert "test" in str(exc.value).lower()
+
+
+def test_the_service_stops_through_the_runner_it_was_built_with(cfg):
+    marker = _mark_owned(cfg)
+    docker = FakeDocker()
+
+    FlareSolverrService(runner=docker).stop_flaresolverr(cfg)
+
+    assert docker.calls == [["docker", "stop", CONTAINER]]
+    assert not marker.exists()

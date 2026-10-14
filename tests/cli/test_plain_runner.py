@@ -80,12 +80,28 @@ class _FakeProcesses:
         self.shutdown_called = True
 
 
-def _make_runner(tmp_path, in_text: str) -> tuple[PlainRunner, _FakeRest, _FakeProcesses, io.StringIO]:
+class _FakeFlareSolverr:
+    def __init__(self) -> None:
+        self.stopped_with = []
+
+    def stop_flaresolverr(self, cfg):
+        self.stopped_with.append(cfg)
+
+
+class _FakeLanProxy:
+    def __init__(self) -> None:
+        self.stopped_with = []
+
+    def stop_proxy(self, cfg):
+        self.stopped_with.append(cfg)
+
+
+def _make_runner(tmp_path, in_text: str, **services) -> tuple[PlainRunner, _FakeRest, _FakeProcesses, io.StringIO]:
     rest = _FakeRest()
     processes = _FakeProcesses()
     out = io.StringIO()
     in_ = io.StringIO(in_text)
-    r = PlainRunner(_cfg(tmp_path), rest=rest, processes=processes, out=out, in_=in_)
+    r = PlainRunner(_cfg(tmp_path), rest=rest, processes=processes, out=out, in_=in_, **services)
     return r, rest, processes, out
 
 
@@ -247,15 +263,11 @@ def test_run_processes_commands_then_quits_on_q(tmp_path):
     assert processes.shutdown_called is True
 
 
-def test_quitting_stops_the_flaresolverr_the_installer_started(tmp_path, monkeypatch):
-    calls = []
-    monkeypatch.setattr("cli.core.flaresolverr._run_docker", lambda argv, **kw: calls.append(list(argv)))
-    marker = tmp_path / "_tools" / "flaresolverr.owned"
-    marker.parent.mkdir(parents=True)
-    marker.touch()
-    r, _, _, _ = _make_runner(tmp_path, "q\n")
+def test_quitting_stops_the_flaresolverr_the_installer_started(tmp_path):
+    flaresolverr = _FakeFlareSolverr()
+    r, _, _, _ = _make_runner(tmp_path, "q\n", flaresolverr=flaresolverr)
     r.run()
-    assert calls == [["docker", "stop", "fashion-scraper-flaresolverr"]]
+    assert flaresolverr.stopped_with == [r.cfg]
 
 
 def test_run_always_tears_down_even_if_dispatch_raises_unexpectedly(tmp_path, monkeypatch):
@@ -333,6 +345,33 @@ def test_stop_tears_down_services_without_ending_the_loop(tmp_path):
     assert processes.shutdown_called is True
 
 
+def test_stop_takes_the_lan_proxy_down_through_the_injected_service(tmp_path):
+    lan_proxy = _FakeLanProxy()
+    r, _, _, _ = _make_runner(tmp_path, "", lan_proxy=lan_proxy)
+    r.dispatch("stop")
+    assert lan_proxy.stopped_with == [r.cfg]
+
+
+def test_start_hands_the_injected_lan_proxy_to_preflight_and_apply_mode(tmp_path, monkeypatch):
+    from cli.core.runtime_config import Origins, Startup
+
+    _mark_built(tmp_path)
+    seen = {}
+    monkeypatch.setattr(runner_module, "preflight", lambda mode, **kw: seen.update(preflight=kw["proxy"]))
+
+    def fake_apply(cfg, mode, env, **kw):
+        seen["apply_mode"] = kw["proxy"]
+        return Startup(mode=mode, origins=Origins(frontend="http://x", backend="http://y"), ca=None)
+
+    monkeypatch.setattr(runner_module, "apply_mode", fake_apply)
+    lan_proxy = _FakeLanProxy()
+    r, _, _, _ = _make_runner(tmp_path, "", lan_proxy=lan_proxy)
+
+    r.dispatch("start lan")
+
+    assert seen == {"preflight": lan_proxy, "apply_mode": lan_proxy}
+
+
 def test_logs_prints_the_service_log_tail(tmp_path):
     from cli.core.logs import service_log_path
 
@@ -392,7 +431,7 @@ def test_start_lan_prints_the_trust_report_computed_not_transcribed(tmp_path, mo
     from cli.core.runtime_config import Origins, Startup
 
     _mark_built(tmp_path)
-    monkeypatch.setattr(runner_module, "preflight", lambda mode: None)
+    monkeypatch.setattr(runner_module, "preflight", lambda mode, **kw: None)
     fixed = Startup(
         mode="lan",
         origins=Origins(frontend="https://192.0.2.10:8443", backend="https://192.0.2.10:8444"),
@@ -414,7 +453,7 @@ def test_start_preflights_docker_before_any_build_work(tmp_path, monkeypatch):
 
     order: list[str] = []
     monkeypatch.setattr(runner_module, "is_built", lambda cfg: False)
-    monkeypatch.setattr(runner_module, "preflight", lambda mode: order.append("preflight"))
+    monkeypatch.setattr(runner_module, "preflight", lambda mode, **kw: order.append("preflight"))
     monkeypatch.setattr(runner_module, "build_project", lambda cfg, *a, **k: order.append("build"))
     monkeypatch.setattr(
         runner_module,
