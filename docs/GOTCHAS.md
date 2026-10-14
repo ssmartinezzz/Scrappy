@@ -746,6 +746,7 @@ Dos cosas que se rompen en silencio si se tocan:
 - En Docker Engine de Linux (sin Desktop) `host.docker.internal` es el gateway del bridge (`172.17.0.1`) y un Postgres publicado en `127.0.0.1` no se ve desde ahí. El script lo detecta y agrega `observability/compose.host-network.yml`. Síntoma si se saltea: `grafana-db-init` sale con `Postgres no responde en host.docker.internal:5432`.
 - `GF_SECURITY_ADMIN_PASSWORD` se lee **sólo en el primer arranque**; después la clave vive en el volumen. Cambiarla en `grafana.env` no hace nada sin `observability.sh reset-admin`.
 - Los dashboards se aprovisionan desde el repo con `allowUiUpdates: false`: lo que edites en la UI se pierde al reiniciar. Exportá el JSON y pisá `observability/grafana/dashboards/*.json`.
+- **Desde `Ejecutar_instalar.sh` es opt-in por archivo, no por pregunta:** el paso `[GF]` corre sólo si existe `observability/grafana.env`, o sea después de un primer `scripts/observability.sh up` a mano. Marca `_tools/grafana.owned` y el CLI hace `down` al salir; un Grafana que no levantó el instalador no lo apaga nadie. La clave nunca la imprime el instalador (descarta el stdout de `up`): sólo el verbo `grafana`, en pantalla.
 - `grafana_ro` lee una lista blanca de tablas (`observability/postgres/grafana-readonly.sql`), nunca `usuario` ni tokens. Un panel sobre una tabla nueva falla con `permission denied` hasta agregarla ahí; `tests/observability` lo atrapa.
 
 ---

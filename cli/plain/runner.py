@@ -22,6 +22,7 @@ from cli.core.commands import find, menu_text
 from cli.core.config import Config
 from cli.core.env_file import compute_defaults, generate_env, parse_env
 from cli.core.flaresolverr import FlareSolverrService
+from cli.core.grafana import GrafanaService, describe as describe_grafana
 from cli.core.lan_proxy import LanProxyService
 from cli.core.notices import CloudflareNotices
 from cli.core.runtime_config import LOCAL, Origins, apply_mode, preflight
@@ -121,6 +122,7 @@ class PlainRunner:
         follower_factory: Callable[[RestClient], EventFollower] = EventFollower,
         lan_proxy: Optional[LanProxyService] = None,
         flaresolverr: Optional[FlareSolverrService] = None,
+        grafana: Optional[GrafanaService] = None,
         notice_follower_factory: Optional[Callable[[RestClient], EventFollower]] = None,
     ) -> None:
         self.cfg = cfg
@@ -134,6 +136,7 @@ class PlainRunner:
         self.processes = processes or ProcessManager()
         self.lan_proxy = lan_proxy or LanProxyService()
         self.flaresolverr = flaresolverr or FlareSolverrService()
+        self.grafana = grafana or GrafanaService()
         self.out = out
         self.in_ = in_
         self.opener = opener
@@ -254,6 +257,8 @@ class PlainRunner:
                 self._print(cmd_list_sitios(self.rest))
             elif name == "logs":
                 self._print(cmd_logs(self.cfg, *args[:2]))
+            elif name == "grafana":
+                self._print(describe_grafana(self.grafana.info(self.cfg)))
             elif name == "open":
                 url = self.active_origins.frontend if self.active_origins else None
                 self._print(cmd_open_dashboard(self.cfg, url, self.opener))
@@ -293,6 +298,7 @@ class PlainRunner:
             self.notices.stop()
             self.processes.shutdown_all()
             self.flaresolverr.stop_flaresolverr(self.cfg)
+            self.grafana.stop_grafana(self.cfg)
         return 0
 
 

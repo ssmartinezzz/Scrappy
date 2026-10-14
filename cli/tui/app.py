@@ -44,6 +44,7 @@ from cli.core.config import Config
 from cli.core.env_file import compute_defaults, generate_env
 from cli.core.errors import CliError
 from cli.core.flaresolverr import FlareSolverrService
+from cli.core.grafana import GrafanaService, describe as describe_grafana
 from cli.core.health import ConnectFn
 from cli.core.processes import ProcessManager
 from cli.core.lan_proxy import LanProxyService
@@ -218,6 +219,7 @@ class ScrappyConsole(App):
         follower_factory: Callable[[RestClient], EventFollower] = EventFollower,
         lan_proxy: Optional[LanProxyService] = None,
         flaresolverr: Optional[FlareSolverrService] = None,
+        grafana: Optional[GrafanaService] = None,
         notice_follower_factory: Optional[Callable[[RestClient], EventFollower]] = None,
     ) -> None:
         super().__init__()
@@ -233,6 +235,7 @@ class ScrappyConsole(App):
         self.processes = processes or ProcessManager()
         self.lan_proxy = lan_proxy or LanProxyService()
         self.flaresolverr = flaresolverr or FlareSolverrService()
+        self.grafana = grafana or GrafanaService()
         self.open_url = open_url
         self.active_origins = None  # set by `start`; see _cmd_open
         self.opener = opener
@@ -568,6 +571,9 @@ class ScrappyConsole(App):
         for line in lines:
             self._emit("raw", line)
 
+    def _cmd_grafana(self, args: list[str]) -> None:
+        self._emit("out", describe_grafana(self.grafana.info(self.cfg)))
+
     def _cmd_open(self, args: list[str]) -> None:
         # The active mode wins over APP_OPEN_URL: that records whatever the
         # .env was last frozen at, not where this run actually serves.
@@ -605,6 +611,7 @@ class ScrappyConsole(App):
         self.notices.stop()
         self.processes.shutdown_all()
         self.flaresolverr.stop_flaresolverr(self.cfg)
+        self.grafana.stop_grafana(self.cfg)
         self.exit()
 
 

@@ -10,6 +10,7 @@ import inspect
 
 import cli.plain.runner as runner_module
 from cli.core.config import Config, Ports, ToolchainPaths
+from cli.core.grafana import GrafanaInfo
 from cli.plain.runner import PlainRunner, run
 
 
@@ -280,6 +281,32 @@ def test_quitting_stops_the_flaresolverr_the_installer_started(tmp_path):
     r, _, _, _ = _make_runner(tmp_path, "q\n", flaresolverr=flaresolverr)
     r.run()
     assert flaresolverr.stopped_with == [r.cfg]
+
+
+def test_quitting_stops_the_grafana_the_installer_started(tmp_path, fake_grafana):
+    grafana = fake_grafana()
+    r, _, _, _ = _make_runner(tmp_path, "q\n", grafana=grafana)
+    r.run()
+    assert grafana.stopped_with == [r.cfg]
+
+
+def test_grafana_verb_prints_url_user_and_password(tmp_path, fake_grafana):
+    info = GrafanaInfo(url="http://localhost:3001", user="admin", password="fake-pass")
+    r, _, _, out = _make_runner(tmp_path, "", grafana=fake_grafana(info))
+    r.dispatch("grafana")
+    assert "Grafana: http://localhost:3001  usuario: admin  clave: fake-pass" in out.getvalue()
+
+
+def test_grafana_verb_says_how_to_opt_in_when_not_activated(tmp_path, fake_grafana):
+    r, _, _, out = _make_runner(tmp_path, "", grafana=fake_grafana(None))
+    r.dispatch("grafana")
+    assert "Grafana no está activado" in out.getvalue()
+
+
+def test_the_menu_mentions_the_grafana_verb(tmp_path):
+    r, _, _, out = _make_runner(tmp_path, "q\n")
+    r.run()
+    assert "grafana" in out.getvalue()
 
 
 def test_run_always_tears_down_even_if_dispatch_raises_unexpectedly(tmp_path, monkeypatch):

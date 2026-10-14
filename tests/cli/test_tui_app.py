@@ -15,6 +15,7 @@ import pytest
 textual = pytest.importorskip("textual", reason="textual not installed in this environment")
 
 from cli.core.config import Config, Ports, ToolchainPaths  # noqa: E402
+from cli.core.grafana import GrafanaInfo  # noqa: E402
 from cli.core.health import Check  # noqa: E402
 from cli.tui.app import ScrappyConsole  # noqa: E402
 from cli.tui.widgets import CommandSuggester, Console, HintBar, StatusBar  # noqa: E402
@@ -403,6 +404,34 @@ async def test_quitting_stops_the_flaresolverr_the_installer_started(tmp_path):
     async with app.run_test() as pilot:
         await _submit(app, pilot, "quit")
     assert flaresolverr.stopped_with == [app.cfg]
+
+
+@pytest.mark.asyncio
+async def test_quitting_stops_the_grafana_the_installer_started(tmp_path, fake_grafana):
+    grafana = fake_grafana()
+    app, _, _ = _make_app(tmp_path, grafana=grafana)
+    async with app.run_test() as pilot:
+        await _submit(app, pilot, "quit")
+    assert grafana.stopped_with == [app.cfg]
+
+
+@pytest.mark.asyncio
+async def test_grafana_verb_prints_url_user_and_password(tmp_path, fake_grafana):
+    info = GrafanaInfo(url="http://localhost:3001", user="admin", password="fake-pass")
+    app, _, _ = _make_app(tmp_path, grafana=fake_grafana(info))
+    async with app.run_test() as pilot:
+        await _submit(app, pilot, "grafana")
+        text = _console_text(app)
+    assert "Grafana: http://localhost:3001  usuario: admin  clave: fake-pass" in text
+
+
+@pytest.mark.asyncio
+async def test_grafana_verb_says_how_to_opt_in_when_not_activated(tmp_path, fake_grafana):
+    app, _, _ = _make_app(tmp_path, grafana=fake_grafana(None))
+    async with app.run_test() as pilot:
+        await _submit(app, pilot, "grafana")
+        text = _console_text(app)
+    assert "Grafana no está activado" in text
 
 
 @pytest.mark.asyncio
