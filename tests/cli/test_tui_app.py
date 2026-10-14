@@ -359,6 +359,19 @@ async def test_quit_verb_tears_down_processes_and_exits(tmp_path, how):
 
 
 @pytest.mark.asyncio
+async def test_quitting_stops_the_flaresolverr_the_installer_started(tmp_path, monkeypatch):
+    calls = []
+    monkeypatch.setattr("cli.core.flaresolverr._run_docker", lambda argv, **kw: calls.append(list(argv)))
+    marker = tmp_path / "_tools" / "flaresolverr.owned"
+    marker.parent.mkdir(parents=True)
+    marker.touch()
+    app, _, _ = _make_app(tmp_path)
+    async with app.run_test() as pilot:
+        await _submit(app, pilot, "quit")
+    assert calls == [["docker", "stop", "fashion-scraper-flaresolverr"]]
+
+
+@pytest.mark.asyncio
 async def test_ctrl_c_tears_down_processes_and_exits(tmp_path):
     """`ctrl+c` stays bound app-wide with priority — `Input` binds it to
     `copy` by default, and quitting must win over that."""

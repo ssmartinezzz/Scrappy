@@ -112,6 +112,47 @@ else
 fi
 echo
 
+# ── FlareSolverr: resolves Cloudflare's challenge for sites flagged
+# sitio.<name>.cloudflare=true (fullh4rd). The backend looks for it at
+# localhost:8191. Optional: without it only those sites fail, with an explicit
+# CloudflareBlockedException. Same image as the flare-solverr compose service.
+# FS_OWNED tells the CLI it started the container, so quitting stops it
+# (cli/core/flaresolverr.py); one the user runs on their own is left alone.
+FS_PORT=8191
+FS_CONTAINER="fashion-scraper-flaresolverr"
+FS_OWNED="$ROOT/_tools/flaresolverr.owned"
+echo "[CF] FlareSolverr (Cloudflare de fullh4rd)..."
+if curl -fsS --max-time 3 "http://localhost:$FS_PORT/" >/dev/null 2>&1; then
+  echo "       Ya responde en localhost:$FS_PORT."
+  if command -v docker >/dev/null 2>&1 \
+      && docker ps --format '{{.Names}}' | grep -q "^$FS_CONTAINER\$"; then
+    mkdir -p "$ROOT/_tools" && touch "$FS_OWNED"
+  fi
+elif ! command -v docker >/dev/null 2>&1; then
+  echo "  [AVISO] Sin Docker: fullh4rd va a fallar por Cloudflare. Levanta" >&2
+  echo "          FlareSolverr en localhost:$FS_PORT a mano." >&2
+else
+  if docker ps -a --format '{{.Names}}' | grep -q "^$FS_CONTAINER\$"; then
+    docker start "$FS_CONTAINER" >/dev/null
+  else
+    docker run -d --name "$FS_CONTAINER" \
+      --shm-size 1g -m 1g -e TZ=America/Argentina/Buenos_Aires \
+      -p "127.0.0.1:$FS_PORT:8191" ghcr.io/flaresolverr/flaresolverr:latest >/dev/null
+  fi
+  mkdir -p "$ROOT/_tools" && touch "$FS_OWNED"
+  for _ in $(seq 1 30); do
+    curl -fsS --max-time 2 "http://localhost:$FS_PORT/" >/dev/null 2>&1 && break
+    sleep 1
+  done
+  if curl -fsS --max-time 2 "http://localhost:$FS_PORT/" >/dev/null 2>&1; then
+    echo "       Listo en localhost:$FS_PORT."
+  else
+    echo "  [AVISO] FlareSolverr no respondio: fullh4rd va a fallar por Cloudflare." >&2
+    echo "          Mira 'docker logs $FS_CONTAINER'." >&2
+  fi
+fi
+echo
+
 # ── native-cli-installer (design.md invariant, §9): this script no longer
 # runs `npm install`/`npm run build`, `mvn clean package`, or writes .env —
 # those, plus the critical "VITE_API_BASE_URL must be a REAL env var

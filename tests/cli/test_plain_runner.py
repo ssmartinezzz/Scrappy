@@ -247,6 +247,17 @@ def test_run_processes_commands_then_quits_on_q(tmp_path):
     assert processes.shutdown_called is True
 
 
+def test_quitting_stops_the_flaresolverr_the_installer_started(tmp_path, monkeypatch):
+    calls = []
+    monkeypatch.setattr("cli.core.flaresolverr._run_docker", lambda argv, **kw: calls.append(list(argv)))
+    marker = tmp_path / "_tools" / "flaresolverr.owned"
+    marker.parent.mkdir(parents=True)
+    marker.touch()
+    r, _, _, _ = _make_runner(tmp_path, "q\n")
+    r.run()
+    assert calls == [["docker", "stop", "fashion-scraper-flaresolverr"]]
+
+
 def test_run_always_tears_down_even_if_dispatch_raises_unexpectedly(tmp_path, monkeypatch):
     r, _, processes, _ = _make_runner(tmp_path, "status\n")
     monkeypatch.setattr(r, "dispatch", lambda line: (_ for _ in ()).throw(RuntimeError("boom")))

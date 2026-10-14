@@ -43,6 +43,7 @@ from cli.core.commands import find, help_lines
 from cli.core.config import Config
 from cli.core.env_file import compute_defaults, generate_env
 from cli.core.errors import CliError
+from cli.core.flaresolverr import stop_flaresolverr
 from cli.core.health import ConnectFn
 from cli.core.processes import ProcessManager
 from cli.core.lan_proxy import stop_proxy
@@ -589,6 +590,7 @@ class ScrappyConsole(App):
         teardown on exit")."""
         self._stop_follower()
         self.processes.shutdown_all()
+        stop_flaresolverr(self.cfg)
         self.exit()
 
 

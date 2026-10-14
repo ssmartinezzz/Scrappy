@@ -21,6 +21,7 @@ from cli.core.builder import build_project, is_built
 from cli.core.commands import find, menu_text
 from cli.core.config import Config
 from cli.core.env_file import compute_defaults, generate_env, parse_env
+from cli.core.flaresolverr import stop_flaresolverr
 from cli.core.lan_proxy import stop_proxy
 from cli.core.runtime_config import LOCAL, Origins, apply_mode, preflight
 from cli.core.errors import CliError
@@ -277,6 +278,7 @@ class PlainRunner:
                     break
         finally:
             self.processes.shutdown_all()
+            stop_flaresolverr(self.cfg)
         return 0
 
 
