@@ -83,6 +83,13 @@ public final class ContextoDeArmado {
                 specsPorProducto);
     }
 
+    /** Same contexto with the price tiebreak flipped to the dearer piece; nothing else reads the flag. */
+    public ContextoDeArmado conSinPresupuesto(boolean sinPresupuesto) {
+        return new ContextoDeArmado(motherSpecs, motherDdr, wattsMin, gamaPedida,
+                certificacionMinima, preferencias, socketsConCpuElegible, mejorCpuPorSocket, sinPresupuesto,
+                specsPorProducto);
+    }
+
     /** Every contexto derived from one {@code inicial} shares the memo: one parse per product per build. */
     public TechSpecs specsDe(Product producto) {
         return specsPorProducto.computeIfAbsent(producto,

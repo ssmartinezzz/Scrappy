@@ -46,6 +46,13 @@ const USOS = [
   { value: 'minipc', label: 'Mini PC' },
 ];
 
+// '' es Ahorrar, el default de ModoPresupuestoWire: se omite del querystring.
+// No se persiste en la preferencia: es del pedido, no del perfil.
+const MODOS_PRESUPUESTO = [
+  { value: '', label: 'Ahorrar' },
+  { value: 'gastar', label: 'Gastar todo' },
+];
+
 // Las cuatro listas de abajo son el vocabulario de cable de PreferenciasWire
 // (D8) — no los enums Java. '' es siempre "no pedida".
 const DDRS = [
@@ -209,6 +216,7 @@ export default function PcsPanel({ onSavePc } = {}) {
   const [gama, setGama] = useState('');
   // '' = Gaming (default). Ver USOS.
   const [uso, setUso] = useState('');
+  const [modo, setModo] = useState('');
   const [ddr, setDdr] = useState('');
   const [marcaCpu, setMarcaCpu] = useState('');
   const [marcaGpu, setMarcaGpu] = useState('');
@@ -275,6 +283,7 @@ export default function PcsPanel({ onSavePc } = {}) {
         setCapacidadMinimaGb(pref.capacidadMinimaGb ?? 0);
         setWattsMinimos(pref.wattsMinimos ?? 0);
         setRamMinimaGb(pref.ramMinimaGb ?? 0);
+        setModo(pref.gastarTodo ? 'gastar' : '');
       })
       .catch(() => {});
     return () => { vivo = false; };
@@ -324,6 +333,7 @@ export default function PcsPanel({ onSavePc } = {}) {
         ...(usoWire === 'homelab' ? { uso: usoWire } : {}),
         // Ausente y null se guardan igual (sin piso); omitirla deja el payload de siempre.
         ...(ramMinimaGb ? { ramMinimaGb } : {}),
+        ...(modo === 'gastar' ? { gastarTodo: true } : {}),
       }).catch(() => {});
     }
     const previos = acumulando ? vistos : {};
@@ -346,6 +356,7 @@ export default function PcsPanel({ onSavePc } = {}) {
         capacidadMinimaGb,
         wattsMinimos,
         ramMinimaGb,
+        modo,
       });
       setData(resp);
       const nuevos = resp?.picks ?? [];
@@ -477,6 +488,10 @@ export default function PcsPanel({ onSavePc } = {}) {
               </div>
             </>
           )}
+        </div>
+
+        <div className="mb-[16px]">
+          <ChipGroup label="Sobrante" options={MODOS_PRESUPUESTO} value={modo} onChange={setModo} />
         </div>
 
         <div className="mb-[24px] flex flex-wrap items-end gap-[12px]">

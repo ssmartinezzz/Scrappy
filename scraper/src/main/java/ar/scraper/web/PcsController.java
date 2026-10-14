@@ -4,6 +4,8 @@ import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
 import ar.scraper.security.Sujeto;
 import ar.scraper.pcs.Gama;
 import ar.scraper.pcs.GamaWire;
+import ar.scraper.pcs.ModoPresupuesto;
+import ar.scraper.pcs.ModoPresupuestoWire;
 import ar.scraper.pcs.PcBuild;
 import ar.scraper.json.PcBuildJson;
 import ar.scraper.pcs.PcBuilder;
@@ -75,6 +77,15 @@ public class PcsController {
                 ramDual, wifi, capacidadMinimaGb, tamanioGabinete, tipoCooler, wattsMinimos, uso, null);
     }
 
+    ResponseEntity<ApiResponse<ObjectNode>> builder(double presupuesto, boolean conGpu, String excluir, String gama,
+            String ddr, String marcaCpu, String marcaGpu, String tipoAlmacenamiento,
+            Boolean ramDual, Boolean wifi,
+            Integer capacidadMinimaGb, String tamanioGabinete, String tipoCooler, Integer wattsMinimos,
+            String uso, Integer ramMinimaGb) {
+        return builder(presupuesto, conGpu, excluir, gama, ddr, marcaCpu, marcaGpu, tipoAlmacenamiento,
+                ramDual, wifi, capacidadMinimaGb, tamanioGabinete, tipoCooler, wattsMinimos, uso, ramMinimaGb, "");
+    }
+
     @GetMapping("/pcs/builder")
     public ResponseEntity<ApiResponse<ObjectNode>> builder(@RequestParam(defaultValue = "0") double presupuesto,
             @RequestParam(defaultValue = "false") boolean conGpu,
@@ -91,15 +102,18 @@ public class PcsController {
             @RequestParam(defaultValue = "") String tipoCooler,
             @RequestParam(required = false) Integer wattsMinimos,
             @RequestParam(defaultValue = "") String uso,
-            @RequestParam(required = false) Integer ramMinimaGb) {
+            @RequestParam(required = false) Integer ramMinimaGb,
+            @RequestParam(defaultValue = "") String modo) {
         Gama gamaPedida;
         PreferenciasDeArmado prefs;
         Uso usoPedido;
+        ModoPresupuesto modoPedido;
         try {
             gamaPedida = GamaWire.parse(gama);
             prefs = PreferenciasWire.parse(ddr, marcaCpu, marcaGpu, tipoAlmacenamiento, ramDual, wifi,
                     capacidadMinimaGb, tamanioGabinete, tipoCooler, wattsMinimos, ramMinimaGb);
             usoPedido = UsoWire.parse(uso);
+            modoPedido = ModoPresupuestoWire.parse(modo);
         } catch (IllegalArgumentException e) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "solicitud_invalida", e.getMessage());
         }
@@ -109,7 +123,11 @@ public class PcsController {
 
         Set<String> excluirUrls = Params.setOrEmpty(excluir);
 
-        PcBuild build = pcBuilder.armar(r.productos(), presupuesto, conGpu, excluirUrls, gamaPedida, prefs, usoPedido);
+        // AHORRAR keeps the 7-arg call: it is the pinned default path (CsvQueryParamsTest mocks it).
+        PcBuild build = modoPedido == ModoPresupuesto.AHORRAR
+                ? pcBuilder.armar(r.productos(), presupuesto, conGpu, excluirUrls, gamaPedida, prefs, usoPedido)
+                : pcBuilder.armar(r.productos(), presupuesto, conGpu, excluirUrls, gamaPedida, prefs, usoPedido,
+                        modoPedido);
         return ResponseEntity.ok(ApiResponse.ok(PcBuildJson.toJson(build)));
     }
 
@@ -143,7 +161,8 @@ public class PcsController {
         }
         Double presupuesto = body.get("presupuesto") != null ? asDouble(body.get("presupuesto")) : null;
         boolean conGpu = Boolean.parseBoolean(String.valueOf(body.getOrDefault("conGpu", false)));
-        PreferenciaArmador preferencia = new PreferenciaArmador(gama, presupuesto, conGpu, prefs, uso);
+        PreferenciaArmador preferencia = new PreferenciaArmador(gama, presupuesto, conGpu, prefs, uso,
+                Boolean.TRUE.equals(booleanDe(body, "gastarTodo")));
         preferenciaArmador.guardar(Sujeto.de(actorResolver), preferencia);
         return ResponseEntity.ok(ApiResponse.ok(preferencia(preferencia)));
     }
@@ -185,7 +204,8 @@ public class PcsController {
                 prefs.capacidadMinimaGb(),
                 PreferenciasWire.wireTamanioGabinete(prefs.tamanioGabinete()),
                 PreferenciasWire.wireTipoCooler(prefs.tipoCooler()),
-                prefs.wattsMinimos(), UsoWire.wire(p.uso()), prefs.ramMinimaGb());
+                prefs.wattsMinimos(), UsoWire.wire(p.uso()), prefs.ramMinimaGb(),
+                p.gastarTodo());
     }
 
     @PostMapping("/pcs/save")

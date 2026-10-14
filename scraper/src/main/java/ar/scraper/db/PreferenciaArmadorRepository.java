@@ -41,7 +41,7 @@ class PreferenciaArmadorRepository implements PreferenciaArmadorPort {
                         usuario_id, gama_id, presupuesto, con_gpu, updated_at,
                         ddr_id, marca_cpu_id, marca_gpu_id, tipo_almacenamiento_id, ram_dual, wifi,
                         capacidad_minima_gb, tamanio_gabinete_id, tipo_cooler_id, watts_minimos,
-                        uso_id, ram_minima_gb
+                        uso_id, ram_minima_gb, gastar_todo
                     ) VALUES (
                         ?, (SELECT id FROM gama WHERE nombre = ?), ?, ?, now(),
                         (SELECT id FROM ddr WHERE nombre = ?),
@@ -54,7 +54,7 @@ class PreferenciaArmadorRepository implements PreferenciaArmadorPort {
                         (SELECT id FROM tipo_cooler WHERE nombre = ?),
                         ?,
                         (SELECT id FROM uso WHERE nombre = ?),
-                        ?
+                        ?, ?
                     )
                     ON CONFLICT (usuario_id) WHERE usuario_id IS NOT NULL DO UPDATE SET
                         gama_id                 = EXCLUDED.gama_id,
@@ -72,7 +72,8 @@ class PreferenciaArmadorRepository implements PreferenciaArmadorPort {
                         tipo_cooler_id          = EXCLUDED.tipo_cooler_id,
                         watts_minimos           = EXCLUDED.watts_minimos,
                         uso_id                  = EXCLUDED.uso_id,
-                        ram_minima_gb           = EXCLUDED.ram_minima_gb
+                        ram_minima_gb           = EXCLUDED.ram_minima_gb,
+                        gastar_todo             = EXCLUDED.gastar_todo
                     """, ps -> {
                 ps.setObject(1, usuarioId);
                 ps.setString(2, gamaNombre);
@@ -94,6 +95,7 @@ class PreferenciaArmadorRepository implements PreferenciaArmadorPort {
                 setNullableInt(ps, 14, prefs.wattsMinimos());
                 setNullableString(ps, 15, UsoMapeo.nombreDeUso(preferencia.uso()));
                 setNullableInt(ps, 16, prefs.ramMinimaGb());
+                ps.setBoolean(17, preferencia.gastarTodo());
             });
         } catch (Exception e) {
             LOG.warn("[DB] Error guardando preferencia de armador: {}", e.getMessage());
@@ -110,7 +112,7 @@ class PreferenciaArmadorRepository implements PreferenciaArmadorPort {
                            p.ram_dual, p.wifi,
                            p.capacidad_minima_gb, tg.nombre AS tamanio_gabinete_nombre,
                            tc.nombre AS tipo_cooler_nombre, p.watts_minimos,
-                           u.nombre AS uso_nombre, p.ram_minima_gb
+                           u.nombre AS uso_nombre, p.ram_minima_gb, p.gastar_todo
                     FROM preferencia_armador p
                     JOIN gama g ON g.id = p.gama_id
                     LEFT JOIN ddr dd ON dd.id = p.ddr_id
@@ -156,7 +158,8 @@ class PreferenciaArmadorRepository implements PreferenciaArmadorPort {
                 presupuestoOrNull,
                 rs.getBoolean("con_gpu"),
                 prefs,
-                UsoMapeo.usoDeNombre(rs.getString("uso_nombre"))));
+                UsoMapeo.usoDeNombre(rs.getString("uso_nombre")),
+                rs.getBoolean("gastar_todo")));
     }
 
     /**

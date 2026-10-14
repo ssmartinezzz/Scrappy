@@ -5,6 +5,8 @@ import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
 import ar.scraper.outfits.RecommendationService;
 import ar.scraper.pcs.Gama;
 import ar.scraper.pcs.GamaWire;
+import ar.scraper.pcs.ModoPresupuesto;
+import ar.scraper.pcs.ModoPresupuestoWire;
 import ar.scraper.pcs.PcBuild;
 import ar.scraper.json.PcBuildJson;
 import ar.scraper.pcs.PcBuilder;
@@ -79,6 +81,9 @@ public class ProposePcTool implements CatalogTool {
         ObjectNode uso = props.putObject("uso");
         uso.put("type", "string");
         uso.putArray("enum").add("gaming").add("homelab");
+        ObjectNode modo = props.putObject("modo");
+        modo.put("type", "string");
+        modo.putArray("enum").add("ahorrar").add("gastar");
 
         return new ToolSpec(NAME,
                 "Arma una PC con el catálogo actual: un pick por slot (motherboard, CPU, RAM, gabinete, "
@@ -101,7 +106,10 @@ public class ProposePcTool implements CatalogTool {
                         + "homelab arma DOS discos ('sistema' de arranque + 'datos' a granel, capacidad primero, "
                         + "HDD preferido) y prioriza la RAM por capacidad. Combinado con tamanioGabinete='mini' "
                         + "arma UN solo pick de categoría Mini PC en vez de motherboard/cpu/ram/gabinete/fuente "
-                        + "sueltos. NUNCA guarda nada — si el usuario quiere conservar el "
+                        + "sueltos. 'modo' ('ahorrar' default / 'gastar'): con presupuesto, 'gastar' vuelca lo "
+                        + "que le sobró al armado SÓLO en una motherboard mejor (mismo socket, el resto sigue "
+                        + "compatible; una de outlet únicamente si no entra otra); 'ahorrar' deja la motherboard "
+                        + "compatible más barata. NUNCA guarda nada — si el usuario quiere conservar el "
                         + "armado, lo guarda desde la página /pcs.",
                 schema);
     }
@@ -184,6 +192,13 @@ public class ProposePcTool implements CatalogTool {
             return ToolResult.error("", "El parámetro 'uso' tiene que ser 'gaming' o 'homelab'.");
         }
 
+        ModoPresupuesto modoPedido;
+        try {
+            modoPedido = ModoPresupuestoWire.parse(args.path("modo").asText(null));
+        } catch (IllegalArgumentException e) {
+            return ToolResult.error("", "El parámetro 'modo' tiene que ser 'ahorrar' o 'gastar'.");
+        }
+
         PreferenciasDeArmado prefs;
         try {
             prefs = new PreferenciasDeArmado(ddr, marcaCpu, marcaGpu, tipoAlmacenamiento, ramDual, wifi,
@@ -198,8 +213,10 @@ public class ProposePcTool implements CatalogTool {
             return ToolResult.error("", "No hay catálogo cargado todavía. Corré un scraping primero.");
         }
 
-        PcBuild build = pcBuilder.armar(result.productos(), presupuesto, conGpu, excluir, gamaPedida, prefs,
-                usoPedido);
+        PcBuild build = modoPedido == ModoPresupuesto.AHORRAR
+                ? pcBuilder.armar(result.productos(), presupuesto, conGpu, excluir, gamaPedida, prefs, usoPedido)
+                : pcBuilder.armar(result.productos(), presupuesto, conGpu, excluir, gamaPedida, prefs, usoPedido,
+                        modoPedido);
         return ToolResult.ok("", PcBuildJson.toJson(build).toString());
     }
 

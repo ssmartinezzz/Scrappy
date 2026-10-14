@@ -577,3 +577,77 @@ describe('PcsPanel — gráfico de rendimiento', () => {
     expect(screen.queryByRole('region', { name: 'Rendimiento del armado' })).not.toBeInTheDocument();
   });
 });
+
+describe('PcsPanel — modo de presupuesto', () => {
+  it('por defecto no pide gastar todo', async () => {
+    const user = userEvent.setup();
+    render(<PcsPanel />);
+    await armar(user);
+
+    expect(llamada(0).modo || '').toBe('');
+    expect(grupo('Sobrante').getByRole('button', { name: 'Ahorrar' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('elegir Gastar todo viaja como modo=gastar en Generar y en Regenerar', async () => {
+    const user = userEvent.setup();
+    render(<PcsPanel />);
+    await user.click(grupo('Sobrante').getByRole('button', { name: 'Gastar todo' }));
+    await armar(user);
+    expect(llamada(0).modo).toBe('gastar');
+
+    await user.click(await screen.findByRole('button', { name: 'Regenerar' }));
+    await waitFor(() => expect(fetchPcsBuilder).toHaveBeenCalledTimes(2));
+    expect(llamada(1).modo).toBe('gastar');
+  });
+
+  it('se guarda en la preferencia como gastarTodo, no como modo', async () => {
+    const user = userEvent.setup();
+    render(<PcsPanel />);
+    await user.click(grupo('Sobrante').getByRole('button', { name: 'Gastar todo' }));
+    await user.click(grupo('Gama').getByRole('button', { name: 'Alta' }));
+    await armar(user);
+
+    expect(savePcPreferencia).toHaveBeenCalled();
+    expect(savePcPreferencia.mock.calls[0][0]).not.toHaveProperty('modo');
+  });
+});
+
+describe('PcsPanel — Gastar todo persistido', () => {
+  it('guardar la preferencia manda gastarTodo sólo si se eligió Gastar todo', async () => {
+    const user = userEvent.setup();
+    render(<PcsPanel />);
+    await user.click(grupo('Sobrante').getByRole('button', { name: 'Gastar todo' }));
+    await user.click(grupo('Gama').getByRole('button', { name: 'Alta' }));
+    await armar(user);
+
+    expect(savePcPreferencia.mock.calls[0][0].gastarTodo).toBe(true);
+  });
+
+  it('con Ahorrar el payload no trae la clave gastarTodo', async () => {
+    const user = userEvent.setup();
+    render(<PcsPanel />);
+    await user.click(grupo('Gama').getByRole('button', { name: 'Alta' }));
+    await armar(user);
+
+    expect(savePcPreferencia.mock.calls[0][0]).not.toHaveProperty('gastarTodo');
+  });
+
+  it('una preferencia con gastarTodo restaura el chip Gastar todo', async () => {
+    fetchPcPreferencia.mockResolvedValue({ gama: 'alta', presupuesto: 900000, conGpu: false, gastarTodo: true });
+    render(<PcsPanel />);
+
+    await waitFor(() =>
+      expect(grupo('Sobrante').getByRole('button', { name: 'Gastar todo' })).toHaveAttribute('aria-pressed', 'true')
+    );
+  });
+
+  it('una preferencia sin gastarTodo deja Ahorrar', async () => {
+    fetchPcPreferencia.mockResolvedValue({ gama: 'alta', presupuesto: 900000, conGpu: false });
+    render(<PcsPanel />);
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Alta' })).toHaveAttribute('aria-pressed', 'true')
+    );
+    expect(grupo('Sobrante').getByRole('button', { name: 'Ahorrar' })).toHaveAttribute('aria-pressed', 'true');
+  });
+});

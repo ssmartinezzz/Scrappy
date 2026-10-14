@@ -61,6 +61,13 @@ public class PcBuilder {
             "\\bcombo\\b|\\+\\s*(kit|procesador|micro|cpu|mother|motherboard|memoria|ram|monitor|fuente|teclado|mouse|auricular)\\b",
             java.util.regex.Pattern.CASE_INSENSITIVE);
 
+    private static final java.util.regex.Pattern OUTLET = java.util.regex.Pattern.compile(
+            "\\boutlet\\b", java.util.regex.Pattern.CASE_INSENSITIVE);
+
+    static boolean esOutlet(String nombre) {
+        return nombre != null && OUTLET.matcher(nombre).find();
+    }
+
     static boolean esCombo(String nombre) {
         return nombre != null && COMBO.matcher(nombre).find();
     }
@@ -91,10 +98,16 @@ public class PcBuilder {
 
     public PcBuild armar(List<Product> productos, double presupuesto, boolean conGpu, Set<String> excluirUrls,
             Gama gamaPedida, PreferenciasDeArmado prefs, Uso uso) {
+        return armar(productos, presupuesto, conGpu, excluirUrls, gamaPedida, prefs, uso, ModoPresupuesto.AHORRAR);
+    }
+
+    public PcBuild armar(List<Product> productos, double presupuesto, boolean conGpu, Set<String> excluirUrls,
+            Gama gamaPedida, PreferenciasDeArmado prefs, Uso uso, ModoPresupuesto modo) {
         if (productos == null) productos = List.of();
         final Set<String> excluir = excluirUrls != null ? excluirUrls : Set.of();
         final PreferenciasDeArmado preferencias = prefs != null ? prefs : PreferenciasDeArmado.NINGUNA;
         final Uso usoResuelto = uso != null ? uso : Uso.GAMING;
+        final boolean gastarTodo = modo == ModoPresupuesto.GASTAR_TODO && presupuesto > 0;
 
         Map<String, List<Product>> porCategoria = productos.stream()
                 .filter(p -> p.categoria() != null)
@@ -152,6 +165,8 @@ public class PcBuilder {
             contexto = contexto.conMejorCpuPorSocket(mejorCpu);
         }
         final Map<String, Product> cpuObjetivoFinal = cpuObjetivo;
+        final ContextoDeArmado contextoPrevioAMother = contexto;
+        Map<String, Product> elegidos = new LinkedHashMap<>();
 
         for (SlotDeArmado slot : slots) {
             List<Product> pool = pools.apply(slot.categoria());
@@ -203,12 +218,67 @@ public class PcBuilder {
                 contexto = contexto.conMother(specs);
             }
             picks.add(toPick(slot.nombre(), elegido, specs));
+            elegidos.put(slot.nombre(), elegido);
         }
 
         double totalEstimado = picks.stream().mapToDouble(PcPick::precio).sum();
+        if (gastarTodo && elegidos.containsKey("mother") && presupuesto > totalEstimado) {
+            Product mejorada = motherConElSobrante(elegidos, slots, pools, contextoPrevioAMother,
+                    presupuesto - totalEstimado);
+            if (mejorada != elegidos.get("mother")) {
+                TechSpecs specs = contexto.specsDe(mejorada);
+                contexto = contextoPrevioAMother.conMother(specs);
+                picks.set(indiceDePick(picks, "mother"), toPick("mother", mejorada, specs));
+                totalEstimado = picks.stream().mapToDouble(PcPick::precio).sum();
+            }
+        }
         return new PcBuild(picks, sinStock, sinCompatible, presupuesto, totalEstimado, mensajes,
                 referencias(picks, excluir.isEmpty() ? pools : c -> poolDisponible(porCategoria, c, Set.of()),
                         contexto, usoResuelto));
+    }
+
+    /**
+     * Gastar todo: the leftover goes to the mother only, and only to a board that keeps the CPU's
+     * socket and leaves every other pick passing its own slot's rules. Returns the current mother
+     * when nothing better fits.
+     */
+    private Product motherConElSobrante(Map<String, Product> elegidos, List<SlotDeArmado> slots,
+            Function<String, List<Product>> pools, ContextoDeArmado contextoPrevio, double sobrante) {
+        Product actual = elegidos.get("mother");
+        SlotDeArmado slotMother = slots.get(indiceDe(slots, "mother"));
+        Set<String> deOtros = elegidos.entrySet().stream()
+                .filter(e -> !"mother".equals(e.getKey()))
+                .map(e -> e.getValue().url()).collect(Collectors.toSet());
+        String socketActual = contextoPrevio.specsDe(actual).socket();
+        List<Product> candidatas = new ArrayList<>();
+        candidatas.add(actual);
+        for (Product p : pools.apply(slotMother.categoria())) {
+            if (p == actual || deOtros.contains(p.url()) || p.precio() > actual.precio() + sobrante) continue;
+            TechSpecs specs = contextoPrevio.specsDe(p);
+            if (!socketActual.equals(specs.socket())) continue;
+            if (primeraQueVeta(slotMother, p, contextoPrevio).isPresent()) continue;
+            if (!dejaIntactosLosDemas(elegidos, slots, contextoPrevio.conMother(specs))) continue;
+            candidatas.add(p);
+        }
+        List<Product> sinOutlet = candidatas.stream().filter(p -> !esOutlet(p.nombre()))
+                .collect(Collectors.toList());
+        if (!sinOutlet.isEmpty()) candidatas = sinOutlet;
+        return slotMother.criterio().elegir(candidatas, contextoPrevio.conSinPresupuesto(true));
+    }
+
+    private boolean dejaIntactosLosDemas(Map<String, Product> elegidos, List<SlotDeArmado> slots,
+            ContextoDeArmado conCandidata) {
+        for (Map.Entry<String, Product> e : elegidos.entrySet()) {
+            if ("mother".equals(e.getKey())) continue;
+            SlotDeArmado slot = slots.get(indiceDe(slots, e.getKey()));
+            if (primeraQueVeta(slot, e.getValue(), conCandidata).isPresent()) return false;
+        }
+        return true;
+    }
+
+    private static int indiceDePick(List<PcPick> picks, String slot) {
+        for (int i = 0; i < picks.size(); i++) if (picks.get(i).slot().equals(slot)) return i;
+        throw new IllegalStateException("pick inexistente: " + slot);
     }
 
     /**
