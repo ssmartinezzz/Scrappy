@@ -26,6 +26,13 @@ public interface ProductPort {
 
     UpsertStats upsertProductos(List<Product> productos, ar.scraper.scrape.CorridaEnCurso corrida);
 
+    /**
+     * {@code sitiosParciales} wrote their products but are not swept: they ended with an error and
+     * some products, so what they did not return says nothing about what disappeared.
+     */
+    UpsertStats upsertProductos(List<Product> productos, ar.scraper.scrape.CorridaEnCurso corrida,
+                                java.util.Set<String> sitiosParciales);
+
     UpsertStats upsertParcial(List<Product> productos);
 
     void actualizarCategoria(String url, String nuevaCategoria);

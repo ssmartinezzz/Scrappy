@@ -38,6 +38,54 @@ public abstract class BasePage {
         }
     }
 
+    private static final int MAX_MOTIVO = 200;
+
+    /** Total attempts, first one included. */
+    static final int NAV_INTENTOS = 3;
+    static final int NAV_ESPERA_MS = 1_500;
+
+    /**
+     * Retries only {@code net::ERR_*}: a dropped connection or a network switch heals on its own.
+     * A timeout already burned the page budget, and a closed target never comes back.
+     */
+    protected void navigateConReintentos(String url) {
+        for (int intento = 1; ; intento++) {
+            try {
+                navigateTo(url);
+                return;
+            } catch (RuntimeException e) {
+                if (intento >= NAV_INTENTOS || !esErrorDeRedTransitorio(e)) throw e;
+                log.debug("navegación a {} falló ({}), intento {}/{}", url, e.getMessage(), intento, NAV_INTENTOS);
+                page.waitForTimeout((long) NAV_ESPERA_MS * intento);
+            }
+        }
+    }
+
+    static boolean esErrorDeRedTransitorio(Throwable e) {
+        return e.getMessage() != null && e.getMessage().contains("net::ERR_");
+    }
+
+    private String truncamiento;
+
+    /** Null unless a pagination loop gave up on an error: what was kept is a partial catalog. */
+    public String truncamiento() {
+        return truncamiento;
+    }
+
+    /** For a fallback that replaces the whole attempt: the cut it recorded no longer describes the result. */
+    protected void limpiarTruncamiento() {
+        truncamiento = null;
+    }
+
+    /** Keeps the first cut only; later ones are usually the same outage seen again. */
+    protected void registrarTruncamiento(int pagina, Exception e) {
+        String motivo = StringUtils.abbreviate(
+                StringUtils.substringBefore(StringUtils.defaultString(e.getMessage(), e.getClass().getSimpleName()), "\n"),
+                MAX_MOTIVO);
+        log.warn("paginación cortada en p{}: {}", pagina, motivo);
+        if (truncamiento == null) truncamiento = "paginación cortada en p" + pagina + ": " + motivo;
+    }
+
     protected String safeText(ElementHandle el, String selector) {
         try {
             ElementHandle t = el.querySelector(selector);

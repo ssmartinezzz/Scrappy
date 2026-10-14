@@ -67,10 +67,17 @@ class ProductRepository implements ProductPort {
     @Override
     public UpsertStats upsertProductos(List<Product> productos,
                                        ar.scraper.scrape.CorridaEnCurso corrida) {
+        return upsertProductos(productos, corrida, Set.of());
+    }
+
+    @Override
+    public UpsertStats upsertProductos(List<Product> productos,
+                                       ar.scraper.scrape.CorridaEnCurso corrida,
+                                       Set<String> sitiosParciales) {
         // The transaction is opened here, programmatically, so a failure to open (or close) one is
         // caught by this try.
         try {
-            return tx.execute(status -> upsertEnTransaccion(productos, corrida, status));
+            return tx.execute(status -> upsertEnTransaccion(productos, corrida, sitiosParciales, status));
         } catch (RuntimeException e) {
             LOG.warn("[DB] Upsert sin transacción: {}", e.getMessage());
             return new UpsertStats(0, 0, 0, 0);
@@ -79,6 +86,7 @@ class ProductRepository implements ProductPort {
 
     private UpsertStats upsertEnTransaccion(List<Product> productos,
                                             ar.scraper.scrape.CorridaEnCurso corrida,
+                                            Set<String> sitiosParciales,
                                             TransactionStatus status) {
         String now   = LocalDateTime.now().format(DT);
         String today = LocalDate.now().format(DATE);
@@ -94,6 +102,9 @@ class ProductRepository implements ProductPort {
             Alcance alcance = corrida != null
                     ? alcanceDelRun(corrida)
                     : alcanceDelBatch(productos);
+            // The run path already leaves them out through scrape_run_site.error; this is the only
+            // exclusion the batch path has, and it costs nothing to apply on both.
+            alcance.sitios().removeAll(sitiosParciales);
             int desactivados = softDeleteAusentes(alcance.urls(), now, alcance.sitios());
 
             purgarHistorialViejo();
@@ -159,7 +170,10 @@ class ProductRepository implements ProductPort {
     private record Alcance(Set<String> urls, Set<String> sitios) {}
 
     /**
-     * Read inside the caller's transaction and after {@code sp_upsert_run}, so this batch's own
+     * A site that finished with an error is out of scope: with products it is a partial catalog,
+     * without them nothing of it was touched anyway.
+     *
+     * <p>Read inside the caller's transaction and after {@code sp_upsert_run}, so this batch's own
      * rows are already stamped and included.
      */
     private Alcance alcanceDelRun(ar.scraper.scrape.CorridaEnCurso corrida) {
@@ -171,7 +185,8 @@ class ProductRepository implements ProductPort {
                    + " WHERE p.touched_at >= ?"
                    + "   AND EXISTS (SELECT 1 FROM scrape_run_site s"
                    + "                WHERE s.scrape_run_id = ?"
-                   + "                  AND s.sitio_key = p.sitio_key)";
+                   + "                  AND s.sitio_key = p.sitio_key"
+                   + "                  AND s.error IS NULL)";
         jdbc.query(sql, ps -> {
             // Bound as a parameter at UTC: a formatted literal would be read in the session zone,
             // which pgjdbc takes from the JVM, making the predicate depend on the machine the

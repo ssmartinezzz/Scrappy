@@ -80,6 +80,22 @@ que no pueden salir de dos lecturas).
 | **El join va por `sitio_key`, no por `sitio`** | `productos.sitio` es la forma de display (`Vcp`) y `scrape_run_site.sitio_key` es identidad (`vcp`). Compararlos directo no matchea nada y **vacía el alcance en silencio** — el mismo par de vocabularios que documenta el header de `V29` |
 | **El puerto recibe la corrida, no un reloj** | `ProductPort.upsertProductos(List, CorridaEnCurso)`; `CorridaEnCurso(runId, startedAt)` vive en `scrape/`. Pasar sólo el `Instant` era la forma exacta del bug: un reloj no puede decir qué sitios miró una corrida |
 
+⚠️ **Un sitio cortado a mitad de la paginación terminaba `DONE` y el barrido
+desactivaba todo lo que no llegó a ver.** Cada loop de paginación hacía
+`catch (Exception e) { log.warn; break; }` y devolvía la lista parcial como si
+fuera el catálogo. Pasó el 2026-10-14 (corrida 66): `net::ERR_NETWORK_CHANGED`
+en la p59 de Vaypol dejó 3480 de 9960 productos, `scrape_run_site` quedó `DONE`
+sin error, y el soft-delete desactivó **6536** productos de Vaypol. En la misma
+corrida Harvey se cortó en la p13. `SiteYieldGuard` lo detectó, pero corre
+*después* del barrido y sólo escribe un log.
+
+| | |
+|---|---|
+| **Reintento sólo de red** | `BasePage.navigateConReintentos`: 3 intentos, sólo si el mensaje trae `net::ERR_`. Un timeout ya gastó el presupuesto de la página y un target cerrado no vuelve |
+| **"Parcial" = productos + `error`** | La página registra el corte (`registrarTruncamiento`) y `BaseScraper` lo devuelve como `error`. `ScraperService` ya mapeaba error con n>0 a `DONE` con `scrape_run_site.error` escrito; antes nadie producía esa combinación |
+| **El barrido saltea los parciales** | `alcanceDelRun` exige `s.error IS NULL`, y el camino batch (sin corrida persistida) los saca con `sitiosParciales`. Lo visto se upsertea igual; de ese sitio no se desactiva nada |
+| **Un corte en p1 es `ERROR`** | Con 0 productos no hay nada parcial: se ve como un sitio caído, no como uno cortado |
+
 ### Frontend ↔ backend: sesión, orígenes y status
 
 **El entorno de desarrollo NO tiene la forma de ninguna instalación real, y eso

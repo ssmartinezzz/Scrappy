@@ -6,4 +6,8 @@ import java.util.List;
 
 public interface CatalogPage {
     List<Product> scrapeAll();
+
+    default String truncamiento() {
+        return null;
+    }
 }

@@ -82,7 +82,7 @@ abstract class StorePage extends BasePage {
         boolean agrego = false;
         for (int p = 1; p <= maxPaginas; p++) {
             try {
-                navigateTo(urlDePagina.apply(p));
+                navigateConReintentos(urlDePagina.apply(p));
                 List<Product> nuevos = parse.apply(page.content()).stream()
                         .filter(prod -> vistas.add(prod.url()))
                         .toList();
@@ -90,7 +90,8 @@ abstract class StorePage extends BasePage {
                 result.addAll(nuevos);
                 agrego = true;
             } catch (Exception e) {
-                log.debug("[{}] {} p={}: {}", sitio, etiqueta, p, e.getMessage());
+                log.debug("[{}] {} cortado en p={}", sitio, etiqueta, p);
+                registrarTruncamiento(p, e);
                 break;
             }
         }

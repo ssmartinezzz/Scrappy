@@ -34,7 +34,7 @@ public class VaypolPage extends StorePage implements CatalogPage {
             String url = base + "/productos/p/" + p;
             log.debug("[{}] page {}", sitio, p);
             try {
-                navigateTo(url);
+                navigateConReintentos(url);
                 page.waitForTimeout(WAIT_MS);
 
                 List<Product> pagina = extraerDeNextData(base);
@@ -69,7 +69,7 @@ public class VaypolPage extends StorePage implements CatalogPage {
                 if (pagina.size() < 10) break;
 
             } catch (Exception e) {
-                log.warn("[{}] error p{}: {}", sitio, p, e.getMessage());
+                registrarTruncamiento(p, e);
                 break;
             }
         }

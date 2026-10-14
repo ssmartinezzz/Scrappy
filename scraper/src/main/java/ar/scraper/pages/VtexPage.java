@@ -47,6 +47,7 @@ public class VtexPage extends StorePage implements CatalogPage {
 
         if (result.isEmpty()) {
             log.debug("[{}] Legacy API vacia, intentando VTEX IO Intelligent Search", sitio);
+            limpiarTruncamiento();
             result = scrapeApiIO(dom);
         }
 
@@ -160,7 +161,7 @@ public class VtexPage extends StorePage implements CatalogPage {
                                 sitio, status, from, reintentos);
                         continue;
                     }
-                    log.warn("[{}] Legacy corta en from={}: status HTTP {}", sitio, from, status);
+                    registrarTruncamiento(from / PAGE_SIZE + 1, new IllegalStateException("HTTP " + status));
                     break;
                 }
                 reintentos = 0;
@@ -195,7 +196,7 @@ public class VtexPage extends StorePage implements CatalogPage {
                             sitio, from, reintentos, e.getMessage());
                     continue;
                 }
-                log.warn("[{}] Legacy corta en from={}: {}", sitio, from, e.getMessage());
+                registrarTruncamiento(from / PAGE_SIZE + 1, e);
                 break;
             }
         }
@@ -287,7 +288,7 @@ public class VtexPage extends StorePage implements CatalogPage {
                     + "&sort=release:desc";
             log.debug("[{}] IO API page={}", sitio, page_num);
             try {
-                navigateTo(apiUrl);
+                navigateConReintentos(apiUrl);
                 String body = (String) page.evaluate("document.body.innerText");
                 if (StringUtils.isBlank(body)) {
                     log.warn("[{}] IO corta en page={}: body vacío", sitio, page_num);
@@ -322,7 +323,7 @@ public class VtexPage extends StorePage implements CatalogPage {
                 if (prods.size() < PAGE_SIZE) break;
                 page_num++;
             } catch (Exception e) {
-                log.warn("[{}] IO error page={}: {}", sitio, page_num, e.getMessage());
+                registrarTruncamiento(page_num, e);
                 break;
             }
         }

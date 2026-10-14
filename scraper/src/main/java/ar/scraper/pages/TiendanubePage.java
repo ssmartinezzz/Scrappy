@@ -78,6 +78,7 @@ public class TiendanubePage extends StorePage implements CatalogPage {
 
     private List<Product> scrapeApi(String homeUrl) {
         List<Product> result = new ArrayList<>();
+        int p = 1;
         try {
             navigateTo(homeUrl);
             String storeId = extractStoreId();
@@ -92,9 +93,9 @@ public class TiendanubePage extends StorePage implements CatalogPage {
             log.debug("[{}] Store ID: {}", sitio, storeId);
 
             String dom = domain(baseUrl);
-            for (int p = 1; p <= 20; p++) {
+            for (; p <= 20; p++) {
                 String apiUrl = dom + "/api/v1/" + storeId + "/products?per_page=200&page=" + p;
-                navigateTo(apiUrl);
+                navigateConReintentos(apiUrl);
                 String body = (String) page.evaluate("document.body.innerText");
                 if (body == null || !body.trim().startsWith("[")) break;
 
@@ -107,6 +108,8 @@ public class TiendanubePage extends StorePage implements CatalogPage {
             }
         } catch (Exception e) {
             log.debug("[{}] API error: {}", sitio, e.getMessage());
+            // Sin productos todavía, scrapeAll cae al JS: no hay nada cortado. Con algunos, la API se da por completa.
+            if (!result.isEmpty()) registrarTruncamiento(p, e);
         }
         return result;
     }
@@ -268,7 +271,7 @@ public class TiendanubePage extends StorePage implements CatalogPage {
         while (url != null && pagina <= maxPaginas) {
             log.debug("[{}] JS p{} -> {}", sitio, pagina, url);
             try {
-                navigateTo(url);
+                navigateConReintentos(url);
                 scrollToBottom();
                 page.waitForTimeout(1000);
 
@@ -300,8 +303,7 @@ public class TiendanubePage extends StorePage implements CatalogPage {
                 // Error transitorio de Playwright (ej. TargetClosedError) en una página intermedia
                 // NO debe descartar los productos ya acumulados de páginas anteriores — se corta la
                 // paginación y se devuelve lo recolectado hasta el momento.
-                log.warn("[{}] JS error en p{}, se corta paginación conservando {} productos: {}",
-                        sitio, pagina, result.size(), e.getMessage());
+                registrarTruncamiento(pagina, e);
                 break;
             }
 
