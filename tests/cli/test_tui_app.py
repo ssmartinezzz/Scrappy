@@ -109,9 +109,21 @@ class _FakeLanProxy:
         self.stopped_with.append(cfg)
 
 
+class _QuietFollower:
+    """Default notice follower: tests that run `start` must not reach a real
+    EventFollower, which would retry against a fake rest in the background."""
+
+    def events(self):
+        return iter(())
+
+    def close(self):
+        pass
+
+
 def _make_app(tmp_path, connect=lambda *a: False, **services):
     rest = _FakeRest()
     processes = _FakeProcesses()
+    services.setdefault("notice_follower_factory", lambda rest: _QuietFollower())
     app = ScrappyConsole(
         _cfg(tmp_path),
         rest=rest,

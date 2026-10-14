@@ -96,11 +96,23 @@ class _FakeLanProxy:
         self.stopped_with.append(cfg)
 
 
+class _QuietFollower:
+    """Default notice follower: tests that run `start` must not reach a real
+    EventFollower, which would retry against a fake rest in the background."""
+
+    def events(self):
+        return iter(())
+
+    def close(self):
+        pass
+
+
 def _make_runner(tmp_path, in_text: str, **services) -> tuple[PlainRunner, _FakeRest, _FakeProcesses, io.StringIO]:
     rest = _FakeRest()
     processes = _FakeProcesses()
     out = io.StringIO()
     in_ = io.StringIO(in_text)
+    services.setdefault("notice_follower_factory", lambda rest: _QuietFollower())
     r = PlainRunner(_cfg(tmp_path), rest=rest, processes=processes, out=out, in_=in_, **services)
     return r, rest, processes, out
 
