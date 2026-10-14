@@ -27,7 +27,7 @@ def test_registry_covers_the_documented_verbs():
     assert {
         "build", "start", "stop", "scrape", "retrain", "status",
         "sites", "add-site", "del-site", "logs", "open", "clear",
-        "help", "quit", "watch",
+        "help", "quit", "watch", "grafana",
     } <= names
 
 

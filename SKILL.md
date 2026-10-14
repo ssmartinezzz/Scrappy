@@ -68,7 +68,7 @@ cuarto** — ni `CLAUDE.md` ni `ARCHITECTURE.md` guardan una segunda copia.
 | [`INSTALAR_Y_CORRER.bat`](./INSTALAR_Y_CORRER.bat) | Windows: aprovisiona el toolchain completo en `_tools/` (JDK, Maven, Node, Python, Postgres portable, `uv` + `cli-venv`) e invoca el CLI nativo |
 | [`Ejecutar_instalar.sh`](./Ejecutar_instalar.sh) | Mirror POSIX. Asume java/mvn/node/python3 del sistema; sí vendoriza `uv` + `cli-venv` |
 | [`docker-compose.yml`](./docker-compose.yml) + [`docker.env.example`](./docker.env.example) | Vía **aditiva** por Docker: postgres + backend + frontend. No reemplaza el flujo portable |
-| [`scripts/observability.sh`](./scripts/observability.sh) + [`docker-compose.observability.yml`](./docker-compose.observability.yml) | **Opcional**: Grafana en `127.0.0.1:3001` leyendo Postgres con un rol de sólo lectura. Dashboards y alertas en [`observability/`](./observability/). Trampas: [`docs/GOTCHAS.md`](./docs/GOTCHAS.md) → Docker |
+| [`scripts/observability.sh`](./scripts/observability.sh) + [`docker-compose.observability.yml`](./docker-compose.observability.yml) | **Opcional**: Grafana en `127.0.0.1:3001` leyendo Postgres con un rol de sólo lectura. Una vez activado (primer `up`), `Ejecutar_instalar.sh` lo levanta solo, el verbo `grafana` del CLI muestra URL y credenciales, y salir del CLI lo apaga (`SCRAPPY_GRAFANA=0` lo saltea; no hay paso equivalente en el `.bat`). Dashboards y alertas en [`observability/`](./observability/). Trampas: [`docs/GOTCHAS.md`](./docs/GOTCHAS.md) → Docker |
 
 ---
 

@@ -34,6 +34,7 @@ def _no_real_docker(monkeypatch):
 
     monkeypatch.setattr("cli.core.lan_proxy._run_docker", _blocked)
     monkeypatch.setattr("cli.core.flaresolverr._run_docker", _blocked)
+    monkeypatch.setattr("cli.core.grafana._run_command", _blocked)
 
 
 @pytest.fixture
@@ -50,3 +51,22 @@ def fake_repo(tmp_path: Path) -> Path:
     (tmp_path / "frontend").mkdir()
     (tmp_path / "INSTALAR_Y_CORRER.bat").write_text("@echo off\n", encoding="utf-8")
     return tmp_path
+
+
+class _FakeGrafana:
+    """Stands in for GrafanaService in both presenters' tests."""
+
+    def __init__(self, info=None) -> None:
+        self._info = info
+        self.stopped_with = []
+
+    def info(self, cfg):
+        return self._info
+
+    def stop_grafana(self, cfg):
+        self.stopped_with.append(cfg)
+
+
+@pytest.fixture
+def fake_grafana():
+    return _FakeGrafana

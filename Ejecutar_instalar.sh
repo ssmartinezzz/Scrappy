@@ -154,6 +154,31 @@ else
 fi
 echo
 
+# ── Grafana (observability): opt-in. Runs only when observability/grafana.env
+# exists (the first manual `scripts/observability.sh up` creates it), Docker
+# answers and SCRAPPY_GRAFANA is not 0. GRAFANA_OWNED tells the CLI it started
+# the stack, so quitting stops it (cli/core/grafana.py). The password is never
+# echoed here: `up` prints it, so its stdout is discarded; the CLI `grafana`
+# verb shows it. POSIX only: the .bat has no equivalent step.
+GRAFANA_ENV="$ROOT/observability/grafana.env"
+GRAFANA_CONTAINER="scrappy-observability-grafana-1"
+GRAFANA_OWNED="$ROOT/_tools/grafana.owned"
+if [[ -f "$GRAFANA_ENV" && "${SCRAPPY_GRAFANA:-1}" != "0" ]] \
+    && command -v docker >/dev/null 2>&1; then
+  echo "[GF] Grafana (observabilidad)..."
+  if docker ps --format "$DOCKER_NAMES_FMT" | grep -q "^$GRAFANA_CONTAINER\$"; then
+    echo "       Ya esta corriendo."
+    mkdir -p "$ROOT/_tools" && touch "$GRAFANA_OWNED"
+  elif bash "$ROOT/scripts/observability.sh" up >/dev/null 2>&1; then
+    mkdir -p "$ROOT/_tools" && touch "$GRAFANA_OWNED"
+    GF_PORT=$(sed -n 's/^GRAFANA_PORT=//p' "$GRAFANA_ENV" | tail -1)
+    echo "       Grafana listo en el puerto ${GF_PORT:-3001} (URL y credenciales: verbo \`grafana\` en el CLI)."
+  else
+    echo "  [AVISO] Grafana no levanto. Probalo a mano: scripts/observability.sh up" >&2
+  fi
+  echo
+fi
+
 # ── native-cli-installer (design.md invariant, §9): this script no longer
 # runs `npm install`/`npm run build`, `mvn clean package`, or writes .env —
 # those, plus the critical "VITE_API_BASE_URL must be a REAL env var
