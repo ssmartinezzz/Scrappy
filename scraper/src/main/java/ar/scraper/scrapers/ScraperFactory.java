@@ -21,6 +21,7 @@ import ar.scraper.pages.TiendanubePage;
 import ar.scraper.pages.VaypolPage;
 import ar.scraper.pages.VtexPage;
 import ar.scraper.pages.WooCommercePage;
+import ar.scraper.scrape.CloudflareListener;
 import ar.scraper.scrapers.BaseScraper.PageFactory;
 import com.microsoft.playwright.Page;
 import org.apache.commons.lang3.StringUtils;
@@ -74,10 +75,16 @@ public class ScraperFactory {
             "woocommerce", "maximus", "fullh4rd", "compragamer", "vaypol", "qloud", "oscommerce", "inpro", "prestashop", "gamerfactory", "vtex");
 
     public static BaseScraper crear(ScraperConfig config, SiteConfig site, SiteRegistry siteRegistry) {
+        return crear(config, site, siteRegistry, CloudflareListener.NOOP);
+    }
+
+    public static BaseScraper crear(ScraperConfig config, SiteConfig site, SiteRegistry siteRegistry,
+                                    CloudflareListener cloudflare) {
         String n       = site.nombre().toLowerCase();
         String display = Character.toUpperCase(n.charAt(0)) + n.substring(1);
         String plataforma = StringUtils.defaultString(siteRegistry.plataforma(SiteClassification.sitioKey(n)));
-        return new BaseScraper(config, display, site.url(), site.extraUrls(), elegir(plataforma, site.url()));
+        return new BaseScraper(config, display, site.url(), site.extraUrls(), elegir(plataforma, site.url()),
+                cloudflare);
     }
 
     private static PageFactory elegir(String plataforma, String url) {

@@ -30,6 +30,17 @@ class StatusEventJsonTest {
     }
 
     @Test
+    void scrapeCloudflareCarriesSiteLowercaseStateAndDetail() throws Exception {
+        var w = StatusEventJson.of(new StatusEvent.ScrapeCloudflare(
+                "Fullh4rd", StatusEvent.ScrapeCloudflare.Estado.BLOQUEADA, "FlareSolverr no disponible"));
+
+        assertThat(w.name()).isEqualTo("scrape.cloudflare");
+        assertThat(body(w).get("sitio").asText()).isEqualTo("Fullh4rd");
+        assertThat(body(w).get("estado").asText()).isEqualTo("bloqueada");
+        assertThat(body(w).get("detalle").asText()).isEqualTo("FlareSolverr no disponible");
+    }
+
+    @Test
     void scrapeProgressMatchesTheProgresoShapeOfApiStatus() throws Exception {
         var long80 = "x".repeat(100);
         var w = StatusEventJson.of(new StatusEvent.ScrapeProgress(2, 1, 40, List.of(

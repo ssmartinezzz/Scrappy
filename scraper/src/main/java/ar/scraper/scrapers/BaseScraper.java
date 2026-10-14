@@ -4,7 +4,11 @@ import ar.scraper.config.ScraperConfig;
 import ar.scraper.model.Product;
 import ar.scraper.model.ScrapeResult;
 import ar.scraper.pages.CatalogPage;
+import ar.scraper.pages.CloudflareBlockedException;
 import ar.scraper.pages.CloudflareSolver;
+import ar.scraper.scrape.CloudflareListener;
+import ar.scraper.scrape.StatusEvent.ScrapeCloudflare;
+import ar.scraper.scrape.StatusEvent.ScrapeCloudflare.Estado;
 import com.microsoft.playwright.*;
 import com.microsoft.playwright.options.Cookie;
 import com.microsoft.playwright.options.Proxy;
@@ -75,17 +79,26 @@ public final class BaseScraper {
     /** Tope de refrescos de clearance por run: evita loops si el challenge no cede. */
     static final int MAX_REFRESCOS_CLOUDFLARE = 3;
 
+    private static final int MAX_DETALLE = 80;
+
     private final String sitio;
     private final ScraperConfig config;
     private final PageContext pageContext;
     private final PageFactory pageFactory;
     private final Supplier<String> proxyServer;
     private final Function<String, FlareSolverrClient> solverFactory;
+    private final CloudflareListener cloudflareListener;
     private String cloudflareUserAgent;
     private int refrescos;
 
     BaseScraper(ScraperConfig config, String sitio, String baseUrl, List<String> extraUrls, PageFactory pageFactory) {
         this(config, sitio, baseUrl, extraUrls, pageFactory, () -> EgressProxy.shared().server());
+    }
+
+    BaseScraper(ScraperConfig config, String sitio, String baseUrl, List<String> extraUrls, PageFactory pageFactory,
+                CloudflareListener cloudflareListener) {
+        this(config, sitio, baseUrl, extraUrls, pageFactory, () -> EgressProxy.shared().server(),
+                FlareSolverrClient::new, cloudflareListener);
     }
 
     BaseScraper(ScraperConfig config, String sitio, String baseUrl, List<String> extraUrls, PageFactory pageFactory,
@@ -95,6 +108,13 @@ public final class BaseScraper {
 
     BaseScraper(ScraperConfig config, String sitio, String baseUrl, List<String> extraUrls, PageFactory pageFactory,
                 Supplier<String> proxyServer, Function<String, FlareSolverrClient> solverFactory) {
+        this(config, sitio, baseUrl, extraUrls, pageFactory, proxyServer, solverFactory, CloudflareListener.NOOP);
+    }
+
+    BaseScraper(ScraperConfig config, String sitio, String baseUrl, List<String> extraUrls, PageFactory pageFactory,
+                Supplier<String> proxyServer, Function<String, FlareSolverrClient> solverFactory,
+                CloudflareListener cloudflareListener) {
+        this.cloudflareListener = cloudflareListener;
         this.proxyServer = proxyServer;
         this.solverFactory = solverFactory;
         this.sitio = sitio;
@@ -131,6 +151,9 @@ public final class BaseScraper {
         } catch (Exception e) {
             long ms = System.currentTimeMillis() - t0;
             log.warn("[{}] excepcion durante scrape: {}", sitio, e.getMessage());
+            if (e instanceof CloudflareBlockedException) {
+                avisar(Estado.BLOQUEADA, StringUtils.abbreviate(e.getMessage(), MAX_DETALLE));
+            }
             return new ScrapeResult(sitio, List.of(), e.getMessage(), ms);
         }
     }
@@ -141,10 +164,15 @@ public final class BaseScraper {
         String url = config.getFlareSolverrUrl();
         if (StringUtils.isBlank(url)) {
             log.warn("[{}] requiere bypass de Cloudflare pero scraper.flaresolverr.url esta vacio", sitio);
+            avisar(Estado.BLOQUEADA, "FlareSolverr no disponible: sin URL configurada");
             return null;
         }
         log.info("[{}] resolviendo challenge de Cloudflare via FlareSolverr ({})", sitio, url);
-        return resolverCon(url).orElse(null);
+        avisar(Estado.DETECTADA, "resolviendo via FlareSolverr");
+        FlareSolverrClient.Ticket ticket = resolverCon(url).orElse(null);
+        if (ticket == null) avisar(Estado.BLOQUEADA, "no se pudo resolver el challenge");
+        else avisar(Estado.RESUELTA, "clearance obtenido");
+        return ticket;
     }
 
     /** Seam para re-resolver a mitad de run: reusa el clearance solo si sirve para el UA ya armado. */
@@ -157,24 +185,35 @@ public final class BaseScraper {
         if (refrescos >= MAX_REFRESCOS_CLOUDFLARE) {
             log.warn("[{}] tope de {} refrescos de Cloudflare alcanzado en este run",
                     sitio, MAX_REFRESCOS_CLOUDFLARE);
+            avisar(Estado.BLOQUEADA, "tope de " + MAX_REFRESCOS_CLOUDFLARE + " refrescos alcanzado");
             return false;
         }
         String url = config.getFlareSolverrUrl();
-        if (StringUtils.isBlank(url)) return false;
+        if (StringUtils.isBlank(url)) {
+            avisar(Estado.BLOQUEADA, "FlareSolverr no disponible: sin URL configurada");
+            return false;
+        }
         FlareSolverrClient.Ticket ticket = resolverCon(url).orElse(null);
         if (ticket == null) {
             log.warn("[{}] no se pudo re-resolver el challenge para refrescar el clearance", sitio);
+            avisar(Estado.BLOQUEADA, "no se pudo refrescar el clearance");
             return false;
         }
         if (!uaArmado.equals(userAgentDe(ticket))) {
             // Playwright no permite cambiar el UA de un contexto vivo: reintentar no serviría.
             log.warn("[{}] el UA del ticket no coincide con el del contexto; no se refresca", sitio);
+            avisar(Estado.BLOQUEADA, "el UA del clearance nuevo no coincide");
             return false;
         }
         aplicarCookiesCloudflare(ctx, ticket);
         refrescos++;
         log.info("[{}] clearance refrescado ({}/{})", sitio, refrescos, MAX_REFRESCOS_CLOUDFLARE);
+        avisar(Estado.RESUELTA, "clearance refrescado (" + refrescos + "/" + MAX_REFRESCOS_CLOUDFLARE + ")");
         return true;
+    }
+
+    private void avisar(Estado estado, String detalle) {
+        cloudflareListener.reportar(new ScrapeCloudflare(sitio, estado, detalle));
     }
 
     private Optional<FlareSolverrClient.Ticket> resolverCon(String url) {

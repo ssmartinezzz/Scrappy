@@ -158,6 +158,20 @@ def render_lines(view: ScrapeView, now: Optional[datetime] = None) -> list[str]:
     return [summary_line(view, now), *(site_line(r) for r in view.rows())]
 
 
+def cloudflare_line(payload: Any) -> str:
+    """One console line for a `scrape.cloudflare` event; missing fields are skipped."""
+    data = payload if isinstance(payload, dict) else {}
+    sitio = data.get("sitio")
+    if not sitio:
+        return "[Cloudflare] sitio desconocido"
+    line = f"[Cloudflare] {sitio}"
+    if data.get("estado"):
+        line += f": {data['estado']}"
+    if data.get("detalle"):
+        line += f" — {data['detalle']}"
+    return line
+
+
 class ChangeLog:
     """Log-style output: each call returns only the lines that changed since
     the previous one, so a piped `watch` is a readable transcript instead of a

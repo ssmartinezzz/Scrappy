@@ -20,5 +20,10 @@ public sealed interface StatusEvent {
     record DbChanged(String table, String op, Long id, Long run, String site, Long job, String status)
             implements StatusEvent {}
 
+    /** A scrape met a Cloudflare challenge; {@code detalle} is a short human-readable note. */
+    record ScrapeCloudflare(String sitio, Estado estado, String detalle) implements StatusEvent {
+        public enum Estado { DETECTADA, RESUELTA, BLOQUEADA }
+    }
+
     record Resync() implements StatusEvent {}
 }

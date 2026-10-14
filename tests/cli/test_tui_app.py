@@ -93,15 +93,44 @@ class _FakeProcesses:
 opened: list[str] = []
 
 
-def _make_app(tmp_path, connect=lambda *a: False):
+class _FakeFlareSolverr:
+    def __init__(self) -> None:
+        self.stopped_with = []
+
+    def stop_flaresolverr(self, cfg):
+        self.stopped_with.append(cfg)
+
+
+class _FakeLanProxy:
+    def __init__(self) -> None:
+        self.stopped_with = []
+
+    def stop_proxy(self, cfg):
+        self.stopped_with.append(cfg)
+
+
+class _QuietFollower:
+    """Default notice follower: tests that run `start` must not reach a real
+    EventFollower, which would retry against a fake rest in the background."""
+
+    def events(self):
+        return iter(())
+
+    def close(self):
+        pass
+
+
+def _make_app(tmp_path, connect=lambda *a: False, **services):
     rest = _FakeRest()
     processes = _FakeProcesses()
+    services.setdefault("notice_follower_factory", lambda rest: _QuietFollower())
     app = ScrappyConsole(
         _cfg(tmp_path),
         rest=rest,
         processes=processes,
         opener=lambda url: opened.append(url),
         connect=connect,  # stubbed: health probes never touch a real port
+        **services,
     )
     return app, rest, processes
 
@@ -312,6 +341,15 @@ async def test_stop_tears_down_the_services_without_exiting(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_stop_takes_the_lan_proxy_down_through_the_injected_service(tmp_path):
+    lan_proxy = _FakeLanProxy()
+    app, _, _ = _make_app(tmp_path, lan_proxy=lan_proxy)
+    async with app.run_test() as pilot:
+        await _submit(app, pilot, "stop")
+        assert lan_proxy.stopped_with == [app.cfg]
+
+
+@pytest.mark.asyncio
 async def test_logs_renders_the_service_log_tail(tmp_path):
     from cli.core.logs import service_log_path
 
@@ -356,6 +394,15 @@ async def test_quit_verb_tears_down_processes_and_exits(tmp_path, how):
         await _submit(app, pilot, how)
     assert processes.shutdown_called == 1
     assert app.is_running is False
+
+
+@pytest.mark.asyncio
+async def test_quitting_stops_the_flaresolverr_the_installer_started(tmp_path):
+    flaresolverr = _FakeFlareSolverr()
+    app, _, _ = _make_app(tmp_path, flaresolverr=flaresolverr)
+    async with app.run_test() as pilot:
+        await _submit(app, pilot, "quit")
+    assert flaresolverr.stopped_with == [app.cfg]
 
 
 @pytest.mark.asyncio
@@ -834,7 +881,7 @@ async def test_start_lan_prints_the_trust_report_computed_not_transcribed(tmp_pa
     from cli.tui import app as app_mod
 
     monkeypatch.setattr(builder_mod, "is_built", lambda cfg: True)
-    monkeypatch.setattr(app_mod, "preflight", lambda mode: None)
+    monkeypatch.setattr(app_mod, "preflight", lambda mode, **kw: None)
     fixed = Startup(
         mode="lan",
         origins=Origins(frontend="https://192.0.2.10:8443", backend="https://192.0.2.10:8444"),
@@ -869,7 +916,7 @@ async def test_start_preflights_docker_before_any_build_work(tmp_path, monkeypat
     order: list[str] = []
     monkeypatch.setattr(builder_mod, "is_built", lambda cfg: False)
     monkeypatch.setattr(builder_mod, "build_project", lambda cfg, *a, **k: order.append("build"))
-    monkeypatch.setattr(app_mod, "preflight", lambda mode: order.append("preflight"))
+    monkeypatch.setattr(app_mod, "preflight", lambda mode, **kw: order.append("preflight"))
     monkeypatch.setattr(
         app_mod,
         "apply_mode",
@@ -1044,3 +1091,93 @@ async def test_quitting_closes_a_live_stream(tmp_path):
         app.action_quit_app()
         assert follower.closed is True
         gate.set()
+
+
+# -- cloudflare notices ---------------------------------------------------------
+
+
+class _NoticeFollower:
+    def __init__(self, *events):
+        import threading
+
+        self._events = list(events)
+        self.closed = threading.Event()
+        self.seen = threading.Event()
+
+    def events(self):
+        yield from self._events
+        self.seen.set()
+        self.closed.wait(5)
+
+    def close(self):
+        self.closed.set()
+
+
+def _notice_app(tmp_path, monkeypatch, follower):
+    from cli.core import builder as builder_mod
+    from cli.tui import app as app_mod
+
+    monkeypatch.setattr(builder_mod, "is_built", lambda cfg: True)
+    monkeypatch.setattr(app_mod, "STARTUP_GRACE_SECONDS", 0)
+    made = []
+
+    def factory(_rest):
+        made.append(follower)
+        return follower
+
+    app, _, _ = _make_app(tmp_path, notice_follower_factory=factory)
+    return app, made
+
+
+@pytest.mark.asyncio
+async def test_start_logs_the_cloudflare_events_the_backend_reports(tmp_path, monkeypatch):
+    follower = _NoticeFollower(
+        _ev("scrape.progress", {"total": 1}),
+        _ev("scrape.cloudflare", {"sitio": "fullh4rd", "estado": "bloqueada",
+                                  "detalle": "no se pudo resolver el challenge"}),
+    )
+    app, _ = _notice_app(tmp_path, monkeypatch, follower)
+    async with app.run_test() as pilot:
+        await _submit(app, pilot, "start")
+        for _ in range(100):
+            if "[Cloudflare]" in _console_text(app):
+                break
+            await pilot.pause(0.05)
+        text = _console_text(app)
+        assert "[Cloudflare] fullh4rd: bloqueada — no se pudo resolver el challenge" in text
+        assert "total" not in text
+        await _submit(app, pilot, "quit")
+
+
+@pytest.mark.asyncio
+async def test_start_twice_keeps_one_notice_follower(tmp_path, monkeypatch):
+    follower = _NoticeFollower()
+    app, made = _notice_app(tmp_path, monkeypatch, follower)
+    async with app.run_test() as pilot:
+        await _submit(app, pilot, "start")
+        await _submit(app, pilot, "start")
+        assert len(made) == 1
+        await _submit(app, pilot, "quit")
+
+
+@pytest.mark.asyncio
+async def test_stop_closes_the_notice_follower_and_start_restarts_it(tmp_path, monkeypatch):
+    follower = _NoticeFollower()
+    app, made = _notice_app(tmp_path, monkeypatch, follower)
+    async with app.run_test() as pilot:
+        await _submit(app, pilot, "start")
+        await _submit(app, pilot, "stop")
+        assert follower.closed.is_set()
+        await _submit(app, pilot, "start")
+        assert len(made) == 2
+        await _submit(app, pilot, "quit")
+
+
+@pytest.mark.asyncio
+async def test_quitting_closes_the_notice_follower(tmp_path, monkeypatch):
+    follower = _NoticeFollower()
+    app, _ = _notice_app(tmp_path, monkeypatch, follower)
+    async with app.run_test() as pilot:
+        await _submit(app, pilot, "start")
+        await _submit(app, pilot, "quit")
+    assert follower.closed.is_set()

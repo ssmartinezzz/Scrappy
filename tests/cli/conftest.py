@@ -33,6 +33,7 @@ def _no_real_docker(monkeypatch):
         )
 
     monkeypatch.setattr("cli.core.lan_proxy._run_docker", _blocked)
+    monkeypatch.setattr("cli.core.flaresolverr._run_docker", _blocked)
 
 
 @pytest.fixture

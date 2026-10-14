@@ -20,7 +20,8 @@ BACKOFF_SECONDS = (1.0, 2.0, 4.0, 8.0, 15.0)
 MAX_FAILURES = 6
 
 # Everything else on the stream (ml.status, db.changed) is not scrape state.
-_FOLLOWED = {"scrape.status", "scrape.progress"}
+# `scrape.cloudflare` is no state either: only the notice follower reads it.
+_FOLLOWED = {"scrape.status", "scrape.progress", "scrape.cloudflare"}
 
 
 @dataclass(frozen=True)

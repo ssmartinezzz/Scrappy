@@ -43,9 +43,11 @@ from cli.core.commands import find, help_lines
 from cli.core.config import Config
 from cli.core.env_file import compute_defaults, generate_env
 from cli.core.errors import CliError
+from cli.core.flaresolverr import FlareSolverrService
 from cli.core.health import ConnectFn
 from cli.core.processes import ProcessManager
-from cli.core.lan_proxy import stop_proxy
+from cli.core.lan_proxy import LanProxyService
+from cli.core.notices import CloudflareNotices
 from cli.core.progress import ScrapeView, render_lines
 from cli.core.rest import RestClient, build_rest_client
 from cli.core.sse import EventFollower
@@ -214,13 +216,23 @@ class ScrappyConsole(App):
         opener: Callable[[str], object] = webbrowser.open,
         connect: Optional[ConnectFn] = None,
         follower_factory: Callable[[RestClient], EventFollower] = EventFollower,
+        lan_proxy: Optional[LanProxyService] = None,
+        flaresolverr: Optional[FlareSolverrService] = None,
+        notice_follower_factory: Optional[Callable[[RestClient], EventFollower]] = None,
     ) -> None:
         super().__init__()
         self.follower_factory = follower_factory
         self._follower: Optional[EventFollower] = None
         self.cfg = cfg
         self.rest = rest or build_rest_client(cfg)
+        self.notices = CloudflareNotices(
+            self.rest,
+            notice_follower_factory or follower_factory,
+            lambda level, line: self._ui(self._emit, level, line),
+        )
         self.processes = processes or ProcessManager()
+        self.lan_proxy = lan_proxy or LanProxyService()
+        self.flaresolverr = flaresolverr or FlareSolverrService()
         self.open_url = open_url
         self.active_origins = None  # set by `start`; see _cmd_open
         self.opener = opener
@@ -394,7 +406,7 @@ class ScrappyConsole(App):
         from cli.core import builder
         from cli.core.env_file import parse_env
 
-        preflight(mode)
+        preflight(mode, proxy=self.lan_proxy)
         if not builder.is_built(self.cfg):
             self.call_from_thread(
                 self._emit, "info", "jar/dist ausente — compilando primero…"
@@ -404,7 +416,7 @@ class ScrappyConsole(App):
 
         env = parse_env(self.cfg.repo_root / ".env")
         # After the build: apply_mode writes into frontend/dist.
-        startup = apply_mode(self.cfg, mode, env)
+        startup = apply_mode(self.cfg, mode, env, proxy=self.lan_proxy)
         self.active_origins = startup.origins
         self.call_from_thread(self._emit, "info", f"modo {mode} — API en {startup.origins.backend}")
         report = lan_report.render(startup)
@@ -414,6 +426,7 @@ class ScrappyConsole(App):
             self.cfg, database_password=env.get("DATABASE_PASSWORD", ""), env=env
         )
         self.processes.launch_frontend(self.cfg, env=env)
+        self.notices.start()
 
         # Reporting success the moment Popen returns would be a lie: a
         # backend with a bad DATABASE_URL, or a frontend whose port is
@@ -431,8 +444,9 @@ class ScrappyConsole(App):
 
     def _cmd_stop(self, args: list[str]) -> None:
         def _stop() -> str:
+            self.notices.stop()
             self.processes.shutdown_all()
-            stop_proxy(self.cfg)
+            self.lan_proxy.stop_proxy(self.cfg)
             self.active_origins = None
             return "servicios bajados"
 
@@ -588,7 +602,9 @@ class ScrappyConsole(App):
         clean-teardown funnel (spec: native-cli-orchestration, "Clean
         teardown on exit")."""
         self._stop_follower()
+        self.notices.stop()
         self.processes.shutdown_all()
+        self.flaresolverr.stop_flaresolverr(self.cfg)
         self.exit()
 
 

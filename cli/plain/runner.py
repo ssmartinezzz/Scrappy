@@ -21,7 +21,9 @@ from cli.core.builder import build_project, is_built
 from cli.core.commands import find, menu_text
 from cli.core.config import Config
 from cli.core.env_file import compute_defaults, generate_env, parse_env
-from cli.core.lan_proxy import stop_proxy
+from cli.core.flaresolverr import FlareSolverrService
+from cli.core.lan_proxy import LanProxyService
+from cli.core.notices import CloudflareNotices
 from cli.core.runtime_config import LOCAL, Origins, apply_mode, preflight
 from cli.core.errors import CliError
 from cli.core.processes import ProcessManager
@@ -117,11 +119,21 @@ class PlainRunner:
         in_: TextIO = sys.stdin,
         opener: Callable[[str], object] = webbrowser.open,
         follower_factory: Callable[[RestClient], EventFollower] = EventFollower,
+        lan_proxy: Optional[LanProxyService] = None,
+        flaresolverr: Optional[FlareSolverrService] = None,
+        notice_follower_factory: Optional[Callable[[RestClient], EventFollower]] = None,
     ) -> None:
         self.cfg = cfg
         self.follower_factory = follower_factory
         self.rest = rest or build_rest_client(cfg)
+        self.notices = CloudflareNotices(
+            self.rest,
+            notice_follower_factory or follower_factory,
+            lambda _level, line: self._print(line),
+        )
         self.processes = processes or ProcessManager()
+        self.lan_proxy = lan_proxy or LanProxyService()
+        self.flaresolverr = flaresolverr or FlareSolverrService()
         self.out = out
         self.in_ = in_
         self.opener = opener
@@ -192,13 +204,13 @@ class PlainRunner:
                 self._print("Build complete.")
             elif name == "start":
                 mode = args[0] if args else LOCAL
-                preflight(mode)
+                preflight(mode, proxy=self.lan_proxy)
                 if not is_built(self.cfg):
                     self._print("jar/frontend ausente — compilando primero…")
                     build_project(self.cfg)
                 env = self._env()
                 # After the build: apply_mode writes into frontend/dist.
-                startup = apply_mode(self.cfg, mode, env)
+                startup = apply_mode(self.cfg, mode, env, proxy=self.lan_proxy)
                 self.active_origins = startup.origins
                 self._print(f"modo {mode} — API en {startup.origins.backend}")
                 report = lan_report.render(startup)
@@ -208,6 +220,7 @@ class PlainRunner:
                     self.cfg, database_password=env.get("DATABASE_PASSWORD", ""), env=env
                 )
                 self.processes.launch_frontend(self.cfg, env=env)
+                self.notices.start()
                 # A service that dies on boot (bad DATABASE_URL, port taken)
                 # used to be visible because its output landed on the
                 # terminal. Now that it is redirected, saying so here is the
@@ -222,8 +235,9 @@ class PlainRunner:
                 else:
                     self._print("Backend + frontend started. Su salida va a `logs`.")
             elif name == "stop":
+                self.notices.stop()
                 self.processes.shutdown_all()
-                stop_proxy(self.cfg)
+                self.lan_proxy.stop_proxy(self.cfg)
                 self.active_origins = None
                 self._print("Backend + frontend stopped.")
             elif name == "scrape":
@@ -276,7 +290,9 @@ class PlainRunner:
                 if not self.dispatch(line):
                     break
         finally:
+            self.notices.stop()
             self.processes.shutdown_all()
+            self.flaresolverr.stop_flaresolverr(self.cfg)
         return 0
 
 
