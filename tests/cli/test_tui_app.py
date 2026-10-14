@@ -1079,3 +1079,93 @@ async def test_quitting_closes_a_live_stream(tmp_path):
         app.action_quit_app()
         assert follower.closed is True
         gate.set()
+
+
+# -- cloudflare notices ---------------------------------------------------------
+
+
+class _NoticeFollower:
+    def __init__(self, *events):
+        import threading
+
+        self._events = list(events)
+        self.closed = threading.Event()
+        self.seen = threading.Event()
+
+    def events(self):
+        yield from self._events
+        self.seen.set()
+        self.closed.wait(5)
+
+    def close(self):
+        self.closed.set()
+
+
+def _notice_app(tmp_path, monkeypatch, follower):
+    from cli.core import builder as builder_mod
+    from cli.tui import app as app_mod
+
+    monkeypatch.setattr(builder_mod, "is_built", lambda cfg: True)
+    monkeypatch.setattr(app_mod, "STARTUP_GRACE_SECONDS", 0)
+    made = []
+
+    def factory(_rest):
+        made.append(follower)
+        return follower
+
+    app, _, _ = _make_app(tmp_path, notice_follower_factory=factory)
+    return app, made
+
+
+@pytest.mark.asyncio
+async def test_start_logs_the_cloudflare_events_the_backend_reports(tmp_path, monkeypatch):
+    follower = _NoticeFollower(
+        _ev("scrape.progress", {"total": 1}),
+        _ev("scrape.cloudflare", {"sitio": "fullh4rd", "estado": "bloqueada",
+                                  "detalle": "no se pudo resolver el challenge"}),
+    )
+    app, _ = _notice_app(tmp_path, monkeypatch, follower)
+    async with app.run_test() as pilot:
+        await _submit(app, pilot, "start")
+        for _ in range(100):
+            if "[Cloudflare]" in _console_text(app):
+                break
+            await pilot.pause(0.05)
+        text = _console_text(app)
+        assert "[Cloudflare] fullh4rd: bloqueada — no se pudo resolver el challenge" in text
+        assert "total" not in text
+        await _submit(app, pilot, "quit")
+
+
+@pytest.mark.asyncio
+async def test_start_twice_keeps_one_notice_follower(tmp_path, monkeypatch):
+    follower = _NoticeFollower()
+    app, made = _notice_app(tmp_path, monkeypatch, follower)
+    async with app.run_test() as pilot:
+        await _submit(app, pilot, "start")
+        await _submit(app, pilot, "start")
+        assert len(made) == 1
+        await _submit(app, pilot, "quit")
+
+
+@pytest.mark.asyncio
+async def test_stop_closes_the_notice_follower_and_start_restarts_it(tmp_path, monkeypatch):
+    follower = _NoticeFollower()
+    app, made = _notice_app(tmp_path, monkeypatch, follower)
+    async with app.run_test() as pilot:
+        await _submit(app, pilot, "start")
+        await _submit(app, pilot, "stop")
+        assert follower.closed.is_set()
+        await _submit(app, pilot, "start")
+        assert len(made) == 2
+        await _submit(app, pilot, "quit")
+
+
+@pytest.mark.asyncio
+async def test_quitting_closes_the_notice_follower(tmp_path, monkeypatch):
+    follower = _NoticeFollower()
+    app, _ = _notice_app(tmp_path, monkeypatch, follower)
+    async with app.run_test() as pilot:
+        await _submit(app, pilot, "start")
+        await _submit(app, pilot, "quit")
+    assert follower.closed.is_set()

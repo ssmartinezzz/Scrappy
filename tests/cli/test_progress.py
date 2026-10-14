@@ -156,3 +156,32 @@ def test_render_lines_without_progreso_says_what_the_status_is():
     view.apply("status", {"status": "IDLE", "mensaje": "ocioso"})
 
     assert render_lines(view) == ["IDLE · ocioso"]
+
+
+# -- cloudflare notice ----------------------------------------------------------
+
+
+def test_cloudflare_line_names_the_site_state_and_detail():
+    from cli.core.progress import cloudflare_line
+
+    line = cloudflare_line({"sitio": "fullh4rd", "estado": "detectada",
+                            "detalle": "resolviendo via FlareSolverr"})
+
+    assert line == "[Cloudflare] fullh4rd: detectada — resolviendo via FlareSolverr"
+
+
+def test_cloudflare_line_tolerates_missing_fields():
+    from cli.core.progress import cloudflare_line
+
+    assert cloudflare_line({"sitio": "fullh4rd", "estado": "resuelta"}) == "[Cloudflare] fullh4rd: resuelta"
+    assert cloudflare_line({}) == "[Cloudflare] sitio desconocido"
+    assert cloudflare_line(None) == "[Cloudflare] sitio desconocido"
+
+
+def test_scrape_view_ignores_the_cloudflare_event():
+    view = ScrapeView()
+    view.apply("scrape.status", {"status": "RUNNING", "mensaje": "x"})
+
+    view.apply("scrape.cloudflare", {"sitio": "fullh4rd", "estado": "bloqueada"})
+
+    assert (view.status, view.mensaje) == ("RUNNING", "x")

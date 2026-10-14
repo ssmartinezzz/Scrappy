@@ -183,6 +183,16 @@ def test_follower_passes_progress_and_drops_events_it_does_not_follow():
     assert (ev.name, ev.data) == ("scrape.progress", progress)
 
 
+def test_follower_passes_the_cloudflare_event():
+    notice = {"sitio": "fullh4rd", "estado": "detectada", "detalle": "resolviendo via FlareSolverr"}
+    rest = _FakeRest(_sse(("scrape.cloudflare", notice)))
+    follower, _ = _follower(rest, max_failures=1)
+
+    ev = next(follower.events())
+
+    assert (ev.name, ev.data) == ("scrape.cloudflare", notice)
+
+
 def test_follower_rereads_status_on_resync():
     rest = _FakeRest(_sse(("resync", {})), status={"status": "DONE", "mensaje": "fin"})
     follower, _ = _follower(rest, max_failures=1)

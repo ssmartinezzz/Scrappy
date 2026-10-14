@@ -592,3 +592,82 @@ def test_scrape_watch_triggers_the_scrape_then_follows_it(tmp_path):
     assert rest.calls[0] == ("scrape",)
     assert ("status",) in rest.calls
     assert "terminó" in out.getvalue()
+
+
+# -- cloudflare notices ---------------------------------------------------------
+
+
+class _NoticeFollower:
+    def __init__(self, *events):
+        import threading
+
+        self._events = list(events)
+        self.closed = threading.Event()
+        self.seen = threading.Event()
+
+    def events(self):
+        yield from self._events
+        self.seen.set()
+        self.closed.wait(5)
+
+    def close(self):
+        self.closed.set()
+
+
+def _notice_runner(tmp_path, follower):
+    _mark_built(tmp_path)
+    made = []
+
+    def factory(_rest):
+        made.append(follower)
+        return follower
+
+    r, _, _, out = _make_runner(tmp_path, "", notice_follower_factory=factory)
+    return r, out, made
+
+
+def test_start_logs_the_cloudflare_events_the_backend_reports(tmp_path):
+    follower = _NoticeFollower(
+        _ev("scrape.progress", {"total": 1}),
+        _ev("scrape.cloudflare", {"sitio": "fullh4rd", "estado": "detectada",
+                                  "detalle": "resolviendo via FlareSolverr"}),
+    )
+    r, out, _ = _notice_runner(tmp_path, follower)
+    try:
+        r.dispatch("start")
+        assert follower.seen.wait(5)
+    finally:
+        r.dispatch("stop")
+    printed = out.getvalue()
+    assert "[Cloudflare] fullh4rd: detectada — resolviendo via FlareSolverr" in printed
+    assert "total" not in printed
+
+
+def test_start_twice_keeps_one_notice_follower(tmp_path):
+    follower = _NoticeFollower()
+    r, _, made = _notice_runner(tmp_path, follower)
+    try:
+        r.dispatch("start")
+        r.dispatch("start")
+        assert follower.seen.wait(5)
+    finally:
+        r.dispatch("stop")
+    assert len(made) == 1
+
+
+def test_stop_closes_the_notice_follower(tmp_path):
+    follower = _NoticeFollower()
+    r, _, _ = _notice_runner(tmp_path, follower)
+    r.dispatch("start")
+    assert follower.seen.wait(5)
+    r.dispatch("stop")
+    assert follower.closed.is_set()
+
+
+def test_quitting_closes_the_notice_follower(tmp_path):
+    follower = _NoticeFollower()
+    r, _, _ = _notice_runner(tmp_path, follower)
+    r.dispatch("start")
+    assert follower.seen.wait(5)
+    r.run()
+    assert follower.closed.is_set()

@@ -47,6 +47,7 @@ from cli.core.flaresolverr import FlareSolverrService
 from cli.core.health import ConnectFn
 from cli.core.processes import ProcessManager
 from cli.core.lan_proxy import LanProxyService
+from cli.core.notices import CloudflareNotices
 from cli.core.progress import ScrapeView, render_lines
 from cli.core.rest import RestClient, build_rest_client
 from cli.core.sse import EventFollower
@@ -217,12 +218,18 @@ class ScrappyConsole(App):
         follower_factory: Callable[[RestClient], EventFollower] = EventFollower,
         lan_proxy: Optional[LanProxyService] = None,
         flaresolverr: Optional[FlareSolverrService] = None,
+        notice_follower_factory: Optional[Callable[[RestClient], EventFollower]] = None,
     ) -> None:
         super().__init__()
         self.follower_factory = follower_factory
         self._follower: Optional[EventFollower] = None
         self.cfg = cfg
         self.rest = rest or build_rest_client(cfg)
+        self.notices = CloudflareNotices(
+            self.rest,
+            notice_follower_factory or follower_factory,
+            lambda level, line: self._ui(self._emit, level, line),
+        )
         self.processes = processes or ProcessManager()
         self.lan_proxy = lan_proxy or LanProxyService()
         self.flaresolverr = flaresolverr or FlareSolverrService()
@@ -419,6 +426,7 @@ class ScrappyConsole(App):
             self.cfg, database_password=env.get("DATABASE_PASSWORD", ""), env=env
         )
         self.processes.launch_frontend(self.cfg, env=env)
+        self.notices.start()
 
         # Reporting success the moment Popen returns would be a lie: a
         # backend with a bad DATABASE_URL, or a frontend whose port is
@@ -436,6 +444,7 @@ class ScrappyConsole(App):
 
     def _cmd_stop(self, args: list[str]) -> None:
         def _stop() -> str:
+            self.notices.stop()
             self.processes.shutdown_all()
             self.lan_proxy.stop_proxy(self.cfg)
             self.active_origins = None
@@ -593,6 +602,7 @@ class ScrappyConsole(App):
         clean-teardown funnel (spec: native-cli-orchestration, "Clean
         teardown on exit")."""
         self._stop_follower()
+        self.notices.stop()
         self.processes.shutdown_all()
         self.flaresolverr.stop_flaresolverr(self.cfg)
         self.exit()
