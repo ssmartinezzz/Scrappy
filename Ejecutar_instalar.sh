@@ -29,6 +29,7 @@ PG_PORT="${PG_PORT:-5432}"
 PG_DB="${PG_DB:-scraper}"
 PG_USER="${PG_USER:-postgres}"
 PG_DATA="${PG_DATA:-$ROOT/_tools/pgdata}"
+DOCKER_NAMES_FMT='{{.Names}}'
 
 echo "============================================================"
 echo " FASHION SCRAPER ARGENTINA (POSIX)"
@@ -91,9 +92,9 @@ if command -v pg_ctl >/dev/null 2>&1 && command -v initdb >/dev/null 2>&1; then
   echo "       PostgreSQL listo en 127.0.0.1:$PG_PORT/$PG_DB."
 elif command -v docker >/dev/null 2>&1; then
   echo "       No hay initdb/pg_ctl del sistema — usando un contenedor Docker."
-  if docker ps --format '{{.Names}}' | grep -q '^fashion-scraper-pg$'; then
+  if docker ps --format "$DOCKER_NAMES_FMT" | grep -q '^fashion-scraper-pg$'; then
     echo "       Contenedor 'fashion-scraper-pg' ya esta corriendo."
-  elif docker ps -a --format '{{.Names}}' | grep -q '^fashion-scraper-pg$'; then
+  elif docker ps -a --format "$DOCKER_NAMES_FMT" | grep -q '^fashion-scraper-pg$'; then
     echo "       Contenedor 'fashion-scraper-pg' existe pero apagado — arrancandolo."
     docker start fashion-scraper-pg >/dev/null
     sleep 2
@@ -125,14 +126,14 @@ echo "[CF] FlareSolverr (Cloudflare de fullh4rd)..."
 if curl -fsS --max-time 3 "http://localhost:$FS_PORT/" >/dev/null 2>&1; then
   echo "       Ya responde en localhost:$FS_PORT."
   if command -v docker >/dev/null 2>&1 \
-      && docker ps --format '{{.Names}}' | grep -q "^$FS_CONTAINER\$"; then
+      && docker ps --format "$DOCKER_NAMES_FMT" | grep -q "^$FS_CONTAINER\$"; then
     mkdir -p "$ROOT/_tools" && touch "$FS_OWNED"
   fi
 elif ! command -v docker >/dev/null 2>&1; then
   echo "  [AVISO] Sin Docker: fullh4rd va a fallar por Cloudflare. Levanta" >&2
   echo "          FlareSolverr en localhost:$FS_PORT a mano." >&2
 else
-  if docker ps -a --format '{{.Names}}' | grep -q "^$FS_CONTAINER\$"; then
+  if docker ps -a --format "$DOCKER_NAMES_FMT" | grep -q "^$FS_CONTAINER\$"; then
     docker start "$FS_CONTAINER" >/dev/null
   else
     docker run -d --name "$FS_CONTAINER" \
