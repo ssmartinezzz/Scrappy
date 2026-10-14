@@ -92,6 +92,14 @@ public class ResultAggregator {
             JsonNode      mlOut
     ) {}
 
+    /** Products and an error together: the scraper gave up part-way, so absence proves nothing. */
+    private static Set<String> sitiosParciales(List<ScrapeResult> resultados) {
+        return resultados.stream()
+                .filter(r -> StringUtils.isNotBlank(r.error()) && !r.productos().isEmpty())
+                .map(ScrapeResult::sitio)
+                .collect(Collectors.toSet());
+    }
+
     public AggregatedResult agregar(List<ScrapeResult> resultados, boolean forceRetrain) {
         return agregar(resultados, forceRetrain, null);
     }
@@ -109,7 +117,7 @@ public class ResultAggregator {
 
         persistirCategoriasRefinadas(pipeline.normalizados(), pipeline.enriquecidos());
 
-        productos.upsertProductos(pipeline.enriquecidos(), corrida);
+        productos.upsertProductos(pipeline.enriquecidos(), corrida, sitiosParciales(resultados));
         mlOutput.guardarMlOutput(pipeline.mlOut());
         if (pipeline.mlOut() != null && !pipeline.mlOut().path("categoriaStats").isMissingNode())
             categoriaStats.guardarCategoriaStats(pipeline.mlOut().path("categoriaStats"));

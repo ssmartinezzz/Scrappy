@@ -234,6 +234,12 @@ public class DatabaseService {
         return productPort.upsertProductos(productos, corrida);
     }
 
+    public UpsertStats upsertProductos(List<Product> productos,
+                                       ar.scraper.scrape.CorridaEnCurso corrida,
+                                       java.util.Set<String> sitiosParciales) {
+        return productPort.upsertProductos(productos, corrida, sitiosParciales);
+    }
+
     /** NUNCA hace soft-delete — solo inserta/actualiza los productos dados. */
     public UpsertStats upsertParcial(List<Product> productos) {
         return productPort.upsertParcial(productos);

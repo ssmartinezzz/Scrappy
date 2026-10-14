@@ -39,7 +39,7 @@ public class WooCommercePage extends StorePage implements CatalogPage {
             log.debug("[{}] page {}: {}", sitio, p, pageUrl);
 
             try {
-                navigateTo(pageUrl);
+                navigateConReintentos(pageUrl);
                 page.waitForTimeout(800);
 
                 String json = (String) page.evaluate(buildExtractorJs());
@@ -70,7 +70,7 @@ public class WooCommercePage extends StorePage implements CatalogPage {
                 if (arr.size() < 6) break;
 
             } catch (Exception e) {
-                log.warn("[{}] error p{}: {}", sitio, p, e.getMessage());
+                registrarTruncamiento(p, e);
                 break;
             }
         }

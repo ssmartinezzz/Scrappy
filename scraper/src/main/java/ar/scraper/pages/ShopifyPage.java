@@ -23,7 +23,7 @@ public class ShopifyPage extends StorePage implements CatalogPage {
         for (int p = 1; p <= 20; p++) {
             log.debug("[{}] Shopify API p{}", sitio, p);
             try {
-                navigateTo(dom + "/products.json?limit=250&page=" + p);
+                navigateConReintentos(dom + "/products.json?limit=250&page=" + p);
                 String body = (String) page.evaluate("document.body.innerText");
                 if (body == null || !body.contains("\"products\"")) break;
 
@@ -34,7 +34,7 @@ public class ShopifyPage extends StorePage implements CatalogPage {
                 log.debug("[{}] p{}: {} acumulados", sitio, p, result.size());
                 if (products.size() < 250) break;
             } catch (Exception e) {
-                log.warn("[{}] error p{}: {}", sitio, p, e.getMessage());
+                registrarTruncamiento(p, e);
                 break;
             }
         }

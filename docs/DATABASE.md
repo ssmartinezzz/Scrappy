@@ -194,8 +194,16 @@ SELECT p.url, p.sitio
  WHERE p.touched_at >= <scrape_run.started_at>
    AND EXISTS (SELECT 1 FROM scrape_run_site s
                 WHERE s.scrape_run_id = <scrape_run.id>
-                  AND s.sitio_key = p.sitio_key)
+                  AND s.sitio_key = p.sitio_key
+                  AND s.error IS NULL)
 ```
+
+`s.error IS NULL` deja afuera al sitio **cortado**: terminó `DONE` pero su
+paginación se interrumpió por un error, así que lo que trajo es un pedazo del
+catálogo y su ausencia no prueba nada. Se upsertea lo visto y no se desactiva
+nada de ese sitio. Sin corrida persistida, el camino batch hace lo mismo con
+`sitiosParciales`. El porqué y el incidente están en
+[`GOTCHAS.md`](./GOTCHAS.md) → Corridas parciales y retomas.
 
 Eso es "todo lo que esta corrida vio", y abarca las dos mitades de un resume
 porque `upsertParcial` va commiteando cada sitio a medida que termina. Sin

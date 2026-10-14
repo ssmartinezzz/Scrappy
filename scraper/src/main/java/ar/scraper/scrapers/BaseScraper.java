@@ -142,10 +142,10 @@ public final class BaseScraper {
                     page.addInitScript(STEALTH_INIT_SCRIPT);
                     page.setDefaultTimeout(config.getTimeoutMs());
                     aplicarBloqueosDeRed(page);
-                    List<Product> prods = scrape(page);
-                    long ms = System.currentTimeMillis() - t0;
-                    log.debug("[{}] scrape completado: {} productos en {}ms", sitio, prods.size(), ms);
-                    return new ScrapeResult(sitio, prods, null, ms);
+                    ScrapeResult resultado = resultado(page, t0);
+                    log.debug("[{}] scrape completado: {} productos en {}ms", sitio,
+                            resultado.productos().size(), resultado.duracionMs());
+                    return resultado;
                 }
             }
         } catch (Exception e) {
@@ -261,6 +261,12 @@ public final class BaseScraper {
     }
 
     List<Product> scrape(Page page) {
-        return pageFactory.crear(page, pageContext).scrapeAll();
+        return resultado(page, System.currentTimeMillis()).productos();
+    }
+
+    ScrapeResult resultado(Page page, long inicioMs) {
+        CatalogPage catalogo = pageFactory.crear(page, pageContext);
+        List<Product> prods = catalogo.scrapeAll();
+        return new ScrapeResult(sitio, prods, catalogo.truncamiento(), System.currentTimeMillis() - inicioMs);
     }
 }
