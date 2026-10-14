@@ -58,6 +58,7 @@ cuarto** — ni `CLAUDE.md` ni `ARCHITECTURE.md` guardan una segunda copia.
 | [`ml-tests/`](./ml-tests/) | Pipeline Python: clustering, embeddings, clasificación zero-shot, cache Postgres | `pytest ml-tests` |
 | [`tests/cli/`](./tests/cli/) | CLI nativo: `core/` headless, Textual vía `Pilot`, routing de degradación, injection-safety | `pytest tests/cli` |
 | [`tests/scripts/`](./tests/scripts/) | Utilidades de `scripts/` (hoy, `blender_cpu.py` contra el fixture compartido `claves.csv`, y `gaming_cpu.py` contra páginas HTML recortadas). No corre en ningún workflow de CI | `uv run --with pytest pytest tests/scripts` |
+| [`tests/observability/`](./tests/observability/) | Provisioning de Grafana: cada query de panel y alerta corre como `grafana_ro` contra el esquema real; `grafana_ro` no lee datos personales ni escribe. Sin `OBS_TEST_DSN` corre sólo la mitad estática. No corre en CI | `OBS_TEST_DSN=postgresql://postgres:postgres@localhost:5432/scraper uv run --no-project --with pytest --with psycopg2-binary --with pyyaml pytest tests/observability` |
 | `frontend/src/**/*.test.jsx` | Componentes React (Vitest) | `cd frontend && npm test` |
 
 ## Instalación y despliegue
@@ -67,6 +68,7 @@ cuarto** — ni `CLAUDE.md` ni `ARCHITECTURE.md` guardan una segunda copia.
 | [`INSTALAR_Y_CORRER.bat`](./INSTALAR_Y_CORRER.bat) | Windows: aprovisiona el toolchain completo en `_tools/` (JDK, Maven, Node, Python, Postgres portable, `uv` + `cli-venv`) e invoca el CLI nativo |
 | [`Ejecutar_instalar.sh`](./Ejecutar_instalar.sh) | Mirror POSIX. Asume java/mvn/node/python3 del sistema; sí vendoriza `uv` + `cli-venv` |
 | [`docker-compose.yml`](./docker-compose.yml) + [`docker.env.example`](./docker.env.example) | Vía **aditiva** por Docker: postgres + backend + frontend. No reemplaza el flujo portable |
+| [`scripts/observability.sh`](./scripts/observability.sh) + [`docker-compose.observability.yml`](./docker-compose.observability.yml) | **Opcional**: Grafana en `127.0.0.1:3001` leyendo Postgres con un rol de sólo lectura. Dashboards y alertas en [`observability/`](./observability/). Trampas: [`docs/GOTCHAS.md`](./docs/GOTCHAS.md) → Docker |
 
 ---
 

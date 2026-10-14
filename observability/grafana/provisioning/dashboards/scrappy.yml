@@ -1,0 +1,11 @@
+apiVersion: 1
+
+providers:
+  - name: scrappy
+    folder: Scrappy
+    type: file
+    # The JSON in the repo is the source of truth: UI edits are discarded on
+    # restart. Change a panel, "Save JSON to file", copy it over the repo file.
+    allowUiUpdates: false
+    options:
+      path: /etc/grafana/dashboards

@@ -95,6 +95,7 @@ corrida Harvey se cortó en la p13. `SiteYieldGuard` lo detectó, pero corre
 | **"Parcial" = productos + `error`** | La página registra el corte (`registrarTruncamiento`) y `BaseScraper` lo devuelve como `error`. `ScraperService` ya mapeaba error con n>0 a `DONE` con `scrape_run_site.error` escrito; antes nadie producía esa combinación |
 | **El barrido saltea los parciales** | `alcanceDelRun` exige `s.error IS NULL`, y el camino batch (sin corrida persistida) los saca con `sitiosParciales`. Lo visto se upsertea igual; de ese sitio no se desactiva nada |
 | **Un corte en p1 es `ERROR`** | Con 0 productos no hay nada parcial: se ve como un sitio caído, no como uno cortado |
+| **En Grafana se ve como "Cortado"** | `DONE` + `error` se muestra como `PARTIAL`, entra en "Fallas" y dispara la alerta de sitio caído |
 
 ### Frontend ↔ backend: sesión, orígenes y status
 
@@ -738,5 +739,13 @@ Dos cosas que se rompen en silencio si se tocan:
 - `pgdata`/`models`/`logs` son volúmenes nombrados → sobreviven a `docker compose down`.
 - Backend y frontend corren sin root: el backend como `pwuser` (uid 1000), nginx como uid 101 escuchando en **8080** adentro del contenedor. Un volumen `models`/`logs` creado por un backend viejo (root) lo corrige solo el one-shot `volume-permissions` de compose antes de cada arranque; fuera de compose (`docker run` a mano) hay que hacer ese `chown 1000:1000` uno mismo.
 - Sin Docker en el sandbox de dev: el smoke real se valida en CI (`.github/workflows/docker-smoke.yml`).
+
+**Grafana (opcional, `scripts/observability.sh`):**
+- Va en `docker-compose.observability.yml`, **no** como profile de `docker-compose.yml`: compose interpola todos los servicios del archivo, elegidos o no, así que un profile ahí exige `AUTH_JWT_SECRET` y compañía sólo para levantar Grafana.
+- Sus claves van en `observability/grafana.env`, no en el `.env` raíz: el CLI regenera ese con `--force` y tira las keys que no conoce.
+- En Docker Engine de Linux (sin Desktop) `host.docker.internal` es el gateway del bridge (`172.17.0.1`) y un Postgres publicado en `127.0.0.1` no se ve desde ahí. El script lo detecta y agrega `observability/compose.host-network.yml`. Síntoma si se saltea: `grafana-db-init` sale con `Postgres no responde en host.docker.internal:5432`.
+- `GF_SECURITY_ADMIN_PASSWORD` se lee **sólo en el primer arranque**; después la clave vive en el volumen. Cambiarla en `grafana.env` no hace nada sin `observability.sh reset-admin`.
+- Los dashboards se aprovisionan desde el repo con `allowUiUpdates: false`: lo que edites en la UI se pierde al reiniciar. Exportá el JSON y pisá `observability/grafana/dashboards/*.json`.
+- `grafana_ro` lee una lista blanca de tablas (`observability/postgres/grafana-readonly.sql`), nunca `usuario` ni tokens. Un panel sobre una tabla nueva falla con `permission denied` hasta agregarla ahí; `tests/observability` lo atrapa.
 
 ---
