@@ -26,6 +26,7 @@ public final class PcsDtos {
         private Integer wattsMinimos;
         private String uso;
         private Integer ramMinimaGb;
+        private boolean gastarTodo;
     }
 
     @Getter @Setter @NoArgsConstructor @AllArgsConstructor

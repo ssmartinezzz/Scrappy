@@ -129,6 +129,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V41` | `notify_status_change()` + triggers `pg_notify` sobre `scrape_run`, `scrape_run_site` y `cron_executions` |
 | `V42` | `productos.nombre` y `productos.sitio` no pueden ser vacíos ni sólo espacios (CHECK) |
 | `V47` | `preferencia_armador.ram_minima_gb`: piso de GB de RAM pedido por el armador de PCs |
+| `V48` | `preferencia_armador.gastar_todo`: modo Ahorrar / Gastar todo del armador de PCs |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 
@@ -3275,6 +3276,27 @@ ALTER TABLE preferencia_armador
 -- <<< rollback:V47
 ```
 
-Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO. No depende de
-ningún otro objeto y ningún otro depende de él, así que ningún rollback anterior
-necesita saber de esta columna.
+Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de
+`V48`. No depende de ningún otro objeto y ningún otro depende de él, así que ningún
+rollback anterior necesita saber de esta columna.
+
+---
+
+## `V48` — `preferencia_armador.gastar_todo`
+
+Recuerda la elección Ahorrar / Gastar todo del armador de PCs: con presupuesto, "gastar
+todo" vuelca lo que le sobró al armado en una motherboard mejor. `boolean NOT NULL DEFAULT
+false`, como `ram_dual` y `wifi`: `false` es el comportamiento de siempre, así que las filas
+existentes no cambian. Es del PEDIDO, no del producto. Una columna que depende de la clave
+completa de su tabla, así que no cambia nada para 1FN/3FN.
+
+### Rollback
+
+```sql
+-- >>> rollback:V48
+ALTER TABLE preferencia_armador DROP COLUMN gastar_todo;
+-- <<< rollback:V48
+```
+
+Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V47`.
+No depende de ningún otro objeto y ningún otro depende de él.

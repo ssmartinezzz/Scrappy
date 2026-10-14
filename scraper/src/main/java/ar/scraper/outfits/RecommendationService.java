@@ -8,6 +8,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.apache.commons.lang3.StringUtils;
+
 /**
  * Pure, stateless, DB-agnostic — mirrors {@link OutfitService}'s style: no Spring deps, no caching,
  * deterministic per-request full-scan rank over the live in-memory catalog (same cost class as
@@ -43,21 +45,26 @@ public class RecommendationService {
         Set<String> excludeCategoria = feedback.excludeCategoria();
         Map<String, Integer> boostLikeCount = feedback.boostLikeCount();
 
+        // Score once per product, not once per comparison: the comparator used to rebuild the
+        // marca|categoria key and rescan the badges ~n·log n times over a 30k+ catalog.
         return productos.stream()
                 // Infantil hard veto — runs FIRST, before pair/categoria exclude.
                 .filter(p -> !GENERO_VETADO.equalsIgnoreCase(p.genero() == null ? "" : p.genero().trim()))
                 .filter(p -> !exclude.contains(OutfitService.FeedbackModel.keyOf(p)))
                 .filter(p -> p.categoria() == null || !excludeCategoria.contains(p.categoria()))
-                .sorted(comparator(boostLikeCount))
+                .map(p -> new Puntuado(p, -finalScore(p, boostLikeCount),
+                        p.ml() != null ? p.ml().scoreP() : 50, StringUtils.defaultString(p.url())))
+                .sorted(ORDEN)
+                .map(Puntuado::producto)
                 .collect(Collectors.toList());
     }
 
-    private Comparator<Product> comparator(Map<String, Integer> boostLikeCount) {
-        return Comparator
-                .comparingDouble((Product p) -> -finalScore(p, boostLikeCount))
-                .thenComparingInt(p -> p.ml() != null ? p.ml().scoreP() : 50)
-                .thenComparing(p -> p.url() != null ? p.url() : "");
-    }
+    private record Puntuado(Product producto, double scoreNegado, int scoreP, String url) {}
+
+    private static final Comparator<Puntuado> ORDEN = Comparator
+            .comparingDouble(Puntuado::scoreNegado)
+            .thenComparingInt(Puntuado::scoreP)
+            .thenComparing(Puntuado::url);
 
     private double finalScore(Product p, Map<String, Integer> boostLikeCount) {
         double base = baseMlScore(p);

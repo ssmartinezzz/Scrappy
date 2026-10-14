@@ -46,6 +46,13 @@ const USOS = [
   { value: 'minipc', label: 'Mini PC' },
 ];
 
+// '' es Ahorrar, el default de ModoPresupuestoWire: se omite del querystring.
+// No se persiste en la preferencia: es del pedido, no del perfil.
+const MODOS_PRESUPUESTO = [
+  { value: '', label: 'Ahorrar' },
+  { value: 'gastar', label: 'Gastar todo' },
+];
+
 // Las cuatro listas de abajo son el vocabulario de cable de PreferenciasWire
 // (D8) — no los enums Java. '' es siempre "no pedida".
 const DDRS = [
@@ -109,6 +116,10 @@ const WATTS = [
   { value: 850, label: '850 W' },
   { value: 1000, label: '1000 W' },
 ];
+
+// `excluir` viaja en la query string y Tomcat corta en 8 KB (request line + headers):
+// sin tope, ~6 clicks de Regenerar con 8 slots devolvían 400. 4 por slot ≈ 4 KB.
+const VISTOS_POR_SLOT = 4;
 
 const TIER_CHIPSET_LABEL = { 1: 'X/Z', 2: 'B', 3: 'A/H' };
 const TAMANIO_GABINETE_LABEL = { MINI: 'mini tower', MID: 'mid tower', FULL: 'full tower' };
@@ -205,6 +216,7 @@ export default function PcsPanel({ onSavePc } = {}) {
   const [gama, setGama] = useState('');
   // '' = Gaming (default). Ver USOS.
   const [uso, setUso] = useState('');
+  const [modo, setModo] = useState('');
   const [ddr, setDdr] = useState('');
   const [marcaCpu, setMarcaCpu] = useState('');
   const [marcaGpu, setMarcaGpu] = useState('');
@@ -271,6 +283,7 @@ export default function PcsPanel({ onSavePc } = {}) {
         setCapacidadMinimaGb(pref.capacidadMinimaGb ?? 0);
         setWattsMinimos(pref.wattsMinimos ?? 0);
         setRamMinimaGb(pref.ramMinimaGb ?? 0);
+        setModo(pref.gastarTodo ? 'gastar' : '');
       })
       .catch(() => {});
     return () => { vivo = false; };
@@ -320,6 +333,7 @@ export default function PcsPanel({ onSavePc } = {}) {
         ...(usoWire === 'homelab' ? { uso: usoWire } : {}),
         // Ausente y null se guardan igual (sin piso); omitirla deja el payload de siempre.
         ...(ramMinimaGb ? { ramMinimaGb } : {}),
+        ...(modo === 'gastar' ? { gastarTodo: true } : {}),
       }).catch(() => {});
     }
     const previos = acumulando ? vistos : {};
@@ -342,6 +356,7 @@ export default function PcsPanel({ onSavePc } = {}) {
         capacidadMinimaGb,
         wattsMinimos,
         ramMinimaGb,
+        modo,
       });
       setData(resp);
       const nuevos = resp?.picks ?? [];
@@ -351,7 +366,9 @@ export default function PcsPanel({ onSavePc } = {}) {
       for (const p of nuevos) {
         if (!p.url) continue;
         const yaVistos = siguientes[p.slot] ?? [];
-        siguientes[p.slot] = yaVistos.includes(p.url) ? [p.url] : [...yaVistos, p.url];
+        siguientes[p.slot] = yaVistos.includes(p.url)
+          ? [p.url]
+          : [...yaVistos, p.url].slice(-VISTOS_POR_SLOT);
       }
       setVistos(siguientes);
     } catch {
@@ -471,6 +488,10 @@ export default function PcsPanel({ onSavePc } = {}) {
               </div>
             </>
           )}
+        </div>
+
+        <div className="mb-[16px]">
+          <ChipGroup label="Sobrante" options={MODOS_PRESUPUESTO} value={modo} onChange={setModo} />
         </div>
 
         <div className="mb-[24px] flex flex-wrap items-end gap-[12px]">

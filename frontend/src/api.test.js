@@ -158,6 +158,15 @@ describe('fetchSuplementosTipos', () => {
 });
 
 describe('fetchPcsBuilder', () => {
+  it('modo travels only when set, and last', async () => {
+    await fetchPcsBuilder({ modo: '' });
+    expect(calledUrl().searchParams.has('modo')).toBe(false);
+
+    await fetchPcsBuilder({ modo: 'gastar', ramMinimaGb: 16 });
+    expect(calledUrl().searchParams.get('modo')).toBe('gastar');
+    expect([...calledUrl().searchParams.keys()]).toEqual(['ramMinimaGb', 'modo']);
+  });
+
   it('ramMinimaGb travels only when a floor was asked', async () => {
     await fetchPcsBuilder({ ramMinimaGb: 0 });
     expect(calledUrl().searchParams.has('ramMinimaGb')).toBe(false);

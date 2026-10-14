@@ -28,9 +28,17 @@ public final class FeedbackModels {
     public static OutfitService.FeedbackModel build(
             List<ar.scraper.feedback.OutfitItemRow> rows, List<Product> productos,
             Set<String> dismissCategorias, Set<String> allowedEstilos) {
+        // Only the rows' urls get indexed: a handful of feedback rows used to cost a map of the
+        // whole catalog on every request.
+        Set<String> urlsConFeedback = new HashSet<>();
+        for (var row : rows) {
+            if (StringUtils.isNotBlank(row.url())) urlsConFeedback.add(row.url());
+        }
         Map<String, Product> porUrl = new HashMap<>();
-        for (Product p : productos) {
-            if (StringUtils.isNotBlank(p.url())) porUrl.put(p.url(), p);
+        if (!urlsConFeedback.isEmpty()) {
+            for (Product p : productos) {
+                if (urlsConFeedback.contains(p.url())) porUrl.put(p.url(), p);
+            }
         }
 
         Map<String, Integer> boostLikeCount = new HashMap<>();

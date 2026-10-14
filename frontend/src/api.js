@@ -533,6 +533,8 @@ export async function fetchPcsBuilder({
   uso = '',
   // Piso del kit de RAM: mismo contrato que capacidadMinimaGb.
   ramMinimaGb = 0,
+  // '' es Ahorrar (ModoPresupuestoWire); 'gastar' sube la mother con el sobrante.
+  modo = '',
 } = {}) {
   // [param, viaja?, valor] en el orden en que siempre viajaron.
   const campos = [
@@ -552,6 +554,7 @@ export async function fetchPcsBuilder({
     ['wattsMinimos', wattsMinimos > 0, wattsMinimos],
     ['uso', uso, uso],
     ['ramMinimaGb', ramMinimaGb > 0, ramMinimaGb],
+    ['modo', modo, modo],
   ];
   const p = new URLSearchParams();
   for (const [param, viaja, valor] of campos) {

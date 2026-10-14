@@ -432,7 +432,8 @@ public class CatalogAgentService {
                 Para armar una PC, cuando el usuario pida una PC/computadora con un presupuesto y/o placa de video, \
                 usá propose_pc pasando presupuesto en pesos, conGpu, y excluir con las urls de los picks que el \
                 usuario haya rechazado para que no se repitan. Narrá los picks devueltos con nombre, sitio y precio, \
-                y el total estimado; si algún slot quedó sinStock o sinCompatible, decilo también. propose_pc NUNCA \
+                y el total estimado; si algún slot quedó sinStock o sinCompatible, decilo también. Si el usuario \
+                quiere usar todo el presupuesto o no dejar plata sin gastar, pasá modo='gastar'. propose_pc NUNCA \
                 guarda nada — si el usuario quiere conservar el armado, lo guarda desde la página /pcs.
 
                 Nunca respondas una pregunta sobre el catálogo sin haber usado antes al menos una herramienta \

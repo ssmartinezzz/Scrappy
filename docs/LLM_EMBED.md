@@ -126,7 +126,7 @@ Son **exactamente cuatro, todas de solo lectura**. Están declaradas en
 | `search_products` | Busca en el catálogo en memoria, rankeado por relevancia, con filtros combinables: `query`, `categoria` (familia del canon), `genero`, `excluir`, `precioMin`/`precioMax`, `enOferta`. Rechaza cualquier otro argumento | No |
 | `view_product` | Devuelve la clasificación actual de un producto por URL | No |
 | `propose_reclassify` | Valida un cambio y devuelve un diff *actual → propuesto*; rechaza un diff que no cambia nada | **No** |
-| `propose_pc` | Arma una PC con `PcBuilder` sobre el snapshot (`presupuesto`, `conGpu`, `excluir` urls); mismo JSON que `GET /api/pcs/builder` | No |
+| `propose_pc` | Arma una PC con `PcBuilder` sobre el snapshot (`presupuesto`, `conGpu`, `excluir` urls, `modo` `ahorrar`/`gastar`); mismo JSON que `GET /api/pcs/builder` | No |
 
 Que `propose_reclassify` no escriba es el punto central del diseño, no un
 detalle de implementación. Ver la sección siguiente.

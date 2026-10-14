@@ -1309,6 +1309,14 @@ paths:
             by capacity first; combined with tamanioGabinete=mini it collapses into a single Mini PC
             pick instead of the full slot set.
           schema: { type: string, enum: [gaming, homelab] }
+        - name: modo
+          in: query
+          description: >-
+            What to do with budget the build left unspent. Absent/blank/"ahorrar" keeps today's
+            build. "gastar" upgrades ONLY the motherboard with the leftover (same socket, every
+            other pick still compatible, total never above presupuesto) and demotes OUTLET boards.
+            No effect without presupuesto. Any other value is a 400.
+          schema: { type: string, enum: [ahorrar, gastar], default: ahorrar }
       responses:
         "200":
           description: >-
@@ -1336,8 +1344,8 @@ paths:
       tags: [PCs]
       summary: >-
         Get the user's last saved builder preference (gama, budget, GPU flag, the technical
-        preferences — ddr/marcaCpu/marcaGpu/tipoAlmacenamiento/ramDual/wifi/ramMinimaGb — and uso, absent
-        meaning "gaming"). Own row only.
+        preferences — ddr/marcaCpu/marcaGpu/tipoAlmacenamiento/ramDual/wifi/ramMinimaGb — uso (absent
+        meaning "gaming") and gastarTodo (absent meaning false: Ahorrar vs Gastar todo)). Own row only.
       x-access: AUTHENTICATED
       responses:
         "200":
@@ -1352,8 +1360,8 @@ paths:
       tags: [PCs]
       summary: >-
         Save the user's builder preference (gama, budget, GPU flag, the technical
-        preferences — ddr/marcaCpu/marcaGpu/tipoAlmacenamiento/ramDual/wifi/ramMinimaGb — and uso, absent
-        meaning "gaming"). Own row only.
+        preferences — ddr/marcaCpu/marcaGpu/tipoAlmacenamiento/ramDual/wifi/ramMinimaGb — uso (absent
+        meaning "gaming") and gastarTodo (absent meaning false: Ahorrar vs Gastar todo)). Own row only.
       x-access: AUTHENTICATED
       requestBody:
         content:
