@@ -11,6 +11,7 @@ import ar.scraper.security.TokenService;
 import ar.scraper.security.reset.PasswordResetService;
 import ar.scraper.api.ApiException;
 import ar.scraper.api.ApiResponse;
+import ar.scraper.api.LogSafe;
 import ar.scraper.web.dto.AuthDtos;
 import ar.scraper.web.dto.MensajeDto;
 import ar.scraper.web.dto.OpResult;

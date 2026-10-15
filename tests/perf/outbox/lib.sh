@@ -37,6 +37,8 @@ db_crear() {
 db_borrar() { exigir_base_perf; pg_admin -c "DROP DATABASE IF EXISTS \"$OUTBOX_DB\" WITH (FORCE)"; }
 
 # jar_arrancar <jar> <log> [VAR=valor ...]  — las VAR extra pisan el entorno del backend.
+# Mailpit no ofrece STARTTLS y el default del backend lo exige; y el tope por minuto del backend (60)
+# falsearía una medición de caudal: los dos se apagan acá y se vuelven a pedir con VAR=valor.
 jar_arrancar() {
   local jar="$1" log="$2"; shift 2
   [[ -f "$jar" ]] || die "no existe el jar: $jar"
@@ -50,6 +52,7 @@ jar_arrancar() {
       CLI_SERVICE_ACCOUNT_USERNAME=cli-svc CLI_SERVICE_ACCOUNT_PASSWORD="cli${secreto}" \
       PASSWORD_RESET_CHANNEL=console SERVER_PORT="$OUTBOX_PORT" LOG_DIR="$OUTBOX_WORK/logs" \
       SMTP_HOST="$OUTBOX_SMTP_HOST" SMTP_PORT="$OUTBOX_SMTP_PORT" SMTP_FROM_ADDRESS=alertas@example.test \
+      SMTP_STARTTLS_REQUIRED=false NOTIFICACIONES_MAX_POR_MINUTO=0 \
       "$@" \
       "$OUTBOX_JAVA" "-Xms$OUTBOX_HEAP" "-Xmx$OUTBOX_HEAP" -jar "$jar" >"$log" 2>&1 &
   echo $! > "$OUTBOX_WORK/jar.pid"

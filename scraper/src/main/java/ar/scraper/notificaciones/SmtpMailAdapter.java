@@ -1,6 +1,7 @@
 package ar.scraper.notificaciones;
 
 import jakarta.mail.MessagingException;
+import jakarta.mail.internet.AddressException;
 import jakarta.mail.internet.MimeMessage;
 import org.apache.commons.lang3.ObjectUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -22,7 +23,8 @@ import java.util.Properties;
 
 /**
  * Active whenever {@code SMTP_HOST} is set; no further flag. Port 465 is implicit TLS (SMTPS);
- * any other port speaks plain SMTP and upgrades with STARTTLS when the server offers it.
+ * any other port speaks plain SMTP and upgrades with STARTTLS. With {@code starttlsObligatorio}
+ * a server that does not offer it is refused before AUTH, so credentials never cross in clear.
  */
 public class SmtpMailAdapter implements MailPort {
 
@@ -37,7 +39,16 @@ public class SmtpMailAdapter implements MailPort {
                            String username,
                            String password,
                            String from) {
-        this(host, port, username, password, from, port, null);
+        this(host, port, username, password, from, false);
+    }
+
+    public SmtpMailAdapter(String host,
+                           int port,
+                           String username,
+                           String password,
+                           String from,
+                           boolean starttlsObligatorio) {
+        this(host, port, username, password, from, port, null, starttlsObligatorio);
     }
 
     SmtpMailAdapter(String host,
@@ -47,6 +58,17 @@ public class SmtpMailAdapter implements MailPort {
                     String from,
                     int puertoDeProtocolo,
                     SSLSocketFactory confianza) {
+        this(host, port, username, password, from, puertoDeProtocolo, confianza, false);
+    }
+
+    private SmtpMailAdapter(String host,
+                            int port,
+                            String username,
+                            String password,
+                            String from,
+                            int puertoDeProtocolo,
+                            SSLSocketFactory confianza,
+                            boolean starttlsObligatorio) {
         sender.setHost(host);
         sender.setPort(port);
         sender.setUsername(username);
@@ -58,6 +80,7 @@ public class SmtpMailAdapter implements MailPort {
         props.put("mail.smtp.auth", String.valueOf(StringUtils.isNotBlank(username)));
         props.put("mail.smtp.ssl.enable", String.valueOf(smtps));
         props.put("mail.smtp.starttls.enable", String.valueOf(!smtps));
+        props.put("mail.smtp.starttls.required", String.valueOf(!smtps && starttlsObligatorio));
         props.put("mail.smtp.ssl.checkserveridentity", "true");
         props.put("mail.smtp.socketFactory", SocketsTcpNoDelay.plano());
         props.put("mail.smtp.ssl.socketFactory",
@@ -93,6 +116,8 @@ public class SmtpMailAdapter implements MailPort {
                 MimeMessage mensaje = armar(c);
                 mensajes.add(mensaje);
                 destinoDe.put(mensaje, c.destino());
+            } catch (AddressException e) {
+                resultado.put(c.destino(), Entrega.rechazo("no se pudo armar el mail: " + e.getMessage()));
             } catch (MessagingException e) {
                 resultado.put(c.destino(), Entrega.fallo("no se pudo armar el mail: " + e.getMessage()));
             }

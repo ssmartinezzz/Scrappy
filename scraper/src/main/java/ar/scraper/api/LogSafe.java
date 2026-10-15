@@ -1,4 +1,4 @@
-package ar.scraper.web;
+package ar.scraper.api;
 
 /**
  * Neutralises a user-controlled string before it is written to the log. A newline in a logged value

@@ -98,6 +98,31 @@ class SpUpsertRunNotificacionTest extends PostgresTestBase {
     }
 
     @Test
+    @DisplayName("a drop of more than 90% (a scrape glitch or a typo'd price) queues nothing; exactly 90% does")
+    void unaBajaAbsurdaNoSeEncola() {
+        vigilante("usuario", "usuario@example.com");
+
+        correr(1.0);
+        correr(1000.0);
+        correr(99.0);
+        assertThat(encoladas()).as("99.9% and 90.1% drops").isZero();
+
+        correr(1000.0);
+        correr(100.0);
+        assertThat(encoladas()).as("exactly 90%").isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("a price of zero is never announced as a drop")
+    void precioCeroNoSeAnuncia() {
+        vigilante("usuario", "usuario@example.com");
+
+        correr(0.0);
+
+        assertThat(encoladas()).isZero();
+    }
+
+    @Test
     @DisplayName("a smaller drop and a rise queue nothing")
     void bajaChicaYSubida() {
         vigilante("usuario", "usuario@example.com");

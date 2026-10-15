@@ -1,8 +1,13 @@
 package ar.scraper.notificaciones;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -28,6 +33,7 @@ class RelayNotificacionesTest {
 
     private final List<BajaReclamada> pendientes = new ArrayList<>();
     private final List<Long> enviadas = new ArrayList<>();
+    private final List<Reclamo> reclamosMarcados = new ArrayList<>();
     private final List<Long> falladas = new ArrayList<>();
     private final List<String> errores = new ArrayList<>();
     private final List<Long> permanentes = new ArrayList<>();
@@ -59,18 +65,20 @@ class RelayNotificacionesTest {
         }
 
         @Override
-        public void marcarEnviadas(Collection<Long> ids) {
+        public void marcarEnviadas(Collection<Reclamo> reclamos) {
             llamadasAEnviadas++;
-            enviadas.addAll(ids);
+            reclamos.forEach(r -> enviadas.add(r.id()));
+            reclamosMarcados.addAll(reclamos);
         }
 
         @Override
         public void registrarFallos(Collection<FalloDeEnvio> fallos, int maxIntentos, Duration backoffBase) {
             llamadasAFallos++;
             fallos.forEach(f -> {
-                falladas.add(f.id());
+                falladas.add(f.reclamo().id());
+                reclamosMarcados.add(f.reclamo());
                 errores.add(f.error());
-                if (f.permanente()) permanentes.add(f.id());
+                if (f.permanente()) permanentes.add(f.reclamo().id());
             });
         }
     };
@@ -85,6 +93,13 @@ class RelayNotificacionesTest {
 
     private final RelojDePrueba reloj = new RelojDePrueba();
     private RelayNotificaciones relay;
+    private final Logger logger = (Logger) LoggerFactory.getLogger(RelayNotificaciones.class);
+    private final ListAppender<ILoggingEvent> log = new ListAppender<>();
+
+    @AfterEach
+    void soltarLog() {
+        logger.detachAppender(log);
+    }
 
     private RelayNotificaciones nuevoRelay(NotificacionDespachador d, RelayConfig config) {
         return new RelayNotificaciones(outbox, d, config, reloj, Runnable::run);
@@ -92,11 +107,13 @@ class RelayNotificacionesTest {
 
     @BeforeEach
     void setUp() {
+        log.start();
+        logger.addAppender(log);
         relay = nuevoRelay(despachador, RelayConfig.porDefecto());
     }
 
     private static BajaReclamada baja(long id, UUID usuario, String email) {
-        return new BajaReclamada(id, usuario, email, "https://s.test/" + id, "P" + id, "Sitio", 100, 80);
+        return new BajaReclamada(id, usuario, email, "https://s.test/" + id, "P" + id, "Sitio", 100, 80, 1);
     }
 
     @Test
@@ -111,6 +128,19 @@ class RelayNotificacionesTest {
         assertThat(enviadas).containsExactlyInAnyOrder(1L, 2L, 3L);
         assertThat(falladas).isEmpty();
         assertThat(destinatarios).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("sent and failed rows are reported with the attempt number their claim carried")
+    void elResultadoLlevaElNumeroDeIntentoDelReclamo() {
+        destinoQueFalla = "otro@example.com";
+        pendientes.addAll(List.of(
+                new BajaReclamada(1, USUARIO, "usuario@example.com", "https://s.test/1", "P1", "Sitio", 100, 80, 3),
+                new BajaReclamada(2, OTRO_USUARIO, "otro@example.com", "https://s.test/2", "P2", "Sitio", 100, 80, 2)));
+
+        relay.procesarLote();
+
+        assertThat(reclamosMarcados).containsExactlyInAnyOrder(new Reclamo(1, 3), new Reclamo(2, 2));
     }
 
     @Test
@@ -414,8 +444,8 @@ class RelayNotificacionesTest {
             }
 
             @Override
-            public void marcarEnviadas(Collection<Long> ids) {
-                outbox.marcarEnviadas(ids);
+            public void marcarEnviadas(Collection<Reclamo> r) {
+                outbox.marcarEnviadas(r);
             }
 
             @Override
@@ -453,5 +483,49 @@ class RelayNotificacionesTest {
 
         assertThat(falladas).containsExactlyInAnyOrder(1L, 2L);
         assertThat(permanentes).containsExactly(1L);
+    }
+
+    @Test
+    @DisplayName("a provider error that names the sender or a third party reaches neither ultimo_error nor the log with a full address")
+    void elErrorDelProveedorNoFiltraDirecciones() {
+        relay = nuevoRelay(envios -> {
+            Map<String, Entrega> r = new LinkedHashMap<>();
+            envios.keySet().forEach(e -> r.put(e, Entrega.fallo("SMTPSendFailedException: 451 4.7.1 rejected: sender "
+                    + "smtpuser@proveedor.example over quota, copy to tercero.privado@victima.example for " + e)));
+            return r;
+        }, RelayConfig.porDefecto());
+        pendientes.add(baja(1, USUARIO, "usuario@example.com"));
+
+        relay.procesarLote();
+
+        String advertencias = log.list.stream().map(ILoggingEvent::getFormattedMessage).reduce("", String::concat);
+        for (String texto : List.of(errores.getFirst(), advertencias)) {
+            assertThat(texto).contains("over quota")
+                    .doesNotContain("smtpuser@proveedor.example", "tercero.privado@victima.example", "usuario@example.com");
+        }
+    }
+
+    @Test
+    @DisplayName("an exception escaping the dispatcher is masked and logged the same way")
+    void laExcepcionDelDespachadorTambienSeEnmascara() {
+        relay = nuevoRelay(envios -> {
+            throw new IllegalStateException("boom tercero.privado@victima.example");
+        }, RelayConfig.porDefecto());
+        pendientes.add(baja(1, USUARIO, "usuario@example.com"));
+
+        relay.procesarLote();
+
+        assertThat(errores.getFirst()).contains("boom").doesNotContain("tercero.privado@victima.example");
+    }
+
+    @Test
+    @DisplayName("a stored address with a line break cannot forge a log line")
+    void unEmailConSaltoDeLineaNoFalsificaElLog() {
+        destinoQueFalla = "a@b.com\r\n2026-10-14 INFO [ADMIN] falso";
+        pendientes.add(baja(1, USUARIO, destinoQueFalla));
+
+        relay.procesarLote();
+
+        assertThat(log.list).isNotEmpty().allSatisfy(e -> assertThat(e.getFormattedMessage()).doesNotContain("\r", "\n"));
     }
 }

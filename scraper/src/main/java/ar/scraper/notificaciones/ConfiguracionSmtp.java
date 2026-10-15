@@ -4,9 +4,13 @@ import org.apache.commons.lang3.StringUtils;
 
 import java.util.Optional;
 
-public record ConfiguracionSmtp(String host, int port, String username, String password, String from) {
+public record ConfiguracionSmtp(String host, int port, String username, String password, String from, boolean starttlsObligatorio) {
 
     private static final int PUERTO_SMTPS = 465;
+
+    public ConfiguracionSmtp(String host, int port, String username, String password, String from) {
+        this(host, port, username, password, from, true);
+    }
 
     /** The first thing wrong with the settings, or empty when they look usable. */
     public Optional<String> problema() {
@@ -28,6 +32,7 @@ public record ConfiguracionSmtp(String host, int port, String username, String p
 
     /** {@code host:port (modo)} for the log line; no credentials. */
     public String destino() {
-        return host + ":" + port + (port == PUERTO_SMTPS ? " (SSL/TLS)" : " (STARTTLS)");
+        String modo = port == PUERTO_SMTPS ? "SSL/TLS" : starttlsObligatorio ? "STARTTLS" : "sin TLS obligatorio";
+        return host + ":" + port + " (" + modo + ")";
     }
 }

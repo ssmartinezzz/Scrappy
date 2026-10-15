@@ -24,6 +24,7 @@ import java.util.regex.Pattern;
 public class PlantillaBajaPrecio {
 
     private static final Pattern PLACEHOLDER = Pattern.compile("\\{\\{(\\w+)}}");
+    private static final Pattern SALTOS = Pattern.compile("[\\p{Cc}\\u2028\\u2029]+");
     private static final DecimalFormatSymbols ES_AR = DecimalFormatSymbols.getInstance(Locale.of("es", "AR"));
 
     private final String layout = leer("mail/baja-precio.html");
@@ -57,10 +58,10 @@ public class PlantillaBajaPrecio {
                     "nuevo", HtmlUtils.htmlEscape(pesos(b.precioNuevo())),
                     "porcentaje", String.valueOf(Math.round(porcentajeDeBaja(b))),
                     "url", HtmlUtils.htmlEscape(enlaceSeguro(b.url())))));
-            texto.append("- ").append(b.nombre()).append(" (").append(b.sitio()).append(")\n  ")
+            texto.append("- ").append(enUnaLinea(b.nombre())).append(" (").append(enUnaLinea(b.sitio())).append(")\n  ")
                     .append(pesos(b.precioAnterior())).append(" -> ").append(pesos(b.precioNuevo()))
                     .append(" (-").append(Math.round(porcentajeDeBaja(b))).append("%)\n  ")
-                    .append(enlaceSeguro(b.url())).append("\n\n");
+                    .append(enUnaLinea(enlaceSeguro(b.url()))).append("\n\n");
         }
         String pieHtml = enlaceAvisos.isEmpty() ? "" : " Podés desactivar estos avisos desde <a href=\""
                 + HtmlUtils.htmlEscape(enlaceAvisos) + "\" style=\"color:#71717a;\">tus favoritos</a>.";
@@ -73,6 +74,11 @@ public class PlantillaBajaPrecio {
         String pieTexto = (enlaceAvisos.isEmpty() ? "" : "\n\nPara dejar de recibir estos avisos: " + enlaceAvisos)
                 + (conBaja ? "\n\nDarte de baja con un clic: " + baja : "");
         return new CorreoRenderizado(asunto, html, texto.toString().stripTrailing() + pieTexto + "\n");
+    }
+
+    /** Scraped text in a line-oriented part: a line break would let it start a line of its own. */
+    private static String enUnaLinea(String valor) {
+        return SALTOS.matcher(StringUtils.defaultString(valor)).replaceAll(" ");
     }
 
     private static double porcentajeDeBaja(BajaReclamada b) {

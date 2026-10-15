@@ -18,7 +18,7 @@ class DespachadorPorMailTest {
 
     private static BajaReclamada baja(String nombre) {
         return new BajaReclamada(1, UUID.randomUUID(), "usuario@example.com", "https://s.test/" + nombre,
-                nombre, "Sitio", 100, 80);
+                nombre, "Sitio", 100, 80, 1);
     }
 
     @Test
@@ -72,9 +72,9 @@ class DespachadorPorMailTest {
             return Map.of();
         };
         UUID usuario = UUID.randomUUID();
-        BajaReclamada a = new BajaReclamada(7, usuario, "usuario@example.com", "https://s.test/a", "A", "Sitio", 100, 80);
-        BajaReclamada b = new BajaReclamada(3, usuario, "usuario@example.com", "https://s.test/b", "B", "Sitio", 100, 80);
-        BajaReclamada c = new BajaReclamada(9, usuario, "usuario@example.com", "https://s.test/c", "C", "Sitio", 100, 80);
+        BajaReclamada a = new BajaReclamada(7, usuario, "usuario@example.com", "https://s.test/a", "A", "Sitio", 100, 80, 1);
+        BajaReclamada b = new BajaReclamada(3, usuario, "usuario@example.com", "https://s.test/b", "B", "Sitio", 100, 80, 1);
+        BajaReclamada c = new BajaReclamada(9, usuario, "usuario@example.com", "https://s.test/c", "C", "Sitio", 100, 80, 1);
         DespachadorPorMail despachador = new DespachadorPorMail(plantilla, mail);
 
         despachador.despachar(Map.of("usuario@example.com", List.of(a, b)));
@@ -93,8 +93,8 @@ class DespachadorPorMailTest {
             vistos.addAll(correos);
             return Map.of();
         };
-        BajaReclamada uno = new BajaReclamada(1, UUID.randomUUID(), "uno@example.com", "https://s.test/a", "A", "Sitio", 100, 80);
-        BajaReclamada dos = new BajaReclamada(1, UUID.randomUUID(), "dos@example.com", "https://s.test/a", "A", "Sitio", 100, 80);
+        BajaReclamada uno = new BajaReclamada(1, UUID.randomUUID(), "uno@example.com", "https://s.test/a", "A", "Sitio", 100, 80, 1);
+        BajaReclamada dos = new BajaReclamada(1, UUID.randomUUID(), "dos@example.com", "https://s.test/a", "A", "Sitio", 100, 80, 1);
 
         new DespachadorPorMail(plantilla, mail).despachar(Map.of("uno@example.com", List.of(uno), "dos@example.com", List.of(dos)));
 
@@ -114,8 +114,8 @@ class DespachadorPorMailTest {
         UUID uno = UUID.randomUUID();
         UUID dos = UUID.randomUUID();
         Map<String, List<BajaReclamada>> envios = new LinkedHashMap<>();
-        envios.put("uno@example.com", List.of(new BajaReclamada(1, uno, "uno@example.com", "https://s.test/a", "A", "Sitio", 100, 80)));
-        envios.put("dos@example.com", List.of(new BajaReclamada(2, dos, "dos@example.com", "https://s.test/b", "B", "Sitio", 100, 80)));
+        envios.put("uno@example.com", List.of(new BajaReclamada(1, uno, "uno@example.com", "https://s.test/a", "A", "Sitio", 100, 80, 1)));
+        envios.put("dos@example.com", List.of(new BajaReclamada(2, dos, "dos@example.com", "https://s.test/b", "B", "Sitio", 100, 80, 1)));
 
         new DespachadorPorMail(plantilla, mail, enlaces).despachar(envios);
 

@@ -30,8 +30,9 @@ public class ChequeoSmtpAlArrancar {
                                  @Value("${smtp.port:587}") int port,
                                  @Value("${smtp.username:}") String username,
                                  @Value("${smtp.password:}") String password,
-                                 @Value("${smtp.from-address:}") String from) {
-        this(diagnostico, new ConfiguracionSmtp(host, port, username, password, from),
+                                 @Value("${smtp.from-address:}") String from,
+                                 @Value("${smtp.starttls-required:true}") boolean starttlsObligatorio) {
+        this(diagnostico, new ConfiguracionSmtp(host, port, username, password, from, starttlsObligatorio),
                 tarea -> Thread.ofVirtual().name("smtp-chequeo").start(tarea));
     }
 

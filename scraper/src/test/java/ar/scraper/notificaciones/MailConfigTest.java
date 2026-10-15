@@ -12,13 +12,13 @@ class MailConfigTest {
 
     @Test
     void conHostUsaSmtp() {
-        assertThat(config.mailPort("smtp.example.com", 587, "", "", "avisos@example.com"))
+        assertThat(config.mailPort("smtp.example.com", 587, "", "", "avisos@example.com", true))
                 .isInstanceOf(SmtpMailAdapter.class);
     }
 
     @Test
     void sinHostOConEspaciosUsaConsola() {
-        assertThat(config.mailPort("", 587, "", "", "")).isInstanceOf(ConsoleMailAdapter.class);
-        assertThat(config.mailPort("   ", 587, "", "", "")).isInstanceOf(ConsoleMailAdapter.class);
+        assertThat(config.mailPort("", 587, "", "", "", true)).isInstanceOf(ConsoleMailAdapter.class);
+        assertThat(config.mailPort("   ", 587, "", "", "", true)).isInstanceOf(ConsoleMailAdapter.class);
     }
 }

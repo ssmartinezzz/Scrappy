@@ -56,8 +56,10 @@ DECLARE
     v_estampado    TEXT;
     v_escote       TEXT;
     v_color        TEXT;
-    -- Una baja avisa sólo si el precio nuevo es menor a este múltiplo del anterior.
+    -- Una baja avisa sólo si el precio nuevo es menor a este múltiplo del anterior...
     c_umbral_baja  CONSTANT DOUBLE PRECISION := 0.95;
+    -- ...y no menos de este: una caída de más de 90% es un error de carga o de scrapeo, no una oferta.
+    c_piso_baja    CONSTANT DOUBLE PRECISION := 0.10;
     v_baja_urls    TEXT[] := '{}';
     v_baja_prev    DOUBLE PRECISION[] := '{}';
     v_baja_nuevo   DOUBLE PRECISION[] := '{}';
@@ -173,7 +175,9 @@ BEGIN
             -- Outbox: las bajas se juntan acá y se encolan de una sola vez después
             -- del loop, en la MISMA transacción que escribe el precio, así un
             -- rollback del upsert se lleva también el aviso (V49).
-            IF v_new_precio < v_prev_precio * c_umbral_baja THEN
+            IF v_new_precio > 0
+               AND v_new_precio < v_prev_precio * c_umbral_baja
+               AND v_new_precio >= v_prev_precio * c_piso_baja THEN
                 v_baja_urls  := array_append(v_baja_urls, r->>'url');
                 v_baja_prev  := array_append(v_baja_prev, v_prev_precio);
                 v_baja_nuevo := array_append(v_baja_nuevo, v_new_precio);

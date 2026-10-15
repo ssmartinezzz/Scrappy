@@ -64,4 +64,11 @@ class ConfiguracionSmtpTest {
         assertThat(con("smtp.gmail.com", 465, "cuenta@gmail.com", "clave-secreta", "").destino())
                 .isEqualTo("smtp.gmail.com:465 (SSL/TLS)");
     }
+
+    @Test
+    @DisplayName("destino() does not claim STARTTLS when the operator opted out of requiring it")
+    void destinoSinStarttlsObligatorio() {
+        assertThat(new ConfiguracionSmtp("relay.local", 25, "", "", "a@example.com", false).destino())
+                .isEqualTo("relay.local:25 (sin TLS obligatorio)");
+    }
 }

@@ -423,12 +423,14 @@ a `destino` (body opcional `{ "destino": "x@y.z" }`; por defecto el email de qui
 | | |
 |---|---|
 | `200` | `data: { ok: true, mensaje }` con la dirección enmascarada (`t**@example.com`) |
-| `400 email_invalido` | `destino` no es una dirección |
+| `400 email_invalido` | `destino` no es una dirección simple (misma regla que el email de la cuenta) |
 | `409 sin_destino` | Quien llama no tiene email y no mandó `destino` |
+| `429 demasiados_envios` | Más de 5 mails de prueba por hora por cuenta (cuenta también los que fallan). Trae `Retry-After: 3600` |
 | `409 smtp_no_configurado` | `SMTP_HOST` está vacío: el relay sólo anuncia en el log |
 | `502 smtp_fallo` | El mensaje trae el motivo y la pista (contraseña de aplicación, host/puerto/TLS) |
 
-Un ADMIN puede mandar el mail fijo a cualquier dirección; el contenido no es suyo y la ruta es sólo ADMIN. Al arrancar con
+Un ADMIN puede mandar el mail fijo a cualquier dirección; el contenido no es suyo, la ruta es sólo ADMIN, tiene tope de 5 por hora por cuenta y
+cada envío deja una línea `[ADMIN]` en el log con quién lo pidió y el destino enmascarado. Al arrancar con
 `SMTP_HOST` el backend hace la misma verificación de conexión en un hilo aparte y deja **una** línea `[SMTP]` en el log (OK, o
 el motivo y la pista); nunca bloquea ni tumba el arranque. Ninguna línea lleva direcciones completas ni secretos.
 
@@ -444,12 +446,15 @@ clave derivada de `AUTH_JWT_SECRET` bajo una etiqueta propia, comparación en ti
 | `POST` | Apaga `notificar_bajas_precio` de la cuenta del token. Idempotente. **Siempre 200 con el mismo cuerpo**, sea un token real, de una cuenta inexistente o de firma ajena: no es un oráculo de cuentas. El cuerpo se ignora (los proveedores mandan `List-Unsubscribe=One-Click`) |
 | `GET` | **No cambia nada**: los escáneres de mail y las vistas previas piden todos los links. Sirve una página con un botón que hace el `POST`, igual para un token real o falso |
 | `400 token_invalido` | El segmento no tiene la forma de un token que este servidor emite |
+| `429 demasiados_pedidos` | Más de 60 pedidos por minuto desde la misma IP |
 
 Cada mail lleva `List-Unsubscribe: <{NOTIFICACIONES_API_BASE_URL}/api/notificaciones/baja/{token}>`,
 `List-Unsubscribe-Post: List-Unsubscribe=One-Click` y el mismo enlace en el pie. Sin
-`NOTIFICACIONES_API_BASE_URL` http(s) no hay encabezados ni enlace. No lleva límite de tasa: un token
-inválido se descarta antes de tocar la base y los `POST` de un proveedor llegan desde pocas IP
-compartidas, así que un tope por IP cortaría bajas legítimas.
+`NOTIFICACIONES_API_BASE_URL` http(s) no hay encabezados ni enlace. Tope de **60 pedidos por minuto por IP de
+origen** (`GET` y `POST` juntos, contados antes de validar el token): `429 demasiados_pedidos` con `Retry-After: 60`.
+El tope es holgado a propósito, porque los `POST` de un proveedor llegan desde pocas IP compartidas; y es por la IP
+del socket, así que detrás de un proxy inverso todos los pedidos comparten una. La página HTML del `GET` lleva
+`Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'`.
 
 
 ## /usuarios — administración de cuentas
@@ -463,7 +468,7 @@ minúsculas.
 | | |
 |---|---|
 | `400 faltan_campos` | Falta la clave `email`: omitirla nunca borra |
-| `400 email_invalido` | No es una dirección (máx. 254) |
+| `400 email_invalido` | No es **una** dirección simple: sin `<>`, comas, `;`, comillas, espacios ni saltos de línea, sólo ASCII, máx. 254 (parte local 64), dominio con punto. `POST /usuarios` aplica la misma regla |
 | `404 no_existe` | No existe la cuenta |
 | `409 email_no_disponible` | Otra cuenta ya tiene esa dirección. No dice cuál |
 | `409 cuenta_de_servicio` | `chk_usuario_servicio_sin_email`: las cuentas de servicio no tienen email (quitarlo sí se puede) |

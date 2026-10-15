@@ -24,6 +24,7 @@ final class FakeSmtpServer implements AutoCloseable {
     private final List<String> destinatarios = new CopyOnWriteArrayList<>();
     private final Set<String> temporales = ConcurrentHashMap.newKeySet();
     private final Set<String> rechazados = ConcurrentHashMap.newKeySet();
+    private final List<String> comandos = new CopyOnWriteArrayList<>();
     private final AtomicInteger conexiones = new AtomicInteger();
     private volatile boolean rechazaCredenciales;
 
@@ -53,6 +54,11 @@ final class FakeSmtpServer implements AutoCloseable {
 
     List<String> destinatarios() {
         return destinatarios;
+    }
+
+    /** Every command line the client sent outside a DATA body, in order. */
+    List<String> comandos() {
+        return comandos;
     }
 
     /** Connections accepted so far: a batch that reuses its connection adds exactly one. */
@@ -94,6 +100,7 @@ final class FakeSmtpServer implements AutoCloseable {
         responder(out, "220 fake ESMTP");
         String linea;
         while ((linea = in.readLine()) != null) {
+            comandos.add(linea);
             String comando = linea.toUpperCase();
             if (comando.startsWith("EHLO") || comando.startsWith("HELO")) {
                 if (rechazaCredenciales) {

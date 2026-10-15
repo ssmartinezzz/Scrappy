@@ -330,6 +330,29 @@ class UsuarioAdminEndpointsTest extends PostgresTestBase {
         assertThat(usuarios.buscarActivaPorUsername("viewer-uno").orElseThrow().email()).isEqualTo("uno@example.com");
     }
 
+    @Test
+    @DisplayName("creating an account with an email that is not one plain address is 400 and creates nothing")
+    void crearRechazaEmailInvalido() {
+        for (String malo : new String[]{"a@b.com\r\nBcc: z@evil.com", "a@b.com, c@d.com", "noat", "<a@x.com>",
+                "a".repeat(300) + "@example.com"}) {
+            assertThat(crear("intruso", malo, "una-password-larga", "VIEWER").getStatusCode().value()).as(malo).isEqualTo(400);
+        }
+        assertThat(usuarios.buscarActivaPorUsername("intruso")).isEmpty();
+    }
+
+    @Test
+    @DisplayName("creating lowercases the email without the JVM default locale")
+    void crearMinusculasSinLocale() {
+        java.util.Locale previo = java.util.Locale.getDefault();
+        java.util.Locale.setDefault(java.util.Locale.forLanguageTag("tr-TR"));
+        try {
+            crear("turca", "INFO@EXAMPLE.COM", "una-password-larga", "VIEWER");
+        } finally {
+            java.util.Locale.setDefault(previo);
+        }
+        assertThat(usuarios.buscarActivaPorUsername("turca").orElseThrow().email()).isEqualTo("info@example.com");
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────
 
     private ResponseEntity<?> crear(String username, String email, String password, String rol) {

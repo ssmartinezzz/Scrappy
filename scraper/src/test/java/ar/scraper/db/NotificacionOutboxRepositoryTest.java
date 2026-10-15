@@ -5,6 +5,7 @@ import ar.scraper.db.support.TestRepositories;
 import ar.scraper.db.support.TestTransactions;
 import ar.scraper.notificaciones.BajaReclamada;
 import ar.scraper.notificaciones.FalloDeEnvio;
+import ar.scraper.notificaciones.Reclamo;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -60,6 +61,18 @@ class NotificacionOutboxRepositoryTest extends PostgresTestBase {
 
     private String estado(long id) {
         return jdbc.queryForObject("SELECT estado FROM notificacion_precio WHERE id = ?", String.class, id);
+    }
+
+    private Reclamo reclamo(long id) {
+        return new Reclamo(id, intentos(id));
+    }
+
+    private FalloDeEnvio fallo(long id, String error) {
+        return new FalloDeEnvio(reclamo(id), error);
+    }
+
+    private FalloDeEnvio fallo(long id, String error, boolean permanente) {
+        return new FalloDeEnvio(reclamo(id), error, permanente);
     }
 
     private int intentos(long id) {
@@ -190,7 +203,7 @@ class NotificacionOutboxRepositoryTest extends PostgresTestBase {
         long fallida = encolar(a, "https://s.test/a", 1000, 800);
         encolar(b, "https://s.test/b", 1000, 800);
         outbox.reclamar(10, MAX, LEASE);
-        outbox.registrarFallos(List.of(new FalloDeEnvio(fallida, "smtp caído")), MAX, BACKOFF);
+        outbox.registrarFallos(List.of(fallo(fallida, "smtp caído")), MAX, BACKOFF);
         jdbc.update("UPDATE notificacion_precio SET lease_hasta = now() - interval '1 second' WHERE lease_hasta IS NOT NULL");
         usuariosPendientes(3);
 
@@ -205,8 +218,8 @@ class NotificacionOutboxRepositoryTest extends PostgresTestBase {
         long fallida = encolar(otro, "https://s.test/b", 1000, 800);
         outbox.reclamar(10, MAX, LEASE);
 
-        outbox.marcarEnviadas(List.of(enviada));
-        outbox.registrarFallos(List.of(new FalloDeEnvio(fallida, "smtp caído")), MAX, BACKOFF);
+        outbox.marcarEnviadas(List.of(reclamo(enviada)));
+        outbox.registrarFallos(List.of(fallo(fallida, "smtp caído")), MAX, BACKOFF);
 
         assertThat(jdbc.queryForObject("SELECT count(*) FROM notificacion_precio WHERE lease_hasta IS NOT NULL",
                 Integer.class)).isZero();
@@ -271,12 +284,45 @@ class NotificacionOutboxRepositoryTest extends PostgresTestBase {
     }
 
     @Test
+    @DisplayName("a sender whose lease expired and whose row was claimed again cannot mark it sent; the new claimer can")
+    void elReclamoVencidoNoMarcaEnviada() {
+        long id = encolar(usuario, "https://s.test/a", 1000, 800);
+        Reclamo viejo = outbox.reclamar(10, MAX, Duration.ZERO).get(0).reclamo();
+        Reclamo nuevo = outbox.reclamar(10, MAX, LEASE).get(0).reclamo();
+        assertThat(nuevo.intentos()).isGreaterThan(viejo.intentos());
+
+        outbox.marcarEnviadas(List.of(viejo));
+
+        assertThat(estado(id)).as("the stale claimer changed nothing").isEqualTo("PENDIENTE");
+        assertThat(jdbc.queryForObject("SELECT lease_hasta IS NOT NULL FROM notificacion_precio WHERE id = ?",
+                Boolean.class, id)).as("the new claimer keeps its lease").isTrue();
+        outbox.marcarEnviadas(List.of(nuevo));
+        assertThat(estado(id)).isEqualTo("ENVIADA");
+    }
+
+    @Test
+    @DisplayName("a sender whose lease expired and whose row was claimed again cannot record a failure on it, not even a permanent one")
+    void elReclamoVencidoNoRegistraFallos() {
+        long id = encolar(usuario, "https://s.test/a", 1000, 800);
+        Reclamo viejo = outbox.reclamar(10, MAX, Duration.ZERO).get(0).reclamo();
+        Reclamo nuevo = outbox.reclamar(10, MAX, LEASE).get(0).reclamo();
+
+        outbox.registrarFallos(List.of(new FalloDeEnvio(viejo, "tarde", true)), MAX, BACKOFF);
+
+        assertThat(estado(id)).isEqualTo("PENDIENTE");
+        assertThat(jdbc.queryForObject("SELECT ultimo_error FROM notificacion_precio WHERE id = ?",
+                String.class, id)).isNull();
+        outbox.registrarFallos(List.of(new FalloDeEnvio(nuevo, "a tiempo", true)), MAX, BACKOFF);
+        assertThat(estado(id)).isEqualTo("FALLIDA");
+    }
+
+    @Test
     @DisplayName("marking as sent stamps enviada_at and the row is never claimed again")
     void marcarEnviadas() {
         long id = encolar(usuario, "https://s.test/a", 1000, 800);
         outbox.reclamar(10, MAX, Duration.ZERO);
 
-        outbox.marcarEnviadas(List.of(id));
+        outbox.marcarEnviadas(List.of(reclamo(id)));
 
         assertThat(estado(id)).isEqualTo("ENVIADA");
         assertThat(jdbc.queryForObject("SELECT enviada_at IS NOT NULL FROM notificacion_precio WHERE id = ?",
@@ -290,7 +336,7 @@ class NotificacionOutboxRepositoryTest extends PostgresTestBase {
         long id = encolar(usuario, "https://s.test/a", 1000, 800);
 
         outbox.reclamar(10, MAX, Duration.ZERO);
-        outbox.registrarFallos(List.of(new FalloDeEnvio(id, "smtp caído")), MAX, BACKOFF);
+        outbox.registrarFallos(List.of(fallo(id, "smtp caído")), MAX, BACKOFF);
         assertThat(segundosHastaElProximoIntento(id)).isBetween(55.0, 61.0);
         assertThat(jdbc.queryForObject("SELECT ultimo_error FROM notificacion_precio WHERE id = ?",
                 String.class, id)).isEqualTo("smtp caído");
@@ -298,7 +344,7 @@ class NotificacionOutboxRepositoryTest extends PostgresTestBase {
 
         jdbc.update("UPDATE notificacion_precio SET proximo_intento_at = now() WHERE id = ?", id);
         outbox.reclamar(10, MAX, Duration.ZERO);
-        outbox.registrarFallos(List.of(new FalloDeEnvio(id, "smtp caído")), MAX, BACKOFF);
+        outbox.registrarFallos(List.of(fallo(id, "smtp caído")), MAX, BACKOFF);
         assertThat(segundosHastaElProximoIntento(id)).isBetween(115.0, 121.0);
         assertThat(estado(id)).isEqualTo("PENDIENTE");
     }
@@ -314,7 +360,7 @@ class NotificacionOutboxRepositoryTest extends PostgresTestBase {
         jdbc.update("UPDATE notificacion_precio SET proximo_intento_at = now() WHERE id = ?", dos);
         outbox.reclamar(10, MAX, Duration.ZERO);
 
-        outbox.registrarFallos(List.of(new FalloDeEnvio(uno, "error uno"), new FalloDeEnvio(dos, "error dos")),
+        outbox.registrarFallos(List.of(fallo(uno, "error uno"), fallo(dos, "error dos")),
                 MAX, BACKOFF);
 
         assertThat(jdbc.queryForObject("SELECT ultimo_error FROM notificacion_precio WHERE id = ?", String.class, uno))
@@ -335,8 +381,8 @@ class NotificacionOutboxRepositoryTest extends PostgresTestBase {
         long transitoria = encolar(otro, "https://s.test/b", 1000, 800);
         outbox.reclamar(10, MAX, LEASE);
 
-        outbox.registrarFallos(List.of(new FalloDeEnvio(permanente, "550 no such user", true),
-                new FalloDeEnvio(transitoria, "451 try later", false)), MAX, BACKOFF);
+        outbox.registrarFallos(List.of(fallo(permanente, "550 no such user", true),
+                fallo(transitoria, "451 try later", false)), MAX, BACKOFF);
 
         assertThat(estado(permanente)).isEqualTo("FALLIDA");
         assertThat(jdbc.queryForObject("SELECT ultimo_error FROM notificacion_precio WHERE id = ?",
@@ -351,7 +397,7 @@ class NotificacionOutboxRepositoryTest extends PostgresTestBase {
         for (int i = 0; i < MAX; i++) {
             jdbc.update("UPDATE notificacion_precio SET proximo_intento_at = now() WHERE id = ?", id);
             assertThat(outbox.reclamar(10, MAX, LEASE)).hasSize(1);
-            outbox.registrarFallos(List.of(new FalloDeEnvio(id, "rechazado")), MAX, BACKOFF);
+            outbox.registrarFallos(List.of(fallo(id, "rechazado")), MAX, BACKOFF);
         }
 
         assertThat(estado(id)).isEqualTo("FALLIDA");

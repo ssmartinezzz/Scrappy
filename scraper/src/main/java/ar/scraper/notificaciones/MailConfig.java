@@ -14,9 +14,10 @@ public class MailConfig {
                       @Value("${smtp.port:587}") int port,
                       @Value("${smtp.username:}") String username,
                       @Value("${smtp.password:}") String password,
-                      @Value("${smtp.from-address:}") String from) {
+                      @Value("${smtp.from-address:}") String from,
+                      @Value("${smtp.starttls-required:true}") boolean starttlsObligatorio) {
         return StringUtils.isBlank(host)
                 ? new ConsoleMailAdapter()
-                : new SmtpMailAdapter(host, port, username, password, from);
+                : new SmtpMailAdapter(host, port, username, password, from, starttlsObligatorio);
     }
 }

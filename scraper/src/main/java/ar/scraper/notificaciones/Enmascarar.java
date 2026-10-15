@@ -2,13 +2,13 @@ package ar.scraper.notificaciones;
 
 import org.apache.commons.lang3.StringUtils;
 
-final class Enmascarar {
+public final class Enmascarar {
 
     private Enmascarar() {
     }
 
     /** Enough to debug, not enough to identify. */
-    static String direccion(String direccion) {
+    public static String direccion(String direccion) {
         if (StringUtils.isBlank(direccion)) {
             return "(vacío)";
         }

@@ -15,7 +15,24 @@ from cli.core.env_file import parse_env, update_env
 
 PROVEEDOR = "PROVEEDOR"
 _LOOPBACK = {"localhost", "127.0.0.1", "::1"}
-_DIRECCION = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+# Same policy as DireccionDeCorreo.java: one plain ASCII address. Every pattern is a single
+# character class with a fixed length bound, so none of them can backtrack.
+_PARTE_LOCAL = re.compile(r"[a-z0-9!#$%&'*+/=?^_`{|}~.-]{1,64}")
+_ETIQUETA = re.compile(r"[a-z0-9-]{1,63}")
+_MAX_DIRECCION = 254
+
+
+def es_direccion(texto: str) -> bool:
+    if len(texto) > _MAX_DIRECCION:
+        return False
+    local, arroba, dominio = texto.lower().partition("@")
+    if not arroba or not _PARTE_LOCAL.fullmatch(local):
+        return False
+    if local[0] == "." or local[-1] == "." or ".." in local:
+        return False
+    etiquetas = dominio.split(".")
+    return len(etiquetas) > 1 and all(
+        _ETIQUETA.fullmatch(e) and e[0] != "-" and e[-1] != "-" for e in etiquetas)
 
 
 @dataclass(frozen=True)
@@ -119,7 +136,7 @@ class SmtpWizard:
 
     def _answer_from(self, text: str) -> Optional[str]:
         text = text or self.current().default
-        if not _DIRECCION.match(text):
+        if not es_direccion(text):
             return "El remitente tiene que ser una dirección de mail (algo@dominio.com)."
         self._accept(text, "")
         return None

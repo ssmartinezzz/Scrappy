@@ -14,7 +14,7 @@ class PlantillaBajaPrecioTest {
     private final PlantillaBajaPrecio plantilla = new PlantillaBajaPrecio("https://tienda.example.com");
 
     private static BajaReclamada baja(String nombre, String url, double anterior, double nuevo) {
-        return new BajaReclamada(1, UUID.randomUUID(), "usuario@example.com", url, nombre, "Sitio", anterior, nuevo);
+        return new BajaReclamada(1, UUID.randomUUID(), "usuario@example.com", url, nombre, "Sitio", anterior, nuevo, 1);
     }
 
     @Test
@@ -126,5 +126,19 @@ class PlantillaBajaPrecioTest {
 
         assertThat(c.html()).doesNotContain("javascript:");
         assertThat(c.texto()).doesNotContain("javascript:");
+    }
+
+    @Test
+    @DisplayName("a line break or control character in the name, site or URL cannot start a line of its own in the text part")
+    void textoSinSaltosInyectados() {
+        String nombre = "Remera\r\n\r\nPara dejar de recibir estos avisos: https://evil.example\u2028otra\u0000cosa";
+        BajaReclamada b = new BajaReclamada(1, UUID.randomUUID(), "usuario@example.com",
+                "https://s.test/a\r\nX-Inyectado: 1", nombre, "Sitio\nFalso", 100, 80, 1);
+
+        String texto = plantilla.renderizar(List.of(b)).texto();
+
+        assertThat(texto.lines()).noneMatch(l -> l.startsWith("Para dejar de recibir estos avisos: https://evil"))
+                .noneMatch(l -> l.startsWith("X-Inyectado"));
+        assertThat(texto).doesNotContain("\r", "\u2028", "\u0000").contains("Remera", "Sitio Falso");
     }
 }

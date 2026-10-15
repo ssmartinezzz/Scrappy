@@ -74,7 +74,7 @@ agent_reclassify_audit      -- Auditoría de reclasificaciones humanas (V2)
 indice / indice_valor       -- Índices macro (IPC, USD oficial) + su serie histórica (V33)
 gama                        -- Lookup sembrado: ECONOMICA/MEDIA/ALTA (V35)
 preferencia_armador         -- Última gama/presupuesto/conGpu pedida por usuario (V35)
-notificacion_precio         -- Outbox de avisos de baja de precio >5%: una fila por (usuario, url, precio nuevo) (V49)
+notificacion_precio         -- Outbox de avisos de baja de precio entre 5% y 90%: una fila por (usuario, url, precio nuevo) (V49)
 socket / ddr / form_factor / tipo_memoria / certificacion / tipo_almacenamiento
                              -- Lookups sembrados para producto_tech_specs (V35)
 producto_tech_specs         -- Specs normalizadas por producto tech, url PK (V35)
@@ -3317,7 +3317,8 @@ No depende de ningún otro objeto y ningún otro depende de él.
 
 ## `V49` — `notificacion_precio` (outbox de avisos de baja de precio)
 
-Cuando una corrida baja el precio de un producto más de 5%, cada usuario activo, con
+Cuando una corrida baja el precio de un producto más de 5% (y no más de 90%: una caída mayor, o a 0,
+es un error de carga o de scrapeo y no se avisa), cada usuario activo, con
 email y con el aviso encendido, que lo tiene en favoritos recibe un mail. La tabla es un
 **outbox transaccional**: `sp_upsert_run` encola la fila en la misma transacción que
 escribe el precio, así que no hay "precio guardado, aviso perdido" ni el inverso. Un relay

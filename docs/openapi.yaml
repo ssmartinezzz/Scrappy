@@ -472,7 +472,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiResponse"
         "400":
-          description: "`faltan_campos` · `password_corta` · `rol_invalido`"
+          description: "`faltan_campos` · `password_corta` · `rol_invalido` · `email_invalido`"
           content:
             application/json:
               schema:
@@ -1740,12 +1740,20 @@ paths:
           schema: { type: string }
       responses:
         "200":
-          description: HTML page with a form that POSTs to the same URL.
+          description: >-
+            HTML page with a form that POSTs to the same URL. Sent with `Cache-Control: no-store` and
+            `Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'`.
           content:
             text/html:
               schema: { type: string }
         "400":
           description: "`token_invalido` — the segment is not shaped like a token this server issues."
+        "429":
+          description: "`demasiados_pedidos` — more than 60 requests a minute from this IP. Carries `Retry-After: 60`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
     post:
       tags: [Notificaciones]
       summary: One-click unsubscribe (RFC 8058) from price-drop mail. Idempotent, never reveals whether an account exists.
@@ -1769,6 +1777,12 @@ paths:
                 $ref: "#/components/schemas/ApiResponse"
         "400":
           description: "`token_invalido` — the segment is not shaped like a token this server issues."
+        "429":
+          description: "`demasiados_pedidos` — more than 60 requests a minute from this IP. Carries `Retry-After: 60`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
 
   /api/notificaciones/correo-prueba:
     post:
@@ -1800,6 +1814,12 @@ paths:
                 $ref: "#/components/schemas/ApiError"
         "409":
           description: "`sin_destino` (the caller has no email and sent none) · `smtp_no_configurado` (`SMTP_HOST` is blank)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "429":
+          description: "`demasiados_envios` — more than 5 test mails per hour for this account (failed attempts count). Carries `Retry-After: 3600`."
           content:
             application/json:
               schema:
