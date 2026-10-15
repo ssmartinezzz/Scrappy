@@ -22,15 +22,19 @@ OUTBOX_WORK="${OUTBOX_WORK:-$(mktemp -d -t outbox-perf.XXXXXX)}"
 die() { printf '\n\033[1;31m✗ %s\033[0m\n' "$*" >&2; exit 1; }
 say() { printf '\n\033[1;36m▸ %s\033[0m\n' "$*"; }
 
+# Estos scripts borran y siembran a lo bestia (DROP DATABASE, TRUNCATE): sólo contra una base perf_*.
+exigir_base_perf() { [[ "$OUTBOX_DB" == perf_* ]] || die "OUTBOX_DB=$OUTBOX_DB: tiene que empezar con perf_ (estos scripts borran la base)"; }
+exigir_base_perf
+
 pg() { psql -h "$OUTBOX_PGHOST" -p "$OUTBOX_PGPORT" -U "$OUTBOX_PGUSER" "$OUTBOX_DB" -v ON_ERROR_STOP=1 -q "$@"; }
 pg_admin() { psql -h "$OUTBOX_PGHOST" -p "$OUTBOX_PGPORT" -U "$OUTBOX_PGUSER" postgres -v ON_ERROR_STOP=1 -q "$@"; }
 
 # Una base descartable: nunca la del catálogo real.
 db_crear() {
-  [[ "$OUTBOX_DB" != "scraper" ]] || die "OUTBOX_DB=scraper es la base real; usá otra"
+  exigir_base_perf
   pg_admin -c "CREATE DATABASE \"$OUTBOX_DB\"" 2>/dev/null || true
 }
-db_borrar() { pg_admin -c "DROP DATABASE IF EXISTS \"$OUTBOX_DB\" WITH (FORCE)"; }
+db_borrar() { exigir_base_perf; pg_admin -c "DROP DATABASE IF EXISTS \"$OUTBOX_DB\" WITH (FORCE)"; }
 
 # jar_arrancar <jar> <log> [VAR=valor ...]  — las VAR extra pisan el entorno del backend.
 jar_arrancar() {

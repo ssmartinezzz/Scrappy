@@ -4,6 +4,7 @@
 -- fuera de la ventana de 30 días (el resto es reciente y debe sobrevivir a la purga).
 -- La dedup es (usuario, url, precio_nuevo): 100 usuarios x 1000 productos x los precios que
 -- hagan falta, así que ninguna fila choca con otra.
+\ir guarda.sql
 INSERT INTO usuario(username, email, password_hash)
 SELECT 'purga' || g, 'purga' || g || '@example.test', '$argon2id$de-prueba' FROM generate_series(1, 100) g
 ON CONFLICT DO NOTHING;
@@ -28,8 +29,8 @@ SELECT u.ids[1 + g % 100],
        CASE WHEN g % 2 = 0 THEN t.cuando END,
        CASE WHEN g % 2 = 0 THEN NULL ELSE '550 no such user' END
 FROM u, generate_series(1, :filas) g,
-     LATERAL (SELECT CASE WHEN random() < :viejas THEN now() - interval '45 days' - (g % 1000) * interval '1 minute'
-                          ELSE now() - interval '2 days' - (g % 1000) * interval '1 minute' END AS cuando) t;
+     LATERAL (SELECT now() - CASE WHEN random() < :viejas THEN interval '45 days' ELSE interval '2 days' END
+                           - (g % 1000) * interval '1 minute' AS cuando) t;
 
 ANALYZE notificacion_precio;
 SELECT count(*) AS sembradas,
