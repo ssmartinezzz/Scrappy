@@ -79,4 +79,23 @@ class ErroresSmtpTest {
         assertThat(ErroresSmtp.sinDirecciones("de a.b@x.org para titular@example.com fin"))
                 .isEqualTo("de a**@x.org para t**@example.com fin");
     }
+
+    @Test
+    @DisplayName("sinDirecciones also masks quoted, non-ASCII and bracketed addresses")
+    void sinDireccionesAmplio() {
+        assertThat(ErroresSmtp.sinDirecciones("a \"juan perez\"@x.org b ñandú@example.com c <z@y.net> d"))
+                .isEqualTo("a \"**@x.org b ñ**@example.com c <z**@y.net> d")
+                .doesNotContain("juan", "andú", "z@y");
+    }
+
+    @Test
+    @DisplayName("sinDirecciones is linear: a large text with no address, or with thousands of '@', is cheap")
+    void sinDireccionesLineal() {
+        long inicio = System.nanoTime();
+        ErroresSmtp.sinDirecciones("a".repeat(200_000));
+        ErroresSmtp.sinDirecciones("a@".repeat(100_000));
+        ErroresSmtp.sinDirecciones("@".repeat(200_000));
+
+        assertThat((System.nanoTime() - inicio) / 1_000_000).as("ms").isLessThan(1000);
+    }
 }

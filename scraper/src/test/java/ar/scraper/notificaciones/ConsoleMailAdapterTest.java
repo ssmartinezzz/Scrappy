@@ -34,4 +34,22 @@ class ConsoleMailAdapterTest {
             logger.detachAppender(appender);
         }
     }
+
+    @Test
+    @DisplayName("a destination with a line break cannot forge a log line")
+    void noPermiteFalsificarElLog() {
+        Logger logger = (Logger) LoggerFactory.getLogger(ConsoleMailAdapter.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            new ConsoleMailAdapter().enviar(List.of(new CorreoDirigido("a@b.com\r\nINFO [ADMIN] falso",
+                    new CorreoRenderizado("asunto", "<html/>", "texto"))));
+
+            assertThat(appender.list).singleElement()
+                    .satisfies(e -> assertThat(e.getFormattedMessage()).doesNotContain("\r", "\n"));
+        } finally {
+            logger.detachAppender(appender);
+        }
+    }
 }

@@ -1,5 +1,6 @@
 package ar.scraper.notificaciones;
 
+import ar.scraper.api.LogSafe;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -106,7 +107,7 @@ public class RelayNotificaciones implements NovedadesEnLaCola {
                 LOG.debug("[NOTIF] lote completo, sigo drenando");
             }
         } catch (RuntimeException e) {
-            LOG.warn("[NOTIF] no se pudo procesar el lote: {}", e.toString());
+            LOG.warn("[NOTIF] no se pudo procesar el lote: {}", LogSafe.of(ErroresSmtp.sinDirecciones(e.toString())));
         }
     }
 
@@ -177,8 +178,8 @@ public class RelayNotificaciones implements NovedadesEnLaCola {
                 idsEnviados.addAll(ids);
                 continue;
             }
-            String error = sinDireccion(entrega.error(), email);
-            LOG.warn("[NOTIF] fallo al avisar a {}: {}", Enmascarar.direccion(email), error);
+            String error = ErroresSmtp.sinDirecciones(StringUtils.defaultString(entrega.error()));
+            LOG.warn("[NOTIF] fallo al avisar a {}: {}", LogSafe.of(Enmascarar.direccion(email)), LogSafe.of(error));
             for (Long id : ids) fallos.add(new FalloDeEnvio(id, error, entrega.permanente()));
         }
         outbox.marcarEnviadas(idsEnviados);
@@ -197,9 +198,5 @@ public class RelayNotificaciones implements NovedadesEnLaCola {
             porDestinatario.keySet().forEach(email -> todos.put(email, fallo));
             return todos;
         }
-    }
-
-    private static String sinDireccion(String error, String email) {
-        return StringUtils.replaceIgnoreCase(StringUtils.defaultString(error), email, Enmascarar.direccion(email));
     }
 }

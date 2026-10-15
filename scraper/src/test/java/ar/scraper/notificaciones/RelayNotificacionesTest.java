@@ -1,8 +1,13 @@
 package ar.scraper.notificaciones;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -85,6 +90,13 @@ class RelayNotificacionesTest {
 
     private final RelojDePrueba reloj = new RelojDePrueba();
     private RelayNotificaciones relay;
+    private final Logger logger = (Logger) LoggerFactory.getLogger(RelayNotificaciones.class);
+    private final ListAppender<ILoggingEvent> log = new ListAppender<>();
+
+    @AfterEach
+    void soltarLog() {
+        logger.detachAppender(log);
+    }
 
     private RelayNotificaciones nuevoRelay(NotificacionDespachador d, RelayConfig config) {
         return new RelayNotificaciones(outbox, d, config, reloj, Runnable::run);
@@ -92,6 +104,8 @@ class RelayNotificacionesTest {
 
     @BeforeEach
     void setUp() {
+        log.start();
+        logger.addAppender(log);
         relay = nuevoRelay(despachador, RelayConfig.porDefecto());
     }
 
@@ -453,5 +467,49 @@ class RelayNotificacionesTest {
 
         assertThat(falladas).containsExactlyInAnyOrder(1L, 2L);
         assertThat(permanentes).containsExactly(1L);
+    }
+
+    @Test
+    @DisplayName("a provider error that names the sender or a third party reaches neither ultimo_error nor the log with a full address")
+    void elErrorDelProveedorNoFiltraDirecciones() {
+        relay = nuevoRelay(envios -> {
+            Map<String, Entrega> r = new LinkedHashMap<>();
+            envios.keySet().forEach(e -> r.put(e, Entrega.fallo("SMTPSendFailedException: 451 4.7.1 rejected: sender "
+                    + "smtpuser@proveedor.example over quota, copy to tercero.privado@victima.example for " + e)));
+            return r;
+        }, RelayConfig.porDefecto());
+        pendientes.add(baja(1, USUARIO, "usuario@example.com"));
+
+        relay.procesarLote();
+
+        String advertencias = log.list.stream().map(ILoggingEvent::getFormattedMessage).reduce("", String::concat);
+        for (String texto : List.of(errores.getFirst(), advertencias)) {
+            assertThat(texto).contains("over quota")
+                    .doesNotContain("smtpuser@proveedor.example", "tercero.privado@victima.example", "usuario@example.com");
+        }
+    }
+
+    @Test
+    @DisplayName("an exception escaping the dispatcher is masked and logged the same way")
+    void laExcepcionDelDespachadorTambienSeEnmascara() {
+        relay = nuevoRelay(envios -> {
+            throw new IllegalStateException("boom tercero.privado@victima.example");
+        }, RelayConfig.porDefecto());
+        pendientes.add(baja(1, USUARIO, "usuario@example.com"));
+
+        relay.procesarLote();
+
+        assertThat(errores.getFirst()).contains("boom").doesNotContain("tercero.privado@victima.example");
+    }
+
+    @Test
+    @DisplayName("a stored address with a line break cannot forge a log line")
+    void unEmailConSaltoDeLineaNoFalsificaElLog() {
+        destinoQueFalla = "a@b.com\r\n2026-10-14 INFO [ADMIN] falso";
+        pendientes.add(baja(1, USUARIO, destinoQueFalla));
+
+        relay.procesarLote();
+
+        assertThat(log.list).isNotEmpty().allSatisfy(e -> assertThat(e.getFormattedMessage()).doesNotContain("\r", "\n"));
     }
 }

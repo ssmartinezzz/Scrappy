@@ -66,7 +66,7 @@ hace falta tocar; el resto tiene un default que sirve.
 - **En la base**: `SELECT estado, count(*) FROM notificacion_precio GROUP BY 1;` o los paneles
   del dashboard de Grafana (pendientes, fallidas, antigüedad de la más vieja).
 
-Ninguna línea de log ni respuesta lleva direcciones completas ni secretos.
+Ninguna línea de log ni respuesta lleva direcciones completas ni secretos: el texto de error del servidor SMTP (que puede citar al remitente o a un tercero) se enmascara antes de guardarse en `ultimo_error` y de loguearse, y los valores con saltos de línea no pueden falsificar una línea de log.
 
 ## Cuando no llega
 

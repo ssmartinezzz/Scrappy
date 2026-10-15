@@ -1,5 +1,6 @@
 package ar.scraper.notificaciones;
 
+import ar.scraper.api.LogSafe;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -24,6 +25,6 @@ public class ConsoleMailAdapter implements MailPort {
 
     private void anunciar(String destino, CorreoRenderizado correo) {
         LOG.info("[NOTIF] SMTP_HOST sin configurar, no se envía el mail \"{}\" a {}",
-                correo.asunto(), Enmascarar.direccion(destino));
+                correo.asunto(), LogSafe.of(Enmascarar.direccion(destino)));
     }
 }

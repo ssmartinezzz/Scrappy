@@ -5,6 +5,7 @@ import ar.scraper.web.cache.CatalogoDerivadoCache;
 import ar.scraper.web.cache.CatalogoDerivadoCache.GruposKey;
 import org.apache.commons.lang3.StringUtils;
 import ar.scraper.api.ApiResponse;
+import ar.scraper.api.LogSafe;
 import ar.scraper.api.PageMeta;
 import ar.scraper.web.dto.ComparadorDtos;
 import org.springframework.http.ResponseEntity;
