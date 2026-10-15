@@ -204,29 +204,28 @@ class PlainRunner:
         self._print(f"Configurar mail (SMTP). Escribí `{smtp_setup.CANCEL_WORD}` para salir.")
         rechazos = 0
         while not wizard.done:
-            question = wizard.current()
-            self._print(question.text + (f" [{question.default}]" if question.default else ""))
-            if question.secret:
-                answer = self.secret_reader(f"{question.text}: ")
-            else:
-                line = self.in_.readline()
-                answer = None if line == "" else line.rstrip("\n")
-            if answer is None or (not question.secret and answer.strip().lower() == smtp_setup.CANCEL_WORD):
-                self._print("Configuración cancelada: .env no se tocó.")
-                return
-            error = wizard.answer(answer)
+            answer = self._mail_answer(wizard.current())
+            error = None if answer is None else wizard.answer(answer)
+            rechazos = rechazos + 1 if error else 0
             if error:
                 self._print(error)
-                rechazos += 1
-                if rechazos >= MAX_RECHAZOS_SEGUIDOS:
-                    self._print("Configuración cancelada: .env no se tocó.")
-                    return
-            else:
-                rechazos = 0
+            if answer is None or rechazos >= MAX_RECHAZOS_SEGUIDOS:
+                self._print("Configuración cancelada: .env no se tocó.")
+                return
         smtp_setup.save(self.cfg.repo_root, wizard)
         for line in wizard.summary():
             self._print(f"  {line}")
         self._print(smtp_setup.RESTART_NOTE)
+
+    def _mail_answer(self, question) -> Optional[str]:
+        """The reply to one wizard question, or None when the user cancels or input ends."""
+        self._print(question.text + (f" [{question.default}]" if question.default else ""))
+        if question.secret:
+            return self.secret_reader(f"{question.text}: ")
+        line = self.in_.readline()
+        if line == "" or line.strip().lower() == smtp_setup.CANCEL_WORD:
+            return None
+        return line.rstrip("\n")
 
     def _mail(self, args: list[str]) -> None:
         sub = args[0] if args else "setup"

@@ -3,6 +3,7 @@
 -- etiqueta, para que cada escenario tenga URLs propias: la dedup es (usuario,url,precio_nuevo))
 -- y reparte los productos en bloques contiguos: cada usuario favoritea <productos>/<usuarios> seguidos (5 con 1000/200),
 -- así que una ráfaga debe dar un mail por usuario.
+\ir guarda.sql
 INSERT INTO usuario(username, email, password_hash)
 SELECT 'u' || g, 'u' || g || '@example.test', '$argon2id$de-prueba' FROM generate_series(1, :usuarios) g
 ON CONFLICT DO NOTHING;

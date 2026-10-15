@@ -130,5 +130,6 @@ def test_scrape_advertises_the_watch_flag():
 
 def test_mail_is_registered_with_the_smtp_alias_and_a_usage():
     cmd = find("mail")
-    assert cmd is not None and find("smtp") is cmd
+    assert cmd is not None
+    assert find("smtp") is cmd
     assert "test" in cmd.usage

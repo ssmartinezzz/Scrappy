@@ -83,35 +83,45 @@ class SmtpWizard:
     def answer(self, text: str) -> Optional[str]:
         """Feed the reply to `current()`. Returns an error message (and stays
         on the question) or `None` after moving on."""
-        text = text.strip()
-        step = self._step
-        if step == PROVEEDOR:
-            return self._answer_provider(text)
-        if step == "SMTP_HOST":
-            if not text or re.search(r"[\s/:]", text):
-                return "El host es sólo el nombre del servidor, sin esquema, puerto ni espacios."
-            self._answers[step] = text
-            self._step = "SMTP_PORT"
-        elif step == "SMTP_PORT":
-            text = text or self.current().default
-            if not text.isdigit() or not 1 <= int(text) <= 65535:
-                return "El puerto es un número entre 1 y 65535."
-            self._answers[step] = str(int(text))
-            self._step = "SMTP_USERNAME"
-        elif step == "SMTP_USERNAME":
-            text = text or self.current().default
-            if not text:
-                return "El usuario es obligatorio."
-            self._answers[step] = text
-            self._step = "SMTP_PASSWORD"
-        elif step == "SMTP_PASSWORD":
-            return self._answer_password(text)
-        elif step == "SMTP_FROM_ADDRESS":
-            text = text or self.current().default
-            if not _DIRECCION.match(text):
-                return "El remitente tiene que ser una dirección de mail (algo@dominio.com)."
-            self._answers[step] = text
-            self._step = ""
+        handler = {
+            PROVEEDOR: self._answer_provider,
+            "SMTP_HOST": self._answer_host,
+            "SMTP_PORT": self._answer_port,
+            "SMTP_USERNAME": self._answer_username,
+            "SMTP_PASSWORD": self._answer_password,
+            "SMTP_FROM_ADDRESS": self._answer_from,
+        }.get(self._step)
+        return handler(text.strip()) if handler else None
+
+    def _accept(self, text: str, next_step: str) -> None:
+        self._answers[self._step] = text
+        self._step = next_step
+
+    def _answer_host(self, text: str) -> Optional[str]:
+        if not text or re.search(r"[\s/:]", text):
+            return "El host es sólo el nombre del servidor, sin esquema, puerto ni espacios."
+        self._accept(text, "SMTP_PORT")
+        return None
+
+    def _answer_port(self, text: str) -> Optional[str]:
+        text = text or self.current().default
+        if not text.isdigit() or not 1 <= int(text) <= 65535:
+            return "El puerto es un número entre 1 y 65535."
+        self._accept(str(int(text)), "SMTP_USERNAME")
+        return None
+
+    def _answer_username(self, text: str) -> Optional[str]:
+        text = text or self.current().default
+        if not text:
+            return "El usuario es obligatorio."
+        self._accept(text, "SMTP_PASSWORD")
+        return None
+
+    def _answer_from(self, text: str) -> Optional[str]:
+        text = text or self.current().default
+        if not _DIRECCION.match(text):
+            return "El remitente tiene que ser una dirección de mail (algo@dominio.com)."
+        self._accept(text, "")
         return None
 
     def _answer_provider(self, text: str) -> Optional[str]:

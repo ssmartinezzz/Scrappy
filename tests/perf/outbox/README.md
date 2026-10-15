@@ -1,7 +1,9 @@
 # Performance del outbox de avisos de baja de precio
 
 Dos mediciones sobre `notificacion_precio` (V49), contra una base descartable y un
-Mailpit. Ninguna toca el catálogo real: `db_crear` se niega a usar la base `scraper`.
+Mailpit. Ninguna toca el catálogo real: `lib.sh` exige que `OUTBOX_DB` empiece con `perf_` (si no, aborta al cargarse) y
+cada `.sql` que borra o siembra a lo bestia empieza con `\ir guarda.sql`, que corta el script si la base no es `perf_*`
+aunque se lo corra con `psql` a mano. `guardas.test.sh` lo comprueba (hay que correrlo a mano tras tocar esos archivos).
 
 ```
 outbox/
@@ -9,6 +11,8 @@ outbox/
 ├── abba.sh           costo de sp_upsert_run: ABBA entre dos o más cuerpos de la función
 ├── rafaga.sh         una ráfaga de bajas contra el relay y Mailpit
 ├── rafaga-abba.sh    A, B, B, A de rafaga.sh entre dos jars
+├── guarda.sql        corta el script si la base no es perf_*
+├── guardas.test.sh   prueba las guardas (a mano; usa bases descartables propias)
 ├── payload.sql       5000 productos, 500 que bajan, 1000 filas a encolar, 200 usuarios
 ├── seed.sql / drop.sql / stats.sql / una_llamada.sql / resumen.py
 └── purga-seed.sql    siembra N avisos terminales para medir la purga por retención
