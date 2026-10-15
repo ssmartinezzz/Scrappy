@@ -69,6 +69,7 @@ min-max de una variante es ~3%.
 va del primer `creada_at` al último `enviada_at`. `mails/s` cuenta lo que llegó a Mailpit
 y `filas/s` lo que quedó `ENVIADA`; con un mail por usuario valen `filas = 5 x mails`.
 Con sondeo, la latencia es la espera al próximo tick más el envío; con el despertar por
-LISTEN debería ser sólo el envío. Con `NOTIFICACIONES_MAX_POR_MINUTO=N` mirá cuántos
+LISTEN debería ser sólo el envío. `lib.sh` arranca el backend sin tope por minuto (el default del producto es 60) y con `SMTP_STARTTLS_REQUIRED=false`
+(Mailpit no ofrece STARTTLS). Con `NOTIFICACIONES_MAX_POR_MINUTO=N` mirá cuántos
 llegaron en el primer minuto (`OUTBOX_MIRAR_PRIMER_MINUTO=1` corta la espera a los 60 s).
 Lo medido tiene que repetirse en orden A,B,B,A: el primero de la serie paga el calentamiento.

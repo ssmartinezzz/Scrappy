@@ -1522,7 +1522,7 @@ favoritos recibe **un mail por corrida** con sus bajas. Esquema y rollback: [`DA
   bandera y responde siempre 200 con el mismo cuerpo (token real, cuenta inexistente o firma ajena: no es un
   oráculo); `GET` sólo sirve una página con un botón, porque los escáneres de mail piden todos los links.
   Sin límite de tasa: el token inválido no toca la base y los `POST` de un proveedor vienen de pocas IP.
-- **Tope por minuto** (`NOTIFICACIONES_MAX_POR_MINUTO`, 0 = sin tope) del **cluster**: con tope, el
+- **Tope por minuto** (`NOTIFICACIONES_MAX_POR_MINUTO`, 60 por defecto, 0 = sin tope) del **cluster**: con tope, el
   claim toma `pg_advisory_xact_lock` dentro de su transacción, cuenta los destinatarios distintos
   enviados en los últimos 60 s más los que están en vuelo (`lease_hasta > now()`, V50) y reclama
   sólo la diferencia, así que nada se reclama para devolverlo. Los fallos no gastan cupo: un

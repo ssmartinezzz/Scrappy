@@ -55,7 +55,7 @@ hace falta tocar; el resto tiene un default que sirve.
 | `NOTIFICACIONES_MAX_INTENTOS` | 5 | Reintentos antes de `FALLIDA` |
 | `NOTIFICACIONES_BACKOFF_BASE_SEGUNDOS` | 60 | Base del backoff exponencial entre reintentos |
 | `NOTIFICACIONES_LEASE_SEGUNDOS` | 300 | Reserva de un lote; debe superar lo que tarda en enviarse |
-| `NOTIFICACIONES_MAX_POR_MINUTO` | 0 | Tope de mails por minuto de todo el cluster (límite del proveedor); 0 = sin tope |
+| `NOTIFICACIONES_MAX_POR_MINUTO` | 60 | Tope de mails por minuto de todo el cluster (límite del proveedor); 0 = sin tope. Una corrida con muchas bajas se reparte en minutos en vez de saturar la cuota del proveedor |
 | `NOTIFICACIONES_RETENCION_DIAS` / `…_PURGA_CADA_HORAS` | 30 / 6 | Cuánto se guardan las filas ya enviadas o fallidas |
 
 ## Cómo verificar
