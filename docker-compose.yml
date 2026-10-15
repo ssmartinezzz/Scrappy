@@ -101,15 +101,24 @@ services:
       # silently goes nowhere.
       PASSWORD_RESET_CHANNEL: ${PASSWORD_RESET_CHANNEL:-console}
       PASSWORD_RESET_LINK_BASE: ${PASSWORD_RESET_LINK_BASE:-http://localhost:8080}
-      # Ignored unless PASSWORD_RESET_CHANNEL=smtp; blank defaults keep the
-      # console channel working with nothing set.
+      # PASSWORD_RESET_CHANNEL=smtp lo requiere para el reseteo; los avisos de baja
+      # de precio lo usan con sólo setear SMTP_HOST. Vacío: todo sigue en consola.
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USERNAME: ${SMTP_USERNAME:-}
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       SMTP_FROM_ADDRESS: ${SMTP_FROM_ADDRESS:-}
-      # Origen público del backend: arma el enlace de baja de un clic de los mails de baja de precio.
+      # Avisos de baja de precio: se envían por SMTP cuando SMTP_HOST está seteado.
+      NOTIFICACIONES_ENABLED: ${NOTIFICACIONES_ENABLED:-true}
+      NOTIFICACIONES_INTERVALO_MS: ${NOTIFICACIONES_INTERVALO_MS:-15000}
+      NOTIFICACIONES_LOTE: ${NOTIFICACIONES_LOTE:-200}
+      NOTIFICACIONES_MAX_INTENTOS: ${NOTIFICACIONES_MAX_INTENTOS:-5}
+      NOTIFICACIONES_LEASE_SEGUNDOS: ${NOTIFICACIONES_LEASE_SEGUNDOS:-300}
+      NOTIFICACIONES_BACKOFF_BASE_SEGUNDOS: ${NOTIFICACIONES_BACKOFF_BASE_SEGUNDOS:-60}
+      NOTIFICACIONES_MAX_POR_MINUTO: ${NOTIFICACIONES_MAX_POR_MINUTO:-0}
       NOTIFICACIONES_API_BASE_URL: ${NOTIFICACIONES_API_BASE_URL:-http://localhost:3000}
+      NOTIFICACIONES_RETENCION_DIAS: ${NOTIFICACIONES_RETENCION_DIAS:-30}
+      NOTIFICACIONES_PURGA_CADA_HORAS: ${NOTIFICACIONES_PURGA_CADA_HORAS:-6}
       SCRAPER_MODELS_ROOT: /models
       HF_HOME: /models/marqo
       LOG_DIR: /app/logs

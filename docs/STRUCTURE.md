@@ -75,6 +75,15 @@ Scrappy/
         │   ├── scheduling/                 ← área: CronJob, CronExecution, CronPort (lo implementa
         │   │                                  un @Repository package-private en db/) + CronJobRunner
         │   │                                  y CronJobService, absorbidos de cron/ en F3a
+        │   ├── notificaciones/             ← área: avisos de baja de precio. Puertos NotificacionOutboxPort
+        │   │                                  (lo implementa db.NotificacionOutboxRepository), MailPort,
+        │   │                                  PreferenciaAvisosPort (db.PreferenciaAvisosRepository; la usa
+        │   │                                  web.NotificacionesController), NovedadesEnLaCola (el wake-up
+        │   │                                  que db.DbNotificationListener le pasa al relay),
+        │   │                                  NotificacionDespachador (el seam de Kafka); RelayNotificaciones,
+        │   │                                  PlantillaBajaPrecio (+ mail/*.html), SmtpMailAdapter (+ SocketsTcpNoDelay) / ConsoleMailAdapter,
+        │   │                                  TokenBajaAvisos + EnlaceBaja (baja de un clic, la sirve
+        │   │                                  web.BajaAvisosController)
         │   ├── favoritos/FavoritosPort     ← área: puerto del agregado favoritos (lo implementa
         │   │                                  un @Repository package-private en db/)
         │   ├── financiacion/               ← área: Preset, PresetPort (lo implementa un

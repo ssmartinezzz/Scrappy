@@ -424,6 +424,27 @@ después del deploy le dio **0 productos sin error** a Flowin y Armytech, rutead
 al default `tiendanube` (2026-10-08). Arreglo: `@DependsOnDatabaseInitialization`
 en la clase; `JdbcSiteSourceBootOrderTest` lo fija.
 
+**`PGConnection.getNotifications(0)` espera para siempre.** En pgjdbc el timeout `0` significa
+"bloqueá hasta que llegue algo", no "mirá y volvé": un test que afirma que **no** llegó un
+`NOTIFY` se cuelga sin error ni timeout (surefire queda mudo). Para leer lo ya entregado, hacé un
+viaje de ida y vuelta en esa conexión (`SELECT 1`) y llamá a `getNotifications()` sin argumentos.
+Un `NOTIFY` se entrega al commit, así que un rollback no deja nada que leer
+(`SpUpsertRunNotificacionTest`).
+
+**Un mail de más de 8 KiB tardaba ~43 ms de más.** Jakarta Mail escribe con un buffer de 8 KiB: pasado
+ese tamaño el mensaje sale en dos segmentos, Nagle retiene el segundo hasta el ACK del primero y el
+receptor demora ese ACK ~40 ms. Medido en loopback, 50 mails por lote: 7 KB 2 ms/mail; 9,5 KB 42,7 ms
+sin `TCP_NODELAY` y 1,3 ms con él. `SmtpMailAdapter` fija `mail.smtp.socketFactory` y
+`mail.smtp.ssl.socketFactory` con `SocketsTcpNoDelay`; el segundo cubre SMTPS y el upgrade STARTTLS,
+y envuelve (no reemplaza) la confianza TLS. Si un cambio de plantilla "hace lento" el envío, medí el
+tamaño antes de culpar al servidor (`SmtpMailAdapterTest.mensajeGrandeNoSeDemora`).
+
+**La purga del outbox no puede compartir hilo ni lock con la entrega.** El pool de `@Scheduled` tiene
+un hilo por defecto y `tick()` es `synchronized`: una purga de 1,8 M de filas (13 s) hacía esperar a
+cualquier despertar por `LISTEN`. `purgar()` es su propio `@Scheduled` (cada minuto, la cadencia real
+la fija `NOTIFICACIONES_PURGA_CADA_HORAS`), sólo encola el trabajo en el hilo `notificaciones-purga` y
+una bandera impide dos purgas a la vez.
+
 ### Leer un sitio
 
 **Chromium sale por `EgressProxy`: un sitio en loopback o en la LAN no se

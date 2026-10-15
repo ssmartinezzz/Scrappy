@@ -56,7 +56,8 @@ class BackendLayeringArchTest {
                                    "ar.scraper.scrape..", "ar.scraper.scheduling..",
                                    "ar.scraper.favoritos..", "ar.scraper.financiacion..",
                                    "ar.scraper.feedback..", "ar.scraper.outfits..",
-                                   "ar.scraper.indices..", "ar.scraper.pcs..")
+                                   "ar.scraper.indices..", "ar.scraper.pcs..",
+                                   "ar.scraper.notificaciones..")
         .should().dependOnClassesThat(
             JavaClass.Predicates.resideInAnyPackage("ar.scraper.db..",
                                                     "ar.scraper.aggregator..",
@@ -140,6 +141,13 @@ class BackendLayeringArchTest {
                     && METODOS_FAVORITOS.contains(call.getTarget().getName());
             }
         });
+
+    // price-drop-email-alerts: the outbox is drained by the relay through its port; a controller
+    // that reached the repository would be reading or writing a queue it does not own.
+    @ArchTest
+    static final ArchRule webNoUsaElOutbox = noClasses()
+        .that().resideInAPackage("ar.scraper.web..")
+        .should().dependOnClassesThat().haveFullyQualifiedName("ar.scraper.db.NotificacionOutboxRepository");
 
     // The presets aggregate's 6 methods on DatabaseService (extract-preset-historial-ports).
     private static final Set<String> METODOS_PRESETS =

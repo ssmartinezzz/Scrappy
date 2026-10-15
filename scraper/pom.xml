@@ -185,6 +185,12 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-mail</artifactId>
         </dependency>
+        <!-- Already on the runtime classpath through the starter; declared so the SMTP adapter can read
+             SMTPSendFailedException return codes (5xx permanent vs 4xx transient) at compile time. -->
+        <dependency>
+            <groupId>org.eclipse.angus</groupId>
+            <artifactId>angus-mail</artifactId>
+        </dependency>
 
         <!-- JWT (user-accounts-and-roles slice 2). Nimbus rather than jjwt: one
              artifact instead of three, and it is the library Spring Security

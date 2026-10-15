@@ -10,6 +10,7 @@ import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 import org.springframework.core.annotation.AnnotatedElementUtils;
 import org.springframework.stereotype.Component;
 
@@ -18,6 +19,8 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -218,6 +221,38 @@ class SpringWiringTest {
         assertThat(rotos)
                 .as("parámetros de constructor que Spring no podría resolver")
                 .isEmpty();
+    }
+
+    /**
+     * A second {@code @Bean} of a type someone injects by type fails the boot with "expected single
+     * matching bean but found 2"; {@code @ConditionalOnMissingBean} on a user configuration does
+     * not prevent it, because it is evaluated before the other definition is registered.
+     */
+    @Test
+    @DisplayName("ningún tipo lo producen dos métodos @Bean sin un @Primary")
+    void ningunTipoTieneDosBeanMethodsSinPrimary() throws Exception {
+        Map<String, List<Method>> porTipo = new TreeMap<>();
+        for (Class<?> bean : beansDeLaAplicacion()) {
+            if (!AnnotatedElementUtils.hasAnnotation(bean, Configuration.class) || esDeTest(bean)) continue;
+            for (Method metodo : bean.getDeclaredMethods()) {
+                if (!metodo.isAnnotationPresent(Bean.class)) continue;
+                porTipo.computeIfAbsent(metodo.getReturnType().getName(), t -> new ArrayList<>()).add(metodo);
+            }
+        }
+
+        List<String> ambiguos = porTipo.entrySet().stream()
+                .filter(e -> e.getValue().size() > 1)
+                .filter(e -> e.getValue().stream().noneMatch(m -> m.isAnnotationPresent(Primary.class)))
+                .map(e -> e.getKey() + " <- " + e.getValue().stream()
+                        .map(m -> m.getDeclaringClass().getSimpleName() + "." + m.getName()).toList())
+                .toList();
+
+        assertThat(ambiguos).as("tipos con más de un @Bean y ningún @Primary").isEmpty();
+    }
+
+    /** Test configurations live on the same classpath and override production beans on purpose. */
+    private static boolean esDeTest(Class<?> clase) {
+        return clase.getProtectionDomain().getCodeSource().getLocation().getPath().contains("test-classes");
     }
 
     @Test
