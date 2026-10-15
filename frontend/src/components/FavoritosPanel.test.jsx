@@ -27,6 +27,14 @@ const favorito = (url, nombre = 'Remera') => ({
 
 const lista = async user => user.click(screen.getByLabelText('Vista lista'));
 
+describe('FavoritosPanel — slot de avisos', () => {
+  it('muestra lo que le pasen en la cabecera, sin importar si hay favoritos', () => {
+    render(<FavoritosPanel favoritos={[]} avisos={<p>Preferencia de avisos</p>} />);
+
+    expect(screen.getByText('Preferencia de avisos')).toBeInTheDocument();
+  });
+});
+
 describe('FavoritosPanel — estados vacíos', () => {
   it('nombra las tres cosas que se pueden guardar cuando no hay ninguna', () => {
     render(<FavoritosPanel favoritos={[]} savedOutfits={[]} savedPcs={[]} />);

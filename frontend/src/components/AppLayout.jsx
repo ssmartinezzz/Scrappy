@@ -20,6 +20,7 @@ import { CONFIG_DEFAULT } from '../lib/scrapeDefaults';
 import { useAuth } from '../auth/AuthProvider';
 import { useInterruptedRun } from '../hooks/useInterruptedRun';
 import InterruptedRunBanner from './InterruptedRunBanner';
+import AvisosBajaPrecio from './AvisosBajaPrecio';
 
 // frontend-perf T3: DetailPanel pulls in @radix-ui/react-dialog, AgentChatPanel
 // pulls in framer-motion — neither belongs in the entry chunk, since both
@@ -393,6 +394,7 @@ function FavoritosRoute() {
         await removeFavorito(url);
         dispatch({ type: 'TOGGLE_FAVORITO', prod: { url } });
       }}
+      avisos={<AvisosBajaPrecio />}
       savedOutfits={S.savedOutfits || []}
       savedPcs={S.savedPcs || []}
       onDeleteSavedOutfit={async (id) => {

@@ -56,6 +56,13 @@ slide de PC no adapta nada. Los slides de outfit habían salido del carrusel en
 
 El estado no se movió: `savedOutfits`/`savedPcs` ya vivían en el reducer de
 `AppLayout` y ya los cargaba esta misma ruta.
+
+**El opt-out de los mails de baja de precio vive en `/favoritos`**, bajo la cabecera
+(`AvisosBajaPrecio`, entrado a `FavoritosPanel` por la prop `avisos` desde `FavoritosRoute`): un
+checkbox "Avisarme por mail cuando un favorito baje más de 5%" contra
+`GET`/`PUT /api/notificaciones/preferencia`. No se renderiza mientras la preferencia es
+desconocida ni para una cuenta sin email (no tendría efecto). Si el guardado falla conserva el
+valor anterior y lo dice. Es el destino del enlace del pie del mail.
 `/apidocs` — **Consola API**, pública y **sin entrada en el nav**: no hay
 botón ni link en ninguna parte de la app, para ningún rol. Se llega tipeando
 la URL. Es una **página standalone**: se rutea en `App.jsx` como hermana de

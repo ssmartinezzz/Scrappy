@@ -5,6 +5,7 @@ import {
   fetchData,
   fetchIndices,
   fetchPcPreferencia,
+  fetchPreferenciaAvisos,
   fetchPcsBuilder,
   fetchRecomendacion,
   fetchSavedPcs,
@@ -13,6 +14,7 @@ import {
   renamePc,
   savePc,
   savePcPreferencia,
+  savePreferenciaAvisos,
   startScrape,
 } from '@/api';
 
@@ -317,6 +319,27 @@ describe('PC builder preference', () => {
     global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 400, json: async () => ({}) });
 
     await expect(savePcPreferencia({ gama: 'x' })).resolves.toBeNull();
+  });
+});
+
+describe('Price-drop mail preference', () => {
+  it('fetchPreferenciaAvisos GETs /api/notificaciones/preferencia and returns the flag state', async () => {
+    global.fetch = vi.fn().mockResolvedValue(envelope({ notificarBajasPrecio: true, tieneEmail: true }));
+
+    await expect(fetchPreferenciaAvisos()).resolves.toEqual({ notificarBajasPrecio: true, tieneEmail: true });
+    expect(calledUrl().pathname).toBe('/api/notificaciones/preferencia');
+  });
+
+  it('savePreferenciaAvisos PUTs the boolean and returns the new state, null when refused', async () => {
+    global.fetch = vi.fn().mockResolvedValue(envelope({ notificarBajasPrecio: false, tieneEmail: true }));
+
+    await expect(savePreferenciaAvisos(false)).resolves.toEqual({ notificarBajasPrecio: false, tieneEmail: true });
+    const [, init] = global.fetch.mock.calls.at(-1);
+    expect(init.method).toBe('PUT');
+    expect(JSON.parse(init.body)).toEqual({ notificarBajasPrecio: false });
+
+    global.fetch = vi.fn().mockResolvedValue(errorResponse(409, 'sin_email'));
+    await expect(savePreferenciaAvisos(true)).resolves.toBeNull();
   });
 });
 

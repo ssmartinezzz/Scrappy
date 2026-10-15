@@ -581,6 +581,22 @@ export async function savePcPreferencia(body) {
   return softUnwrap(r);
 }
 
+/** `{ notificarBajasPrecio, tieneEmail }`, or null on error. */
+export async function fetchPreferenciaAvisos() {
+  const r = await authedFetch(`${BASE}/api/notificaciones/preferencia`);
+  return softUnwrap(r);
+}
+
+/** The new state, or null when the server refused (no email on the account, bad body). */
+export async function savePreferenciaAvisos(notificarBajasPrecio) {
+  const r = await authedFetch(`${BASE}/api/notificaciones/preferencia`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ notificarBajasPrecio }),
+  });
+  return softUnwrap(r);
+}
+
 // ─── Saved PCs ──────────────────────────────────────────────────────────────
 
 export async function savePc(body) {
