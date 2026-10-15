@@ -26,8 +26,9 @@ pg -v productos="${OUTBOX_PRODUCTOS:-5000}" -v vigilados="${OUTBOX_VIGILADOS:-50
    -f "$AQUI/payload.sql" >/dev/null
 
 medir() {  # medir <indice> <archivo>
-  pg -f "$2" >/dev/null
-  pg -v sin_vigilantes="$SIN" -f "$AQUI/una_llamada.sql" | awk -v v="$1" '/^RESULTADO/ {print v, $2, $3}'
+  local indice="$1" archivo="$2"
+  pg -f "$archivo" >/dev/null
+  pg -v sin_vigilantes="$SIN" -f "$AQUI/una_llamada.sql" | awk -v v="$indice" '/^RESULTADO/ {print v, $2, $3}'
 }
 VARIANTES=("$@")
 for i in "${!VARIANTES[@]}"; do medir "$i" "${VARIANTES[$i]}" >/dev/null; done   # calentamiento

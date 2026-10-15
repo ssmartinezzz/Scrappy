@@ -1,6 +1,7 @@
 -- Una medición: la llamada corre dentro de una transacción que se revierte, así la
 -- base queda idéntica y cada llamada hace el mismo trabajo. :sin_vigilantes=1 borra los
 -- favoritos DENTRO de esa transacción (mide el costo del chequeo sin encolar nada).
+\ir guarda.sql
 BEGIN;
 DELETE FROM favoritos WHERE :sin_vigilantes = 1;
 SELECT clock_timestamp() AS t0 \gset
