@@ -11,4 +11,9 @@ public interface MailPort {
 
     /** One entry per {@link CorreoDirigido#destino()}. */
     Map<String, Entrega> enviar(List<CorreoDirigido> correos);
+
+    /** Opens and closes a connection to the server without sending anything. */
+    default EstadoSmtp probarConexion() {
+        return EstadoSmtp.noConfigurado();
+    }
 }

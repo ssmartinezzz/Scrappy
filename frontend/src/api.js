@@ -770,3 +770,19 @@ export function cambiarEmailUsuario(username, email) {
     body: JSON.stringify({ email }),
   });
 }
+
+/** `{ ok, status, body: { mensaje } }` in both outcomes: a failed SMTP carries the reason and the fix. */
+export async function enviarCorreoDePrueba(destino) {
+  const r = await authedFetch(`${BASE}/api/notificaciones/correo-prueba`, {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: JSON.stringify(destino ? { destino } : {}),
+  });
+  try {
+    const data = await unwrap(r);
+    return { ok: true, status: r.status, body: { mensaje: data?.mensaje } };
+  } catch (e) {
+    if (!(e instanceof ApiError)) throw e;
+    return { ok: false, status: r.status, body: { error: e.code, mensaje: e.message } };
+  }
+}

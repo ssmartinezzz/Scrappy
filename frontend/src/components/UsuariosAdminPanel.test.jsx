@@ -9,9 +9,10 @@ vi.mock('../api', () => ({
   desactivarUsuario: vi.fn(),
   reactivarUsuario: vi.fn(),
   cambiarEmailUsuario: vi.fn(),
+  enviarCorreoDePrueba: vi.fn(),
 }));
 
-import { cambiarEmailUsuario, fetchUsuarios } from '../api';
+import { cambiarEmailUsuario, enviarCorreoDePrueba, fetchUsuarios } from '../api';
 import UsuariosAdminPanel from './UsuariosAdminPanel';
 
 // Forma real de GET /api/usuarios (UsuarioAdminEndpoints.listar): `roles` es un
@@ -147,5 +148,28 @@ describe('UsuariosAdminPanel — email de una cuenta', () => {
     await renderPanel();
 
     expect(screen.queryByRole('button', { name: 'Editar email de cli' })).not.toBeInTheDocument();
+  });
+});
+
+describe('UsuariosAdminPanel — mail de prueba', () => {
+  it('manda el mail de prueba y muestra el resultado enmascarado', async () => {
+    const user = userEvent.setup();
+    enviarCorreoDePrueba.mockResolvedValue({ ok: true, body: { mensaje: 'Mail de prueba enviado a a**@x.com.' } });
+    await renderPanel();
+
+    await user.click(screen.getByRole('button', { name: /probar mail/i }));
+
+    expect(enviarCorreoDePrueba).toHaveBeenCalledTimes(1);
+    expect(await screen.findByText('Mail de prueba enviado a a**@x.com.')).toBeInTheDocument();
+  });
+
+  it('muestra el motivo y la pista cuando el SMTP falla', async () => {
+    const user = userEvent.setup();
+    enviarCorreoDePrueba.mockResolvedValue({ ok: false, body: { mensaje: 'No se pudo conectar a smtp.x.com:587. Revisá el puerto.' } });
+    await renderPanel();
+
+    await user.click(screen.getByRole('button', { name: /probar mail/i }));
+
+    expect(await screen.findByText(/no se pudo conectar a smtp.x.com:587/i)).toBeInTheDocument();
   });
 });

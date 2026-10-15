@@ -1770,6 +1770,47 @@ paths:
         "400":
           description: "`token_invalido` — the segment is not shaped like a token this server issues."
 
+  /api/notificaciones/correo-prueba:
+    post:
+      tags: [Notificaciones]
+      summary: Send a test mail to check the SMTP setup. ADMIN only.
+      description: >
+        Opens a connection first, so a failure names its cause, then sends a short fixed mail to
+        `destino` (default the caller's own address). Addresses in the answer are masked.
+      x-access: ADMIN
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                destino: { type: string, description: "Defaults to the caller's own email." }
+      responses:
+        "200":
+          description: "`data`: `{ ok: true, mensaje }`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        "400":
+          description: "`email_invalido` — `destino` is not an address."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: "`sin_destino` (the caller has no email and sent none) · `smtp_no_configurado` (`SMTP_HOST` is blank)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "502":
+          description: "`smtp_fallo` — the message carries the reason and the fix (app password, host/port/TLS)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   /api/notificaciones/preferencia:
     get:
       tags: [Notificaciones]

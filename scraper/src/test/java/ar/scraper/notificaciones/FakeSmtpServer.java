@@ -25,6 +25,7 @@ final class FakeSmtpServer implements AutoCloseable {
     private final Set<String> temporales = ConcurrentHashMap.newKeySet();
     private final Set<String> rechazados = ConcurrentHashMap.newKeySet();
     private final AtomicInteger conexiones = new AtomicInteger();
+    private volatile boolean rechazaCredenciales;
 
     FakeSmtpServer() throws IOException {
         this(new ServerSocket(0));
@@ -69,6 +70,11 @@ final class FakeSmtpServer implements AutoCloseable {
         temporales.add(direccion.toLowerCase());
     }
 
+    /** Advertises AUTH and answers 535 to any credentials, as a provider that wants an app password does. */
+    void rechazarCredenciales() {
+        rechazaCredenciales = true;
+    }
+
     private void aceptar() {
         while (!socket.isClosed()) {
             try (Socket cliente = socket.accept()) {
@@ -90,7 +96,14 @@ final class FakeSmtpServer implements AutoCloseable {
         while ((linea = in.readLine()) != null) {
             String comando = linea.toUpperCase();
             if (comando.startsWith("EHLO") || comando.startsWith("HELO")) {
-                responder(out, "250 fake");
+                if (rechazaCredenciales) {
+                    responder(out, "250-fake");
+                    responder(out, "250 AUTH PLAIN LOGIN");
+                } else {
+                    responder(out, "250 fake");
+                }
+            } else if (comando.startsWith("AUTH")) {
+                responder(out, "535 5.7.8 Username and Password not accepted");
             } else if (comando.startsWith("RCPT TO:")) {
                 String direccion = linea.substring(8).replaceAll("[<>\\s]", "");
                 destinatarios.add(direccion);

@@ -8,10 +8,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   flexRender, getCoreRowModel, getPaginationRowModel, getSortedRowModel, useReactTable,
 } from '@tanstack/react-table';
-import { ChevronDown, ChevronUp, Pencil, RefreshCw, Search, UserPlus, X } from 'lucide-react';
+import { ChevronDown, ChevronUp, Mail, Pencil, RefreshCw, Search, UserPlus, X } from 'lucide-react';
 
 import {
-  cambiarEmailUsuario, cambiarRolUsuario, crearUsuario, desactivarUsuario, fetchUsuarios, reactivarUsuario,
+  cambiarEmailUsuario, cambiarRolUsuario, crearUsuario, desactivarUsuario, enviarCorreoDePrueba,
+  fetchUsuarios, reactivarUsuario,
 } from '../api';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
@@ -310,6 +311,15 @@ export default function UsuariosAdminPanel() {
           <h1 className="font-display text-display-2 text-t1">Cuentas</h1>
         </div>
         <div className="flex w-full gap-1 sm:w-auto">
+          <Button
+            className="flex-1 sm:flex-none"
+            disabled={ocupado === 'mail'}
+            onClick={() => ejecutar('mail', () => enviarCorreoDePrueba(), 'Mail de prueba enviado.')}
+            variant="ghost"
+          >
+            <Mail aria-hidden="true" className="mr-1 h-4 w-4" strokeWidth={2} />
+            {ocupado === 'mail' ? 'Enviando…' : 'Probar mail'}
+          </Button>
           <Button className="flex-1 sm:flex-none" onClick={cargar} variant="ghost">
             <RefreshCw aria-hidden="true" className="mr-1 h-4 w-4" strokeWidth={2} /> Recargar
           </Button>
