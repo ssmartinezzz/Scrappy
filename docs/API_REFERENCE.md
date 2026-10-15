@@ -423,7 +423,7 @@ a `destino` (body opcional `{ "destino": "x@y.z" }`; por defecto el email de qui
 | | |
 |---|---|
 | `200` | `data: { ok: true, mensaje }` con la dirección enmascarada (`t**@example.com`) |
-| `400 email_invalido` | `destino` no es una dirección |
+| `400 email_invalido` | `destino` no es una dirección simple (misma regla que el email de la cuenta) |
 | `409 sin_destino` | Quien llama no tiene email y no mandó `destino` |
 | `409 smtp_no_configurado` | `SMTP_HOST` está vacío: el relay sólo anuncia en el log |
 | `502 smtp_fallo` | El mensaje trae el motivo y la pista (contraseña de aplicación, host/puerto/TLS) |
@@ -463,7 +463,7 @@ minúsculas.
 | | |
 |---|---|
 | `400 faltan_campos` | Falta la clave `email`: omitirla nunca borra |
-| `400 email_invalido` | No es una dirección (máx. 254) |
+| `400 email_invalido` | No es **una** dirección simple: sin `<>`, comas, `;`, comillas, espacios ni saltos de línea, sólo ASCII, máx. 254 (parte local 64), dominio con punto. `POST /usuarios` aplica la misma regla |
 | `404 no_existe` | No existe la cuenta |
 | `409 email_no_disponible` | Otra cuenta ya tiene esa dirección. No dice cuál |
 | `409 cuenta_de_servicio` | `chk_usuario_servicio_sin_email`: las cuentas de servicio no tienen email (quitarlo sí se puede) |

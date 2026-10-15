@@ -1,6 +1,10 @@
 """cli.core.smtp_setup — the SMTP dialogue, headless."""
 from __future__ import annotations
 
+import time
+
+import pytest
+
 from cli.core.smtp_setup import SmtpWizard, known_public_origin
 
 
@@ -150,3 +154,26 @@ def test_known_public_origin_prefers_the_explicit_override_and_ignores_loopback(
     assert known_public_origin({"VITE_API_BASE_URL": "http://localhost:3000"}, {}) is None
     assert known_public_origin({"VITE_API_BASE_URL": "http://127.0.0.1:3000"}, {}) is None
     assert known_public_origin({}, {}) is None
+
+
+@pytest.mark.parametrize("malo", [
+    "a@b.com\r\nBcc: z@evil.com", "a@b.com, c@d.com", "a,b@x.com", "<a@x.com>", "a@x.com>", '"a"@x.com',
+    "noat", "a@x", "a@x..com", "a@-x.com", ".a@x.com", "a..b@x.com", "ñandú@x.com", "a b@x.com",
+    "a" * 65 + "@x.com", "a" * 300 + "@example.com",
+])
+def test_a_from_address_must_be_one_plain_address(malo):
+    wizard = SmtpWizard({})
+    _run(wizard, ["4", "mail.empresa.com", "25", "usuario", "clave"])
+
+    assert wizard.answer(malo) is not None
+    assert wizard.current().key == "SMTP_FROM_ADDRESS"
+
+
+def test_address_validation_is_linear_on_hostile_input():
+    wizard = SmtpWizard({})
+    _run(wizard, ["4", "mail.empresa.com", "25", "usuario", "clave"])
+
+    inicio = time.perf_counter()
+    for hostil in ["a@" + "b." * 50_000, "@" * 100_000, "a@" + "a." * 50_000 + "!", "a" * 100_000]:
+        assert wizard.answer(hostil) is not None
+    assert time.perf_counter() - inicio < 0.5

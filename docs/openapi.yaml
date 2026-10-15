@@ -472,7 +472,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiResponse"
         "400":
-          description: "`faltan_campos` · `password_corta` · `rol_invalido`"
+          description: "`faltan_campos` · `password_corta` · `rol_invalido` · `email_invalido`"
           content:
             application/json:
               schema:

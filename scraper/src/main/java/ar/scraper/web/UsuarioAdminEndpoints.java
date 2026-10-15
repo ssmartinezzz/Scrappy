@@ -76,7 +76,7 @@ public class UsuarioAdminEndpoints {
 
         Optional<UUID> creada;
         try {
-            creada = usuarios.crearConRol(username, normalizar(email), hasher.hash(password), rol);
+            creada = usuarios.crearConRol(username, DireccionDeCorreo.normalizar(email), hasher.hash(password), rol);
         } catch (IllegalArgumentException e) {
             // The repository re-checks the vocabulary; reaching here means the two checks disagree
             // (a bug).
@@ -176,10 +176,6 @@ public class UsuarioAdminEndpoints {
         }
         String v = body.get(clave);
         return StringUtils.isBlank(v) ? null : v.trim();
-    }
-
-    private static String normalizar(String email) {
-        return email == null ? null : email.toLowerCase();
     }
 
     private static ResponseEntity<ApiResponse<OpResult>> ok(String mensaje) {
