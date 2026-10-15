@@ -108,6 +108,8 @@ services:
       SMTP_USERNAME: ${SMTP_USERNAME:-}
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       SMTP_FROM_ADDRESS: ${SMTP_FROM_ADDRESS:-}
+      # Origen público del backend: arma el enlace de baja de un clic de los mails de baja de precio.
+      NOTIFICACIONES_API_BASE_URL: ${NOTIFICACIONES_API_BASE_URL:-http://localhost:3000}
       SCRAPER_MODELS_ROOT: /models
       HF_HOME: /models/marqo
       LOG_DIR: /app/logs

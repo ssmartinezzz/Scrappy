@@ -39,6 +39,7 @@ tags:
   - name: PCs
   - name: Para ti
   - name: Favoritos
+  - name: Notificaciones
   - name: Picks/Marcas
   - name: Sitios
   - name: Config
@@ -1679,6 +1680,91 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiResponse"
+
+  # ── Notificaciones ──────────────────────────────────────────────────────
+
+  /api/notificaciones/baja/{token}:
+    get:
+      tags: [Notificaciones]
+      summary: Confirmation page for the unsubscribe link in a price-drop mail. Changes nothing.
+      description: >-
+        Mail scanners and link previews fetch every URL in a message, so a GET must never change state. It serves
+        an HTML page whose button POSTs to this same URL. The page is identical for a real, unknown or forged token.
+      x-access: PERMIT
+      security: []
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: HTML page with a form that POSTs to the same URL.
+          content:
+            text/html:
+              schema: { type: string }
+        "400":
+          description: "`token_invalido` — the segment is not shaped like a token this server issues."
+    post:
+      tags: [Notificaciones]
+      summary: One-click unsubscribe (RFC 8058) from price-drop mail. Idempotent, never reveals whether an account exists.
+      description: >-
+        The target of the `List-Unsubscribe` header (with `List-Unsubscribe-Post: List-Unsubscribe=One-Click`) and of
+        the confirmation page's button. The body, if any, is ignored. A valid token turns
+        `usuario.notificar_bajas_precio` off; an unknown account or a wrong signature gets the same 200 and body.
+      x-access: PERMIT
+      security: []
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Identical body whether or not the token matched an account.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        "400":
+          description: "`token_invalido` — the segment is not shaped like a token this server issues."
+
+  /api/notificaciones/preferencia:
+    get:
+      tags: [Notificaciones]
+      summary: The caller's price-drop mail preference. Own flag only.
+      x-access: AUTHENTICATED
+      responses:
+        "200":
+          description: "`data`: `{ notificarBajasPrecio, tieneEmail }`. `tieneEmail: false` (service accounts) means there is no address to alert."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+    put:
+      tags: [Notificaciones]
+      summary: Turn price-drop mail on or off for the caller. Own flag only.
+      x-access: AUTHENTICATED
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [notificarBajasPrecio]
+              properties:
+                notificarBajasPrecio: { type: boolean }
+      responses:
+        "200":
+          description: "`data`: the new `{ notificarBajasPrecio, tieneEmail }`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        "400":
+          description: "`solicitud_invalida` — the field is missing or is not a boolean."
+        "409":
+          description: "`sin_email` — the account has no email address, so there is nothing to opt in to."
 
   # ── Picks/Marcas ────────────────────────────────────────────────────────
 

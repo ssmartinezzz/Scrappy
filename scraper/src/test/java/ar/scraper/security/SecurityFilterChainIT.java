@@ -99,6 +99,8 @@ class SecurityFilterChainIT {
         @GetMapping("/api/favoritos")         String favoritos()   { return "{}"; }
         @PostMapping("/api/auth/login")       String login(@RequestBody(required = false) Map<String, String> b) { return "{}"; }
         @GetMapping("/")                      String raiz()        { return "{}"; }
+        @GetMapping("/api/notificaciones/baja/{token}")  String bajaGet()  { return "{}"; }
+        @PostMapping("/api/notificaciones/baja/{token}") String bajaPost() { return "{}"; }
         @GetMapping("/api/sin-regla")         String sinRegla()    { return "{}"; }
         @GetMapping("/api/producto/{key}")    String producto()    { return "{}"; }
         @GetMapping("/error")                 String error()       { return "{}"; }
@@ -137,6 +139,10 @@ class SecurityFilterChainIT {
         mockMvc.perform(get("/")).andExpect(status().isOk());
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/notificaciones/baja/token")).andExpect(status().isOk());
+        mockMvc.perform(post("/api/notificaciones/baja/token")
+                        .contentType(MediaType.APPLICATION_FORM_URLENCODED).content("List-Unsubscribe=One-Click"))
                 .andExpect(status().isOk());
     }
 

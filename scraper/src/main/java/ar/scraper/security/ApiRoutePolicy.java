@@ -56,6 +56,11 @@ public final class ApiRoutePolicy {
                     List.of("/api/auth/password-reset/request"), Access.PERMIT),
             new RoutePolicy(Set.of(HttpMethod.POST),
                     List.of("/api/auth/password-reset/confirm"), Access.PERMIT),
+            // A mail client's one-click unsubscribe holds no session. The path segment is a signed
+            // token; forged, unknown and real tokens get the same answer, and GET changes nothing.
+            new RoutePolicy(Set.of(HttpMethod.GET, HttpMethod.POST),
+                    List.of("/api/notificaciones/baja/*"), Access.PERMIT,
+                    "RFC 8058 one-click unsubscribe — the signed token is the credential"),
             new RoutePolicy(Set.of(HttpMethod.GET), List.of("/"), Access.PERMIT,
                     "RootController — liveness"),
             // Public because the response is FILTERED, not because the whole contract went public:
@@ -142,7 +147,10 @@ public final class ApiRoutePolicy {
             new RoutePolicy(Set.of(HttpMethod.POST, HttpMethod.DELETE),
                     List.of("/api/recomendados/dismiss-categoria"), Access.AUTHENTICATED, "own rows only"),
             new RoutePolicy(Set.of(HttpMethod.GET, HttpMethod.POST, HttpMethod.DELETE),
-                    List.of("/api/favoritos"), Access.AUTHENTICATED, "own rows only")
+                    List.of("/api/favoritos"), Access.AUTHENTICATED, "own rows only"),
+            new RoutePolicy(Set.of(HttpMethod.GET, HttpMethod.PUT),
+                    List.of("/api/notificaciones/preferencia"), Access.AUTHENTICATED,
+                    "own flag only; the subject comes from the token, never from the request")
 
     );
 

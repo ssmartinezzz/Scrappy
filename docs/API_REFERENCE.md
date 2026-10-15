@@ -397,6 +397,42 @@ directa de no ser un oráculo de enumeración. El diagnóstico del operador es
 consultar `password_reset_token`.
 
 
+## GET/PUT /notificaciones/preferencia
+
+El opt-out de los mails de baja de precio (>5% en un favorito). **Cualquier rol**, y siempre
+sobre la cuenta del token: no hay id en el request, así que no hay forma de tocar la bandera
+de otro.
+
+| | |
+|---|---|
+| `GET` | `data: { notificarBajasPrecio, tieneEmail }`. `tieneEmail: false` (cuentas de servicio) significa que no hay a quién avisar |
+| `PUT` | Body `{ "notificarBajasPrecio": true\|false }`. Responde el estado nuevo, con la misma forma que el `GET` |
+| `400 solicitud_invalida` | El campo falta o no es un booleano (`"si"` no vale) |
+| `409 sin_email` | La cuenta no tiene email: no hay nada a lo que optar |
+
+La bandera se respeta en dos lugares: `sp_upsert_run` no encola para quien la apagó, y el claim
+del relay retira como `FALLIDA` lo que ya estaba encolado.
+
+
+## GET/POST /notificaciones/baja/{token}
+
+La baja de un clic (RFC 8058) del mail de baja de precio. **Pública**: quien hace clic no tiene
+sesión; la credencial es el token firmado del último segmento (`id.firma`, HMAC-SHA256 con una
+clave derivada de `AUTH_JWT_SECRET` bajo una etiqueta propia, comparación en tiempo constante).
+
+| | |
+|---|---|
+| `POST` | Apaga `notificar_bajas_precio` de la cuenta del token. Idempotente. **Siempre 200 con el mismo cuerpo**, sea un token real, de una cuenta inexistente o de firma ajena: no es un oráculo de cuentas. El cuerpo se ignora (los proveedores mandan `List-Unsubscribe=One-Click`) |
+| `GET` | **No cambia nada**: los escáneres de mail y las vistas previas piden todos los links. Sirve una página con un botón que hace el `POST`, igual para un token real o falso |
+| `400 token_invalido` | El segmento no tiene la forma de un token que este servidor emite |
+
+Cada mail lleva `List-Unsubscribe: <{NOTIFICACIONES_API_BASE_URL}/api/notificaciones/baja/{token}>`,
+`List-Unsubscribe-Post: List-Unsubscribe=One-Click` y el mismo enlace en el pie. Sin
+`NOTIFICACIONES_API_BASE_URL` http(s) no hay encabezados ni enlace. No lleva límite de tasa: un token
+inválido se descarta antes de tocar la base y los `POST` de un proveedor llegan desde pocas IP
+compartidas, así que un tope por IP cortaría bajas legítimas.
+
+
 ## /usuarios — administración de cuentas
 
 **Sólo ADMIN, y sin interfaz.** Se maneja por `curl`; una pantalla es una

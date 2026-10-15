@@ -18,12 +18,12 @@
 ## Lo primero: el estado en que te lo entregamos
 
 **El API está cerrado.** Desde el slice de enforcement, toda ruta `/api/*` exige
-un access token salvo seis excepciones, y una ruta sin regla se rechaza en vez de
+un access token salvo siete excepciones, y una ruta sin regla se rechaza en vez de
 permitirse. El dashboard React actual **no funciona** contra este backend: no
 manda ningún header. Repararlo es el primer trabajo del SDD de frontend, no un
 efecto colateral inesperado.
 
-Las seis rutas abiertas, que son toda la superficie sin credencial:
+Las siete rutas abiertas, que son toda la superficie sin credencial:
 
 | | |
 |---|---|
@@ -33,6 +33,7 @@ Las seis rutas abiertas, que son toda la superficie sin credencial:
 | `POST /api/auth/password-reset/request` | |
 | `POST /api/auth/password-reset/confirm` | |
 | `GET /` | liveness |
+| `GET` y `POST /api/notificaciones/baja/{token}` | baja de un clic (RFC 8058) de los mails de baja de precio. El token firmado es la credencial; el `GET` sólo sirve una página y no cambia nada |
 
 ---
 
