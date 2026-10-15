@@ -25,6 +25,7 @@
 | El tope por minuto no cuenta los envíos que fallaron | `NOTIFICACIONES_MAX_POR_MINUTO` cuenta destinatarios `ENVIADA` en los últimos 60 s más los leases vivos. Un rechazo 550 que el proveedor sí contabiliza contra su cuota no gasta cupo acá |
 | La clasificación 5xx/4xx lee el código SMTP, no el texto | Un proveedor que devuelva un 5xx para un problema pasajero (greylisting mal configurado) archiva el aviso como `FALLIDA` en el primer intento; 530/534/535 y los rechazos a `MAIL FROM` se tratan como transitorios a propósito |
 | Un mail aceptado por el servidor SMTP y rebotado después no deja rastro | El relay marca `ENVIADA` al aceptar el mensaje; nada en este diseño recibe los rebotes (mismo límite que el reseteo de contraseña) |
+| Los cambios de `SMTP_*` no se aplican hasta reiniciar el backend | El backend lee `.env` al arrancar. `mail` (CLI) lo recuerda al terminar; el mail de prueba contra un backend viejo prueba la configuración vieja. Ver [`EMAIL_ALERTS.md`](./EMAIL_ALERTS.md) |
 
 ### Necesitan datos, no código
 
