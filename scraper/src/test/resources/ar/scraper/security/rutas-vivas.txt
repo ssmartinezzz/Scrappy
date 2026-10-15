@@ -38,6 +38,10 @@ GET /api/historial
 GET /api/indices
 GET /api/marcas-browser
 GET /api/mejores
+POST /api/notificaciones/baja/{token}
+GET /api/notificaciones/baja/{token}
+GET /api/notificaciones/preferencia
+PUT /api/notificaciones/preferencia
 POST /api/ml/aplicar
 POST /api/ml/entrenar
 GET /api/ml/estado
