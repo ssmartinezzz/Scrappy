@@ -1740,12 +1740,20 @@ paths:
           schema: { type: string }
       responses:
         "200":
-          description: HTML page with a form that POSTs to the same URL.
+          description: >-
+            HTML page with a form that POSTs to the same URL. Sent with `Cache-Control: no-store` and
+            `Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'`.
           content:
             text/html:
               schema: { type: string }
         "400":
           description: "`token_invalido` — the segment is not shaped like a token this server issues."
+        "429":
+          description: "`demasiados_pedidos` — more than 60 requests a minute from this IP. Carries `Retry-After: 60`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
     post:
       tags: [Notificaciones]
       summary: One-click unsubscribe (RFC 8058) from price-drop mail. Idempotent, never reveals whether an account exists.
@@ -1769,6 +1777,12 @@ paths:
                 $ref: "#/components/schemas/ApiResponse"
         "400":
           description: "`token_invalido` — the segment is not shaped like a token this server issues."
+        "429":
+          description: "`demasiados_pedidos` — more than 60 requests a minute from this IP. Carries `Retry-After: 60`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
 
   /api/notificaciones/correo-prueba:
     post:

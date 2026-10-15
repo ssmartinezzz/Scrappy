@@ -446,12 +446,15 @@ clave derivada de `AUTH_JWT_SECRET` bajo una etiqueta propia, comparación en ti
 | `POST` | Apaga `notificar_bajas_precio` de la cuenta del token. Idempotente. **Siempre 200 con el mismo cuerpo**, sea un token real, de una cuenta inexistente o de firma ajena: no es un oráculo de cuentas. El cuerpo se ignora (los proveedores mandan `List-Unsubscribe=One-Click`) |
 | `GET` | **No cambia nada**: los escáneres de mail y las vistas previas piden todos los links. Sirve una página con un botón que hace el `POST`, igual para un token real o falso |
 | `400 token_invalido` | El segmento no tiene la forma de un token que este servidor emite |
+| `429 demasiados_pedidos` | Más de 60 pedidos por minuto desde la misma IP |
 
 Cada mail lleva `List-Unsubscribe: <{NOTIFICACIONES_API_BASE_URL}/api/notificaciones/baja/{token}>`,
 `List-Unsubscribe-Post: List-Unsubscribe=One-Click` y el mismo enlace en el pie. Sin
-`NOTIFICACIONES_API_BASE_URL` http(s) no hay encabezados ni enlace. No lleva límite de tasa: un token
-inválido se descarta antes de tocar la base y los `POST` de un proveedor llegan desde pocas IP
-compartidas, así que un tope por IP cortaría bajas legítimas.
+`NOTIFICACIONES_API_BASE_URL` http(s) no hay encabezados ni enlace. Tope de **60 pedidos por minuto por IP de
+origen** (`GET` y `POST` juntos, contados antes de validar el token): `429 demasiados_pedidos` con `Retry-After: 60`.
+El tope es holgado a propósito, porque los `POST` de un proveedor llegan desde pocas IP compartidas; y es por la IP
+del socket, así que detrás de un proxy inverso todos los pedidos comparten una. La página HTML del `GET` lleva
+`Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'`.
 
 
 ## /usuarios — administración de cuentas
