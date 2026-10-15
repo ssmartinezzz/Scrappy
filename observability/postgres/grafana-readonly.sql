@@ -3,7 +3,9 @@
 --
 -- SELECT on an allowlist, never the whole schema: `usuario`, `refresh_token`
 -- and `password_reset_token` hold hashes and e-mails, and a dashboard has no
--- business reading them. A table added here later is a deliberate decision.
+-- business reading them. A table added here later is a deliberate decision:
+-- `notificacion_precio` is in because it holds ids, prices and states only (the
+-- address is read from `usuario` at send time and masked in `ultimo_error`).
 
 DO $$
 BEGIN
@@ -27,5 +29,6 @@ GRANT SELECT ON
     scrape_run,
     scrape_run_site,
     cron_jobs,
-    cron_executions
+    cron_executions,
+    notificacion_precio
 TO grafana_ro;

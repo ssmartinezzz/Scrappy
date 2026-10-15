@@ -192,3 +192,115 @@ def test_el_panel_de_estado_muestra_el_sitio_cortado(run_cortada):
 def test_fallas_lista_el_sitio_cortado(run_cortada):
     run_cortada.execute(_expand_macros(_panel_sql("Fallas en el rango"), "'vaypol'"))
     assert any(f[1] == "vaypol" and f[2] == "PARTIAL" for f in run_cortada.fetchall())
+
+
+# ─── Avisos de baja de precio (outbox) ───────────────────────────────────
+
+PANELES_COLA = [
+    "Avisos pendientes",
+    "Avisos fallidos (24 h)",
+    "Edad del aviso pendiente más viejo",
+    "Avisos enviados por hora",
+    "Fallos por motivo",
+]
+
+
+def _panel(title):
+    dashboard = json.loads(DASHBOARDS[0].read_text(encoding="utf-8"))
+    return next(p for p in _panels(dashboard) if p["title"] == title)
+
+
+@pytest.mark.parametrize("title", PANELES_COLA)
+def test_el_dashboard_tiene_el_panel_de_la_cola(title):
+    assert _panel(title)["targets"][0]["rawSql"]
+
+
+def test_las_consultas_de_la_cola_solo_leen_el_outbox():
+    for title in PANELES_COLA:
+        sql = _panel(title)["targets"][0]["rawSql"]
+        assert "notificacion_precio" in sql, title
+        assert not re.search(r"\b(usuario|email)\b", sql, re.I), f"{title} no debe tocar datos personales"
+
+
+@pytest.fixture
+def cola():
+    """Outbox rows in every state, seeded as the owner, read as grafana_ro."""
+    psycopg2 = pytest.importorskip("psycopg2")
+    conn = psycopg2.connect(DSN)
+    try:
+        cur = conn.cursor()
+        cur.execute(ROLE_SQL.read_text(encoding="utf-8"))
+        cur.execute("""
+            INSERT INTO productos (url, sitio, nombre, precio, rubro, categoria)
+            SELECT 'https://obs.test/p' || g, 'Mrplacadeco', 'P' || g, 100, 'construccion', 'Placa Decorativa'
+              FROM generate_series(1, 8) g""")
+        cur.execute("""
+            INSERT INTO usuario (username, email, password_hash)
+            SELECT 'obs' || g, 'obs' || g || '@example.com', 'x' FROM generate_series(1, 8) g""")
+        cur.execute("""
+            INSERT INTO notificacion_precio
+                (usuario_id, url, precio_anterior, precio_nuevo, creada_at, estado, intentos,
+                 proximo_intento_at, enviada_at, ultimo_error)
+            SELECT u.id, 'https://obs.test/p' || n, 100, 80, now() - c.creada, c.estado, c.intentos,
+                   now(), c.enviada, c.error
+              FROM (VALUES
+                (1, interval '2 hours',  'PENDIENTE', 0, NULL::timestamptz, NULL::text),
+                (2, interval '30 minutes','PENDIENTE', 1, NULL, '451 try later'),
+                (3, interval '3 hours',  'ENVIADA',   1, now() - interval '30 minutes', NULL),
+                (4, interval '3 hours',  'ENVIADA',   1, now() - interval '90 minutes', NULL),
+                (5, interval '3 hours',  'ENVIADA',   1, now() - interval '100 minutes', NULL),
+                (6, interval '2 days',   'FALLIDA',   5, NULL, '550 no such user'),
+                (7, interval '5 hours',  'FALLIDA',   1, NULL, '550 no such user'),
+                (8, interval '5 hours',  'FALLIDA',   5, NULL, 'connection refused')
+              ) AS c(n, creada, estado, intentos, enviada, error)
+              JOIN usuario u ON u.username = 'obs' || c.n""")
+        cur.execute("UPDATE notificacion_precio SET proximo_intento_at = now() - interval '2 days' WHERE ultimo_error = '550 no such user' AND intentos = 5")
+        cur.execute("SET ROLE grafana_ro")
+        yield cur
+    finally:
+        conn.rollback()
+        conn.close()
+
+
+def _escalar(cur, title):
+    cur.execute(_expand_macros(_panel(title)["targets"][0]["rawSql"]))
+    return cur.fetchone()[0]
+
+
+@needs_db
+def test_pendientes_cuenta_solo_las_pendientes(cola):
+    cola.execute("SELECT count(*) FROM notificacion_precio WHERE estado = 'PENDIENTE'")
+    antes = cola.fetchone()[0]
+    assert _escalar(cola, "Avisos pendientes") == antes >= 2
+
+
+@needs_db
+def test_fallidas_solo_cuenta_las_de_las_ultimas_24_horas(cola):
+    cola.execute("SELECT count(*) FROM notificacion_precio WHERE estado = 'FALLIDA' AND proximo_intento_at > now() - interval '24 hours'")
+    esperadas = cola.fetchone()[0]
+    assert _escalar(cola, "Avisos fallidos (24 h)") == esperadas
+    assert esperadas == 2
+
+
+@needs_db
+def test_edad_de_la_pendiente_mas_vieja_en_segundos(cola):
+    segundos = _escalar(cola, "Edad del aviso pendiente más viejo")
+    assert 2 * 3600 - 10 < float(segundos) < 2 * 3600 + 600
+
+
+@needs_db
+def test_enviadas_por_hora_agrupa_por_hora(cola):
+    cola.execute(_expand_macros(_panel("Avisos enviados por hora")["targets"][0]["rawSql"]))
+    filas = cola.fetchall()
+    assert sum(f[1] for f in filas) >= 3
+    assert len({f[0] for f in filas}) == len(filas)
+
+
+@needs_db
+def test_fallos_por_motivo_ordena_de_mayor_a_menor(cola):
+    cola.execute(_expand_macros(_panel("Fallos por motivo")["targets"][0]["rawSql"]))
+    filas = cola.fetchall()
+    cuentas = [f[1] for f in filas]
+    assert cuentas == sorted(cuentas, reverse=True)
+    assert filas[0][0].startswith("550 no such user")
+    assert filas[0][1] == 2
