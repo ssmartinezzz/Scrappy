@@ -23,6 +23,7 @@ export default function FavoritosPanel({
   savedOutfits = [], savedPcs = [],
   onDeleteSavedOutfit, onRenameSavedOutfit,
   onDeleteSavedPc, onRenameSavedPc,
+  avisos = null,
 }) {
   const items = favoritos || [];
 
@@ -157,6 +158,8 @@ export default function FavoritosPanel({
           </fieldset>
         )}
       </div>
+
+      {avisos}
 
       {/* Body */}
       <div style={{ flex:1, overflowY:'auto', padding:'1rem 1.25rem' }}>
