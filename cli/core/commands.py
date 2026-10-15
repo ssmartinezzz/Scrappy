@@ -66,6 +66,13 @@ COMMANDS: tuple[Command, ...] = (
     Command("add-site", "POST /api/sitios", args="<nombre> <url> [plataforma]"),
     Command("del-site", "DELETE /api/sitios/{nombre}", args="<nombre>"),
     Command("logs", "muestra el tail del log de un servicio", args="[backend|frontend] [n]"),
+    Command(
+        "mail",
+        "configura el SMTP de los avisos de baja de precio en .env (Gmail/Outlook/Yahoo/otro); "
+        "`mail test [destino]` manda un mail de prueba por el backend en marcha",
+        args="[setup|test [destino]]",
+        aliases=("smtp",),
+    ),
     Command("grafana", "muestra URL, usuario y clave de Grafana (si está activado)"),
     Command("open", "abre el dashboard en el navegador"),
     Command("clear", "limpia la consola", aliases=("cls",)),

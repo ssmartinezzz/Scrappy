@@ -57,6 +57,10 @@ class _FakeRest:
         self.calls.append(("eliminar_sitio", nombre))
         return {"ok": True}
 
+    def correo_prueba(self, destino=None):
+        self.calls.append(("correo_prueba", destino))
+        return {"ok": True, "mensaje": "Mail de prueba enviado a t**@example.com."}
+
 
 class _FakeProcesses:
     def __init__(self) -> None:
@@ -710,3 +714,156 @@ def test_quitting_closes_the_notice_follower(tmp_path):
     assert follower.seen.wait(5)
     r.run()
     assert follower.closed.is_set()
+
+
+# -- mail: SMTP setup and test mail -----------------------------------------
+
+_ENV_BASE = "DATABASE_URL=jdbc:postgresql://localhost:5432/scraper\n# keep\nSMTP_HOST=\nSMTP_PORT=587\n"
+
+
+def _write_env(tmp_path, text=_ENV_BASE):
+    (tmp_path / ".env").write_text(text, encoding="utf-8")
+
+
+def test_mail_setup_writes_the_smtp_keys_and_keeps_the_rest_of_the_env(tmp_path):
+    from cli.core.env_file import parse_env
+
+    _write_env(tmp_path)
+    r, _, _, out = _make_runner(tmp_path, "1\ncuenta@gmail.com\nabcd efgh ijkl mnop\n\n",
+                                secret_reader=lambda prompt: "abcd efgh ijkl mnop")
+
+    r.dispatch("mail")
+
+    env = parse_env(tmp_path / ".env")
+    assert env["SMTP_HOST"] == "smtp.gmail.com" and env["SMTP_PORT"] == "587"
+    assert env["SMTP_USERNAME"] == "cuenta@gmail.com"
+    assert env["SMTP_PASSWORD"] == "abcdefghijklmnop"
+    assert env["SMTP_FROM_ADDRESS"] == "cuenta@gmail.com"
+    assert env["DATABASE_URL"] == "jdbc:postgresql://localhost:5432/scraper"
+    assert "# keep" in (tmp_path / ".env").read_text(encoding="utf-8")
+    assert "stop" in out.getvalue() and "mail test" in out.getvalue()
+
+
+def test_mail_setup_reads_the_password_through_the_secret_reader_and_never_prints_it(tmp_path):
+    _write_env(tmp_path)
+    leidos = []
+
+    def secret_reader(prompt):
+        leidos.append(prompt)
+        return "clave-super-secreta"
+
+    r, _, _, out = _make_runner(tmp_path, "1\ncuenta@gmail.com\n\n", secret_reader=secret_reader)
+
+    r.dispatch("mail")
+
+    assert len(leidos) == 1 and "contraseña" in leidos[0].lower()
+    assert "clave-super-secreta" not in out.getvalue()
+    assert "clave-super-secreta" not in repr(r.in_.getvalue())
+
+
+def test_mail_setup_explains_the_gmail_app_password_requirement(tmp_path):
+    _write_env(tmp_path)
+    r, _, _, out = _make_runner(tmp_path, "1\ncuenta@gmail.com\n", secret_reader=lambda p: p and "")
+
+    r.dispatch("mail")
+
+    assert "apppasswords" in out.getvalue()
+
+
+def test_mail_setup_asks_again_after_an_invalid_answer(tmp_path):
+    _write_env(tmp_path)
+    r, _, _, out = _make_runner(tmp_path, "9\n1\ncuenta@gmail.com\n\n", secret_reader=lambda p: "clave")
+
+    r.dispatch("mail")
+
+    assert "Proveedor desconocido" in out.getvalue()
+    assert "smtp.gmail.com" in (tmp_path / ".env").read_text(encoding="utf-8")
+
+
+def test_mail_setup_cancelled_by_eof_leaves_the_env_untouched(tmp_path):
+    _write_env(tmp_path)
+    r, _, _, out = _make_runner(tmp_path, "1\n", secret_reader=lambda p: "x")
+
+    r.dispatch("mail")
+
+    assert (tmp_path / ".env").read_text(encoding="utf-8") == _ENV_BASE
+    assert "cancelad" in out.getvalue().lower()
+
+
+def test_mail_setup_sets_the_api_base_url_from_a_known_public_origin(tmp_path):
+    from cli.core.env_file import parse_env
+
+    _write_env(tmp_path, _ENV_BASE + "VITE_API_BASE_URL=https://192.168.1.50:3443\n")
+    r, _, _, _ = _make_runner(tmp_path, "1\ncuenta@gmail.com\n\n", secret_reader=lambda p: "clave")
+
+    r.dispatch("mail")
+
+    assert parse_env(tmp_path / ".env")["NOTIFICACIONES_API_BASE_URL"] == "https://192.168.1.50:3443"
+
+
+def test_mail_setup_leaves_the_api_base_url_alone_on_a_loopback_install(tmp_path):
+    from cli.core.env_file import parse_env
+
+    _write_env(tmp_path, _ENV_BASE + "VITE_API_BASE_URL=http://localhost:3000\n")
+    r, _, _, _ = _make_runner(tmp_path, "1\ncuenta@gmail.com\n\n", secret_reader=lambda p: "clave")
+
+    r.dispatch("mail")
+
+    assert "NOTIFICACIONES_API_BASE_URL" not in parse_env(tmp_path / ".env")
+
+
+def test_mail_test_asks_the_backend_to_send_to_the_given_address(tmp_path):
+    r, rest, _, out = _make_runner(tmp_path, "")
+
+    r.dispatch("mail test titular@example.com")
+
+    assert rest.calls == [("correo_prueba", "titular@example.com")]
+    assert "t**@example.com" in out.getvalue()
+
+
+def test_mail_test_defaults_to_the_configured_sender(tmp_path):
+    _write_env(tmp_path, _ENV_BASE + "SMTP_FROM_ADDRESS=avisos@example.com\n")
+    r, rest, _, _ = _make_runner(tmp_path, "")
+
+    r.dispatch("mail test")
+
+    assert rest.calls == [("correo_prueba", "avisos@example.com")]
+
+
+def test_mail_with_an_unknown_subcommand_prints_usage(tmp_path):
+    r, rest, _, out = _make_runner(tmp_path, "")
+
+    r.dispatch("mail frobnicate")
+
+    assert rest.calls == [] and "mail [setup|test" in out.getvalue()
+
+
+def test_mail_after_a_setup_reminds_that_the_backend_needs_a_restart(tmp_path):
+    _write_env(tmp_path)
+    r, _, _, out = _make_runner(tmp_path, "1\ncuenta@gmail.com\n\n", secret_reader=lambda p: "clave")
+
+    r.dispatch("mail")
+
+    assert "reinici" in out.getvalue().lower()
+
+
+def test_mail_setup_ends_when_input_runs_out_at_the_password(tmp_path):
+    _write_env(tmp_path)
+    antes = (tmp_path / ".env").read_text(encoding="utf-8")
+    r, _, _, out = _make_runner(tmp_path, "1\ncuenta@gmail.com\n")
+
+    r.dispatch("mail")
+
+    assert "cancelada" in out.getvalue()
+    assert (tmp_path / ".env").read_text(encoding="utf-8") == antes
+
+
+def test_mail_setup_gives_up_after_repeated_invalid_answers(tmp_path):
+    _write_env(tmp_path)
+    antes = (tmp_path / ".env").read_text(encoding="utf-8")
+    r, _, _, out = _make_runner(tmp_path, "1\ncuenta@gmail.com\n", secret_reader=lambda prompt: "")
+
+    r.dispatch("mail")
+
+    assert "cancelada" in out.getvalue()
+    assert (tmp_path / ".env").read_text(encoding="utf-8") == antes

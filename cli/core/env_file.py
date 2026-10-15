@@ -15,6 +15,8 @@ from __future__ import annotations
 import logging
 import os
 import secrets
+import stat
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Union
@@ -31,6 +33,7 @@ SECRET_KEYS = frozenset({
     "AUTH_JWT_SECRET",
     "ADMIN_BOOTSTRAP_PASSWORD",
     "CLI_SERVICE_ACCOUNT_PASSWORD",
+    "SMTP_PASSWORD",
 })
 
 # Secrets the installer MINTS instead of asking for, because nobody ever types
@@ -204,3 +207,41 @@ def generate_env(
         "Reconciled %s: appended %d missing key(s): %s",
         env_path, len(appended), ", ".join(entry.split("=", 1)[0] for entry in appended),
     )
+
+
+def update_env(env_path: Path, values: dict[str, str]) -> None:
+    """Set `values` in an existing `.env`: a present key is rewritten in
+    place (every occurrence, so the last-one-wins reader agrees with the
+    first), an absent one is appended. Comments, blank lines, ordering and the
+    file's permissions are kept. The write is atomic (temp file in the same
+    directory, then `os.replace`), so a crash can never leave a half-written
+    file holding a password."""
+    for key, value in values.items():
+        if any(c in value for c in "\r\n\x00"):
+            raise ValueError(f"{key}: el valor no puede contener saltos de línea ni NUL")
+
+    original = env_path.read_text(encoding="utf-8") if env_path.is_file() else ""
+    pending = dict(values)
+    out: list[str] = []
+    for raw in original.splitlines():
+        stripped = raw.strip()
+        key, sep, _ = raw.partition("=")
+        if sep and stripped and not stripped.startswith("#") and key.strip() in values:
+            out.append(f"{key.strip()}={values[key.strip()]}")
+            pending.pop(key.strip(), None)
+        else:
+            out.append(raw)
+    out.extend(f"{key}={value}" for key, value in pending.items())
+    text = "\n".join(out) + "\n"
+
+    mode = stat.S_IMODE(env_path.stat().st_mode) if env_path.is_file() else 0o600
+    fd, tmp_name = tempfile.mkstemp(dir=str(env_path.parent), prefix=".env.", suffix=".tmp")
+    tmp = Path(tmp_name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="") as handle:
+            handle.write(text)
+        os.chmod(tmp, mode)
+        os.replace(tmp, env_path)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise

@@ -38,7 +38,7 @@ from textual.binding import Binding
 from textual.containers import Horizontal
 from textual.widgets import Input, Static
 
-from cli.core import health, lan_report, logs
+from cli.core import health, lan_report, logs, smtp_setup
 from cli.core.commands import find, help_lines
 from cli.core.config import Config
 from cli.core.env_file import compute_defaults, generate_env
@@ -245,6 +245,11 @@ class ScrappyConsole(App):
         # Submitted command lines, oldest first, plus the cursor ↑/↓ walks.
         self.history: list[str] = []
         self._history_pos = 0
+        # Set while `mail` is asking its questions; the next submitted lines
+        # are answers, not commands.
+        self._wizard: Optional[smtp_setup.SmtpWizard] = None
+        self._wizard_rechazos = 0
+        self._prompt_suggester = None
 
     def compose(self) -> ComposeResult:
         yield StatusBar(id="statusbar")
@@ -301,6 +306,8 @@ class ScrappyConsole(App):
 
     def on_input_changed(self, event: Input.Changed) -> None:
         """Keep the hint line pointed at the verb being typed."""
+        if self._wizard is not None:
+            return
         verb = event.value.strip().split(" ")[0]
         cmd = find(verb) if verb else None
         try:
@@ -314,6 +321,9 @@ class ScrappyConsole(App):
         line = event.value.strip()
         event.input.value = ""
         self._history_pos = len(self.history)
+        if self._wizard is not None:
+            self._wizard_answer(line)
+            return
         if not line:
             return
         self._remember(line)
@@ -570,6 +580,72 @@ class ScrappyConsole(App):
         self._emit("info", f"— {service} · últimas {len(lines)} líneas · {path}")
         for line in lines:
             self._emit("raw", line)
+
+    def _cmd_mail(self, args: list[str]) -> None:
+        sub = args[0] if args else "setup"
+        if sub == "setup" and len(args) <= 1:
+            self._wizard = smtp_setup.new_wizard(self.cfg.repo_root)
+            self._wizard_rechazos = 0
+            self._emit("info", f"Configurar mail (SMTP). Escribí `{smtp_setup.CANCEL_WORD}` para salir.")
+            self._wizard_ask()
+        elif sub == "test" and len(args) <= 2:
+            destino = args[1] if len(args) > 1 else None
+            self._run_core(
+                "mail test",
+                lambda: smtp_setup.send_test_mail(self.rest, self.cfg.repo_root, destino),
+            )
+        else:
+            self._emit("err", f"uso: {find('mail').usage}")
+
+    def _wizard_ask(self) -> None:
+        question = self._wizard.current()
+        prompt = self.query_one("#prompt", Prompt)
+        self._emit("info", question.text + (f" [{question.default}]" if question.default else ""))
+        # A secret is never echoed, never offered a completion (a suggester
+        # would ghost-print what is being typed) and never kept in history.
+        prompt.password = question.secret
+        if question.secret:
+            if prompt.suggester is not None:
+                self._prompt_suggester = prompt.suggester
+            prompt.suggester = None
+        elif self._prompt_suggester is not None:
+            prompt.suggester = self._prompt_suggester
+            self._prompt_suggester = None
+
+    def _wizard_end(self) -> None:
+        prompt = self.query_one("#prompt", Prompt)
+        prompt.password = False
+        if self._prompt_suggester is not None:
+            prompt.suggester = self._prompt_suggester
+            self._prompt_suggester = None
+        self._wizard = None
+
+    def _wizard_answer(self, line: str) -> None:
+        wizard = self._wizard
+        secret = wizard.current().secret
+        self._emit("cmd", "••••••••" if secret else line)
+        if not secret and line.lower() == smtp_setup.CANCEL_WORD:
+            self._wizard_end()
+            self._emit("info", "Configuración cancelada: .env no se tocó.")
+            return
+        error = wizard.answer(line)
+        if error:
+            self._emit("err", error)
+            self._wizard_rechazos += 1
+            if self._wizard_rechazos >= smtp_setup.MAX_RECHAZOS_SEGUIDOS:
+                self._wizard_end()
+                self._emit("info", "Configuración cancelada: .env no se tocó.")
+                return
+        else:
+            self._wizard_rechazos = 0
+        if not wizard.done:
+            self._wizard_ask()
+            return
+        self._wizard_end()
+        smtp_setup.save(self.cfg.repo_root, wizard)
+        for resumen in wizard.summary():
+            self._emit("info", f"  {resumen}")
+        self._emit("out", smtp_setup.RESTART_NOTE)
 
     def _cmd_grafana(self, args: list[str]) -> None:
         self._emit("out", describe_grafana(self.grafana.info(self.cfg)))
