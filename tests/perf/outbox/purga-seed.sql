@@ -4,6 +4,7 @@
 -- fuera de la ventana de 30 días (el resto es reciente y debe sobrevivir a la purga).
 -- La dedup es (usuario, url, precio_nuevo): 100 usuarios x 1000 productos x los precios que
 -- hagan falta, así que ninguna fila choca con otra.
+\ir guarda.sql
 INSERT INTO usuario(username, email, password_hash)
 SELECT 'purga' || g, 'purga' || g || '@example.test', '$argon2id$de-prueba' FROM generate_series(1, 100) g
 ON CONFLICT DO NOTHING;

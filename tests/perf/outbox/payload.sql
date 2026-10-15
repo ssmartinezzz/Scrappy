@@ -2,8 +2,8 @@
 -- Deja la base lista para abba.sh: <productos> a precio 1000, <vigilados> favoritados por 2
 -- usuarios cada uno (1000 filas a encolar si bajan) y perf_payload con el lote de la corrida:
 -- los primeros <vigilados> bajan 10%, los siguientes <vigilados> suben 5%, el resto no cambia.
-TRUNCATE notificacion_precio;
-DELETE FROM favoritos;
+\ir guarda.sql
+TRUNCATE notificacion_precio, favoritos;
 CREATE TABLE IF NOT EXISTS perf_payload(j jsonb);
 TRUNCATE perf_payload;
 INSERT INTO usuario(username, email, password_hash)
