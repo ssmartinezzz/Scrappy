@@ -1,7 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  cambiarEmailCuenta,
+  cambiarEmailUsuario,
   deleteSavedPc,
+  fetchCuenta,
   fetchData,
   fetchIndices,
   fetchPcPreferencia,
@@ -340,6 +343,45 @@ describe('Price-drop mail preference', () => {
 
     global.fetch = vi.fn().mockResolvedValue(errorResponse(409, 'sin_email'));
     await expect(savePreferenciaAvisos(true)).resolves.toBeNull();
+  });
+});
+
+describe('Account email', () => {
+  it('fetchCuenta GETs /api/cuenta and returns the account, null on error', async () => {
+    global.fetch = vi.fn().mockResolvedValue(envelope({ username: 'viewer', email: 'viewer@example.com', esServicio: false }));
+
+    await expect(fetchCuenta()).resolves.toEqual({ username: 'viewer', email: 'viewer@example.com', esServicio: false });
+    expect(calledUrl().pathname).toBe('/api/cuenta');
+
+    global.fetch = vi.fn().mockResolvedValue(errorResponse(500, 'interno'));
+    await expect(fetchCuenta()).resolves.toBeNull();
+  });
+
+  it('cambiarEmailCuenta PUTs password and email, and reports the server message on refusal', async () => {
+    global.fetch = vi.fn().mockResolvedValue(envelope({ username: 'viewer', email: 'nuevo@example.com', esServicio: false }));
+
+    await expect(cambiarEmailCuenta({ password: 'una-password', email: 'nuevo@example.com' }))
+      .resolves.toMatchObject({ ok: true, email: 'nuevo@example.com' });
+    const [, init] = global.fetch.mock.calls.at(-1);
+    expect(calledUrl().pathname).toBe('/api/cuenta/email');
+    expect(init.method).toBe('PUT');
+    expect(JSON.parse(init.body)).toEqual({ password: 'una-password', email: 'nuevo@example.com' });
+
+    global.fetch = vi.fn().mockResolvedValue(errorResponse(403, 'password_incorrecta', 'La contraseña no es correcta.'));
+    await expect(cambiarEmailCuenta({ password: 'x', email: 'nuevo@example.com' }))
+      .resolves.toEqual({ ok: false, mensaje: 'La contraseña no es correcta.' });
+  });
+
+  it('cambiarEmailUsuario PUTs the email (null clears) to the encoded username', async () => {
+    global.fetch = vi.fn().mockResolvedValue(envelope({ ok: true, mensaje: 'Email actualizado.' }));
+
+    const r = await cambiarEmailUsuario('viewer uno', null);
+
+    expect(r.ok).toBe(true);
+    const [, init] = global.fetch.mock.calls.at(-1);
+    expect(calledUrl().pathname).toBe('/api/usuarios/viewer%20uno/email');
+    expect(init.method).toBe('PUT');
+    expect(JSON.parse(init.body)).toEqual({ email: null });
   });
 });
 

@@ -8,9 +8,10 @@ vi.mock('../api', () => ({
   cambiarRolUsuario: vi.fn(),
   desactivarUsuario: vi.fn(),
   reactivarUsuario: vi.fn(),
+  cambiarEmailUsuario: vi.fn(),
 }));
 
-import { fetchUsuarios } from '../api';
+import { cambiarEmailUsuario, fetchUsuarios } from '../api';
 import UsuariosAdminPanel from './UsuariosAdminPanel';
 
 // Forma real de GET /api/usuarios (UsuarioAdminEndpoints.listar): `roles` es un
@@ -98,5 +99,53 @@ describe('UsuariosAdminPanel — buscador', () => {
     await user.type(screen.getByLabelText('Buscar por usuario o email'), 'nadie');
 
     expect(await screen.findByText(/Ninguna cuenta coincide/)).toBeInTheDocument();
+  });
+});
+
+describe('UsuariosAdminPanel — email de una cuenta', () => {
+  it('edita el email de una cuenta y recarga la lista', async () => {
+    const user = userEvent.setup();
+    cambiarEmailUsuario.mockResolvedValue({ ok: true, body: { mensaje: 'Email actualizado.' } });
+    await renderPanel();
+
+    await user.click(screen.getByRole('button', { name: 'Editar email de lucia' }));
+    const campo = screen.getByLabelText('Email de lucia');
+    await user.clear(campo);
+    await user.type(campo, 'nuevo@x.com');
+    await user.click(screen.getByRole('button', { name: 'Guardar email' }));
+
+    expect(cambiarEmailUsuario).toHaveBeenCalledExactlyOnceWith('lucia', 'nuevo@x.com');
+    await waitFor(() => expect(fetchUsuarios).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText('Email actualizado.')).toBeInTheDocument();
+  });
+
+  it('un campo vacío quita el email (null)', async () => {
+    const user = userEvent.setup();
+    cambiarEmailUsuario.mockResolvedValue({ ok: true, body: {} });
+    await renderPanel();
+
+    await user.click(screen.getByRole('button', { name: 'Editar email de lucia' }));
+    await user.clear(screen.getByLabelText('Email de lucia'));
+    await user.click(screen.getByRole('button', { name: 'Guardar email' }));
+
+    expect(cambiarEmailUsuario).toHaveBeenCalledExactlyOnceWith('lucia', null);
+  });
+
+  it('muestra el motivo del backend cuando lo rechaza', async () => {
+    const user = userEvent.setup();
+    cambiarEmailUsuario.mockResolvedValue({ ok: false, body: { mensaje: 'Esa dirección no está disponible.' } });
+    await renderPanel();
+
+    await user.click(screen.getByRole('button', { name: 'Editar email de lucia' }));
+    await user.type(screen.getByLabelText('Email de lucia'), 'x');
+    await user.click(screen.getByRole('button', { name: 'Guardar email' }));
+
+    expect(await screen.findByText('Esa dirección no está disponible.')).toBeInTheDocument();
+  });
+
+  it('no ofrece editar el email de una cuenta de servicio', async () => {
+    await renderPanel();
+
+    expect(screen.queryByRole('button', { name: 'Editar email de cli' })).not.toBeInTheDocument();
   });
 });

@@ -433,10 +433,35 @@ inválido se descarta antes de tocar la base y los `POST` de un proveedor llegan
 compartidas, así que un tope por IP cortaría bajas legítimas.
 
 
+## GET /cuenta · PUT /cuenta/email
+
+La cuenta propia. **Cualquier rol**, siempre sobre el sujeto del token.
+
+| | |
+|---|---|
+| `GET /cuenta` | `data: { username, email, esServicio }`; `email` es `null` si no tiene |
+| `PUT /cuenta/email` | Body `{ "password": "...", "email": "x@y.z" \| null }`. `null` (o vacío) quita la dirección. Responde la cuenta nueva |
+| `400 faltan_campos` | Falta `password` o la clave `email`: omitir nunca borra |
+| `400 email_invalido` | No es una dirección (se guarda en minúsculas, máx. 254) |
+| `403 password_incorrecta` | **403 y no 401**: el cliente lee un 401 como sesión vencida |
+| `409 email_no_disponible` | Otra cuenta ya tiene esa dirección. No dice cuál |
+| `409 cuenta_de_servicio` | `chk_usuario_servicio_sin_email`: las cuentas de servicio no tienen email |
+| `429 demasiados_intentos` | 5 contraseñas erróneas en 15 min. Presupuesto propio, separado del login |
+
+La dirección es el canal de reseteo, por eso la contraseña se vuelve a pedir. **No revoca las
+sesiones** (la contraseña acaba de verificarse; cambiar la contraseña sí las revoca porque ahí
+la credencial es lo que se filtró) pero **sí anula los links de reseteo** emitidos a la dirección
+vieja. El `409 email_no_disponible` confirma que la dirección existe en el sistema: queda
+acotado a quien tiene sesión y la contraseña, y al límite de intentos.
+
 ## /usuarios — administración de cuentas
 
-**Sólo ADMIN, y sin interfaz.** Se maneja por `curl`; una pantalla es una
-decisión aparte con su propio diseño.
+**Sólo ADMIN.** La pantalla es `UsuariosAdminPanel` (`/admin/manage/users`); todo también se maneja por `curl`.
+
+`PUT /usuarios/{username}/email` — body `{ "email": "x@y.z" | null }`; `null` la quita. Sin
+contraseña (es un ADMIN actuando sobre otra cuenta). Mismos `400 email_invalido`,
+`409 email_no_disponible` y `409 cuenta_de_servicio` que `PUT /cuenta/email`; `404 no_existe`;
+`400 faltan_campos` si falta la clave. Anula los links de reseteo emitidos a la dirección vieja.
 
 **Nacieron gateados.** La regla ADMIN para `/api/usuarios/**` estaba en
 `ApiRoutePolicy.TABLE` desde el slice de enforcement, **matcheando nada**, un

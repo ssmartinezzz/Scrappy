@@ -437,6 +437,69 @@ paths:
 
   # ── Usuarios ────────────────────────────────────────────────────────────
 
+  /api/cuenta:
+    get:
+      tags: [Auth]
+      summary: The caller's own account — username, email and whether it is a service account.
+      x-access: AUTHENTICATED
+      responses:
+        "200":
+          description: "`data`: `{ username, email, esServicio }`; `email` is null when none is set."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+
+  /api/cuenta/email:
+    put:
+      tags: [Auth]
+      summary: Set, change or clear the caller's email. Requires the current password.
+      description: >
+        The address is the password-reset channel, so the password is re-verified even though the
+        session is authenticated. Sessions are not revoked; reset links issued to the old address are annulled.
+      x-access: AUTHENTICATED
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [password, email]
+              properties:
+                password: { type: string }
+                email: { type: string, nullable: true, description: "Lowercased on save. `null` clears it." }
+      responses:
+        "200":
+          description: "`data`: the new `{ username, email, esServicio }`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        "400":
+          description: "`faltan_campos` · `email_invalido`"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: "`password_incorrecta` — 403 and not 401 so the client does not read it as an expired session."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: "`email_no_disponible` · `cuenta_de_servicio`"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "429":
+          description: "`demasiados_intentos` — five wrong passwords in 15 minutes; separate budget from login."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   /api/usuarios:
     get:
       tags: [Usuarios]
@@ -545,6 +608,47 @@ paths:
           $ref: "#/components/responses/NotFound"
         "409":
           description: "`ultimo_admin`"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /api/usuarios/{username}/email:
+    put:
+      tags: [Usuarios]
+      summary: Set or clear an account's email (the password-reset channel). No password asked.
+      x-access: ADMIN
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, nullable: true, description: "Lowercased on save. `null` clears it." }
+      responses:
+        "200":
+          description: Email updated; reset links issued to the old address are annulled.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        "400":
+          description: "`faltan_campos` (no `email` key) · `email_invalido`"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: "`email_no_disponible` (another account holds it) · `cuenta_de_servicio` (service accounts stay email-less)"
           content:
             application/json:
               schema:

@@ -17,6 +17,8 @@ PUT /api/cron/{id}
 GET /api/cron/{id}/executions
 POST /api/cron/{id}/run-now
 GET /api/csv
+GET /api/cuenta
+PUT /api/cuenta/email
 DELETE /api/data
 GET /api/data
 GET /api/db/export
@@ -84,4 +86,5 @@ GET /api/usuarios
 POST /api/usuarios
 DELETE /api/usuarios/{username}
 PUT /api/usuarios/{username}/activar
+PUT /api/usuarios/{username}/email
 PUT /api/usuarios/{username}/rol

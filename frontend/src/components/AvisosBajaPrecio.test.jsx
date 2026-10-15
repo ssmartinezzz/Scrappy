@@ -3,9 +3,11 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import AvisosBajaPrecio from './AvisosBajaPrecio';
-import { fetchPreferenciaAvisos, savePreferenciaAvisos } from '../api';
+import { cambiarEmailCuenta, fetchCuenta, fetchPreferenciaAvisos, savePreferenciaAvisos } from '../api';
 
 vi.mock('../api', () => ({
+  cambiarEmailCuenta: vi.fn(),
+  fetchCuenta: vi.fn(),
   fetchPreferenciaAvisos: vi.fn(),
   savePreferenciaAvisos: vi.fn(),
 }));
@@ -14,6 +16,7 @@ const ETIQUETA = /avisarme por mail cuando un favorito baje más de 5%/i;
 
 beforeEach(() => {
   vi.clearAllMocks();
+  fetchCuenta.mockResolvedValue({ username: 'viewer', email: 'viewer@example.com', esServicio: false });
 });
 
 describe('AvisosBajaPrecio', () => {
@@ -57,13 +60,74 @@ describe('AvisosBajaPrecio', () => {
     expect(screen.getByRole('checkbox', { name: ETIQUETA })).toBeChecked();
   });
 
-  it('renders nothing for an account with no email: there is nothing to send to', async () => {
+  it('invites an account with no email to add one, instead of hiding the feature', async () => {
+    fetchPreferenciaAvisos.mockResolvedValue({ notificarBajasPrecio: true, tieneEmail: false });
+    fetchCuenta.mockResolvedValue({ username: 'viewer', email: null, esServicio: false });
+
+    render(<AvisosBajaPrecio />);
+
+    expect(await screen.findByText(/sumá tu email/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /agregar email/i })).toBeInTheDocument();
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+  });
+
+  it('adds an email with the current password, then shows the alerts checkbox', async () => {
+    const user = userEvent.setup();
+    fetchPreferenciaAvisos
+      .mockResolvedValueOnce({ notificarBajasPrecio: true, tieneEmail: false })
+      .mockResolvedValue({ notificarBajasPrecio: true, tieneEmail: true });
+    cambiarEmailCuenta.mockResolvedValue({ ok: true, email: 'nuevo@example.com' });
+    fetchCuenta.mockResolvedValue({ username: 'viewer', email: null, esServicio: false });
+
+    render(<AvisosBajaPrecio />);
+    await user.click(await screen.findByRole('button', { name: /agregar email/i }));
+    await user.type(screen.getByLabelText(/^email$/i), 'nuevo@example.com');
+    await user.type(screen.getByLabelText(/contraseña actual/i), 'una-password');
+    await user.click(screen.getByRole('button', { name: /guardar/i }));
+
+    expect(cambiarEmailCuenta).toHaveBeenCalledExactlyOnceWith({ password: 'una-password', email: 'nuevo@example.com' });
+    expect(await screen.findByRole('checkbox', { name: ETIQUETA })).toBeChecked();
+  });
+
+  it('shows the server explanation and keeps the form when the change is refused', async () => {
+    const user = userEvent.setup();
+    fetchPreferenciaAvisos.mockResolvedValue({ notificarBajasPrecio: true, tieneEmail: false });
+    cambiarEmailCuenta.mockResolvedValue({ ok: false, mensaje: 'La contraseña no es correcta.' });
+    fetchCuenta.mockResolvedValue({ username: 'viewer', email: null, esServicio: false });
+
+    render(<AvisosBajaPrecio />);
+    await user.click(await screen.findByRole('button', { name: /agregar email/i }));
+    await user.type(screen.getByLabelText(/^email$/i), 'nuevo@example.com');
+    await user.type(screen.getByLabelText(/contraseña actual/i), 'mala');
+    await user.click(screen.getByRole('button', { name: /guardar/i }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('La contraseña no es correcta.');
+    expect(screen.getByLabelText(/^email$/i)).toHaveValue('nuevo@example.com');
+  });
+
+  it('shows where alerts go and lets the user change or remove that address', async () => {
+    const user = userEvent.setup();
+    fetchPreferenciaAvisos.mockResolvedValue({ notificarBajasPrecio: true, tieneEmail: true });
+    cambiarEmailCuenta.mockResolvedValue({ ok: true, email: null });
+
+    render(<AvisosBajaPrecio />);
+    expect(await screen.findByText('viewer@example.com')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /cambiar email/i }));
+    await user.type(screen.getByLabelText(/contraseña actual/i), 'una-password');
+    await user.click(screen.getByRole('button', { name: /quitar email/i }));
+
+    expect(cambiarEmailCuenta).toHaveBeenCalledExactlyOnceWith({ password: 'una-password', email: null });
+  });
+
+  it('does not submit without a password', async () => {
+    const user = userEvent.setup();
     fetchPreferenciaAvisos.mockResolvedValue({ notificarBajasPrecio: true, tieneEmail: false });
 
-    const { container } = render(<AvisosBajaPrecio />);
+    render(<AvisosBajaPrecio />);
+    await user.click(await screen.findByRole('button', { name: /agregar email/i }));
+    await user.type(screen.getByLabelText(/^email$/i), 'nuevo@example.com');
 
-    await waitFor(() => expect(fetchPreferenciaAvisos).toHaveBeenCalled());
-    expect(container).toBeEmptyDOMElement();
+    expect(screen.getByRole('button', { name: /guardar/i })).toBeDisabled();
   });
 
   it('renders nothing when the preference cannot be read', async () => {

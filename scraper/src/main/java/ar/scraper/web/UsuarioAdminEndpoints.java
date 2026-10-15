@@ -148,6 +148,17 @@ public class UsuarioAdminEndpoints {
         return ok("Cuenta reactivada.");
     }
 
+    @PutMapping("/{username}/email")
+    public ResponseEntity<ApiResponse<OpResult>> cambiarEmail(@PathVariable String username,
+                                                              @RequestBody(required = false) Map<String, String> body) {
+        if (body == null || !body.containsKey("email")) {
+            throw error(400, "faltan_campos", "email es obligatorio (null para quitarlo).");
+        }
+        DireccionDeCorreo.exigirCambiado(usuarios.cambiarEmail(username, DireccionDeCorreo.normalizar(body.get("email"))));
+        LOG.info("[ADMIN] '{}' cambió el email de '{}'", actorResolver.current(), username);
+        return ok("Email actualizado.");
+    }
+
     /** True when {@code username} is the only active ADMIN left. */
     private boolean dejariaSinAdministradores(String username) {
         return usuarios.esAdminActivo(username) && usuarios.adminsActivos() <= 1;

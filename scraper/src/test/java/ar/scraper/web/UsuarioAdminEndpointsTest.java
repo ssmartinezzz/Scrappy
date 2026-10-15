@@ -267,6 +267,50 @@ class UsuarioAdminEndpointsTest extends PostgresTestBase {
                 .isEqualTo(200);
     }
 
+    // ── email ────────────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("an admin sets an account's email, lowercased, with no password asked")
+    void adminFijaEmail() {
+        crear("viewer-uno", null, "una-password-larga", "VIEWER");
+
+        ResponseEntity<?> resp = Wire.answer(() -> endpoints.cambiarEmail("viewer-uno", Map.of("email", "Viewer@Example.com")));
+
+        assertThat(resp.getStatusCode().value()).isEqualTo(200);
+        assertThat(usuarios.buscarActivaPorUsername("viewer-uno").orElseThrow().email())
+                .isEqualTo("viewer@example.com");
+    }
+
+    @Test
+    @DisplayName("an admin clears an email with null, and a taken or malformed one is refused")
+    void adminLimpiaYRechaza() {
+        crear("viewer-uno", "uno@example.com", "una-password-larga", "VIEWER");
+        crear("viewer-dos", null, "una-password-larga", "VIEWER");
+
+        assertThat(Wire.answer(() -> endpoints.cambiarEmail("viewer-dos", Map.of("email", "uno@example.com")))
+                .getStatusCode().value()).isEqualTo(409);
+        assertThat(Wire.answer(() -> endpoints.cambiarEmail("viewer-dos", Map.of("email", "sin-arroba")))
+                .getStatusCode().value()).isEqualTo(400);
+        assertThat(Wire.answer(() -> endpoints.cambiarEmail("nadie", Map.of("email", "x@example.com")))
+                .getStatusCode().value()).isEqualTo(404);
+
+        java.util.Map<String, String> limpiar = new java.util.HashMap<>();
+        limpiar.put("email", null);
+        assertThat(Wire.answer(() -> endpoints.cambiarEmail("viewer-uno", limpiar)).getStatusCode().value())
+                .isEqualTo(200);
+        assertThat(usuarios.buscarActivaPorUsername("viewer-uno").orElseThrow().email()).isNull();
+    }
+
+    @Test
+    @DisplayName("a body without the email key is 400: omission never clears an address")
+    void sinClaveNoLimpia() {
+        crear("viewer-uno", "uno@example.com", "una-password-larga", "VIEWER");
+
+        assertThat(Wire.answer(() -> endpoints.cambiarEmail("viewer-uno", Map.of())).getStatusCode().value())
+                .isEqualTo(400);
+        assertThat(usuarios.buscarActivaPorUsername("viewer-uno").orElseThrow().email()).isEqualTo("uno@example.com");
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────
 
     private ResponseEntity<?> crear(String username, String email, String password, String rol) {

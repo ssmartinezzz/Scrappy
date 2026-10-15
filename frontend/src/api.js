@@ -597,6 +597,22 @@ export async function savePreferenciaAvisos(notificarBajasPrecio) {
   return softUnwrap(r);
 }
 
+/** `{ username, email, esServicio }`, or null on error. */
+export async function fetchCuenta() {
+  const r = await authedFetch(`${BASE}/api/cuenta`);
+  return softUnwrap(r);
+}
+
+/** `{ ok:true, ...cuenta }` or `{ ok:false, mensaje }` with the server's own explanation. */
+export async function cambiarEmailCuenta({ password, email }) {
+  const r = await authedFetch(`${BASE}/api/cuenta/email`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password, email }),
+  });
+  return opResult(r);
+}
+
 // ─── Saved PCs ──────────────────────────────────────────────────────────────
 
 export async function savePc(body) {
@@ -761,4 +777,12 @@ export function desactivarUsuario(username) {
 
 export function reactivarUsuario(username) {
   return usuariosFetch(`/${encodeURIComponent(username)}/activar`, { method: 'PUT' });
+}
+
+export function cambiarEmailUsuario(username, email) {
+  return usuariosFetch(`/${encodeURIComponent(username)}/email`, {
+    method: 'PUT',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ email }),
+  });
 }

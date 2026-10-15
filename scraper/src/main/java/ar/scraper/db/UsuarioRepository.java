@@ -331,6 +331,53 @@ public class UsuarioRepository {
         }
     }
 
+    private record FilaDeEmail(UUID id, boolean esServicio, String email) {}
+
+    public enum ResultadoEmail { CAMBIADO, TOMADO, ES_SERVICIO, NO_EXISTE }
+
+    /**
+     * The address is the password-reset channel, so a new one annuls the reset links already
+     * issued to the old one, in the same transaction. {@code email == null} clears it.
+     * The caller lowercases: {@code chk_usuario_email_lower} rejects anything else.
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public ResultadoEmail cambiarEmail(String username, String email) {
+        try {
+            var cuenta = jdbc.query("SELECT id, es_servicio, email FROM usuario WHERE username = ?",
+                    ps -> ps.setString(1, username),
+                    rs -> rs.next()
+                            ? Optional.of(new FilaDeEmail(rs.getObject(1, UUID.class), rs.getBoolean(2),
+                                    rs.getString(3)))
+                            : Optional.<FilaDeEmail>empty());
+            if (cuenta.isEmpty()) {
+                return ResultadoEmail.NO_EXISTE;
+            }
+            FilaDeEmail fila = cuenta.get();
+            if (email != null && fila.esServicio()) {
+                return ResultadoEmail.ES_SERVICIO;
+            }
+            if (Objects.equals(email, fila.email())) {
+                return ResultadoEmail.CAMBIADO;
+            }
+            if (email != null && jdbc.queryForObject(
+                    "SELECT EXISTS (SELECT 1 FROM usuario WHERE email = ?)", Boolean.class, email)) {
+                return ResultadoEmail.TOMADO;
+            }
+            jdbc.update("UPDATE usuario SET email = ? WHERE username = ?", email, username);
+            jdbc.update("""
+                    UPDATE password_reset_token SET consumed_at = now()
+                     WHERE usuario_id = ? AND consumed_at IS NULL
+                    """, fila.id());
+            return ResultadoEmail.CAMBIADO;
+        } catch (org.springframework.dao.DuplicateKeyException e) {
+            org.springframework.transaction.interceptor.TransactionAspectSupport
+                    .currentTransactionStatus().setRollbackOnly();
+            return ResultadoEmail.TOMADO;
+        } catch (Exception e) {
+            throw new DatabaseException("no se pudo cambiar el email de '" + username + "'", e);
+        }
+    }
+
     public boolean existe(String username) {
         try {
             return jdbc.query("SELECT 1 FROM usuario WHERE username = ?",

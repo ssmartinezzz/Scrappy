@@ -8,10 +8,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   flexRender, getCoreRowModel, getPaginationRowModel, getSortedRowModel, useReactTable,
 } from '@tanstack/react-table';
-import { ChevronDown, ChevronUp, RefreshCw, Search, UserPlus, X } from 'lucide-react';
+import { ChevronDown, ChevronUp, Pencil, RefreshCw, Search, UserPlus, X } from 'lucide-react';
 
 import {
-  cambiarRolUsuario, crearUsuario, desactivarUsuario, fetchUsuarios, reactivarUsuario,
+  cambiarEmailUsuario, cambiarRolUsuario, crearUsuario, desactivarUsuario, fetchUsuarios, reactivarUsuario,
 } from '../api';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
@@ -52,20 +52,66 @@ function Avatar({ username }) {
   );
 }
 
+function EmailEditable({ usuario, ejecutar, deshabilitado }) {
+  const [editando, setEditando] = useState(false);
+  const [valor, setValor] = useState(usuario.email || '');
+
+  if (!editando) {
+    return (
+      <span className="flex min-w-0 items-center gap-1">
+        <span className="truncate text-t3 text-xs">{usuario.email || 'sin email'}</span>
+        {!usuario.esServicio && (
+          <button
+            aria-label={`Editar email de ${usuario.username}`}
+            className="shrink-0 text-t4 hover:text-t1"
+            onClick={() => setEditando(true)}
+            type="button"
+          >
+            <Pencil aria-hidden="true" className="h-3 w-3" />
+          </button>
+        )}
+      </span>
+    );
+  }
+
+  return (
+    <form
+      className="flex items-center gap-1"
+      onSubmit={e => {
+        e.preventDefault();
+        setEditando(false);
+        ejecutar(usuario.username,
+          () => cambiarEmailUsuario(usuario.username, valor.trim() || null), 'Email actualizado.');
+      }}
+    >
+      <Input
+        aria-label={`Email de ${usuario.username}`}
+        className="h-7 text-xs"
+        onChange={e => setValor(e.target.value)}
+        type="email"
+        value={valor}
+      />
+      <Button aria-label="Guardar email" disabled={deshabilitado} size="sm" type="submit">Guardar</Button>
+      <Button onClick={() => setEditando(false)} size="sm" type="button" variant="ghost">Cancelar</Button>
+    </form>
+  );
+}
+
 // Static column defs: `ejecutar` and the in-flight username reach the cells through `table.options.meta`.
 const COLUMNS = [
   {
     id: 'username',
     accessorKey: 'username',
     header: 'Cuenta',
-    cell: ({ row }) => {
+    cell: ({ row, table }) => {
       const u = row.original;
+      const { ejecutar, ocupado } = table.options.meta;
       return (
         <div className="flex items-center gap-2">
           <Avatar username={u.username} />
           <div className="flex min-w-0 flex-col">
             <span className="truncate font-medium text-t1">{u.username}</span>
-            <span className="truncate text-t3 text-xs">{u.email || 'sin email'}</span>
+            <EmailEditable deshabilitado={ocupado === u.username} ejecutar={ejecutar} usuario={u} />
           </div>
         </div>
       );
