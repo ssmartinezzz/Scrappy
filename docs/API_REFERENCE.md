@@ -425,10 +425,12 @@ a `destino` (body opcional `{ "destino": "x@y.z" }`; por defecto el email de qui
 | `200` | `data: { ok: true, mensaje }` con la dirección enmascarada (`t**@example.com`) |
 | `400 email_invalido` | `destino` no es una dirección simple (misma regla que el email de la cuenta) |
 | `409 sin_destino` | Quien llama no tiene email y no mandó `destino` |
+| `429 demasiados_envios` | Más de 5 mails de prueba por hora por cuenta (cuenta también los que fallan). Trae `Retry-After: 3600` |
 | `409 smtp_no_configurado` | `SMTP_HOST` está vacío: el relay sólo anuncia en el log |
 | `502 smtp_fallo` | El mensaje trae el motivo y la pista (contraseña de aplicación, host/puerto/TLS) |
 
-Un ADMIN puede mandar el mail fijo a cualquier dirección; el contenido no es suyo y la ruta es sólo ADMIN. Al arrancar con
+Un ADMIN puede mandar el mail fijo a cualquier dirección; el contenido no es suyo, la ruta es sólo ADMIN, tiene tope de 5 por hora por cuenta y
+cada envío deja una línea `[ADMIN]` en el log con quién lo pidió y el destino enmascarado. Al arrancar con
 `SMTP_HOST` el backend hace la misma verificación de conexión en un hilo aparte y deja **una** línea `[SMTP]` en el log (OK, o
 el motivo y la pista); nunca bloquea ni tumba el arranque. Ninguna línea lleva direcciones completas ni secretos.
 

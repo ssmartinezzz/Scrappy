@@ -1804,6 +1804,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
+        "429":
+          description: "`demasiados_envios` — more than 5 test mails per hour for this account (failed attempts count). Carries `Retry-After: 3600`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
         "502":
           description: "`smtp_fallo` — the message carries the reason and the fix (app password, host/port/TLS)."
           content:

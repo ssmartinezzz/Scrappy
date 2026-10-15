@@ -96,4 +96,5 @@ tiene email y no mandó uno.
 
 - Un mail **aceptado** por el servidor y rebotado después no deja rastro: nada recibe los rebotes.
 - Cambiar las claves `SMTP_*` exige reiniciar el backend.
-- Un ADMIN puede mandar el mail de prueba a cualquier dirección; el contenido es fijo.
+- Un ADMIN puede mandar el mail de prueba a cualquier dirección; el contenido es fijo. Cada cuenta tiene
+  tope de 5 por hora (`429 demasiados_envios`) y cada envío queda en el log con el destino enmascarado.
