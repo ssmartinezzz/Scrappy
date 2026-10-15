@@ -302,4 +302,5 @@ def test_fallos_por_motivo_ordena_de_mayor_a_menor(cola):
     filas = cola.fetchall()
     cuentas = [f[1] for f in filas]
     assert cuentas == sorted(cuentas, reverse=True)
-    assert filas[0][0].startswith("550 no such user") and filas[0][1] == 2
+    assert filas[0][0].startswith("550 no such user")
+    assert filas[0][1] == 2
