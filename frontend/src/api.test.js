@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   cambiarEmailUsuario,
   deleteSavedPc,
+  enviarCorreoDePrueba,
   fetchData,
   fetchIndices,
   fetchPcPreferencia,
@@ -355,6 +356,31 @@ describe('Account email (admin)', () => {
     expect(calledUrl().pathname).toBe('/api/usuarios/viewer%20uno/email');
     expect(init.method).toBe('PUT');
     expect(JSON.parse(init.body)).toEqual({ email: null });
+  });
+});
+
+describe('Test mail', () => {
+  it('enviarCorreoDePrueba POSTs the optional destino and returns the server message', async () => {
+    global.fetch = vi.fn().mockResolvedValue(envelope({ ok: true, mensaje: 'Mail de prueba enviado a a**@example.com.' }));
+
+    await expect(enviarCorreoDePrueba()).resolves.toEqual({
+      ok: true, status: 200, body: { mensaje: 'Mail de prueba enviado a a**@example.com.' },
+    });
+    const [, init] = global.fetch.mock.calls.at(-1);
+    expect(calledUrl().pathname).toBe('/api/notificaciones/correo-prueba');
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(init.body)).toEqual({});
+
+    await enviarCorreoDePrueba('otro@example.com');
+    expect(JSON.parse(global.fetch.mock.calls.at(-1)[1].body)).toEqual({ destino: 'otro@example.com' });
+  });
+
+  it('enviarCorreoDePrueba keeps the server explanation when SMTP fails', async () => {
+    global.fetch = vi.fn().mockResolvedValue(errorResponse(502, 'smtp_fallo', 'No se pudo conectar. Revisá el puerto.'));
+
+    await expect(enviarCorreoDePrueba()).resolves.toEqual({
+      ok: false, status: 502, body: { error: 'smtp_fallo', mensaje: 'No se pudo conectar. Revisá el puerto.' },
+    });
   });
 });
 

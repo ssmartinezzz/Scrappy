@@ -40,6 +40,7 @@ GET /api/marcas-browser
 GET /api/mejores
 POST /api/notificaciones/baja/{token}
 GET /api/notificaciones/baja/{token}
+POST /api/notificaciones/correo-prueba
 GET /api/notificaciones/preferencia
 PUT /api/notificaciones/preferencia
 POST /api/ml/aplicar

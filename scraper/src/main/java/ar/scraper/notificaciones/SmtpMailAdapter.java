@@ -72,6 +72,16 @@ public class SmtpMailAdapter implements MailPort {
         return sender.getJavaMailProperties();
     }
 
+    @Override
+    public EstadoSmtp probarConexion() {
+        try {
+            sender.testConnection();
+            return EstadoSmtp.ok("El servidor " + sender.getHost() + ":" + sender.getPort() + " aceptó la conexión.");
+        } catch (MessagingException | RuntimeException e) {
+            return ErroresSmtp.clasificar(e, sender.getHost(), sender.getPort());
+        }
+    }
+
     /** One connection for the whole batch: {@code send(MimeMessage...)} opens the transport once. */
     @Override
     public Map<String, Entrega> enviar(List<CorreoDirigido> correos) {

@@ -268,4 +268,46 @@ class SmtpMailAdapterTest {
             return null;
         }
     }
+
+    @Test
+    @DisplayName("probarConexion: a listening server is OK and nothing is sent")
+    void sondeoOk() throws Exception {
+        try (FakeSmtpServer servidor = new FakeSmtpServer()) {
+            SmtpMailAdapter adapter = new SmtpMailAdapter("127.0.0.1", servidor.puerto(), "", "", "avisos@example.com");
+
+            EstadoSmtp e = adapter.probarConexion();
+
+            assertThat(e.ok()).as(e.mensaje()).isTrue();
+            assertThat(servidor.mensajes()).isEmpty();
+        }
+    }
+
+    @Test
+    @DisplayName("probarConexion: a closed port is a FALLO that names host:port")
+    void sondeoSinServidor() throws Exception {
+        int puerto;
+        try (FakeSmtpServer servidor = new FakeSmtpServer()) {
+            puerto = servidor.puerto();
+        }
+
+        EstadoSmtp e = new SmtpMailAdapter("127.0.0.1", puerto, "", "", "avisos@example.com").probarConexion();
+
+        assertThat(e.nivel()).isEqualTo(EstadoSmtp.Nivel.FALLO);
+        assertThat(e.mensaje()).contains("127.0.0.1:" + puerto);
+    }
+
+    @Test
+    @DisplayName("probarConexion: rejected credentials point at the app password")
+    void sondeoCredenciales() throws Exception {
+        try (FakeSmtpServer servidor = new FakeSmtpServer()) {
+            servidor.rechazarCredenciales();
+            SmtpMailAdapter adapter = new SmtpMailAdapter("127.0.0.1", servidor.puerto(), "cuenta@example.com", "mala", "");
+
+            EstadoSmtp e = adapter.probarConexion();
+
+            assertThat(e.nivel()).isEqualTo(EstadoSmtp.Nivel.FALLO);
+            assertThat(e.pista()).containsIgnoringCase("contraseña de aplicación");
+            assertThat(e.mensaje() + e.pista()).doesNotContain("mala");
+        }
+    }
 }
