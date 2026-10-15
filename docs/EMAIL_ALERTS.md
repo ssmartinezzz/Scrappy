@@ -83,7 +83,7 @@ Buscá la línea en `logs backend`:
 | `[SMTP] El servidor … no ofrece STARTTLS: no se envían las credenciales sin cifrar.` | El servidor no ofrece STARTTLS en ese puerto | Usá 465 (SSL/TLS) o el puerto STARTTLS del proveedor; `SMTP_STARTTLS_REQUIRED=false` sólo en un relay local |
 | `[SMTP] Falló el handshake TLS con …` | Modo TLS equivocado | Probá el otro puerto (587 ↔ 465) |
 | `[NOTIF] SMTP_HOST sin configurar, no se envía el mail …` | No hay SMTP: la cola se drena sin enviar | Configurá SMTP (pasos de arriba) |
-| `[NOTIF] fallo al avisar a x**@…: …` | El servidor aceptó la conexión y rechazó ese destinatario o mensaje | Un `5xx` de destinatario es `FALLIDA` de inmediato; un `4xx` o un corte se reintenta con backoff |
+| `[NOTIF] fallo al avisar a x**@…: …` | El servidor aceptó la conexión y rechazó ese destinatario o mensaje | Un `5xx` de destinatario, o una dirección que no se puede armar en un mail, es `FALLIDA` de inmediato; un `4xx` o un corte se reintenta con backoff |
 | `[NOTIF] N bajas enviadas, M con error` | Resumen de cada tanda | `M` > 0 sostenido: mirá la línea anterior |
 
 El mail de prueba responde con el mismo diagnóstico: `502 smtp_fallo` trae el motivo y la

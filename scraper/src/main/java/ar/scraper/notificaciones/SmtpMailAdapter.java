@@ -1,6 +1,7 @@
 package ar.scraper.notificaciones;
 
 import jakarta.mail.MessagingException;
+import jakarta.mail.internet.AddressException;
 import jakarta.mail.internet.MimeMessage;
 import org.apache.commons.lang3.ObjectUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -115,6 +116,8 @@ public class SmtpMailAdapter implements MailPort {
                 MimeMessage mensaje = armar(c);
                 mensajes.add(mensaje);
                 destinoDe.put(mensaje, c.destino());
+            } catch (AddressException e) {
+                resultado.put(c.destino(), Entrega.rechazo("no se pudo armar el mail: " + e.getMessage()));
             } catch (MessagingException e) {
                 resultado.put(c.destino(), Entrega.fallo("no se pudo armar el mail: " + e.getMessage()));
             }

@@ -350,4 +350,18 @@ class SmtpMailAdapterTest {
             assertThat(e.pista()).contains("SMTP_STARTTLS_REQUIRED");
         }
     }
+
+    @Test
+    @DisplayName("an address that cannot even be built into a message is a permanent rejection, and the rest of the batch still goes")
+    void direccionImposibleDeArmarEsPermanente() throws Exception {
+        try (FakeSmtpServer smtp = new FakeSmtpServer()) {
+            Map<String, Entrega> resultado = new SmtpMailAdapter("127.0.0.1", smtp.puerto(), "", "", "avisos@example.com")
+                    .enviar(List.of(new CorreoDirigido("roto@@example.com", CORREO),
+                            new CorreoDirigido("uno@example.com", CORREO)));
+
+            assertThat(resultado.get("roto@@example.com").enviada()).isFalse();
+            assertThat(resultado.get("roto@@example.com").permanente()).as("retrying cannot fix an address").isTrue();
+            assertThat(resultado.get("uno@example.com").enviada()).isTrue();
+        }
+    }
 }
