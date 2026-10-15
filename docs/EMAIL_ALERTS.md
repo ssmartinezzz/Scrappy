@@ -30,8 +30,9 @@ anuncia el mail en el log.
 | Yahoo | `smtp.mail.yahoo.com` | 587 | Contraseña de aplicación (Seguridad de la cuenta) |
 | Otro | el de tu proveedor | 587 (STARTTLS) o 465 (SSL/TLS) | La que pida |
 
-Puerto 465 es TLS implícito; cualquier otro habla SMTP plano y sube a TLS con STARTTLS si el
-servidor lo ofrece. Google muestra la contraseña de aplicación con espacios (`abcd efgh …`):
+Puerto 465 es TLS implícito; cualquier otro habla SMTP plano y **exige** STARTTLS: si el
+servidor no lo ofrece, el backend corta antes de mandar usuario y contraseña (nunca viajan en
+claro). `SMTP_STARTTLS_REQUIRED=false` lo relaja, sólo para un relay local de confianza. Google muestra la contraseña de aplicación con espacios (`abcd efgh …`):
 el CLI los quita.
 
 ## Qué hace cada clave
@@ -42,6 +43,7 @@ hace falta tocar; el resto tiene un default que sirve.
 | Clave | Default | Para qué |
 |---|---|---|
 | `SMTP_HOST` / `SMTP_PORT` | vacío / 587 | Servidor. Vacío = no se envía nada |
+| `SMTP_STARTTLS_REQUIRED` | `true` | Exige STARTTLS en todo puerto salvo 465. `false` sólo para un relay local de confianza que no lo ofrece |
 | `SMTP_USERNAME` / `SMTP_PASSWORD` | vacío | Credenciales. Ambas o ninguna (un relay sin autenticación) |
 | `SMTP_FROM_ADDRESS` | el usuario | Remitente. Si queda vacío, el usuario tiene que ser un mail |
 | `NOTIFICACIONES_API_BASE_URL` | `http://localhost:3000` | Origen **público del backend**: arma el enlace de baja de un clic de cada mail. Si el mail se lee en otro dispositivo, tiene que ser alcanzable desde ahí (en LAN, el origen `https://<ip>:…`). El CLI lo completa si conoce un origen no-loopback |
@@ -78,6 +80,7 @@ Buscá la línea en `logs backend`:
 | `[SMTP] No se pudo conectar a host:puerto.` | Nada escucha, o un firewall corta | Revisá host y puerto (587 = STARTTLS, 465 = SSL/TLS) y la salida de red |
 | `[SMTP] No se encontró el host …` | El nombre no resuelve | Revisá `SMTP_HOST` (typo, sin `smtp://`) |
 | `[SMTP] Se agotó el tiempo esperando a …` | Conecta pero no responde | Puerto equivocado o filtrado |
+| `[SMTP] El servidor … no ofrece STARTTLS: no se envían las credenciales sin cifrar.` | El servidor no ofrece STARTTLS en ese puerto | Usá 465 (SSL/TLS) o el puerto STARTTLS del proveedor; `SMTP_STARTTLS_REQUIRED=false` sólo en un relay local |
 | `[SMTP] Falló el handshake TLS con …` | Modo TLS equivocado | Probá el otro puerto (587 ↔ 465) |
 | `[NOTIF] SMTP_HOST sin configurar, no se envía el mail …` | No hay SMTP: la cola se drena sin enviar | Configurá SMTP (pasos de arriba) |
 | `[NOTIF] fallo al avisar a x**@…: …` | El servidor aceptó la conexión y rechazó ese destinatario o mensaje | Un `5xx` de destinatario es `FALLIDA` de inmediato; un `4xx` o un corte se reintenta con backoff |

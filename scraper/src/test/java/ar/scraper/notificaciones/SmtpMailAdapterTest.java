@@ -310,4 +310,44 @@ class SmtpMailAdapterTest {
             assertThat(e.mensaje() + e.pista()).doesNotContain("mala");
         }
     }
+
+    @Test
+    @DisplayName("STARTTLS is required on every port but 465 unless the operator opts out")
+    void starttlsObligatorio() {
+        Properties r587 = new SmtpMailAdapter("smtp.example.com", 587, "u", "p", "a@example.com", true).propiedades();
+        Properties r465 = new SmtpMailAdapter("smtp.example.com", 465, "u", "p", "a@example.com", true).propiedades();
+        Properties optOut = new SmtpMailAdapter("smtp.example.com", 25, "", "", "a@example.com", false).propiedades();
+
+        assertThat(r587.getProperty("mail.smtp.starttls.required")).isEqualTo("true");
+        assertThat(r465.getProperty("mail.smtp.starttls.required")).isNotEqualTo("true");
+        assertThat(optOut.getProperty("mail.smtp.starttls.required")).isEqualTo("false");
+    }
+
+    @Test
+    @DisplayName("a server that does not offer STARTTLS never receives the credentials, and nothing is delivered")
+    void sinStarttlsNoSeEnvianCredenciales() throws Exception {
+        try (FakeSmtpServer smtp = new FakeSmtpServer()) {
+            smtp.rechazarCredenciales();
+            SmtpMailAdapter adapter = new SmtpMailAdapter("127.0.0.1", smtp.puerto(), "cuenta@example.com", "secreto", "", true);
+
+            Map<String, Entrega> resultado = adapter.enviar(List.of(new CorreoDirigido("usuario@example.com", CORREO)));
+
+            assertThat(smtp.comandos()).noneMatch(c -> c.toUpperCase().startsWith("AUTH"));
+            assertThat(smtp.mensajes()).isEmpty();
+            assertThat(resultado.get("usuario@example.com").enviada()).isFalse();
+            assertThat(resultado.get("usuario@example.com").permanente()).as("the operator fixes it").isFalse();
+        }
+    }
+
+    @Test
+    @DisplayName("probarConexion against a server without STARTTLS fails and names STARTTLS")
+    void sondeoSinStarttls() throws Exception {
+        try (FakeSmtpServer smtp = new FakeSmtpServer()) {
+            EstadoSmtp e = new SmtpMailAdapter("127.0.0.1", smtp.puerto(), "", "", "avisos@example.com", true).probarConexion();
+
+            assertThat(e.nivel()).isEqualTo(EstadoSmtp.Nivel.FALLO);
+            assertThat(e.mensaje()).contains("STARTTLS");
+            assertThat(e.pista()).contains("SMTP_STARTTLS_REQUIRED");
+        }
+    }
 }

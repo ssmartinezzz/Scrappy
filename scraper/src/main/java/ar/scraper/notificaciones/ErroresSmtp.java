@@ -2,6 +2,7 @@ package ar.scraper.notificaciones;
 
 import jakarta.mail.AuthenticationFailedException;
 import jakarta.mail.MessagingException;
+import org.apache.commons.lang3.StringUtils;
 
 import javax.net.ssl.SSLException;
 import java.net.ConnectException;
@@ -40,6 +41,10 @@ final class ErroresSmtp {
                 return EstadoSmtp.fallo("No se pudo conectar a " + destino + ".",
                         "Revisá SMTP_HOST y SMTP_PORT (" + PUERTOS + ") y que el firewall deje salir esa conexión.");
             }
+        }
+        if (StringUtils.containsIgnoreCase(error.getMessage(), "STARTTLS is required")) {
+            return EstadoSmtp.fallo("El servidor " + destino + " no ofrece STARTTLS: no se envían las credenciales sin cifrar.",
+                    "Usá el puerto 465 (SSL/TLS) o el de STARTTLS del proveedor. SMTP_STARTTLS_REQUIRED=false sólo para un relay local de confianza.");
         }
         return EstadoSmtp.fallo(error.getClass().getSimpleName() + ": " + sinDirecciones(String.valueOf(error.getMessage())),
                 "Revisá el log del backend.");
