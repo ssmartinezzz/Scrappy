@@ -313,6 +313,13 @@ class RestClient:
         encoded = urllib.parse.quote(nombre, safe="")
         return self._request("DELETE", f"/api/sitios/{encoded}")
 
+    def correo_prueba(self, destino: Optional[str] = None) -> dict:
+        """`POST /api/notificaciones/correo-prueba` (ADMIN — the service
+        account is one). Without `destino` the backend uses the caller's own
+        address, which a service account does not have, so callers pass one."""
+        return self._request("POST", "/api/notificaciones/correo-prueba",
+                             json_body={"destino": destino} if destino else {})
+
 
 def build_rest_client(cfg) -> RestClient:
     """A `RestClient` carrying the service-account credentials from `.env`.

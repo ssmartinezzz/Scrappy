@@ -126,3 +126,10 @@ def test_watch_is_registered_with_a_short_alias_and_help():
 
 def test_scrape_advertises_the_watch_flag():
     assert "--watch" in find("scrape").usage
+
+
+def test_mail_is_registered_with_the_smtp_alias_and_a_usage():
+    cmd = find("mail")
+    assert cmd is not None
+    assert find("smtp") is cmd
+    assert "test" in cmd.usage

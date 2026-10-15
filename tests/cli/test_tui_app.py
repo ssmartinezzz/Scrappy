@@ -64,6 +64,10 @@ class _FakeRest:
         self.calls.append(("eliminar_sitio", nombre))
         return {"ok": True}
 
+    def correo_prueba(self, destino=None):
+        self.calls.append(("correo_prueba", destino))
+        return {"ok": True, "mensaje": "Mail de prueba enviado a t**@example.com."}
+
 
 class _FakeProcesses:
     def __init__(self) -> None:
@@ -1210,3 +1214,79 @@ async def test_quitting_closes_the_notice_follower(tmp_path, monkeypatch):
         await _submit(app, pilot, "start")
         await _submit(app, pilot, "quit")
     assert follower.closed.is_set()
+
+
+# -- mail: SMTP setup dialogue ------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_mail_dialogue_masks_the_password_and_keeps_it_out_of_console_and_history(tmp_path):
+    from cli.core.env_file import parse_env
+
+    (tmp_path / ".env").write_text("DATABASE_URL=x\nSMTP_HOST=\n", encoding="utf-8")
+    app, _, _ = _make_app(tmp_path)
+    async with app.run_test() as pilot:
+        prompt = app.query_one("#prompt")
+        await _submit(app, pilot, "mail")
+        assert "Proveedor" in _console_text(app)
+        assert prompt.password is False
+
+        await _submit(app, pilot, "1")
+        await _submit(app, pilot, "cuenta@gmail.com")
+        assert prompt.password is True
+        assert prompt.suggester is None
+
+        await _submit(app, pilot, "clave-super-secreta")
+        assert prompt.password is False
+        assert prompt.suggester is not None
+        await _submit(app, pilot, "")
+        text = _console_text(app)
+        history = list(app.history)
+
+    assert "clave-super-secreta" not in text
+    assert "clave-super-secreta" not in " ".join(history)
+    env = parse_env(tmp_path / ".env")
+    assert env["SMTP_HOST"] == "smtp.gmail.com"
+    assert env["SMTP_PASSWORD"] == "clave-super-secreta"
+    assert env["DATABASE_URL"] == "x"
+    assert "reinici" in text.lower()
+
+
+@pytest.mark.asyncio
+async def test_mail_dialogue_can_be_cancelled_and_writes_nothing(tmp_path):
+    (tmp_path / ".env").write_text("DATABASE_URL=x\n", encoding="utf-8")
+    app, _, _ = _make_app(tmp_path)
+    async with app.run_test() as pilot:
+        await _submit(app, pilot, "mail")
+        await _submit(app, pilot, "1")
+        await _submit(app, pilot, "cancelar")
+        await _submit(app, pilot, "status")
+        text = _console_text(app)
+    assert (tmp_path / ".env").read_text(encoding="utf-8") == "DATABASE_URL=x\n"
+    assert "cancelad" in text.lower()
+    assert "ocioso" in text
+
+
+@pytest.mark.asyncio
+async def test_mail_test_calls_the_backend_and_shows_the_masked_answer(tmp_path):
+    app, rest, _ = _make_app(tmp_path)
+    async with app.run_test() as pilot:
+        await _submit(app, pilot, "mail test titular@example.com")
+        text = _console_text(app)
+    assert ("correo_prueba", "titular@example.com") in rest.calls
+    assert "t**@example.com" in text
+
+
+@pytest.mark.asyncio
+async def test_mail_dialogue_gives_up_after_three_invalid_answers_in_a_row(tmp_path):
+    (tmp_path / ".env").write_text("DATABASE_URL=x\n", encoding="utf-8")
+    app, _, _ = _make_app(tmp_path)
+    async with app.run_test() as pilot:
+        await _submit(app, pilot, "mail")
+        for _ in range(3):
+            await _submit(app, pilot, "9")
+        await _submit(app, pilot, "status")
+        text = _console_text(app)
+    assert "cancelada" in text.lower()
+    assert "ocioso" in text
+    assert (tmp_path / ".env").read_text(encoding="utf-8") == "DATABASE_URL=x\n"

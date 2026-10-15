@@ -10,13 +10,14 @@ Emits plain text only — no ANSI escape codes, no `rich` markup — so it is
 """
 from __future__ import annotations
 
+import getpass
 import sys
 import time
 import webbrowser
 from datetime import datetime, timezone
 from typing import Callable, Optional, TextIO
 
-from cli.core import lan_report, logs
+from cli.core import lan_report, logs, smtp_setup
 from cli.core.builder import build_project, is_built
 from cli.core.commands import find, menu_text
 from cli.core.config import Config
@@ -43,6 +44,22 @@ MENU = (
     "Fashion Scraper -- plain mode (non-interactive terminal detected)\n"
     + menu_text()
 )
+
+
+MAX_RECHAZOS_SEGUIDOS = smtp_setup.MAX_RECHAZOS_SEGUIDOS
+
+
+def _default_secret_reader(in_: TextIO) -> Callable[[str], Optional[str]]:
+    """No-echo input on a real terminal; a plain line read on a pipe, where
+    there is no terminal to echo to (and where tests feed the answers)."""
+
+    def read(prompt: str) -> Optional[str]:
+        if in_ is sys.stdin and in_.isatty():
+            return getpass.getpass(prompt)
+        line = in_.readline()
+        return None if line == "" else line.rstrip("\n")
+
+    return read
 
 
 def _utcnow() -> datetime:
@@ -124,6 +141,7 @@ class PlainRunner:
         flaresolverr: Optional[FlareSolverrService] = None,
         grafana: Optional[GrafanaService] = None,
         notice_follower_factory: Optional[Callable[[RestClient], EventFollower]] = None,
+        secret_reader: Optional[Callable[[str], Optional[str]]] = None,
     ) -> None:
         self.cfg = cfg
         self.follower_factory = follower_factory
@@ -139,6 +157,7 @@ class PlainRunner:
         self.grafana = grafana or GrafanaService()
         self.out = out
         self.in_ = in_
+        self.secret_reader = secret_reader or _default_secret_reader(in_)
         self.opener = opener
         # Set by `start`. `open` follows it instead of APP_OPEN_URL, which
         # records whatever the .env was last frozen at, not this run.
@@ -180,6 +199,43 @@ class PlainRunner:
         for line in render_lines(view, _utcnow()):
             self._print(line)
 
+    def _mail_setup(self) -> None:
+        wizard = smtp_setup.new_wizard(self.cfg.repo_root)
+        self._print(f"Configurar mail (SMTP). Escribí `{smtp_setup.CANCEL_WORD}` para salir.")
+        rechazos = 0
+        while not wizard.done:
+            answer = self._mail_answer(wizard.current())
+            error = None if answer is None else wizard.answer(answer)
+            rechazos = rechazos + 1 if error else 0
+            if error:
+                self._print(error)
+            if answer is None or rechazos >= MAX_RECHAZOS_SEGUIDOS:
+                self._print("Configuración cancelada: .env no se tocó.")
+                return
+        smtp_setup.save(self.cfg.repo_root, wizard)
+        for line in wizard.summary():
+            self._print(f"  {line}")
+        self._print(smtp_setup.RESTART_NOTE)
+
+    def _mail_answer(self, question) -> Optional[str]:
+        """The reply to one wizard question, or None when the user cancels or input ends."""
+        self._print(question.text + (f" [{question.default}]" if question.default else ""))
+        if question.secret:
+            return self.secret_reader(f"{question.text}: ")
+        line = self.in_.readline()
+        if line == "" or line.strip().lower() == smtp_setup.CANCEL_WORD:
+            return None
+        return line.rstrip("\n")
+
+    def _mail(self, args: list[str]) -> None:
+        sub = args[0] if args else "setup"
+        if sub == "setup" and len(args) <= 1:
+            self._mail_setup()
+        elif sub == "test" and len(args) <= 2:
+            self._print(smtp_setup.send_test_mail(self.rest, self.cfg.repo_root, args[1] if len(args) > 1 else None))
+        else:
+            self._print(f"Usage: {find('mail').usage}")
+
     def _env(self) -> dict:
         return parse_env(self.cfg.repo_root / ".env")
 
@@ -209,7 +265,7 @@ class PlainRunner:
                 mode = args[0] if args else LOCAL
                 preflight(mode, proxy=self.lan_proxy)
                 if not is_built(self.cfg):
-                    self._print("jar/frontend ausente — compilando primero…")
+                    self._print("jar/frontend ausente o desactualizado — compilando primero…")
                     build_project(self.cfg)
                 env = self._env()
                 # After the build: apply_mode writes into frontend/dist.
@@ -257,6 +313,8 @@ class PlainRunner:
                 self._print(cmd_list_sitios(self.rest))
             elif name == "logs":
                 self._print(cmd_logs(self.cfg, *args[:2]))
+            elif name == "mail":
+                self._mail(args)
             elif name == "grafana":
                 self._print(describe_grafana(self.grafana.info(self.cfg)))
             elif name == "open":
