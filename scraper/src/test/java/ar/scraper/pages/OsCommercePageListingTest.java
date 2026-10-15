@@ -47,6 +47,39 @@ class OsCommercePageListingTest {
     private static final String NAV = readFixture("nav.html");
 
     @Test
+    @DisplayName("sin stock a $999.999 es el placeholder de Venex, no un precio: la card se descarta")
+    void descartaElPlaceholderSinStock() {
+        // Medido en /componentes-de-pc/microprocesadores (2026-10-15): el Ryzen 9 7900X3D sin
+        // stock figuraba a 999999, y en agosto ~40 productos Fantech pasaron un dia a 999999 y
+        // volvieron a $11k-$150k, con historial y bajas falsas de -99%.
+        List<Product> result = OsCommercePage.parseListing(
+                cardVenex("17362", "Microprocesador CPU AMD Ryzen 9 7900X3D", "999999", true),
+                "Venex", BASE_URL, "Microprocesadores", MIN, MAX);
+
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    @DisplayName("con stock, $999.999 es un precio real (el combo RX 9060 XT) y se guarda")
+    void conservaNueveNueveNueveConStock() {
+        List<Product> result = OsCommercePage.parseListing(
+                cardVenex("21635", "Combo ASUS RX 9060 XT 16GB Dual + Fuente ASUS Prime 650W", "999999", false),
+                "Venex", BASE_URL, "Combos de Actualizacion", MIN, MAX);
+
+        assertThat(result).extracting(Product::precio).containsExactly(999999.0);
+    }
+
+    @Test
+    @DisplayName("sin stock con un precio normal se sigue guardando")
+    void conservaSinStockConPrecioNormal() {
+        List<Product> result = OsCommercePage.parseListing(
+                cardVenex("18778", "Microprocesador Intel Core i5", "157799", true),
+                "Venex", BASE_URL, "Microprocesadores", MIN, MAX);
+
+        assertThat(result).extracting(Product::precio).containsExactly(157799.0);
+    }
+
+    @Test
     @DisplayName("una pagina leaf de 12 items rinde 12 productos")
     void parsesTwelveItemsFromOnePage() {
         List<Product> result = OsCommercePage.parseListing(
@@ -270,6 +303,21 @@ class OsCommercePageListingTest {
      * Venex renders every listing item from one template, so the fixtures keep
      * that template once ({@code product-box.html}) plus one row per product.
      */
+    /** One listing card as venex.com.ar serves it, with the "Sin stock" label where the site puts it. */
+    private static String cardVenex(String id, String nombre, String precio, boolean sinStock) {
+        return """
+                <div class="product-box" >
+                    <div class="product-box-media">
+                        <a href="https://www.venex.com.ar/p/%s.html" onclick='enhancedClick({"id":"%s","name":"%s","category":"X","brand":"B","price":"%s","list":"Listado de Productos","position":"1"})'>
+                            <img src="products_images/thumb/%s.jpg">
+                            %s
+                        </a>
+                    </div>
+                </div>
+                """.formatted(id, id, nombre, precio, id,
+                sinStock ? "<span class=\"label label-no-stock\">Sin stock</span>" : "");
+    }
+
     private static String listingPage(String beforeListing, String productsTsv) {
         String box = readFixture("product-box.html");
         List<String> rows = readFixture(productsTsv).lines()

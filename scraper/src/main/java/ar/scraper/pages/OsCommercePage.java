@@ -131,6 +131,13 @@ public class OsCommercePage extends StorePage implements CatalogPage {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
+    /**
+     * Venex parks some out-of-stock products at $999.999 instead of their price. In stock, the same
+     * figure is a real price (a GPU + PSU combo), so only the pair of both signals is dropped.
+     */
+    private static final double PRECIO_PLACEHOLDER = 999_999;
+    private static final String SIN_STOCK = "label-no-stock";
+
     private static String normalizeQuotedEntities(String html) {
         return html.replace("&quot;", "\"").replace("&#39;", "'").replace("&apos;", "'");
     }
@@ -168,6 +175,7 @@ public class OsCommercePage extends StorePage implements CatalogPage {
                 continue;
             }
             if (precio <= 0 || precio < precioMin || precio > precioMax) continue;
+            if (precio == PRECIO_PLACEHOLDER && card.contains(SIN_STOCK)) continue;
 
             String img = ImageUrl.primera(IMG, card, baseUrl);
 
