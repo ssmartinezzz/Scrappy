@@ -289,14 +289,11 @@ arranque, así un cambio de rol server-side aparece dentro de una vida de token
   `PUT /api/usuarios/{username}/rol`, `DELETE /api/usuarios/{username}`,
   `PUT /api/usuarios/{username}/activar`, `PUT /api/usuarios/{username}/email`) y tiene
   pantalla (`UsuariosAdminPanel`). Es ADMIN-only.
-- **El email de una cuenta existente se edita por API**: el ADMIN con
-  `PUT /api/usuarios/{username}/email`, y cada cuenta la propia con
-  `PUT /api/cuenta/email`, que **exige la contraseña actual** porque la dirección es el
-  canal de reseteo (un access token robado no alcanza para redirigirlo). Un `403` de ese
-  endpoint es `password_incorrecta`, a propósito no `401`: el cliente lee un `401` como
-  sesión vencida. No revoca las sesiones (la contraseña acaba de verificarse); sí anula los
-  links de reseteo ya emitidos a la dirección vieja. Las cuentas de servicio siguen sin
-  email (`409 cuenta_de_servicio`).
+- **El email de una cuenta existente sólo lo edita un ADMIN** (`PUT /api/usuarios/{username}/email`,
+  o el lápiz en `UsuariosAdminPanel`); **no hay autoservicio** y es decisión de producto. Una cuenta
+  sin email lo ve en `/favoritos` como "pedile a un administrador que cargue tu email". Cambiarlo
+  revoca los refresh tokens de esa cuenta y anula sus links de reseteo pendientes (ver
+  [`API_REFERENCE.md`](./API_REFERENCE.md)). Las cuentas de servicio siguen sin email.
 - **Cambiar `ADMIN_BOOTSTRAP_PASSWORD` y reiniciar no cambia la password** de una
   cuenta ya creada. El seeder nunca pisa un hash existente.
 

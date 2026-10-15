@@ -333,7 +333,7 @@ public class UsuarioRepository {
 
     private record FilaDeEmail(UUID id, boolean esServicio, String email) {}
 
-    public enum ResultadoEmail { CAMBIADO, TOMADO, ES_SERVICIO, NO_EXISTE }
+    public enum ResultadoEmail { CAMBIADO, SIN_CAMBIO, TOMADO, ES_SERVICIO, NO_EXISTE }
 
     /**
      * The address is the password-reset channel, so a new one annuls the reset links already
@@ -357,7 +357,7 @@ public class UsuarioRepository {
                 return ResultadoEmail.ES_SERVICIO;
             }
             if (Objects.equals(email, fila.email())) {
-                return ResultadoEmail.CAMBIADO;
+                return ResultadoEmail.SIN_CAMBIO;
             }
             if (email != null && jdbc.queryForObject(
                     "SELECT EXISTS (SELECT 1 FROM usuario WHERE email = ?)", Boolean.class, email)) {

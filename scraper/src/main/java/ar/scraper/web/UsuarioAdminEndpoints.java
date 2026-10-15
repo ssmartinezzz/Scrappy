@@ -154,7 +154,13 @@ public class UsuarioAdminEndpoints {
         if (body == null || !body.containsKey("email")) {
             throw error(400, "faltan_campos", "email es obligatorio (null para quitarlo).");
         }
-        DireccionDeCorreo.exigirCambiado(usuarios.cambiarEmail(username, DireccionDeCorreo.normalizar(body.get("email"))));
+        String nuevo = DireccionDeCorreo.normalizar(body.get("email"));
+        UUID id = usuarios.buscarActivaPorUsername(username).map(UsuarioRepository.Cuenta::id).orElse(null);
+        UsuarioRepository.ResultadoEmail resultado = usuarios.cambiarEmail(username, nuevo);
+        DireccionDeCorreo.exigirCambiado(resultado);
+        if (resultado == UsuarioRepository.ResultadoEmail.CAMBIADO && id != null) {
+            sesiones.revocarTodasLasDe(id);
+        }
         LOG.info("[ADMIN] '{}' cambió el email de '{}'", actorResolver.current(), username);
         return ok("Email actualizado.");
     }

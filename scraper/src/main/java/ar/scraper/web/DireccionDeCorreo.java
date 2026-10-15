@@ -37,7 +37,7 @@ public final class DireccionDeCorreo {
 
     public static void exigirCambiado(ResultadoEmail resultado) {
         switch (resultado) {
-            case CAMBIADO -> { }
+            case CAMBIADO, SIN_CAMBIO -> { }
             case TOMADO -> throw new ApiException(HttpStatus.CONFLICT, "email_no_disponible",
                     "Esa dirección no está disponible.");
             case ES_SERVICIO -> throw new ApiException(HttpStatus.CONFLICT, "cuenta_de_servicio",

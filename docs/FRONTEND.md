@@ -61,10 +61,8 @@ El estado no se movió: `savedOutfits`/`savedPcs` ya vivían en el reducer de
 (`AvisosBajaPrecio`, entrado a `FavoritosPanel` por la prop `avisos` desde `FavoritosRoute`): un
 checkbox "Avisarme por mail cuando un favorito baje más de 5%" contra
 `GET`/`PUT /api/notificaciones/preferencia`. No se renderiza mientras la preferencia es
-desconocida. Una cuenta sin email ve en cambio la invitación "Sumá tu email…" con el botón
-**Agregar email**; con email, el checkbox va acompañado de la dirección y de **Cambiar email**.
-Ambos abren el mismo formulario (email + contraseña actual, `PUT /api/cuenta/email`; **Quitar email**
-manda `null`) y muestran tal cual el motivo que devuelve el backend. Si el guardado falla conserva el
+desconocida. Una cuenta sin email ve en cambio "Para recibir avisos, pedile a un administrador que
+cargue tu email" (sin formulario: el email lo carga sólo un ADMIN desde `/admin/manage/users`). Si el guardado falla conserva el
 valor anterior y lo dice. Es el destino del enlace del pie del mail.
 `/apidocs` — **Consola API**, pública y **sin entrada en el nav**: no hay
 botón ni link en ninguna parte de la app, para ningún rol. Se llega tipeando

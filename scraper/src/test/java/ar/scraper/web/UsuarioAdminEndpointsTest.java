@@ -302,6 +302,25 @@ class UsuarioAdminEndpointsTest extends PostgresTestBase {
     }
 
     @Test
+    @DisplayName("a new address revokes the account's refresh sessions; re-saving the same one does not")
+    void cambiarEmailRevocaSesiones() {
+        crear("viewer-uno", "uno@example.com", "una-password-larga", "VIEWER");
+        var cuenta = usuarios.buscarActivaPorUsername("viewer-uno").orElseThrow();
+        RefreshTokenService.Sesion intacta = sesiones.abrir(cuenta.id());
+
+        Wire.answer(() -> endpoints.cambiarEmail("viewer-uno", Map.of("email", "uno@example.com")));
+        assertThat(sesiones.rotar(intacta.refreshToken(), intacta.csrfNonce()))
+                .as("a no-op must not log the user out").isNotInstanceOf(RefreshTokenService.Rechazada.class);
+
+        RefreshTokenService.Sesion vieja = sesiones.abrir(cuenta.id());
+        Wire.answer(() -> endpoints.cambiarEmail("viewer-uno", Map.of("email", "nuevo@example.com")));
+
+        assertThat(sesiones.rotar(vieja.refreshToken(), vieja.csrfNonce()))
+                .as("the reset channel changed hands: a session captured before that must not survive it")
+                .isInstanceOf(RefreshTokenService.Rechazada.class);
+    }
+
+    @Test
     @DisplayName("a body without the email key is 400: omission never clears an address")
     void sinClaveNoLimpia() {
         crear("viewer-uno", "uno@example.com", "una-password-larga", "VIEWER");

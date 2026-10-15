@@ -63,7 +63,7 @@ class UsuarioRepositoryEmailTest extends PostgresTestBase {
     void propioNoEsConflicto() {
         repo.cambiarEmail("viewer", "viewer@example.com");
 
-        assertThat(repo.cambiarEmail("viewer", "viewer@example.com")).isEqualTo(ResultadoEmail.CAMBIADO);
+        assertThat(repo.cambiarEmail("viewer", "viewer@example.com")).isEqualTo(ResultadoEmail.SIN_CAMBIO);
     }
 
     @Test
@@ -73,7 +73,7 @@ class UsuarioRepositoryEmailTest extends PostgresTestBase {
         repo.asignarRol("servicio", "ADMIN");
 
         assertThat(repo.cambiarEmail("servicio", "servicio@example.com")).isEqualTo(ResultadoEmail.ES_SERVICIO);
-        assertThat(repo.cambiarEmail("servicio", null)).isEqualTo(ResultadoEmail.CAMBIADO);
+        assertThat(repo.cambiarEmail("servicio", null)).isEqualTo(ResultadoEmail.SIN_CAMBIO);
     }
 
     @Test

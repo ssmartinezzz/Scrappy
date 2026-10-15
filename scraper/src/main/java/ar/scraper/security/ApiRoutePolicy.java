@@ -150,11 +150,7 @@ public final class ApiRoutePolicy {
                     List.of("/api/favoritos"), Access.AUTHENTICATED, "own rows only"),
             new RoutePolicy(Set.of(HttpMethod.GET, HttpMethod.PUT),
                     List.of("/api/notificaciones/preferencia"), Access.AUTHENTICATED,
-                    "own flag only; the subject comes from the token, never from the request"),
-            new RoutePolicy(Set.of(HttpMethod.GET), List.of("/api/cuenta"), Access.AUTHENTICATED,
-                    "own account only"),
-            new RoutePolicy(Set.of(HttpMethod.PUT), List.of("/api/cuenta/email"), Access.AUTHENTICATED,
-                    "own account only; re-verifies the password because the address is the reset channel")
+                    "own flag only; the subject comes from the token, never from the request")
 
     );
 

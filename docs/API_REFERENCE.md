@@ -433,35 +433,27 @@ inválido se descarta antes de tocar la base y los `POST` de un proveedor llegan
 compartidas, así que un tope por IP cortaría bajas legítimas.
 
 
-## GET /cuenta · PUT /cuenta/email
-
-La cuenta propia. **Cualquier rol**, siempre sobre el sujeto del token.
-
-| | |
-|---|---|
-| `GET /cuenta` | `data: { username, email, esServicio }`; `email` es `null` si no tiene |
-| `PUT /cuenta/email` | Body `{ "password": "...", "email": "x@y.z" \| null }`. `null` (o vacío) quita la dirección. Responde la cuenta nueva |
-| `400 faltan_campos` | Falta `password` o la clave `email`: omitir nunca borra |
-| `400 email_invalido` | No es una dirección (se guarda en minúsculas, máx. 254) |
-| `403 password_incorrecta` | **403 y no 401**: el cliente lee un 401 como sesión vencida |
-| `409 email_no_disponible` | Otra cuenta ya tiene esa dirección. No dice cuál |
-| `409 cuenta_de_servicio` | `chk_usuario_servicio_sin_email`: las cuentas de servicio no tienen email |
-| `429 demasiados_intentos` | 5 contraseñas erróneas en 15 min. Presupuesto propio, separado del login |
-
-La dirección es el canal de reseteo, por eso la contraseña se vuelve a pedir. **No revoca las
-sesiones** (la contraseña acaba de verificarse; cambiar la contraseña sí las revoca porque ahí
-la credencial es lo que se filtró) pero **sí anula los links de reseteo** emitidos a la dirección
-vieja. El `409 email_no_disponible` confirma que la dirección existe en el sistema: queda
-acotado a quien tiene sesión y la contraseña, y al límite de intentos.
-
 ## /usuarios — administración de cuentas
 
 **Sólo ADMIN.** La pantalla es `UsuariosAdminPanel` (`/admin/manage/users`); todo también se maneja por `curl`.
 
-`PUT /usuarios/{username}/email` — body `{ "email": "x@y.z" | null }`; `null` la quita. Sin
-contraseña (es un ADMIN actuando sobre otra cuenta). Mismos `400 email_invalido`,
-`409 email_no_disponible` y `409 cuenta_de_servicio` que `PUT /cuenta/email`; `404 no_existe`;
-`400 faltan_campos` si falta la clave. Anula los links de reseteo emitidos a la dirección vieja.
+`PUT /usuarios/{username}/email` — body `{ "email": "x@y.z" | null }`; `null` la quita. **Es la única
+vía para cargar o cambiar un email: no hay autoservicio** (decisión de producto). Se guarda en
+minúsculas.
+
+| | |
+|---|---|
+| `400 faltan_campos` | Falta la clave `email`: omitirla nunca borra |
+| `400 email_invalido` | No es una dirección (máx. 254) |
+| `404 no_existe` | No existe la cuenta |
+| `409 email_no_disponible` | Otra cuenta ya tiene esa dirección. No dice cuál |
+| `409 cuenta_de_servicio` | `chk_usuario_servicio_sin_email`: las cuentas de servicio no tienen email (quitarlo sí se puede) |
+
+Si la dirección cambia de verdad (no si se reenvía la misma) se **anulan los links de reseteo**
+emitidos a la anterior y se **revocan los refresh tokens** de la cuenta, igual que `DELETE`: la
+dirección es el canal de reseteo, y quien cambia el canal suele estar recuperando una cuenta
+comprometida; una sesión capturada antes no debe sobrevivirlo. Cuesta un re-login. Cambiar el rol
+no revoca; esto sí porque toca la recuperación de la cuenta.
 
 **Nacieron gateados.** La regla ADMIN para `/api/usuarios/**` estaba en
 `ApiRoutePolicy.TABLE` desde el slice de enforcement, **matcheando nada**, un

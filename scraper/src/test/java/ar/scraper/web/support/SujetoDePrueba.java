@@ -58,15 +58,6 @@ public final class SujetoDePrueba {
         return id;
     }
 
-    /** For a subject that already exists in the database under a name of its own. */
-    public static void entrarComo(UUID id, String username, String rol) {
-        SecurityContextHolder.getContext().setAuthentication(
-                new UsernamePasswordAuthenticationToken(
-                        new AuthenticatedSubject(id, username),
-                        null,
-                        List.of(new SimpleGrantedAuthority("ROLE_" + rol))));
-    }
-
     /** Must run after every test: the context is a thread-local and leaks between them. */
     public static void salir() {
         SecurityContextHolder.clearContext();
