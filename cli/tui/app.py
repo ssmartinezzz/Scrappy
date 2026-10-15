@@ -73,6 +73,7 @@ HEALTH_REFRESH_SECONDS = 2.0
 STARTUP_GRACE_SECONDS = 1.5
 
 BANNER = "scrappy · consola nativa — `help` lista todo"
+PROMPT = "#prompt"
 
 
 class Prompt(Input):
@@ -269,7 +270,7 @@ class ScrappyConsole(App):
         immediate refresh, then every `HEALTH_REFRESH_SECONDS` so services
         flip ○ -> ● as they come up."""
         self._emit("info", BANNER)
-        self.query_one("#prompt", Prompt).focus()
+        self.query_one(PROMPT, Prompt).focus()
         self._refresh_health()
         self.set_interval(HEALTH_REFRESH_SECONDS, self._refresh_health)
 
@@ -344,7 +345,7 @@ class ScrappyConsole(App):
         if not self.history:
             return
         self._history_pos = max(0, min(len(self.history), self._history_pos + delta))
-        prompt = self.query_one("#prompt", Prompt)
+        prompt = self.query_one(PROMPT, Prompt)
         prompt.value = (
             "" if self._history_pos >= len(self.history) else self.history[self._history_pos]
         )
@@ -599,7 +600,7 @@ class ScrappyConsole(App):
 
     def _wizard_ask(self) -> None:
         question = self._wizard.current()
-        prompt = self.query_one("#prompt", Prompt)
+        prompt = self.query_one(PROMPT, Prompt)
         self._emit("info", question.text + (f" [{question.default}]" if question.default else ""))
         # A secret is never echoed, never offered a completion (a suggester
         # would ghost-print what is being typed) and never kept in history.
@@ -613,7 +614,7 @@ class ScrappyConsole(App):
             self._prompt_suggester = None
 
     def _wizard_end(self) -> None:
-        prompt = self.query_one("#prompt", Prompt)
+        prompt = self.query_one(PROMPT, Prompt)
         prompt.password = False
         if self._prompt_suggester is not None:
             prompt.suggester = self._prompt_suggester

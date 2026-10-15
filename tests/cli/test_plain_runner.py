@@ -735,13 +735,15 @@ def test_mail_setup_writes_the_smtp_keys_and_keeps_the_rest_of_the_env(tmp_path)
     r.dispatch("mail")
 
     env = parse_env(tmp_path / ".env")
-    assert env["SMTP_HOST"] == "smtp.gmail.com" and env["SMTP_PORT"] == "587"
+    assert env["SMTP_HOST"] == "smtp.gmail.com"
+    assert env["SMTP_PORT"] == "587"
     assert env["SMTP_USERNAME"] == "cuenta@gmail.com"
     assert env["SMTP_PASSWORD"] == "abcdefghijklmnop"
     assert env["SMTP_FROM_ADDRESS"] == "cuenta@gmail.com"
     assert env["DATABASE_URL"] == "jdbc:postgresql://localhost:5432/scraper"
     assert "# keep" in (tmp_path / ".env").read_text(encoding="utf-8")
-    assert "stop" in out.getvalue() and "mail test" in out.getvalue()
+    assert "stop" in out.getvalue()
+    assert "mail test" in out.getvalue()
 
 
 def test_mail_setup_reads_the_password_through_the_secret_reader_and_never_prints_it(tmp_path):
@@ -756,7 +758,8 @@ def test_mail_setup_reads_the_password_through_the_secret_reader_and_never_print
 
     r.dispatch("mail")
 
-    assert len(leidos) == 1 and "contraseña" in leidos[0].lower()
+    assert len(leidos) == 1
+    assert "contraseña" in leidos[0].lower()
     assert "clave-super-secreta" not in out.getvalue()
     assert "clave-super-secreta" not in repr(r.in_.getvalue())
 
@@ -835,7 +838,8 @@ def test_mail_with_an_unknown_subcommand_prints_usage(tmp_path):
 
     r.dispatch("mail frobnicate")
 
-    assert rest.calls == [] and "mail [setup|test" in out.getvalue()
+    assert rest.calls == []
+    assert "mail [setup|test" in out.getvalue()
 
 
 def test_mail_after_a_setup_reminds_that_the_backend_needs_a_restart(tmp_path):

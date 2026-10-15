@@ -25,7 +25,8 @@ def test_gmail_asks_provider_user_password_and_from_in_that_order():
         assert wizard.answer(respuesta) is None
 
     assert claves == ["PROVEEDOR", "SMTP_USERNAME", "SMTP_PASSWORD", "SMTP_FROM_ADDRESS"]
-    assert wizard.done and wizard.current() is None
+    assert wizard.done
+    assert wizard.current() is None
 
 
 def test_gmail_preset_fills_host_and_port_and_defaults_from_to_the_username():
@@ -122,7 +123,8 @@ def test_the_gmail_question_explains_the_app_password_in_one_line():
     _run(wizard, ["1", "cuenta@gmail.com"])
 
     texto = wizard.current().text.lower()
-    assert "contraseña de aplicación" in texto and "\n" not in texto
+    assert "contraseña de aplicación" in texto
+    assert "\n" not in texto
 
 
 def test_a_known_public_origin_becomes_the_api_base_url():

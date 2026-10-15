@@ -29,8 +29,8 @@ SELECT u.ids[1 + g % 100],
        CASE WHEN g % 2 = 0 THEN t.cuando END,
        CASE WHEN g % 2 = 0 THEN NULL ELSE '550 no such user' END
 FROM u, generate_series(1, :filas) g,
-     LATERAL (SELECT CASE WHEN random() < :viejas THEN now() - interval '45 days' - (g % 1000) * interval '1 minute'
-                          ELSE now() - interval '2 days' - (g % 1000) * interval '1 minute' END AS cuando) t;
+     LATERAL (SELECT now() - CASE WHEN random() < :viejas THEN interval '45 days' ELSE interval '2 days' END
+                           - (g % 1000) * interval '1 minute' AS cuando) t;
 
 ANALYZE notificacion_precio;
 SELECT count(*) AS sembradas,
