@@ -30,6 +30,7 @@ cuarto** — ni `CLAUDE.md` ni `ARCHITECTURE.md` guardan una segunda copia.
 | [`docs/LLM_EMBED.md`](./docs/LLM_EMBED.md) | El agente desde Java: costura `ChatProvider`, loop acotado, tools, y las 8 reglas que lo gobiernan | Al tocar `ar.scraper.agent`, el write path de reclasificación o la UI del chat |
 | [`docs/LLM_AGENT_SETUP.md`](./docs/LLM_AGENT_SETUP.md) | Instalar Ollama y configurar las variables `LLM_*` | Al levantar el agente por primera vez o cambiar de proveedor |
 | [`docs/LAN_HTTPS_SETUP.md`](./docs/LAN_HTTPS_SETUP.md) | Servir el dashboard a un celular u otro dispositivo de la red, por HTTPS: certificado, proxy que termina TLS, los **dos** `.env` de orígenes | Al probar desde otro dispositivo, o antes de armar el TLS de un deploy real |
+| [`docs/EMAIL_ALERTS.md`](./docs/EMAIL_ALERTS.md) | Puesta en marcha de los avisos de baja de precio por mail: proveedores y contraseñas de aplicación, qué hace cada `NOTIFICACIONES_*`, cómo verificar con el mail de prueba y qué hacer según la línea de log | Al activar los avisos, al cambiar de proveedor SMTP o cuando un aviso no llega |
 | [`docs/STRUCTURE.md`](./docs/STRUCTURE.md) | Árbol comentado de archivos y paquetes | Al ubicar dónde vive algo |
 | [`docs/SITES.md`](./docs/SITES.md) | Sitios configurados, plataformas, rubros, detección de plataforma | Al tocar un sitio o scraper |
 | [`docs/GROUPING.md`](./docs/GROUPING.md) | Agrupado de `/api/grupos`: criterio de mismo producto, guardas, medición | Al tocar `ar.scraper.aggregator.grouping` |
