@@ -209,7 +209,7 @@ class PlainRunner:
                 mode = args[0] if args else LOCAL
                 preflight(mode, proxy=self.lan_proxy)
                 if not is_built(self.cfg):
-                    self._print("jar/frontend ausente — compilando primero…")
+                    self._print("jar/frontend ausente o desactualizado — compilando primero…")
                     build_project(self.cfg)
                 env = self._env()
                 # After the build: apply_mode writes into frontend/dist.

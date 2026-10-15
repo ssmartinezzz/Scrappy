@@ -2,6 +2,7 @@
 build-time export ordering hazard (tasks.md 1.4.1-1.4.2)."""
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pytest
@@ -180,3 +181,93 @@ def test_is_built_false_when_jar_missing(tmp_path: Path):
     (tmp_path / "frontend" / "dist").mkdir()  # dist present, jar absent
 
     assert builder.is_built(_cfg(tmp_path)) is False
+
+
+def _built_project(root: Path, *, build_time: float = 1000.0) -> None:
+    """A built tree: jar and dist stamped `build_time`, one source file of each
+    kind older than that."""
+    files = {
+        root / "scraper" / "scraper.jar": "jar",
+        root / "scraper" / "pom.xml": "<project/>",
+        root / "scraper" / "src" / "main" / "java" / "App.java": "class App {}",
+        root / "frontend" / "dist" / "index.html": "<html/>",
+        root / "frontend" / "package.json": "{}",
+        root / "frontend" / "index.html": "<html/>",
+        root / "frontend" / "src" / "main.jsx": "x",
+    }
+    for path, text in files.items():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+        os.utime(path, (build_time - 100, build_time - 100))
+    for artifact in (root / "scraper" / "scraper.jar", root / "frontend" / "dist" / "index.html"):
+        os.utime(artifact, (build_time, build_time))
+
+
+def _touch(path: Path, mtime: float) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("edit", encoding="utf-8")
+    os.utime(path, (mtime, mtime))
+
+
+def test_is_built_true_when_artifacts_are_newer_than_every_source(tmp_path: Path):
+    _built_project(tmp_path)
+
+    assert builder.is_built(_cfg(tmp_path)) is True
+
+
+@pytest.mark.parametrize(
+    "stale_file",
+    [
+        "scraper/src/main/java/ar/scraper/Nueva.java",
+        "scraper/src/main/resources/application.properties",
+        "scraper/pom.xml",
+    ],
+)
+def test_is_built_false_when_a_backend_source_is_newer_than_the_jar(tmp_path: Path, stale_file: str):
+    _built_project(tmp_path)
+    _touch(tmp_path / stale_file, 2000.0)
+
+    assert builder.is_built(_cfg(tmp_path)) is False
+
+
+@pytest.mark.parametrize(
+    "stale_file",
+    ["frontend/src/components/Nuevo.jsx", "frontend/package.json", "frontend/index.html"],
+)
+def test_is_built_false_when_a_frontend_source_is_newer_than_dist(tmp_path: Path, stale_file: str):
+    _built_project(tmp_path)
+    _touch(tmp_path / stale_file, 2000.0)
+
+    assert builder.is_built(_cfg(tmp_path)) is False
+
+
+def test_is_built_ignores_test_sources_because_the_jar_is_built_without_them(tmp_path: Path):
+    _built_project(tmp_path)
+    _touch(tmp_path / "scraper" / "src" / "test" / "java" / "NuevoTest.java", 2000.0)
+
+    assert builder.is_built(_cfg(tmp_path)) is True
+
+
+def test_is_built_is_not_fooled_by_config_js_rewritten_at_every_start(tmp_path: Path):
+    _built_project(tmp_path)
+    _touch(tmp_path / "frontend" / "dist" / "config.js", 5000.0)
+
+    assert builder.is_built(_cfg(tmp_path)) is True
+
+
+def test_is_built_stops_at_the_first_stale_file_without_walking_the_rest(tmp_path: Path, monkeypatch):
+    _built_project(tmp_path)
+    _touch(tmp_path / "scraper" / "pom.xml", 2000.0)
+    for n in range(50):
+        (tmp_path / "scraper" / "src" / "main" / f"F{n}.java").write_text("x", encoding="utf-8")
+    stats = []
+    real = os.stat
+
+    def counting(path, *a, **k):
+        stats.append(str(path))
+        return real(path, *a, **k)
+
+    monkeypatch.setattr(builder.os, "stat", counting)
+
+    assert builder.is_built(_cfg(tmp_path)) is False
+    assert not any("F0.java" in s or "F49.java" in s for s in stats)

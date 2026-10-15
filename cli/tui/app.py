@@ -412,7 +412,7 @@ class ScrappyConsole(App):
         preflight(mode, proxy=self.lan_proxy)
         if not builder.is_built(self.cfg):
             self.call_from_thread(
-                self._emit, "info", "jar/dist ausente — compilando primero…"
+                self._emit, "info", "jar/dist ausente o desactualizado — compilando primero…"
             )
             builder.build_project(self.cfg)
             self.call_from_thread(self._refresh_health)

@@ -32,13 +32,65 @@ def _default_runner(cmd: Sequence[str], *, cwd: Path, env: dict) -> "subprocess.
     return subprocess.run(list(cmd), cwd=str(cwd), env=env, check=True)
 
 
+def _mtime(path: Path) -> Optional[float]:
+    try:
+        return os.stat(path).st_mtime
+    except OSError:
+        return None
+
+
+def _newer_than(stamp: float, files: Sequence[Path], trees: Sequence[Path]) -> bool:
+    """True as soon as one file, or one file under a tree, is newer than
+    `stamp`. Single and early-exiting, so the common "nothing changed" answer
+    costs one stat per source and a stale tree costs almost nothing."""
+    for path in files:
+        mtime = _mtime(path)
+        if mtime is not None and mtime > stamp:
+            return True
+    for tree in trees:
+        for folder, _dirs, names in os.walk(tree):
+            for name in names:
+                mtime = _mtime(Path(folder) / name)
+                if mtime is not None and mtime > stamp:
+                    return True
+    return False
+
+
 def is_built(cfg: Config) -> bool:
-    """True when both build artifacts already exist: the backend fat jar
-    (`scraper/scraper.jar`) and the frontend build (`frontend/dist`). Used
-    by the Start action to auto-build only when something is missing."""
-    return (cfg.repo_root / "scraper" / "scraper.jar").is_file() and (
-        cfg.repo_root / "frontend" / "dist"
-    ).is_dir()
+    """True when both build artifacts exist AND are newer than what they were
+    built from. Used by the Start action to build when something is missing
+    or stale: a source edited after the last build (a `git pull`, a branch
+    switch) used to leave the old jar running with nothing to say so.
+
+    The backend jar is checked against `scraper/src/main` and `pom.xml` —
+    not `src/test`, which `-DskipTests` keeps out of the jar. The frontend
+    bundle is stamped by `dist/index.html`, not `dist/` itself, because the
+    launcher rewrites `dist/config.js` on every start.
+    """
+    root = cfg.repo_root
+    jar = root / "scraper" / "scraper.jar"
+    dist = root / "frontend" / "dist"
+    if not jar.is_file() or not dist.is_dir():
+        return False
+
+    jar_stamp = _mtime(jar)
+    if jar_stamp is not None and _newer_than(
+        jar_stamp, [root / "scraper" / "pom.xml"], [root / "scraper" / "src" / "main"]
+    ):
+        return False
+
+    bundle_stamp = _mtime(dist / "index.html")
+    if bundle_stamp is None:
+        bundle_stamp = _mtime(dist)
+    frontend = root / "frontend"
+    return not (
+        bundle_stamp is not None
+        and _newer_than(
+            bundle_stamp,
+            [frontend / "package.json", frontend / "index.html"],
+            [frontend / "src"],
+        )
+    )
 
 
 def _npm_cmd(cfg: Config) -> str:
