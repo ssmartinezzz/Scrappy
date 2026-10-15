@@ -3,6 +3,7 @@ package ar.scraper.db;
 import ar.scraper.notificaciones.BajaReclamada;
 import ar.scraper.notificaciones.FalloDeEnvio;
 import ar.scraper.notificaciones.NotificacionOutboxPort;
+import ar.scraper.notificaciones.Reclamo;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
@@ -73,11 +74,11 @@ public class NotificacionOutboxRepository implements NotificacionOutboxPort {
                  WHERE n.usuario_id = d.id AND u.id = d.id AND p.url = n.url
                    AND n.estado = 'PENDIENTE' AND n.proximo_intento_at <= now() AND n.intentos < ?
                 RETURNING n.id, n.usuario_id, u.email, n.url, p.nombre, p.sitio,
-                          n.precio_anterior, n.precio_nuevo
+                          n.precio_anterior, n.precio_nuevo, n.intentos
                 """, (rs, i) -> new BajaReclamada(
                 rs.getLong("id"), rs.getObject("usuario_id", UUID.class), rs.getString("email"),
                 rs.getString("url"), rs.getString("nombre"), rs.getString("sitio"),
-                rs.getDouble("precio_anterior"), rs.getDouble("precio_nuevo")),
+                rs.getDouble("precio_anterior"), rs.getDouble("precio_nuevo"), rs.getInt("intentos")),
                 maxIntentos, destinatarios, lease.toMillis() / 1000.0, lease.toMillis() / 1000.0, maxIntentos);
     }
 
@@ -100,19 +101,23 @@ public class NotificacionOutboxRepository implements NotificacionOutboxPort {
     }
 
     @Override
-    public void marcarEnviadas(Collection<Long> ids) {
-        if (ids.isEmpty()) return;
+    public void marcarEnviadas(Collection<Reclamo> reclamos) {
+        if (reclamos.isEmpty()) return;
+        Long[] ids = reclamos.stream().map(Reclamo::id).toArray(Long[]::new);
+        Integer[] intentos = reclamos.stream().map(Reclamo::intentos).toArray(Integer[]::new);
         jdbc.update("""
-                UPDATE notificacion_precio
+                UPDATE notificacion_precio n
                    SET estado = 'ENVIADA', enviada_at = now(), ultimo_error = NULL, lease_hasta = NULL
-                 WHERE id = ANY(?) AND estado = 'PENDIENTE'
-                """, (Object) ids.toArray(Long[]::new));
+                  FROM unnest(?::bigint[], ?::int[]) AS r(id, intentos)
+                 WHERE n.id = r.id AND n.intentos = r.intentos AND n.estado = 'PENDIENTE'
+                """, ids, intentos);
     }
 
     @Override
     public void registrarFallos(Collection<FalloDeEnvio> fallos, int maxIntentos, Duration backoffBase) {
         if (fallos.isEmpty()) return;
-        Long[] ids = fallos.stream().map(FalloDeEnvio::id).toArray(Long[]::new);
+        Long[] ids = fallos.stream().map(f -> f.reclamo().id()).toArray(Long[]::new);
+        Integer[] reclamados = fallos.stream().map(f -> f.reclamo().intentos()).toArray(Integer[]::new);
         String[] errores = fallos.stream().map(FalloDeEnvio::error).toArray(String[]::new);
         Boolean[] permanentes = fallos.stream().map(FalloDeEnvio::permanente).toArray(Boolean[]::new);
         jdbc.update("""
@@ -122,10 +127,10 @@ public class NotificacionOutboxRepository implements NotificacionOutboxPort {
                        estado = CASE WHEN f.permanente OR n.intentos >= ? THEN 'FALLIDA' ELSE 'PENDIENTE' END,
                        proximo_intento_at = now()
                            + make_interval(secs => ? * power(2, greatest(n.intentos - 1, 0)))
-                  FROM unnest(?::bigint[], ?::text[], ?::boolean[]) AS f(id, error, permanente)
-                 WHERE n.id = f.id AND n.estado = 'PENDIENTE'
+                  FROM unnest(?::bigint[], ?::int[], ?::text[], ?::boolean[]) AS f(id, intentos, error, permanente)
+                 WHERE n.id = f.id AND n.intentos = f.intentos AND n.estado = 'PENDIENTE'
                 """.formatted(ERROR_MAX_CHARS),
-                maxIntentos, backoffBase.toMillis() / 1000.0, ids, errores, permanentes);
+                maxIntentos, backoffBase.toMillis() / 1000.0, ids, reclamados, errores, permanentes);
     }
 
     @Override

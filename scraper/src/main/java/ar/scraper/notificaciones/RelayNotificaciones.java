@@ -168,23 +168,23 @@ public class RelayNotificaciones implements NovedadesEnLaCola {
             porDestinatario.computeIfAbsent(baja.email(), e -> new ArrayList<>()).add(baja);
         }
         Map<String, Entrega> resultado = despacharTodos(porDestinatario);
-        List<Long> idsEnviados = new ArrayList<>();
+        List<Reclamo> enviados = new ArrayList<>();
         List<FalloDeEnvio> fallos = new ArrayList<>();
         for (Map.Entry<String, List<BajaReclamada>> grupo : porDestinatario.entrySet()) {
             String email = grupo.getKey();
-            List<Long> ids = grupo.getValue().stream().map(BajaReclamada::id).toList();
+            List<Reclamo> reclamos = grupo.getValue().stream().map(BajaReclamada::reclamo).toList();
             Entrega entrega = resultado.getOrDefault(email, Entrega.fallo("el despachador no informó resultado"));
             if (entrega.enviada()) {
-                idsEnviados.addAll(ids);
+                enviados.addAll(reclamos);
                 continue;
             }
             String error = ErroresSmtp.sinDirecciones(StringUtils.defaultString(entrega.error()));
             LOG.warn("[NOTIF] fallo al avisar a {}: {}", LogSafe.of(Enmascarar.direccion(email)), LogSafe.of(error));
-            for (Long id : ids) fallos.add(new FalloDeEnvio(id, error, entrega.permanente()));
+            for (Reclamo reclamo : reclamos) fallos.add(new FalloDeEnvio(reclamo, error, entrega.permanente()));
         }
-        outbox.marcarEnviadas(idsEnviados);
+        outbox.marcarEnviadas(enviados);
         outbox.registrarFallos(fallos, config.maxIntentos(), config.backoffBase());
-        LOG.info("[NOTIF] {} bajas enviadas, {} con error", idsEnviados.size(), fallos.size());
+        LOG.info("[NOTIF] {} bajas enviadas, {} con error", enviados.size(), fallos.size());
         return porDestinatario.size();
     }
 

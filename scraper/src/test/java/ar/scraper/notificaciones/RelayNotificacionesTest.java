@@ -33,6 +33,7 @@ class RelayNotificacionesTest {
 
     private final List<BajaReclamada> pendientes = new ArrayList<>();
     private final List<Long> enviadas = new ArrayList<>();
+    private final List<Reclamo> reclamosMarcados = new ArrayList<>();
     private final List<Long> falladas = new ArrayList<>();
     private final List<String> errores = new ArrayList<>();
     private final List<Long> permanentes = new ArrayList<>();
@@ -64,18 +65,20 @@ class RelayNotificacionesTest {
         }
 
         @Override
-        public void marcarEnviadas(Collection<Long> ids) {
+        public void marcarEnviadas(Collection<Reclamo> reclamos) {
             llamadasAEnviadas++;
-            enviadas.addAll(ids);
+            reclamos.forEach(r -> enviadas.add(r.id()));
+            reclamosMarcados.addAll(reclamos);
         }
 
         @Override
         public void registrarFallos(Collection<FalloDeEnvio> fallos, int maxIntentos, Duration backoffBase) {
             llamadasAFallos++;
             fallos.forEach(f -> {
-                falladas.add(f.id());
+                falladas.add(f.reclamo().id());
+                reclamosMarcados.add(f.reclamo());
                 errores.add(f.error());
-                if (f.permanente()) permanentes.add(f.id());
+                if (f.permanente()) permanentes.add(f.reclamo().id());
             });
         }
     };
@@ -110,7 +113,7 @@ class RelayNotificacionesTest {
     }
 
     private static BajaReclamada baja(long id, UUID usuario, String email) {
-        return new BajaReclamada(id, usuario, email, "https://s.test/" + id, "P" + id, "Sitio", 100, 80);
+        return new BajaReclamada(id, usuario, email, "https://s.test/" + id, "P" + id, "Sitio", 100, 80, 1);
     }
 
     @Test
@@ -125,6 +128,19 @@ class RelayNotificacionesTest {
         assertThat(enviadas).containsExactlyInAnyOrder(1L, 2L, 3L);
         assertThat(falladas).isEmpty();
         assertThat(destinatarios).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("sent and failed rows are reported with the attempt number their claim carried")
+    void elResultadoLlevaElNumeroDeIntentoDelReclamo() {
+        destinoQueFalla = "otro@example.com";
+        pendientes.addAll(List.of(
+                new BajaReclamada(1, USUARIO, "usuario@example.com", "https://s.test/1", "P1", "Sitio", 100, 80, 3),
+                new BajaReclamada(2, OTRO_USUARIO, "otro@example.com", "https://s.test/2", "P2", "Sitio", 100, 80, 2)));
+
+        relay.procesarLote();
+
+        assertThat(reclamosMarcados).containsExactlyInAnyOrder(new Reclamo(1, 3), new Reclamo(2, 2));
     }
 
     @Test
@@ -428,8 +444,8 @@ class RelayNotificacionesTest {
             }
 
             @Override
-            public void marcarEnviadas(Collection<Long> ids) {
-                outbox.marcarEnviadas(ids);
+            public void marcarEnviadas(Collection<Reclamo> r) {
+                outbox.marcarEnviadas(r);
             }
 
             @Override

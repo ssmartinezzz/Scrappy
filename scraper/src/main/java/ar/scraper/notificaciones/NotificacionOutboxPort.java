@@ -7,6 +7,10 @@ import java.util.List;
 /**
  * The outbox is at-least-once: a claimed row that is never marked comes back once its lease
  * expires, so a crash between sending and marking can send twice but never zero times.
+ *
+ * <p>Each claim stamps the row with a new attempt number, carried in {@link Reclamo}. An outcome only
+ * lands on a row still carrying the number its sender claimed, so a sender whose lease expired and
+ * whose row was claimed again cannot mark it; the newer claimer decides.
  */
 public interface NotificacionOutboxPort {
 
@@ -26,7 +30,7 @@ public interface NotificacionOutboxPort {
      */
     List<BajaReclamada> reclamar(int maxDestinatarios, int maxIntentos, Duration lease, int topePorMinuto);
 
-    void marcarEnviadas(Collection<Long> ids);
+    void marcarEnviadas(Collection<Reclamo> reclamos);
 
     /**
      * Reschedules each row with exponential backoff from {@code backoffBase}, or gives up at
