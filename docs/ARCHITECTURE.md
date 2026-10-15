@@ -1474,7 +1474,7 @@ mayúsculas) pero no hacen `trim`: los endpoints tampoco.
 
 ### ¿Por qué los avisos de baja de precio usan un outbox en Postgres y no Kafka?
 
-Cuando una corrida baja un precio más de 5%, cada usuario activo con email que lo tiene en
+Cuando una corrida baja un precio más de 5% (y no más de 90%), cada usuario activo con email que lo tiene en
 favoritos recibe **un mail por corrida** con sus bajas. Esquema y rollback: [`DATABASE.md § V49`](./DATABASE.md).
 
 - **Un broker al lado de Postgres es una doble escritura**: "precio guardado, mensaje perdido"

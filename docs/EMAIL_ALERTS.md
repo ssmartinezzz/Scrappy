@@ -1,7 +1,8 @@
 # Avisos de baja de precio por mail — puesta en marcha
 
-Cuando un scrape baja el precio de un favorito más de 5%, su dueño recibe **un mail por
-corrida** con todas sus bajas. Este documento es para quien instala: cómo dejar el envío
+Cuando un scrape baja el precio de un favorito más de 5% (y hasta 90%: una caída mayor es casi
+seguro un error de carga o de scrapeo, y no avisa), su dueño recibe **un mail por corrida** con
+todas sus bajas. Este documento es para quien instala: cómo dejar el envío
 andando, cómo comprobarlo y qué mirar cuando no llega. El diseño (outbox, relay, por qué no
 Kafka) está en [`ARCHITECTURE.md`](./ARCHITECTURE.md); el esquema, en [`DATABASE.md`](./DATABASE.md).
 
