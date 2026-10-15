@@ -56,6 +56,12 @@ DECLARE
     v_estampado    TEXT;
     v_escote       TEXT;
     v_color        TEXT;
+    -- Una baja avisa sólo si el precio nuevo es menor a este múltiplo del anterior.
+    c_umbral_baja  CONSTANT DOUBLE PRECISION := 0.95;
+    v_baja_urls    TEXT[] := '{}';
+    v_baja_prev    DOUBLE PRECISION[] := '{}';
+    v_baja_nuevo   DOUBLE PRECISION[] := '{}';
+    v_encoladas    INTEGER;
 BEGIN
     FOR r IN SELECT * FROM jsonb_array_elements(p_rows)
     LOOP
@@ -163,10 +169,35 @@ BEGIN
             INSERT INTO precio_historico (url, precio, fecha)
             VALUES (r->>'url', v_new_precio, (r->>'fecha')::date)
             ON CONFLICT (url, fecha) DO NOTHING;
+
+            -- Outbox: las bajas se juntan acá y se encolan de una sola vez después
+            -- del loop, en la MISMA transacción que escribe el precio, así un
+            -- rollback del upsert se lleva también el aviso (V49).
+            IF v_new_precio < v_prev_precio * c_umbral_baja THEN
+                v_baja_urls  := array_append(v_baja_urls, r->>'url');
+                v_baja_prev  := array_append(v_baja_prev, v_prev_precio);
+                v_baja_nuevo := array_append(v_baja_nuevo, v_new_precio);
+            END IF;
         ELSE
             v_sin_cambios := v_sin_cambios + 1;
         END IF;
     END LOOP;
+
+    IF cardinality(v_baja_urls) > 0 THEN
+        INSERT INTO notificacion_precio (usuario_id, url, precio_anterior, precio_nuevo)
+        SELECT f.usuario_id, b.url, b.prev, b.nuevo
+        FROM unnest(v_baja_urls, v_baja_prev, v_baja_nuevo) AS b(url, prev, nuevo)
+        JOIN favoritos f ON f.url = b.url
+        JOIN usuario u ON u.id = f.usuario_id
+        WHERE u.activo AND u.email IS NOT NULL AND u.notificar_bajas_precio
+        ON CONFLICT ON CONSTRAINT uq_notificacion_precio DO NOTHING;
+        GET DIAGNOSTICS v_encoladas = ROW_COUNT;
+        -- Una sola señal por llamada, y sólo si quedó algo en la cola: el relay
+        -- se despierta al commit en vez de esperar al próximo poll (V49).
+        IF v_encoladas > 0 THEN
+            PERFORM pg_notify('notificaciones', '');
+        END IF;
+    END IF;
 
     RETURN jsonb_build_object(
         'nuevos', v_nuevos,

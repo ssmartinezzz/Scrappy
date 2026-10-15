@@ -74,6 +74,7 @@ agent_reclassify_audit      -- Auditoría de reclasificaciones humanas (V2)
 indice / indice_valor       -- Índices macro (IPC, USD oficial) + su serie histórica (V33)
 gama                        -- Lookup sembrado: ECONOMICA/MEDIA/ALTA (V35)
 preferencia_armador         -- Última gama/presupuesto/conGpu pedida por usuario (V35)
+notificacion_precio         -- Outbox de avisos de baja de precio >5%: una fila por (usuario, url, precio nuevo) (V49)
 socket / ddr / form_factor / tipo_memoria / certificacion / tipo_almacenamiento
                              -- Lookups sembrados para producto_tech_specs (V35)
 producto_tech_specs         -- Specs normalizadas por producto tech, url PK (V35)
@@ -130,6 +131,9 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V42` | `productos.nombre` y `productos.sitio` no pueden ser vacíos ni sólo espacios (CHECK) |
 | `V47` | `preferencia_armador.ram_minima_gb`: piso de GB de RAM pedido por el armador de PCs |
 | `V48` | `preferencia_armador.gastar_todo`: modo Ahorrar / Gastar todo del armador de PCs |
+| `V49` | `notificacion_precio` (outbox de avisos de baja de precio) + `usuario.notificar_bajas_precio` |
+| `V50` | `notificacion_precio.lease_hasta`: distingue un lease vivo de un backoff (tope de mails por minuto del cluster) |
+| `V51` | `idx_notificacion_precio_terminadas`: índice de la purga por retención del outbox |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 
@@ -3306,5 +3310,114 @@ ALTER TABLE preferencia_armador DROP COLUMN gastar_todo;
 -- <<< rollback:V48
 ```
 
-Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V47`.
+Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V49`.
 No depende de ningún otro objeto y ningún otro depende de él.
+
+---
+
+## `V49` — `notificacion_precio` (outbox de avisos de baja de precio)
+
+Cuando una corrida baja el precio de un producto más de 5%, cada usuario activo, con
+email y con el aviso encendido, que lo tiene en favoritos recibe un mail. La tabla es un
+**outbox transaccional**: `sp_upsert_run` encola la fila en la misma transacción que
+escribe el precio, así que no hay "precio guardado, aviso perdido" ni el inverso. Un relay
+en el backend la drena (ver `ARCHITECTURE.md`).
+
+| Columna | Qué guarda |
+|---|---|
+| `usuario_id` | FK a `usuario`, `ON DELETE CASCADE`. El email **no se copia**: se lee de `usuario` al enviar (3FN) |
+| `url` | FK a `productos`, `ON DELETE CASCADE`. El nombre y el sitio también se leen de `productos` al enviar |
+| `precio_anterior`, `precio_nuevo` | Los dos precios de la baja, tal como los vio la corrida |
+| `estado` | `PENDIENTE` → `ENVIADA` (con `enviada_at`) o `FALLIDA` tras agotar los intentos |
+| `intentos`, `proximo_intento_at`, `ultimo_error` | Reintento con backoff; `proximo_intento_at` también hace de lease mientras una fila está reclamada |
+
+`UNIQUE (usuario_id, url, precio_nuevo)` es la deduplicación: re-correr el mismo upsert no
+duplica el aviso, y una baja posterior a otro precio sí genera uno nuevo. El índice parcial
+`idx_notificacion_precio_pendientes` cubre sólo las filas `PENDIENTE`, que son las que el
+relay consulta.
+
+`sp_upsert_run` junta las bajas durante el loop y las encola con **un** `INSERT ... SELECT` sobre
+`unnest(...) JOIN favoritos JOIN usuario` después de él (no una sentencia por fila), y emite un
+único `pg_notify('notificaciones', '')` por llamada si algo quedó encolado; el `NOTIFY` se
+entrega al commit, así que un rollback no despierta a nadie.
+
+El claim del relay toma el lock de la fila de `usuario` (`FOR NO KEY UPDATE OF u SKIP LOCKED`) y
+alquila todas las filas vencidas de esos usuarios en la misma sentencia: dos relays nunca se
+reparten a un usuario. La purga por retención borra `ENVIADA`/`FALLIDA` con
+`COALESCE(enviada_at, proximo_intento_at)` más viejo que la ventana (`FALLIDA` no tiene
+timestamp propio; `proximo_intento_at` es su última actividad), así que **olvida también la clave de
+`UNIQUE`**. Corre como máximo cada 6 h, en trozos de 5000 filas (cada trozo es su propia
+transacción) y lo atiende `idx_notificacion_precio_terminadas` (V51).
+
+`idx_fav_url` en `favoritos(url)` es el camino url → quién la vigila: hasta acá `favoritos` sólo se indexaba por `(usuario_id, url)`.
+
+`usuario.notificar_bajas_precio boolean NOT NULL DEFAULT true` es el opt-out; las cuentas
+existentes quedan optadas y las de servicio no reciben nada porque no tienen email.
+
+### Rollback
+
+```sql
+-- >>> rollback:V49
+DROP INDEX idx_fav_url;
+DROP TABLE notificacion_precio;
+ALTER TABLE usuario DROP COLUMN notificar_bajas_precio;
+-- <<< rollback:V49
+```
+
+Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V50`, antes que el de `V48`.
+Si se revierte, también hay que volver el `R__sp_upsert_run.sql` a la versión anterior (el
+cuerpo actual inserta en esta tabla); `StoredProcedureDriftTest` documenta la diferencia.
+
+---
+
+## `V50` — `notificacion_precio.lease_hasta`
+
+`proximo_intento_at` hace de dos cosas: cuándo reintentar y cuándo vence el lease de una fila
+reclamada. Una fila esperando su backoff se ve igual que una que un relay está enviando
+ahora mismo, y el tope `NOTIFICACIONES_MAX_POR_MINUTO` del cluster sólo cuenta la segunda.
+`lease_hasta` se escribe al reclamar y se limpia al marcar la fila (enviada, fallida o
+retirada); un lease que vence por un crash deja de contar solo, sin que nadie lo limpie.
+
+Con tope, el claim toma `pg_advisory_xact_lock` dentro de su transacción y cuenta los
+destinatarios distintos con `ENVIADA` en los últimos 60 s más los que tienen `lease_hasta > now()`;
+reclama como máximo la diferencia. Sin tope no toma el candado y los relays siguen en paralelo.
+`idx_notificacion_precio_en_vuelo` es parcial (`WHERE lease_hasta IS NOT NULL`): sólo indexa
+lo que hay en vuelo, que es una fracción de un lote.
+
+### Rollback
+
+```sql
+-- >>> rollback:V50
+DROP INDEX idx_notificacion_precio_en_vuelo;
+ALTER TABLE notificacion_precio DROP COLUMN lease_hasta;
+-- <<< rollback:V50
+```
+
+Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V51`, antes que el de `V49`.
+Volver atrás el código del claim es parte del mismo rollback (el SQL actual escribe la columna).
+
+---
+
+## `V51` — índice de la purga del outbox
+
+La retención borra `ENVIADA`/`FALLIDA` por `COALESCE(enviada_at, proximo_intento_at)` (`FALLIDA`
+no tiene timestamp propio). Ningún índice responde esa expresión: sin éste, cada purga recorre
+la tabla entera para encontrar la cola vieja, y la tabla sólo crece con el volumen de bajas.
+
+`idx_notificacion_precio_terminadas` es un índice **sobre esa expresión**, parcial a los dos
+estados terminales: las filas `PENDIENTE` (las calientes) no lo tocan. El `DELETE` lo usa en
+trozos (`WHERE id IN (SELECT id ... ORDER BY la expresión LIMIT 5000)`, un bucle de sentencias,
+cada una su transacción), y el panel de Grafana "Avisos enviados por hora" y el de fallos
+filtran por la misma expresión, así que lo comparten. Para sembrar ≥1M filas terminales ver
+`tests/perf/outbox/purga-seed.sql`.
+
+### Rollback
+
+```sql
+-- >>> rollback:V51
+DROP INDEX idx_notificacion_precio_terminadas;
+-- <<< rollback:V51
+```
+
+Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO. No depende de ningún otro
+objeto; sin el índice la purga sigue siendo correcta, sólo lenta.

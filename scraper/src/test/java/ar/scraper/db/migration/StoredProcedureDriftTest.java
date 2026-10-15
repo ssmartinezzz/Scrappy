@@ -266,6 +266,27 @@ class StoredProcedureDriftTest {
                     "IF v_prev_precio IS NULL THEN"));
 
     /**
+     * V49 (price-drop-email-alerts): una baja de más de 5% se encola en el outbox
+     * {@code notificacion_precio}, en la misma transacción que escribe el precio, y
+     * despierta al relay. Se declaran las tres piezas por separado: las variables y
+     * el umbral, la recolección dentro del loop, y el INSERT set-based con su
+     * {@code pg_notify} después del loop.
+     */
+    private static final List<Substitution> SP_UPSERT_RUN_R_PRICE_DROP_OUTBOX = List.of(
+            new Substitution(
+                    "umbral de baja y acumuladores de bajas",
+                    Pattern.compile("-- Una baja avisa .*?v_encoladas INTEGER; "),
+                    ""),
+            new Substitution(
+                    "recolección de bajas dentro de la rama de precio cambiado",
+                    Pattern.compile("-- Outbox: .*?v_baja_nuevo, v_new_precio\\); END IF; "),
+                    ""),
+            new Substitution(
+                    "INSERT set-based en notificacion_precio y pg_notify después del loop",
+                    Pattern.compile("IF cardinality\\(v_baja_urls\\) > 0 THEN .*?PERFORM pg_notify\\('notificaciones', ''\\); END IF; END IF; "),
+                    ""));
+
+    /**
      * El soft-delete pasa a estar acotado por sitio: la firma gana un tercer
      * argumento {@code p_sitios} y el UPDATE gana la condición
      * {@code sitio = ANY(p_sitios)}. Antes barría el catálogo entero, así que un
@@ -307,8 +328,9 @@ class StoredProcedureDriftTest {
             // — que es como debería haber funcionado desde el principio, en
             // vez de con siete copias y una tabla de sustituciones.
             new Hop(SP_UPSERT_RUN_START, V22, R_UPSERT,
-                    concat(List.of(SP_UPSERT_RUN_E7_SITIO_GET_OR_CREATE),
-                            SP_UPSERT_RUN_R_REACTIVATION_IS_NOT_NEW)),
+                    concat(concat(List.of(SP_UPSERT_RUN_E7_SITIO_GET_OR_CREATE),
+                                    SP_UPSERT_RUN_R_REACTIVATION_IS_NOT_NEW),
+                            SP_UPSERT_RUN_R_PRICE_DROP_OUTBOX)),
             new Hop(SP_SOFT_DELETE_AUSENTES_START, V5, R_SOFT_DELETE,
                     SP_SOFT_DELETE_AUSENTES_R_SITE_SCOPE)
     );

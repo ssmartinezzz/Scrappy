@@ -335,7 +335,10 @@ public abstract class PostgresTestBase {
                     -- decorator bean shared across tests in the same Spring context
                     -- sees a version strictly higher than anything it cached before —
                     -- a hit needs an EQUAL version, and the sequence never repeats.
-                    preferencia_armador, producto_tech_specs
+                    preferencia_armador, producto_tech_specs,
+                    -- price-drop-email-alerts (V49). It cascades from `usuario` and
+                    -- `productos`, but is named: this list is hand-maintained.
+                    notificacion_precio
                 RESTART IDENTITY CASCADE
                 """);
         }
