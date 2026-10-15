@@ -57,13 +57,14 @@ describe('AvisosBajaPrecio', () => {
     expect(screen.getByRole('checkbox', { name: ETIQUETA })).toBeChecked();
   });
 
-  it('renders nothing for an account with no email: there is nothing to send to', async () => {
+  it('tells an account with no email to ask an administrator, and offers no toggle', async () => {
     fetchPreferenciaAvisos.mockResolvedValue({ notificarBajasPrecio: true, tieneEmail: false });
 
-    const { container } = render(<AvisosBajaPrecio />);
+    render(<AvisosBajaPrecio />);
 
-    await waitFor(() => expect(fetchPreferenciaAvisos).toHaveBeenCalled());
-    expect(container).toBeEmptyDOMElement();
+    expect(await screen.findByText(/pedile a un administrador que cargue tu email/i)).toBeInTheDocument();
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
   });
 
   it('renders nothing when the preference cannot be read', async () => {

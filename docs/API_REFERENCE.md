@@ -435,8 +435,25 @@ compartidas, así que un tope por IP cortaría bajas legítimas.
 
 ## /usuarios — administración de cuentas
 
-**Sólo ADMIN, y sin interfaz.** Se maneja por `curl`; una pantalla es una
-decisión aparte con su propio diseño.
+**Sólo ADMIN.** La pantalla es `UsuariosAdminPanel` (`/admin/manage/users`); todo también se maneja por `curl`.
+
+`PUT /usuarios/{username}/email` — body `{ "email": "x@y.z" | null }`; `null` la quita. **Es la única
+vía para cargar o cambiar un email: no hay autoservicio** (decisión de producto). Se guarda en
+minúsculas.
+
+| | |
+|---|---|
+| `400 faltan_campos` | Falta la clave `email`: omitirla nunca borra |
+| `400 email_invalido` | No es una dirección (máx. 254) |
+| `404 no_existe` | No existe la cuenta |
+| `409 email_no_disponible` | Otra cuenta ya tiene esa dirección. No dice cuál |
+| `409 cuenta_de_servicio` | `chk_usuario_servicio_sin_email`: las cuentas de servicio no tienen email (quitarlo sí se puede) |
+
+Si la dirección cambia de verdad (no si se reenvía la misma) se **anulan los links de reseteo**
+emitidos a la anterior y se **revocan los refresh tokens** de la cuenta, igual que `DELETE`: la
+dirección es el canal de reseteo, y quien cambia el canal suele estar recuperando una cuenta
+comprometida; una sesión capturada antes no debe sobrevivirlo. Cuesta un re-login. Cambiar el rol
+no revoca; esto sí porque toca la recuperación de la cuenta.
 
 **Nacieron gateados.** La regla ADMIN para `/api/usuarios/**` estaba en
 `ApiRoutePolicy.TABLE` desde el slice de enforcement, **matcheando nada**, un

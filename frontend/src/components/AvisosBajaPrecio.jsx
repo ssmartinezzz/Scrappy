@@ -4,8 +4,8 @@ import { Label } from '@/components/ui/label';
 import { fetchPreferenciaAvisos, savePreferenciaAvisos } from '../api';
 
 /**
- * The opt-out for price-drop mail. Hidden while unknown and for accounts with no
- * email: a toggle that cannot do anything would only invite the question why.
+ * The opt-out for price-drop mail. Hidden while unknown. An account with no email sees
+ * who can fix that instead: only an administrator loads an address.
  */
 export default function AvisosBajaPrecio() {
   const [preferencia, setPreferencia] = useState(null);
@@ -20,7 +20,17 @@ export default function AvisosBajaPrecio() {
     return () => { vigente = false; };
   }, []);
 
-  if (!preferencia?.tieneEmail) return null;
+  if (!preferencia) return null;
+
+  if (!preferencia.tieneEmail) {
+    return (
+      <div style={{ padding: '.5rem 1.25rem' }}>
+        <span className="text-[.75rem]">
+          Para recibir avisos, pedile a un administrador que cargue tu email.
+        </span>
+      </div>
+    );
+  }
 
   async function alternar(activar) {
     setGuardando(true);

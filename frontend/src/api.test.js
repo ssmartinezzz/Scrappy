@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  cambiarEmailUsuario,
   deleteSavedPc,
   fetchData,
   fetchIndices,
@@ -340,6 +341,20 @@ describe('Price-drop mail preference', () => {
 
     global.fetch = vi.fn().mockResolvedValue(errorResponse(409, 'sin_email'));
     await expect(savePreferenciaAvisos(true)).resolves.toBeNull();
+  });
+});
+
+describe('Account email (admin)', () => {
+  it('cambiarEmailUsuario PUTs the email (null clears) to the encoded username', async () => {
+    global.fetch = vi.fn().mockResolvedValue(envelope({ ok: true, mensaje: 'Email actualizado.' }));
+
+    const r = await cambiarEmailUsuario('viewer uno', null);
+
+    expect(r.ok).toBe(true);
+    const [, init] = global.fetch.mock.calls.at(-1);
+    expect(calledUrl().pathname).toBe('/api/usuarios/viewer%20uno/email');
+    expect(init.method).toBe('PUT');
+    expect(JSON.parse(init.body)).toEqual({ email: null });
   });
 });
 

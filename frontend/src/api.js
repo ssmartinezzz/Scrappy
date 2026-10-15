@@ -762,3 +762,11 @@ export function desactivarUsuario(username) {
 export function reactivarUsuario(username) {
   return usuariosFetch(`/${encodeURIComponent(username)}/activar`, { method: 'PUT' });
 }
+
+export function cambiarEmailUsuario(username, email) {
+  return usuariosFetch(`/${encodeURIComponent(username)}/email`, {
+    method: 'PUT',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ email }),
+  });
+}

@@ -287,11 +287,13 @@ arranque, así un cambio de rol server-side aparece dentro de una vida de token
   Ver la sección de arriba y [`API_REFERENCE.md`](./API_REFERENCE.md).
 - **La administración de usuarios YA existe** (`GET`/`POST /api/usuarios`,
   `PUT /api/usuarios/{username}/rol`, `DELETE /api/usuarios/{username}`,
-  `PUT /api/usuarios/{username}/activar`) pero **sin UI**: es ADMIN-only y se
-  maneja por `curl`. Una pantalla es tuya si la querés.
-- **La cuenta admin inicial no tiene email**, así que **no es reseteable**. Darle
-  una dirección sigue siendo SQL directo: el endpoint de creación acepta `email`,
-  pero no hay uno para editarlo en una cuenta existente.
+  `PUT /api/usuarios/{username}/activar`, `PUT /api/usuarios/{username}/email`) y tiene
+  pantalla (`UsuariosAdminPanel`). Es ADMIN-only.
+- **El email de una cuenta existente sólo lo edita un ADMIN** (`PUT /api/usuarios/{username}/email`,
+  o el lápiz en `UsuariosAdminPanel`); **no hay autoservicio** y es decisión de producto. Una cuenta
+  sin email lo ve en `/favoritos` como "pedile a un administrador que cargue tu email". Cambiarlo
+  revoca los refresh tokens de esa cuenta y anula sus links de reseteo pendientes (ver
+  [`API_REFERENCE.md`](./API_REFERENCE.md)). Las cuentas de servicio siguen sin email.
 - **Cambiar `ADMIN_BOOTSTRAP_PASSWORD` y reiniciar no cambia la password** de una
   cuenta ya creada. El seeder nunca pisa un hash existente.
 

@@ -84,4 +84,5 @@ GET /api/usuarios
 POST /api/usuarios
 DELETE /api/usuarios/{username}
 PUT /api/usuarios/{username}/activar
+PUT /api/usuarios/{username}/email
 PUT /api/usuarios/{username}/rol
