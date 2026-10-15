@@ -25,6 +25,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  * owners hold the same url, so the block de-duplicates first and keeps the
  * older row. A rollback that had merely been written and never executed would
  * look correct and fail exactly there, on the only dataset where it matters.</p>
+ *
+ * <p>{@code CODE-2}: {@code V49} hangs {@code notificacion_precio} off {@code usuario},
+ * so its block runs first. Rollbacks compose in reverse order.</p>
  */
 @Epic("Persistence")
 @Feature("Account schema")
@@ -43,6 +46,7 @@ class V26RollbackRoundTripTest extends PostgresTestBase {
                     assertThat(tablaExiste(st, tabla)).as("%s exists before rollback", tabla).isTrue();
                 }
 
+                st.execute(DocumentedRollback.sqlFor("V49"));
                 st.execute(DocumentedRollback.sqlFor("V26"));
 
                 for (String tabla : new String[]{
@@ -61,6 +65,7 @@ class V26RollbackRoundTripTest extends PostgresTestBase {
         try (Connection c = dataSource().getConnection()) {
             c.setAutoCommit(false);
             try (Statement st = c.createStatement()) {
+                st.execute(DocumentedRollback.sqlFor("V49"));
                 st.execute(DocumentedRollback.sqlFor("V26"));
 
                 for (String tabla : new String[]{
@@ -99,6 +104,7 @@ class V26RollbackRoundTripTest extends PostgresTestBase {
 
                 assertThat(contarFavoritos(st)).isEqualTo(3);
 
+                st.execute(DocumentedRollback.sqlFor("V49"));
                 st.execute(DocumentedRollback.sqlFor("V26"));
 
                 assertThat(columnasDeLaPk(st, "favoritos"))
