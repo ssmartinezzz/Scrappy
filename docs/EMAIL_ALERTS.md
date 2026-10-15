@@ -10,7 +10,8 @@ Kafka) está en [`ARCHITECTURE.md`](./ARCHITECTURE.md); el esquema, en [`DATABAS
 
 1. **Elegí un proveedor** y creá una *contraseña de aplicación* (tabla de abajo).
 2. En la consola del CLI: `mail`. Responde proveedor, usuario, contraseña y remitente, y
-   escribe las claves `SMTP_*` en `.env` sin tocar lo demás. La contraseña no se muestra.
+   escribe las claves `SMTP_*` en `.env` sin tocar lo demás y lo deja con permisos `0600` (la
+   contraseña no puede quedar legible por otros usuarios). La contraseña no se muestra.
 3. `stop` y `start`: el backend lee `.env` sólo al arrancar.
 4. Mirá el log del backend (`logs backend`): tiene que haber **una** línea `[SMTP] OK: …`.
 5. Probá el envío: `mail test tu@mail.com`, o el botón **Probar mail** en

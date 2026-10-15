@@ -70,6 +70,16 @@ def test_keeps_the_file_permissions(tmp_path: Path):
     assert stat.S_IMODE(path.stat().st_mode) == 0o640
 
 
+@pytest.mark.parametrize("modo", [0o644, 0o640, 0o666, 0o400])
+def test_writing_a_secret_clamps_the_file_to_owner_only(tmp_path: Path, modo: int):
+    path = _env(tmp_path)
+    os.chmod(path, modo)
+
+    update_env(path, {"SMTP_PASSWORD": "clave"})
+
+    assert stat.S_IMODE(path.stat().st_mode) == 0o600
+
+
 def test_is_atomic_a_failed_write_leaves_the_original_untouched(tmp_path: Path, monkeypatch):
     path = _env(tmp_path)
     monkeypatch.setattr(env_file.os, "replace", lambda *a: (_ for _ in ()).throw(OSError("disco lleno")))

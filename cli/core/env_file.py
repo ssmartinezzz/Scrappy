@@ -212,8 +212,9 @@ def generate_env(
 def update_env(env_path: Path, values: dict[str, str]) -> None:
     """Set `values` in an existing `.env`: a present key is rewritten in
     place (every occurrence, so the last-one-wins reader agrees with the
-    first), an absent one is appended. Comments, blank lines, ordering and the
-    file's permissions are kept. The write is atomic (temp file in the same
+    first), an absent one is appended. Comments, blank lines and ordering are kept,
+    and so are the file's permissions, except that writing a secret key clamps
+    them to owner-only (a password must not stay world-readable). The write is atomic (temp file in the same
     directory, then `os.replace`), so a crash can never leave a half-written
     file holding a password."""
     for key, value in values.items():
@@ -235,6 +236,8 @@ def update_env(env_path: Path, values: dict[str, str]) -> None:
     text = "\n".join(out) + "\n"
 
     mode = stat.S_IMODE(env_path.stat().st_mode) if env_path.is_file() else 0o600
+    if SECRET_KEYS.intersection(values):
+        mode = (mode & 0o700) | 0o600
     fd, tmp_name = tempfile.mkstemp(dir=str(env_path.parent), prefix=".env.", suffix=".tmp")
     tmp = Path(tmp_name)
     try:
