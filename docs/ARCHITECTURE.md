@@ -1472,6 +1472,83 @@ prohíbe que el bean dependa de `ActorResolver`. Las anotaciones de cache viven
 en un único bean, `CatalogoDerivadoCache`, que los controllers reciben por inyección. Las claves normalizan a minúsculas (los filtros ya comparan sin
 mayúsculas) pero no hacen `trim`: los endpoints tampoco.
 
+### ¿Por qué los avisos de baja de precio usan un outbox en Postgres y no Kafka?
+
+Cuando una corrida baja un precio más de 5%, cada usuario activo con email que lo tiene en
+favoritos recibe **un mail por corrida** con sus bajas. Esquema y rollback: [`DATABASE.md § V49`](./DATABASE.md).
+
+- **Un broker al lado de Postgres es una doble escritura**: "precio guardado, mensaje perdido"
+  (o al revés). La cura estándar es, justamente, un outbox transaccional. Acá `sp_upsert_run`
+  encola la fila en la **misma transacción** que escribe el precio: un rollback del upsert se
+  lleva también el aviso. Y el exactly-once de Kafka no llega a SMTP, así que la entrega es
+  at-least-once con o sin broker.
+- **Un productor** (una corrida, pocas por día), **un consumidor**, y los proveedores SMTP
+  topean el volumen. `FOR UPDATE SKIP LOCKED` escala sumando workers. Y no hay un broker que
+  vendorizar en el instalador portable de Windows.
+- **El relay** (`ar.scraper.notificaciones.RelayNotificaciones`) reclama en una transacción
+  corta, envía **fuera** de ella y marca `ENVIADA`, o reprograma con backoff exponencial y deja
+  `FALLIDA` al agotar los intentos. Se despierta de dos maneras: `sp_upsert_run` hace **un**
+  `pg_notify('notificaciones')` por llamada, sólo si encoló algo, y el `DbNotificationListener`
+  existente (la misma conexión `LISTEN` de `status_events`) se lo pasa por el puerto
+  `NovedadesEnLaCola` (db → notificaciones, nunca al revés); y el `@Scheduled` de 15 s sigue
+  como respaldo, porque un `NOTIFY` no es durable. Al (re)conectar el listener despierta una
+  vez más al relay: lo que se avisó con la conexión caída ya no existe.
+- **Se reclaman destinatarios enteros, no filas.** Si dos relays tomaran filas sueltas con
+  `SKIP LOCKED`, cada uno podría quedarse con la mitad de las bajas de un usuario y mandarle dos
+  mails. El claim toma el lock sobre la fila de `usuario` (`FOR NO KEY UPDATE ... SKIP LOCKED`,
+  que no choca con el `FOR KEY SHARE` que un encolado toma por la FK) y en la misma sentencia
+  alquila *todas* las filas vencidas de esos usuarios. Se descartó `pg_try_advisory_xact_lock`:
+  evaluado dentro de un `LIMIT` toma locks de más y deja huérfano el orden de evaluación. El lock
+  vive sólo lo que dura el claim. `NOTIFICACIONES_LOTE` cuenta **destinatarios** por lote.
+- **Despacho por lote.** El relay entrega todo el lote al puerto `NotificacionDespachador` de una
+  vez y recibe un resultado **por destinatario** (`Entrega`): lo enviado se marca con una
+  sentencia y los fallos se registran con otra, cada uno con su error. El adaptador SMTP arma
+  todos los mensajes y los manda por **una** conexión; un rechazo de un destinatario falla sólo
+  a ese. **Puerto 465 = SMTPS (TLS implícito)**; cualquier otro puerto habla SMTP y sube a
+  STARTTLS si el servidor lo ofrece. Un despachador que explota entero falla a todos (nunca se
+  pierde un claim); un destinatario ausente del resultado cuenta como fallo, nunca como enviado.
+- **Fallos permanentes vs transitorios.** `Entrega` distingue `rechazo` (5xx sobre el destinatario o el
+  mensaje: el buzón no existe) de `fallo` (4xx, E/S, timeouts). El permanente pasa a `FALLIDA` en el acto, con
+  el motivo; el transitorio entra en el backoff. 530/534/535 y cualquier 5xx a `MAIL FROM` son transitorios a
+  propósito: son del operador (credenciales, remitente), y tratarlos como permanentes archivaría toda la cola.
+  El `Message-ID` sale de `sha256(usuario + ids de filas ordenados)` y del dominio del remitente
+  (`<notif-{hash}@dominio>`): reenviar el mismo reclamo tras un crash es el mismo mensaje para los
+  proveedores que deduplican. TLS: `mail.smtp.ssl.checkserveridentity=true` siempre; sólo los tests inyectan
+  una `SSLSocketFactory` propia (certificado autofirmado generado con `keytool`).
+- **Baja de un clic (RFC 8058).** Cada mail lleva `List-Unsubscribe` + `List-Unsubscribe-Post` y un enlace en
+  el pie a `{NOTIFICACIONES_API_BASE_URL}/api/notificaciones/baja/{token}`. El token es
+  `base64url(id).base64url(HMAC-SHA256)` con una clave derivada de `AUTH_JWT_SECRET` bajo la etiqueta
+  `scrappy/notificaciones/baja/v1`: no se guarda nada y la firma no sirve para otra cosa. `POST` apaga la
+  bandera y responde siempre 200 con el mismo cuerpo (token real, cuenta inexistente o firma ajena: no es un
+  oráculo); `GET` sólo sirve una página con un botón, porque los escáneres de mail piden todos los links.
+  Sin límite de tasa: el token inválido no toca la base y los `POST` de un proveedor vienen de pocas IP.
+- **Tope por minuto** (`NOTIFICACIONES_MAX_POR_MINUTO`, 0 = sin tope) del **cluster**: con tope, el
+  claim toma `pg_advisory_xact_lock` dentro de su transacción, cuenta los destinatarios distintos
+  enviados en los últimos 60 s más los que están en vuelo (`lease_hasta > now()`, V50) y reclama
+  sólo la diferencia, así que nada se reclama para devolverlo. Los fallos no gastan cupo: un
+  backoff no está en vuelo y un envío que no salió no lo consumió el proveedor. Sin tope no hay
+  candado y los relays siguen en paralelo.
+- **Retención.** El relay, único consumidor del outbox, borra las `ENVIADA`/`FALLIDA` más viejas que
+  `NOTIFICACIONES_RETENCION_DIAS` (30) a lo sumo cada `NOTIFICACIONES_PURGA_CADA_HORAS` (6), en su propio hilo y sin el lock de la entrega (`purgar()`, no `tick()`). No
+  vive junto a `purgarHistorialViejo`: ése corre dentro de la transacción de un upsert y ataría el
+  catálogo a esta tabla. Se borra en trozos de 5000 (cada uno su transacción, servidos por el índice de V51)
+  para que una purga de millones de filas no sostenga un lock largo. Borrar la fila borra también su clave de dedup: la misma baja al mismo
+  precio, pasada la retención, vuelve a avisar.
+- **Opt-out.** `GET`/`PUT /api/notificaciones/preferencia` (cualquier rol, sólo la propia
+  bandera) lee y cambia `usuario.notificar_bajas_precio`; el sujeto sale del token, nunca del
+  request. Una cuenta sin email (las de servicio) recibe `409 sin_email` al intentar cambiarla.
+  La UI es un checkbox en `/favoritos`; el pie del mail enlaza ahí con
+  `{PASSWORD_RESET_LINK_BASE}/favoritos` (el mismo origen del frontend que usa el link de
+  reseteo; el nombre de la variable quedó de ese primer uso).
+- **Encendido**: con `SMTP_HOST` no vacío el adaptador es SMTP, sin otro flag. Con `SMTP_HOST`
+  vacío el adaptador de consola **loguea el mail y las filas igual pasan a `ENVIADA`**: la cola
+  se drena, no se acumula. `NOTIFICACIONES_ENABLED=false` apaga el relay y las filas quedan
+  encoladas.
+- **Listo para Kafka**: el relay entrega lo reclamado a un puerto `NotificacionDespachador` que ya
+  recibe el lote entero y devuelve un resultado por destinatario, que es la forma de un
+  `producer.send` por lote. Hoy el adaptador renderiza y manda por `MailPort`; uno de Kafka
+  publicaría un registro por destinatario (o Debezium leería la tabla) y nada aguas arriba cambia.
+
 ### Agrupado de `/api/grupos` → [`GROUPING.md`](./GROUPING.md)
 
 Criterio de "mismo producto" entre sitios, guardas y medición.

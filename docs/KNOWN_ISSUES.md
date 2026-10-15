@@ -22,6 +22,9 @@
 | Un sitio cortado se loguea como si estuviera sano | `ScraperService.logSitioResult` escribe `[SITIO] N productos` en INFO también cuando el sitio terminó con productos **y** error. El WARN de `registrarTruncamiento` lo dice antes, pero la línea de resumen no. En Grafana sí se ve como "Cortado" |
 | Vtex Legacy corta en silencio con "body is not a JSON array" | Esa salida del loop no pasa por `registrarTruncamiento`, así que no marca al sitio como parcial y el barrido lo trata como completo. Los otros cortes de Vtex (IO y Legacy después de los reintentos) sí lo marcan |
 | `Ejecutar_instalar.sh` asume java/mvn/node del sistema en vez de vendorizar como el `.bat` | Gap preexistente. La parte de `uv`/`cli-venv` sí vendoriza igual en ambos SO y se validó end-to-end en Linux; `INSTALAR_Y_CORRER.bat` nunca se corrió end-to-end (sandbox de dev = Linux) |
+| El tope por minuto no cuenta los envíos que fallaron | `NOTIFICACIONES_MAX_POR_MINUTO` cuenta destinatarios `ENVIADA` en los últimos 60 s más los leases vivos. Un rechazo 550 que el proveedor sí contabiliza contra su cuota no gasta cupo acá |
+| La clasificación 5xx/4xx lee el código SMTP, no el texto | Un proveedor que devuelva un 5xx para un problema pasajero (greylisting mal configurado) archiva el aviso como `FALLIDA` en el primer intento; 530/534/535 y los rechazos a `MAIL FROM` se tratan como transitorios a propósito |
+| Un mail aceptado por el servidor SMTP y rebotado después no deja rastro | El relay marca `ENVIADA` al aceptar el mensaje; nada en este diseño recibe los rebotes (mismo límite que el reseteo de contraseña) |
 
 ### Necesitan datos, no código
 

@@ -15,7 +15,11 @@ import org.springframework.jdbc.datasource.SimpleDriverDataSource;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.Statement;
+import ar.scraper.notificaciones.NovedadesEnLaCola;
+
 import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
@@ -191,5 +195,44 @@ class DbNotificationListenerTest extends PostgresTestBase {
         assertThat(DbNotificationListener.parse("not json")).isNull();
         assertThat(DbNotificationListener.parse("[1,2]")).isNull();
         assertThat(DbNotificationListener.parse("{\"op\":\"INSERT\"}")).isNull();
+    }
+
+    private DbNotificationListener listenerConRelay(NovedadesEnLaCola relay) {
+        SimpleDriverDataSource ds = (SimpleDriverDataSource) dataSource();
+        return new DbNotificationListener(ds.getUrl(), ds.getUsername(), ds.getPassword(), 20, 100, recorder(),
+                Optional.of(relay));
+    }
+
+    @Test
+    @DisplayName("a 'notificaciones' signal wakes the relay; a status change does not")
+    void despiertaAlRelay() throws Exception {
+        AtomicInteger despertares = new AtomicInteger();
+        listener.stop();
+        listener = listenerConRelay(despertares::incrementAndGet);
+        listener.start();
+        await("the first Resync", () -> count(StatusEvent.Resync.class) == 1);
+        await("the connect-time catch-up", () -> despertares.get() == 1);
+
+        exec("INSERT INTO scrape_run (scrape_uuid, started_at, status) VALUES (gen_random_uuid(), now(), 'RUNNING')");
+        await("the status change", () -> count(StatusEvent.DbChanged.class) == 1);
+        assertThat(despertares.get()).as("status traffic is not outbox traffic").isEqualTo(1);
+
+        exec("SELECT pg_notify('notificaciones', '')");
+
+        await("the outbox signal", () -> despertares.get() == 2);
+    }
+
+    @Test
+    @DisplayName("after a reconnect the relay is woken once more: a signal sent while the connection was down is gone")
+    void despiertaTrasReconectar() throws Exception {
+        AtomicInteger despertares = new AtomicInteger();
+        listener.stop();
+        listener = listenerConRelay(despertares::incrementAndGet);
+        listener.start();
+        await("up", () -> despertares.get() == 1);
+
+        exec("SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE application_name = 'scrappy-listen'");
+
+        await("the catch-up after the reconnect", () -> despertares.get() == 2);
     }
 }

@@ -1,5 +1,6 @@
 package ar.scraper.db.support;
 
+import ar.scraper.db.NotificacionOutboxRepository;
 import ar.scraper.db.PasswordResetRepository;
 import ar.scraper.db.RefreshTokenRepository;
 import ar.scraper.db.UsuarioRepository;
@@ -25,5 +26,10 @@ public final class TestRepositories {
 
     public static RefreshTokenRepository refreshTokens(DataSource raw) {
         return new RefreshTokenRepository(TestTransactions.aware(raw));
+    }
+
+    public static NotificacionOutboxRepository notificaciones(DataSource raw) {
+        return TestTransactions.proxy(new NotificacionOutboxRepository(TestTransactions.aware(raw)),
+                TestTransactions.manager(raw));
     }
 }

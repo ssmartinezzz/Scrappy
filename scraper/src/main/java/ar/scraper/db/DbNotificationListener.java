@@ -1,5 +1,6 @@
 package ar.scraper.db;
 
+import ar.scraper.notificaciones.NovedadesEnLaCola;
 import ar.scraper.scrape.StatusEvent;
 import ar.scraper.scrape.StatusEvents;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -22,6 +23,7 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -30,6 +32,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class DbNotificationListener implements SmartLifecycle {
 
     static final String CHANNEL = "status_events";
+    static final String CANAL_NOTIFICACIONES = "notificaciones";
     static final String APPLICATION_NAME = "scrappy-listen";
 
     private static final Logger LOG = LoggerFactory.getLogger(DbNotificationListener.class);
@@ -42,6 +45,7 @@ public class DbNotificationListener implements SmartLifecycle {
     private final String username;
     private final String password;
     private final StatusEvents bus;
+    private final Optional<NovedadesEnLaCola> relay;
     private final long retryInitialMs;
     private final long retryMaxMs;
 
@@ -50,6 +54,11 @@ public class DbNotificationListener implements SmartLifecycle {
     private volatile Connection connection;
     private volatile Thread thread;
 
+    public DbNotificationListener(String url, String username, String password,
+                                  long retryInitialMs, long retryMaxMs, StatusEvents bus) {
+        this(url, username, password, retryInitialMs, retryMaxMs, bus, Optional.empty());
+    }
+
     @Autowired
     public DbNotificationListener(
             @Value("${spring.datasource.url}") String url,
@@ -57,13 +66,15 @@ public class DbNotificationListener implements SmartLifecycle {
             @Value("${spring.datasource.password}") String password,
             @Value("${db.listen.retry-initial-ms:1000}") long retryInitialMs,
             @Value("${db.listen.retry-max-ms:60000}") long retryMaxMs,
-            StatusEvents bus) {
+            StatusEvents bus,
+            Optional<NovedadesEnLaCola> relay) {
         this.url = url;
         this.username = username;
         this.password = password;
         this.retryInitialMs = retryInitialMs;
         this.retryMaxMs = retryMaxMs;
         this.bus = bus;
+        this.relay = relay;
     }
 
     @EventListener(ApplicationReadyEvent.class)
@@ -166,6 +177,7 @@ public class DbNotificationListener implements SmartLifecycle {
             c.setAutoCommit(true);
             try (Statement st = c.createStatement()) {
                 st.execute("LISTEN " + CHANNEL);
+                st.execute("LISTEN " + CANAL_NOTIFICACIONES);
                 st.execute("SELECT 1");
             }
         } catch (SQLException | RuntimeException e) {
@@ -179,6 +191,8 @@ public class DbNotificationListener implements SmartLifecycle {
         up = true;
         LOG.info("[DB-LISTEN] listening on '{}'", CHANNEL);
         bus.publish(new StatusEvent.Resync());
+        // A signal sent while the connection was down is gone; one look at the outbox covers it.
+        relay.ifPresent(NovedadesEnLaCola::hayNovedades);
     }
 
     private void pump() throws SQLException {
@@ -189,7 +203,7 @@ public class DbNotificationListener implements SmartLifecycle {
         while (running.get()) {
             PGNotification[] batch = pg.getNotifications(NOTIFY_WAIT_MS);
             if (batch != null) {
-                for (PGNotification n : batch) handle(n.getParameter());
+                for (PGNotification n : batch) handle(n.getName(), n.getParameter());
             }
             if (System.currentTimeMillis() >= nextKeepalive) {
                 try (Statement st = c.createStatement()) {
@@ -200,7 +214,11 @@ public class DbNotificationListener implements SmartLifecycle {
         }
     }
 
-    private void handle(String payload) {
+    private void handle(String channel, String payload) {
+        if (CANAL_NOTIFICACIONES.equals(channel)) {
+            relay.ifPresent(NovedadesEnLaCola::hayNovedades);
+            return;
+        }
         StatusEvent.DbChanged event = parse(payload);
         if (event == null) {
             LOG.debug("[DB-LISTEN] dropped a malformed payload");
