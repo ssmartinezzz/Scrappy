@@ -1009,6 +1009,284 @@
         "overrides": []
       },
       "options": {}
+    },
+    {
+      "type": "row",
+      "id": 18,
+      "title": "Avisos de baja de precio",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 71
+      },
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "id": 19,
+      "title": "Avisos pendientes",
+      "description": "Filas PENDIENTE del outbox: las que esperan turno, un reintento o el próximo tick del relay. Si crece y no baja, el relay no está drenando.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "scrappy-postgres"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 72,
+        "w": 6,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "scrappy-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT count(*) AS pendientes FROM notificacion_precio WHERE estado = 'PENDIENTE'"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 200
+              },
+              {
+                "color": "red",
+                "value": 2000
+              }
+            ]
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "id": 20,
+      "title": "Avisos fallidos (24 h)",
+      "description": "Avisos que se dieron por perdidos en las últimas 24 horas: rechazo permanente (5xx) o intentos agotados.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "scrappy-postgres"
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 72,
+        "w": 6,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "scrappy-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT count(*) AS fallidas FROM notificacion_precio WHERE estado = 'FALLIDA' AND COALESCE(enviada_at, proximo_intento_at) > now() - interval '24 hours'"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 20
+              }
+            ]
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "id": 21,
+      "title": "Edad del aviso pendiente más viejo",
+      "description": "Cuánto lleva esperando el aviso pendiente más antiguo. Más de unos minutos con SMTP configurado = el relay o el proveedor tienen un problema.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "scrappy-postgres"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 72,
+        "w": 6,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "scrappy-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT extract(epoch FROM now() - min(creada_at)) AS segundos FROM notificacion_precio WHERE estado = 'PENDIENTE'"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 900
+              },
+              {
+                "color": "red",
+                "value": 3600
+              }
+            ]
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "id": 22,
+      "title": "Avisos enviados por hora",
+      "description": "Destinatarios con aviso ENVIADA por hora en el rango. Cada fila es una baja; un mail agrupa las de un usuario.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "scrappy-postgres"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 77,
+        "w": 14,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "scrappy-postgres"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT date_trunc('hour', COALESCE(enviada_at, proximo_intento_at)) AS time, count(*) AS \"Enviadas\" FROM notificacion_precio WHERE estado = 'ENVIADA' AND COALESCE(enviada_at, proximo_intento_at) BETWEEN $__timeFrom() AND $__timeTo() GROUP BY 1 ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 60
+          }
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "type": "table",
+      "id": 23,
+      "title": "Fallos por motivo",
+      "description": "Los diez motivos más frecuentes entre los avisos FALLIDA del rango (la dirección del destinatario ya viene enmascarada).",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "scrappy-postgres"
+      },
+      "gridPos": {
+        "x": 14,
+        "y": 77,
+        "w": 10,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "scrappy-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COALESCE(left(ultimo_error, 80), '(sin detalle)') AS \"Motivo\", count(*) AS \"Avisos\" FROM notificacion_precio WHERE estado = 'FALLIDA' AND COALESCE(enviada_at, proximo_intento_at) BETWEEN $__timeFrom() AND $__timeTo() GROUP BY 1 ORDER BY 2 DESC, 1 LIMIT 10"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
     }
   ]
 }
