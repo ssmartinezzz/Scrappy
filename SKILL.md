@@ -59,6 +59,7 @@ cuarto** — ni `CLAUDE.md` ni `ARCHITECTURE.md` guardan una segunda copia.
 | [`tests/cli/`](./tests/cli/) | CLI nativo: `core/` headless, Textual vía `Pilot`, routing de degradación, injection-safety | `pytest tests/cli` |
 | [`tests/scripts/`](./tests/scripts/) | Utilidades de `scripts/` (hoy, `blender_cpu.py` contra el fixture compartido `claves.csv`, y `gaming_cpu.py` contra páginas HTML recortadas). No corre en ningún workflow de CI | `uv run --with pytest pytest tests/scripts` |
 | [`tests/observability/`](./tests/observability/) | Provisioning de Grafana: cada query de panel y alerta corre como `grafana_ro` contra el esquema real; `grafana_ro` no lee datos personales ni escribe. Sin `OBS_TEST_DSN` corre sólo la mitad estática. No corre en CI | `OBS_TEST_DSN=postgresql://postgres:postgres@localhost:5432/scraper uv run --no-project --with pytest --with psycopg2-binary --with pyyaml pytest tests/observability` |
+| [`tests/perf/outbox/`](./tests/perf/outbox/README.md) | Performance del outbox de avisos de baja: costo de `sp_upsert_run` (ABBA) y ráfaga del relay contra Mailpit (p50/p95/p99). Base descartable; no corre en CI | `tests/perf/outbox/abba.sh A.sql B.sql` · `tests/perf/outbox/rafaga-abba.sh a.jar b.jar` |
 | `frontend/src/**/*.test.jsx` | Componentes React (Vitest) | `cd frontend && npm test` |
 
 ## Instalación y despliegue
