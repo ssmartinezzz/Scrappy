@@ -135,6 +135,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V50` | `notificacion_precio.lease_hasta`: distingue un lease vivo de un backoff (tope de mails por minuto del cluster) |
 | `V51` | `idx_notificacion_precio_terminadas`: índice de la purga por retención del outbox |
 | `V52` | `sitio.monomarca`: en una tienda de marca propia la marca ES el sitio; seed, filas en `marca` y backfill |
+| `V53` | Índices GIN `gin_trgm_ops` sobre `productos(nombre)` y `productos(marca)` (extensión `pg_trgm`): el `q` del catálogo es un `ILIKE '%q%'` |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 
@@ -3455,7 +3456,36 @@ ALTER TABLE sitio DROP COLUMN monomarca;
 -- <<< rollback:V52
 ```
 
-Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO. **El backfill es de una sola vía**,
+Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V53`. **El backfill es de una sola vía**,
 como el de `V19`: las `marca` reescritas y las filas de `marca` sembradas se quedan (son datos válidos
 y quitarlas rompería `fk_productos_marca`). Con el código anterior, el próximo scrape las vuelve a NULL.
 
+---
+
+## `V53` — índices trigram para la búsqueda del catálogo
+
+El filtro `q` de `CatalogQueryRepository` es `(nombre ILIKE '%q%' OR marca ILIKE '%q%')`. Un btree no
+sirve un comodín inicial, así que el conteo y la query de la página recorrían `productos` entera.
+`V53` crea `pg_trgm` (extensión *trusted* desde PG13: no pide superusuario) y dos índices GIN
+`gin_trgm_ops`, `idx_productos_nombre_trgm` e `idx_productos_marca_trgm`. El planner los combina con
+un `BitmapOr` para el `OR`.
+
+- Un término de menos de 3 caracteres no tiene trigramas, y el plan genérico de la sentencia preparada
+  no ve el largo: elegía el índice igual y lo recorría entero (2,4x un seq scan, medido). Para esos
+  términos `CatalogQueryRepository.predicadoQ` emite `(p.nombre || '')`, que esconde la columna del
+  índice y deja el seq scan. Siguen ~20% más lentos que antes de `V52`: es el costo del `OR marca`.
+- No es `CONCURRENTLY`: Flyway corre la migración en una transacción.
+- Costo de escritura: dos índices GIN más que mantener en cada upsert del scrape.
+
+### Rollback
+
+```sql
+-- >>> rollback:V53
+DROP INDEX idx_productos_marca_trgm;
+DROP INDEX idx_productos_nombre_trgm;
+-- <<< rollback:V53
+```
+
+Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO. **No dropea `pg_trgm`**: otro objeto
+puede depender de ella más adelante (un índice trigram nuevo, `similarity()`), y dejarla instalada no
+cuesta nada. Sin los índices la búsqueda sigue siendo correcta, sólo lenta.
