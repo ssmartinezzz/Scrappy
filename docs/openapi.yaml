@@ -140,7 +140,7 @@ components:
       name: q
       in: query
       schema: { type: string }
-      description: Free-text search over the product name.
+      description: Free-text search over the product name and brand (an own-label store's brand is the store name, V52).
     Sitio:
       name: sitio
       in: query

@@ -25,12 +25,13 @@ class JdbcSiteSource implements SiteSource {
     public Map<String, Sitio> cargar() {
         return Sql.traducir(() -> {
             Map<String, Sitio> sitios = new HashMap<>();
-            jdbc.query("SELECT nombre, sitio_key, plataforma, es_premium, rubro_forzado, origen FROM sitio",
+            jdbc.query("SELECT nombre, sitio_key, plataforma, es_premium, rubro_forzado, origen, monomarca FROM sitio",
                     rs -> {
                         String key = rs.getString("sitio_key");
                         sitios.put(key, new Sitio(
                                 rs.getString("nombre"), key, rs.getString("plataforma"),
-                                rs.getBoolean("es_premium"), rs.getString("rubro_forzado"), rs.getString("origen")));
+                                rs.getBoolean("es_premium"), rs.getString("rubro_forzado"), rs.getString("origen"),
+                                rs.getBoolean("monomarca")));
                     });
             return sitios;
         });

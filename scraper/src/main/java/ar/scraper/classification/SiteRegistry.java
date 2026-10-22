@@ -12,7 +12,13 @@ public final class SiteRegistry {
     private static final String ABSTENCION_PLATAFORMA = "tiendanube";
 
     public record Sitio(String nombre, String sitioKey, String plataforma,
-                         boolean esPremium, String rubroForzado, String origen) {
+                         boolean esPremium, String rubroForzado, String origen,
+                         boolean monomarca) {
+
+        public Sitio(String nombre, String sitioKey, String plataforma,
+                     boolean esPremium, String rubroForzado, String origen) {
+            this(nombre, sitioKey, plataforma, esPremium, rubroForzado, origen, false);
+        }
     }
 
     private final SiteSource source;
@@ -42,7 +48,7 @@ public final class SiteRegistry {
     public Sitio porKey(String sitioKey) {
         Sitio found = porSitioKey.get(sitioKey);
         if (found != null) return found;
-        return new Sitio(sitioKey, sitioKey, ABSTENCION_PLATAFORMA, false, null, "historico");
+        return new Sitio(sitioKey, sitioKey, ABSTENCION_PLATAFORMA, false, null, "historico", false);
     }
 
     public String plataforma(String sitioKey) {
@@ -55,5 +61,10 @@ public final class SiteRegistry {
 
     public String rubroForzado(String sitioKey) {
         return porKey(sitioKey).rubroForzado();
+    }
+
+    /** A single-brand store: the brand IS the site, so its nombre is the brand. */
+    public boolean esMonomarca(String sitioKey) {
+        return porKey(sitioKey).monomarca();
     }
 }

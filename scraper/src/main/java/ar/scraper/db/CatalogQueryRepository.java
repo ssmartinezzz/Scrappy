@@ -368,10 +368,23 @@ class CatalogQueryRepository implements CatalogQueryPort {
         agregarVisual(cond, params, "color_dominante", f.colorDominante());
 
         if (noVacio(f.q())) {
-            cond.add("p.nombre ILIKE '%' || ? || '%'");
-            params.add(escaparLike(f.q()));
+            cond.add(predicadoQ(f.q()));
+            String q = escaparLike(f.q());
+            params.add(q);
+            params.add(q);
         }
         return new Where(String.join("\n  AND ", cond), params);
+    }
+
+    /**
+     * A term under 3 characters has no trigram: the V53 GIN index would be scanned whole, and a
+     * generic plan cannot see the length to avoid it (2.4x a seq scan, measured). {@code || ''}
+     * hides the column from the index, so short terms keep the seq scan.
+     */
+    static String predicadoQ(String q) {
+        String nombre = q.strip().length() < 3 ? "(p.nombre || '')" : "p.nombre";
+        String marca  = q.strip().length() < 3 ? "(p.marca || '')"  : "p.marca";
+        return "(" + nombre + " ILIKE '%' || ? || '%' OR " + marca + " ILIKE '%' || ? || '%')";
     }
 
     private void agregarVisual(List<String> cond, List<Object> params, String columna, String valor) {

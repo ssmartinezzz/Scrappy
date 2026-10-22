@@ -1,64 +1,88 @@
-// Brand logo resolution via Clearbit Logo API (free, no API key required).
-// https://logo.clearbit.com/{domain}?size=128
-//
-// Only brands we're genuinely confident about get a domain mapped here.
-// Regional/local brands (Topper, Flecha, Jaguar, Gola, Penalty, Olympikus,
-// Tommy, Bulks, Fuark, Harvey Willys, Harvey) or site names (Sporting, City,
-// Vaypol, etc.) are intentionally left unmapped — they fall back to the
-// initials badge instead of a guessed/wrong domain.
-const BRAND_DOMAINS = {
-  nike: 'nike.com',
-  adidas: 'adidas.com',
-  puma: 'puma.com',
-  reebok: 'reebok.com',
-  'new balance': 'newbalance.com',
-  asics: 'asics.com',
-  saucony: 'saucony.com',
-  brooks: 'brooksrunning.com',
-  hoka: 'hoka.com',
-  'on running': 'on-running.com',
-  salomon: 'salomon.com',
-  mizuno: 'mizuno.com',
-  'under armour': 'underarmour.com',
-  fila: 'fila.com',
-  umbro: 'umbro.com',
-  vans: 'vans.com',
-  converse: 'converse.com',
-  dc: 'dcshoes.com',
-  etnies: 'etnies.com',
-  volcom: 'volcom.com',
-  quiksilver: 'quiksilver.com',
-  billabong: 'billabong.com',
-  'the north face': 'thenorthface.com',
-  columbia: 'columbia.com',
-  patagonia: 'patagonia.com',
-  timberland: 'timberland.com',
-  merrell: 'merrell.com',
-  lacoste: 'lacoste.com',
-  'calvin klein': 'calvinklein.com',
-  "levi's": 'levi.com',
-  levis: 'levi.com',
-  wrangler: 'wrangler.com',
-  champion: 'champion.com',
-  kappa: 'kappa.com',
-  ellesse: 'ellesse.com',
-  'le coq sportif': 'lecoqsportif.com',
-  'fred perry': 'fredperry.com',
-  caterpillar: 'catfootwear.com',
-  keen: 'keenfootwear.com',
-  palladium: 'palladiumboots.com',
-  crocs: 'crocs.com',
-  birkenstock: 'birkenstock.com',
+// Brand logos are static files in public/brand-logos/ (sources and licenses in its
+// README.md). Clearbit's free logo API, which this used to call, no longer resolves.
+// A brand without an entry falls back to the initials badge.
+export const BRAND_LOGO_FILES = {
+  "adidas": "adidas.svg",
+  "puma": "puma.svg",
+  "nike": "nike.svg",
+  "under armour": "under-armour.svg",
+  "fila": "fila.svg",
+  "reebok": "reebok.svg",
+  "new balance": "new-balance.svg",
+  "salomon": "salomon.svg",
+  "topper": "topper.svg",
+  "vans": "vans.svg",
+  "kappa": "kappa.svg",
+  "umbro": "umbro.svg",
+  "converse": "converse.svg",
+  "mizuno": "mizuno.svg",
+  "lacoste": "lacoste.svg",
+  "brooks": "brooks.svg",
+  "le coq sportif": "le-coq-sportif.svg",
+  "cellucor": "cellucor.png",
+  "saucony": "saucony.png",
+  "dc": "dc.png",
+  "columbia": "columbia.png",
+  "crocs": "crocs.png",
+  "champion": "champion.png",
+  "quiksilver": "quiksilver.png",
+  "timberland": "timberland.png",
+  "star nutrition": "star-nutrition.png",
+  "gold nutrition": "gold-nutrition.png",
+  "gentech": "gentech.png",
+  "optimum nutrition": "optimum-nutrition.svg",
+  "crudda": "crudda.png",
+  "labs nutrition": "labs-nutrition.png",
+  "natuliv": "natuliv.svg",
+  "innovanaturals": "innovanaturals.png",
+  "muecas": "muecas.png",
+  "universal nutrition": "universal-nutrition.svg",
+  "entrenuts": "entrenuts.png",
+  "asics": "asics.svg",
+  "ena": "ena.svg",
+  "leguilab": "leguilab.png",
+  "nutrex": "nutrex.svg",
+  "grosz nutrition": "grosz-nutrition.png",
+  "mervick": "mervick.png",
+  "penalty": "penalty.svg",
+  "freres": "freres.svg",
+  "fuark": "fuark.png",
+  "mmartinez": "mmartinez.png",
+  "monkyforce": "monkyforce.png",
+  "harvey": "harvey.png",
+  "bulks": "bulks.png",
+  "bullbenny": "bullbenny.png",
+  "batuk": "batuk.png",
+  "tussy": "tussy.png",
+  "foreverbstrd": "foreverbstrd.png",
+  "forever": "forever.png",
+  "fursten": "fursten.png",
+  "barnes": "barnes.png",
+  "vcp": "vcp.png",
+  "eldon": "eldon.png",
+  "midway": "midway.png",
+  "inpro": "inpro.svg",
+  "flowin": "flowin.png",
+  "vayzenhome": "vayzenhome.png",
+  "mrplacadeco": "mrplacadeco.png",
+  "ambiancedeco": "ambiancedeco.png",
 };
 
-/**
- * Returns the Clearbit logo URL for a brand name, or null if we don't have
- * a confident domain mapping for it.
- */
+// White or light-grey marks: they need a dark plate behind them.
+export const LOGOS_SOBRE_OSCURO = new Set([
+  'barnes', 'bulks', 'crudda', 'foreverbstrd', 'labs nutrition', 'mervick', 'mrplacadeco', 'vayzenhome',
+]);
+
+const clave = marca => (marca || '').trim().toLowerCase().replace(/\s+/g, ' ');
+
+/** Same-origin URL of the brand's logo, or null when there is none. */
 export function getBrandLogoUrl(marca) {
-  if (!marca) return null;
-  const domain = BRAND_DOMAINS[marca.trim().toLowerCase()];
-  return domain ? `https://logo.clearbit.com/${domain}?size=128` : null;
+  const file = BRAND_LOGO_FILES[clave(marca)];
+  return file ? `${import.meta.env.BASE_URL}brand-logos/${file}` : null;
+}
+
+export function logoSobreOscuro(marca) {
+  return LOGOS_SOBRE_OSCURO.has(clave(marca));
 }
 
 /**

@@ -40,16 +40,19 @@ public class NormalizerService {
                 .collect(Collectors.toList());
     }
 
+    /** In an own-label store the brand is the store, even over a curated match in the name. */
+    private String marcaDe(Product p, String nombre, String sitioKey) {
+        if (siteRegistry.esMonomarca(sitioKey)) return siteRegistry.porKey(sitioKey).nombre();
+        return StringUtils.isBlank(p.marca()) ? brandExtractor.extraer(nombre, p.sitio()) : p.marca();
+    }
+
     private Product normalizarProducto(Product p) {
         String nombre = StringUtils.defaultString(p.nombre());
         String cat    = categoryClassifier.normalizarCategoria(p.categoria(), nombre);
         String genero = genderResolver.resolver(p.genero(), nombre, cat);
         List<String> talles = sizeNormalizer.normalizar(p.talles());
-        String marca  = StringUtils.isBlank(p.marca())
-                        ? brandExtractor.extraer(nombre, p.sitio())
-                        : p.marca();
-
         String sitioKey       = sitioKey(p.sitio());
+        String marca          = marcaDe(p, nombre, sitioKey);
         String rubro          = rubroResolver.resolver(sitioKey, cat, p.rubro());
         boolean gymrat        = gymratTagger.esGymrat(nombre, sitioKey, cat, rubro, marca);
         boolean marcaPremium  = siteRegistry.esPremium(sitioKey);
