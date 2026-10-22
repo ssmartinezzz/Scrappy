@@ -15,9 +15,8 @@ function mlBannerText(mlBanner) {
 }
 
 export default function Topbar({
-  meta, facets, sitioFiltro, rubroFiltro,
-  onSitioChange, onRubroChange, onReScrape,
-  gymrat, onGymratToggle,
+  meta, facets, rubroFiltro,
+  onRubroChange, onReScrape,
   // frontend-auth-ui Phase 7 (design D6): hidden, not disabled — a VIEWER
   // never sees the scrape trigger, since POST /api/scrape is ADMIN
   // (ApiRoutePolicy.TABLE). Defaults false so a caller that forgets the prop
@@ -29,7 +28,6 @@ export default function Topbar({
   // default) just means no banner yet, same as before either read resolved.
   mlBanner = null,
 }) {
-  const sitioMap  = meta?.marcas        || {};
   const rubrosMap = facets?.rubros      || {};
   const total     = meta?.total         || 0;
 
@@ -56,13 +54,6 @@ export default function Topbar({
       .catch(() => {});
   }, []);
 
-  // Sitios: todos los que tienen productos, ordenados desc
-  const sitios = Object.entries(sitioMap)
-    .filter(([, n]) => n > 0)
-    .sort((a, b) => b[1] - a[1]);
-
-  const gymratCount = facets?.gymratCount || 0;
-
   return (
     <div className="topbar-root flex-shrink-0 bg-s1 border-b border-border">
       {/* Row 1: Logo + Rubro tabs.
@@ -74,7 +65,7 @@ export default function Topbar({
           part, so it is the part that scrolls (`min-w-0` is what actually lets
           a flex child shrink below its content); the brand and the right-hand
           cluster stay pinned and visible. */}
-      <div className="flex items-center gap-1 px-2 py-[.45rem] border-b border-s3">
+      <div className="flex items-center gap-1 px-2 py-[.45rem]">
         <span className="text-base mr-[4px] shrink-0">🛒</span>
         <strong className="hidden text-[.85rem] text-primary2 mr-[12px] shrink-0 sm:inline">Scraper AR</strong>
 
@@ -155,49 +146,6 @@ export default function Topbar({
           <UserMenu />
         </div>
       </div>
-
-      {/* Row 2: Sitio breadcrumbs — hidden below md via topbar-meta */}
-      {sitios.length > 0 && (
-        <div className="topbar-meta items-center gap-[4px] px-2 py-[.3rem] overflow-x-auto flex-nowrap [scrollbar-width:none]">
-          <button
-            onClick={() => onSitioChange('')}
-            className={cn(
-              'flex-shrink-0 rounded-xl border-none px-[9px] py-[2px]',
-              'cursor-pointer text-[.68rem] font-bold',
-              !sitioFiltro ? 'bg-primary text-white' : 'bg-s2 text-t4'
-            )}>
-            Todas {total > 0 && <span className="opacity-70">{total.toLocaleString('es-AR')}</span>}
-          </button>
-
-          {gymratCount > 0 && (
-            <button
-              onClick={onGymratToggle}
-              className={cn(
-                'flex-shrink-0 whitespace-nowrap rounded-xl border-none px-[9px] py-[2px]',
-                'cursor-pointer text-[.67rem] transition-all duration-150',
-                gymrat ? 'font-bold bg-[var(--sem-gym)] text-white' : 'font-normal bg-s2 text-t4'
-              )}>
-              🏋️ Gym <span className="opacity-80">{gymratCount.toLocaleString('es-AR')}</span>
-            </button>
-          )}
-
-          {sitios.map(([nombre, count]) => {
-            const active = sitioFiltro === nombre;
-            return (
-              <button key={nombre}
-                onClick={() => onSitioChange(active ? '' : nombre)}
-                className={cn(
-                  'flex-shrink-0 whitespace-nowrap rounded-xl px-[9px] py-[2px]',
-                  'cursor-pointer text-[.67rem] transition-all duration-150 border',
-                  active ? 'font-bold border-primary bg-[color-mix(in_srgb,var(--p)_15%,transparent)] text-primary2'
-                         : 'font-normal border-border bg-transparent text-t4'
-                )}>
-                {nombre} <span className="opacity-60">{count}</span>
-              </button>
-            );
-          })}
-        </div>
-      )}
     </div>
   );
 }

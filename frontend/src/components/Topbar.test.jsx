@@ -112,3 +112,19 @@ describe('Topbar — ML banner renders from the mlBanner prop (perf/dedupe-load-
     expect(screen.queryByText(/acc ·/)).not.toBeInTheDocument();
   });
 });
+
+describe('Topbar — no per-site chip row', () => {
+  it('renders no site, "Todas" or Gym chips even when the catalog has sites and gym products', () => {
+    useAuth.mockReturnValue({ identity: { username: 'valeria', roles: ['VIEWER'] }, logout: vi.fn() });
+
+    render(<Topbar {...baseProps({
+      meta: { total: 30, marcas: { Fuark: 12, Sporting: 18 } },
+      facets: { gymratCount: 5 },
+    })} />);
+
+    expect(screen.queryByRole('button', { name: /Fuark/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Sporting/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Todas/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Gym/ })).not.toBeInTheDocument();
+  });
+});

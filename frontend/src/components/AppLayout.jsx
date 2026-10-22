@@ -798,13 +798,9 @@ export default function AppLayout() {
       <Topbar
         meta={S.meta}
         facets={S.facets}
-        sitioFiltro={S.sitioFiltro}
         rubroFiltro={S.rubroFiltro}
-        onSitioChange={v => setFilter({ sitioFiltro: v })}
         onRubroChange={v => setFilter({ rubroFiltro:v, sitioFiltro:'' })}
         onReScrape={onReScrape}
-        gymrat={S.gymrat}
-        onGymratToggle={() => setFilter({ gymrat: !S.gymrat })}
         canScrape={isAdmin}
         mlBanner={mlBanner}
       />

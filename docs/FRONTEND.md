@@ -11,6 +11,10 @@ Comparar `/grupos` · Cuotas `/financiacion` · Favoritos `/favoritos` ·
 Outfits `/outfits` · PCs `/pcs` · Historial de precios `/historial/:key`.
 `/tendencias` redirige a `/analisis/mercado`.
 
+**El Topbar es una sola fila** (logo · rubros · ML/IPC · usuario). La fila de
+chips por sitio se sacó (2026-10-22): ya nada setea `sitioFiltro` (queda en
+`''`); una tienda de marca propia se filtra por marca.
+
 **El nav tiene dos menús y cuatro links, y la división es semántica**
 (`nav-guardados-armadores`, 2026-09-22): el menú **Armadores** nombra los tres
 armadores y nada más (`/outfits` · `/suplementos` · `/pcs`); el menú
