@@ -134,6 +134,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V49` | `notificacion_precio` (outbox de avisos de baja de precio) + `usuario.notificar_bajas_precio` |
 | `V50` | `notificacion_precio.lease_hasta`: distingue un lease vivo de un backoff (tope de mails por minuto del cluster) |
 | `V51` | `idx_notificacion_precio_terminadas`: índice de la purga por retención del outbox |
+| `V52` | `sitio.monomarca`: en una tienda de marca propia la marca ES el sitio; seed, filas en `marca` y backfill |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 
@@ -3420,5 +3421,41 @@ DROP INDEX idx_notificacion_precio_terminadas;
 -- <<< rollback:V51
 ```
 
-Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO. No depende de ningún otro
-objeto; sin el índice la purga sigue siendo correcta, sólo lenta.
+Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V52`. No depende de
+ningún otro objeto; sin el índice la purga sigue siendo correcta, sólo lenta.
+
+---
+
+## `V52` — `sitio.monomarca`
+
+`V19` hizo que `BrandExtractor` abstenga en vez de caer al nombre del sitio. Correcto para una tienda
+multimarca; en una tienda de marca propia (Monkyforce, Fuark, Freres...) dejó `marca` NULL en todos
+sus productos, así que `/api/marcas-browser` (que descarta la marca vacía) y el buscador nunca las
+encontraban.
+
+`sitio.monomarca boolean NOT NULL DEFAULT false` es dato, no una lista en Java (`CODE-6`):
+`NormalizerService` lo lee por `SiteRegistry` y, en un sitio monomarca, asigna `marca = sitio.nombre`
+(gana incluso sobre una marca curada en el título: el `Champion` suelto de Fuark). Marcados: los 21
+sitios de marca propia sembrados. Fuera: Zentra (revende el catálogo de INPRO), toda tecnología y las
+multimarca (entreno, morashop, sporting, vaypol, city, dcshoes).
+
+- **FK**: el upsert NO crea filas en `marca` (sí en `sitio`), así que `V52` inserta el `nombre` de cada
+  sitio monomarca. Un sitio nuevo marcado monomarca necesita su fila en `marca` en la misma migración:
+  si falta, el upsert rechaza la fila y la corrida dice `"0 nuevos"`.
+- **Backfill**: `productos.marca = sitio.nombre` para los productos de esos sitios, salvo los que tienen
+  `bloqueado_por` (misma regla que `sp_upsert_run`: una fila bloqueada a mano conserva su `marca`).
+  `V52` es idempotente (`ADD COLUMN IF NOT EXISTS`) para que `V52SitioMonomarcaTest` pueda reejecutarla
+  sobre filas insertadas después.
+
+### Rollback
+
+```sql
+-- >>> rollback:V52
+ALTER TABLE sitio DROP COLUMN monomarca;
+-- <<< rollback:V52
+```
+
+Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO. **El backfill es de una sola vía**,
+como el de `V19`: las `marca` reescritas y las filas de `marca` sembradas se quedan (son datos válidos
+y quitarlas rompería `fk_productos_marca`). Con el código anterior, el próximo scrape las vuelve a NULL.
+

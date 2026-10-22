@@ -368,8 +368,10 @@ class CatalogQueryRepository implements CatalogQueryPort {
         agregarVisual(cond, params, "color_dominante", f.colorDominante());
 
         if (noVacio(f.q())) {
-            cond.add("p.nombre ILIKE '%' || ? || '%'");
-            params.add(escaparLike(f.q()));
+            cond.add("(p.nombre ILIKE '%' || ? || '%' OR p.marca ILIKE '%' || ? || '%')");
+            String q = escaparLike(f.q());
+            params.add(q);
+            params.add(q);
         }
         return new Where(String.join("\n  AND ", cond), params);
     }

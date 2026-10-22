@@ -4,6 +4,17 @@
 
 ## Sitios configurados (`config.properties`)
 
+**Marca propia (`sitio.monomarca`, V52).** En una tienda de marca propia la
+marca *es* la tienda: `NormalizerService` le pone `marca = sitio.nombre` tal
+cual (`Monkyforce`, `Mmartinez`), por encima de cualquier match de
+`BrandExtractor`. Sin eso la marca queda NULL (V19 abstiene) y la tienda no
+aparece en `/marcas` ni en la búsqueda. Un sitio nuevo de marca propia necesita
+el flag **y** su nombre en la tabla `marca` (FK; si falta, el upsert dice
+`"0 nuevos"`). Hoy: freres, fuark, mmartinez, monkyforce, harvey, bulks,
+bullbenny, batuk, tussy, foreverbstrd, forever, fursten, barnes, vcp, eldon,
+midway, inpro, flowin, vayzenhome, mrplacadeco, ambiancedeco. Zentra **no**:
+revende el catálogo de INPRO.
+
 | Sitio | Plataforma | Rubro | Notas |
 |-------|-----------|-------|-------|
 | freres, vcp, forever | Shopify | moda | `forever` está en el name-set SHOPIFY desde 2026-07-14 (antes caía a TN y daba 0 productos) |

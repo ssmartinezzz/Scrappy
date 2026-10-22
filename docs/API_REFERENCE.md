@@ -652,8 +652,11 @@ Qué hace, exactamente:
 
 `precioOrig` es `number | null` (`close-1nf-and-3nf-foundation`, D1) — antes
 era `string`. Un valor no parseable es `null`, nunca un string vacío ni `"0"`.
-`marca` nunca es un nombre de tienda (V19, D3): `?marca=<tienda>` devuelve un
-result set vacío, sin el viejo fallback marca→sitio.
+`marca` es un nombre de tienda **sólo** en una tienda de marca propia
+(`sitio.monomarca`, V52): ahí la marca *es* la tienda (`Monkyforce`, `Fuark`…).
+En una multimarca nunca (V19, D3): `?marca=<tienda>` devuelve un result set
+vacío, sin el viejo fallback marca→sitio. `q` busca en `nombre` **y** en
+`marca`.
 
 ---
 

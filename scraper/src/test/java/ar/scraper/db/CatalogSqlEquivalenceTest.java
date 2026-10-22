@@ -209,7 +209,11 @@ class CatalogSqlEquivalenceTest extends PostgresTestBase {
             if (noVacio(f.escote()) && !f.escote().equalsIgnoreCase(v.escote())) return false;
             if (noVacio(f.colorDominante()) && !f.colorDominante().equalsIgnoreCase(v.colorDominante()))
                 return false;
-            if (noVacio(f.q()) && !safe(p.nombre()).toLowerCase().contains(f.q().toLowerCase())) return false;
+            if (noVacio(f.q())) {
+                String q = f.q().toLowerCase();
+                if (!safe(p.nombre()).toLowerCase().contains(q) && !safe(p.marca()).toLowerCase().contains(q))
+                    return false;
+            }
             return true;
         }).sorted(Comparator.comparingDouble(Product::precio)).collect(Collectors.toList());
     }
