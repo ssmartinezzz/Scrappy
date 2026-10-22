@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { fetchMarcasBrowser, fetchData, fmt, BADGE_LABELS } from '../api';
 import { SEMANTIC } from '../lib/colors';
-import { getBrandLogoUrl, getBrandInitials, getBrandColor } from '../lib/brandLogos';
+import { getBrandLogoUrl, getBrandInitials, getBrandColor, logoSobreOscuro } from '../lib/brandLogos';
 import { RUBROS } from '../lib/rubros';
 
 
@@ -30,23 +30,24 @@ function MarcaCard({ marca, onClick }) {
       style={{
         position:'relative', cursor:'pointer', borderRadius:14, overflow:'hidden',
         aspectRatio:'4/5',   // mismo tamaño/disposición que Mejores Picks
+        display:'flex', flexDirection:'column',
         background:'var(--s2)', border:`1px solid ${hovered?'var(--p)':'var(--bd)'}`,
         transition:'border-color .12s, transform .15s, box-shadow .15s',
         transform: hovered ? 'translateY(-4px)' : 'none',
         boxShadow: hovered ? '0 14px 40px rgba(0,0,0,.65)' : 'none',
       }}>
 
-      {/* Brand logo, contained and centered over a neutral background */}
+      {/* Brand logo, contained and centered on a plate that contrasts with the mark */}
       {showLogo ? (
-        <div style={{ width:'100%', height:'100%', display:'flex',
+        <div style={{ width:'100%', flex:1, minHeight:0, display:'flex',
                       alignItems:'center', justifyContent:'center',
-                      background:'var(--s3)', padding:'18%' }}>
+                      background: logoSobreOscuro(marca.marca) ? '#111' : '#fff', padding:'14%' }}>
           <img src={logoUrl} alt={marca.marca} loading="lazy"
             style={{ width:'100%', height:'100%', objectFit:'contain', display:'block' }}
             onError={() => setLogoFailed(true)}/>
         </div>
       ) : (
-        <div style={{ width:'100%', height:'100%', display:'flex',
+        <div style={{ width:'100%', flex:1, minHeight:0, display:'flex',
                       alignItems:'center', justifyContent:'center',
                       background: getBrandColor(marca.marca) }}>
           <span style={{ fontSize:'2.2rem', fontWeight:900, color:'#fff',
@@ -55,15 +56,6 @@ function MarcaCard({ marca, onClick }) {
           </span>
         </div>
       )}
-
-      {/* Gradient */}
-      <div style={{
-        position:'absolute', inset:0,
-        background: hovered
-          ? 'linear-gradient(to top, rgba(0,0,0,.92) 55%, rgba(0,0,0,.15) 80%)'
-          : 'linear-gradient(to top, rgba(0,0,0,.85) 45%, transparent 70%)',
-        transition:'all .2s',
-      }}/>
 
       {/* Count badge */}
       <div style={{
@@ -74,8 +66,8 @@ function MarcaCard({ marca, onClick }) {
         {marca.count}
       </div>
 
-      {/* Brand info */}
-      <div style={{ position:'absolute', bottom:0, left:0, right:0, padding:'10px 10px 9px' }}>
+      {/* Brand info: its own strip, never over the logo (a dark gradient hid black marks) */}
+      <div style={{ background:'#141416', padding:'8px 10px 9px', minHeight:64, textAlign:'left' }}>
         <div style={{ fontSize:'.88rem', fontWeight:900, color:'#fff',
                       letterSpacing:'-.01em', lineHeight:1.2 }}>
           {marca.marca}
@@ -305,7 +297,8 @@ export default function MarcasPanel({ onProductClick }) {
         {!loading && marcas.length > 0 && (
           <div style={{
             display:'grid', gap:14,
-            gridTemplateColumns:'repeat(auto-fill, minmax(300px, 1fr))',
+            // Two columns on a phone, the original 300px cards from tablet up.
+            gridTemplateColumns:'repeat(auto-fill, minmax(clamp(140px, 42vw, 300px), 1fr))',
           }}>
             {marcas.map(m => (
               <MarcaCard key={m.marca} marca={m} onClick={setSelMarca}/>

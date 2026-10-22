@@ -11,6 +11,12 @@ Comparar `/grupos` · Cuotas `/financiacion` · Favoritos `/favoritos` ·
 Outfits `/outfits` · PCs `/pcs` · Historial de precios `/historial/:key`.
 `/tendencias` redirige a `/analisis/mercado`.
 
+**Logos de `/marcas` son archivos del repo** (`frontend/public/brand-logos/`,
+mapa marca → archivo en `src/lib/brandLogos.js`, fuentes y licencias en el
+`README.md` de la carpeta). Clearbit, que se usaba antes, ya no resuelve
+(NXDOMAIN, 2026-10-22). Una marca sin entrada cae al badge de iniciales; un
+logo blanco va en `LOGOS_SOBRE_OSCURO` para que se dibuje sobre placa oscura.
+
 **El Topbar es una sola fila** (logo · rubros · ML/IPC · usuario). La fila de
 chips por sitio se sacó (2026-10-22): ya nada setea `sitioFiltro` (queda en
 `''`); una tienda de marca propia se filtra por marca.
