@@ -136,6 +136,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V51` | `idx_notificacion_precio_terminadas`: índice de la purga por retención del outbox |
 | `V52` | `sitio.monomarca`: en una tienda de marca propia la marca ES el sitio; seed, filas en `marca` y backfill |
 | `V53` | Índices GIN `gin_trgm_ops` sobre `productos(nombre)` y `productos(marca)` (extensión `pg_trgm`): el `q` del catálogo es un `ILIKE '%q%'` |
+| `V54` | Seed de Baesics (Shopify, gym, marca propia): fila en `sitio` con `monomarca` y su fila en `marca` |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 
@@ -3486,6 +3487,28 @@ DROP INDEX idx_productos_nombre_trgm;
 -- <<< rollback:V53
 ```
 
-Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO. **No dropea `pg_trgm`**: otro objeto
+Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V54`. **No dropea `pg_trgm`**: otro objeto
 puede depender de ella más adelante (un índice trigram nuevo, `similarity()`), y dejarla instalada no
 cuesta nada. Sin los índices la búsqueda sigue siendo correcta, sólo lenta.
+
+---
+
+## `V54` — seed de Baesics
+
+Baesics es ropa de gym de marca propia sobre Shopify genuino: sólo seed, `'shopify'` ya era válido.
+Como es monomarca, la misma migración inserta `'Baesics'` en `marca` (el upsert no crea filas ahí, ver
+`V52`). El tag `gymrat` no es dato de la base: sale de `SiteClassification.GYM_SITIOS`.
+
+### Rollback
+
+```sql
+-- >>> rollback:V54
+DELETE FROM sitio s WHERE s.sitio_key = 'baesics'
+  AND NOT EXISTS (SELECT 1 FROM productos p WHERE p.sitio_key = s.sitio_key);
+DELETE FROM marca m WHERE m.nombre = 'Baesics'
+  AND NOT EXISTS (SELECT 1 FROM productos p WHERE p.marca = m.nombre);
+-- <<< rollback:V54
+```
+
+Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V52` (que dropea
+`monomarca`). Con productos ya scrapeados no borra nada: esas filas referencian el sitio y la marca.

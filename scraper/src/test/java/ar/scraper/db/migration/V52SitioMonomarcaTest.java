@@ -31,7 +31,7 @@ class V52SitioMonomarcaTest extends PostgresTestBase {
     private static final List<String> MONOMARCA = List.of(
             "freres", "fuark", "mmartinez", "monkyforce", "harvey", "bulks", "bullbenny", "batuk",
             "tussy", "foreverbstrd", "forever", "fursten", "barnes", "vcp", "eldon", "midway",
-            "inpro", "flowin", "vayzenhome", "mrplacadeco", "ambiancedeco");
+            "inpro", "flowin", "vayzenhome", "mrplacadeco", "ambiancedeco", "baesics");
 
     private static final List<String> MULTIMARCA = List.of(
             "zentra", "sporting", "entreno", "morashop", "vaypol", "city", "dcshoes", "maximus", "fullh4rd");

@@ -15,7 +15,7 @@ public final class SiteClassification {
     // key debe matchear EXACTO el nombre configurado del sitio (GYM_SITIOS.contains(sitioKey) en
     // GymratTagger, no substring: un sitio hipotético "bulksupplements" no es Bulks)
     public static final Set<String> GYM_SITIOS = Set.of(
-        "bulks", "fuark", "monkyforce", "fursten"
+        "bulks", "fuark", "monkyforce", "fursten", "baesics"
     );
 
     // Canonical brand strings (ver MARCAS), comparados case-insensitive contra la marca ya
