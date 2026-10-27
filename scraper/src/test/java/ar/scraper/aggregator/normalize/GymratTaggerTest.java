@@ -43,6 +43,15 @@ class GymratTaggerTest {
     }
 
     @Test
+    void ropaDeBaesicsEsGymrat() {
+        Allure.parameter("nombre", "Boxy Mesh Rust");
+        Allure.parameter("sitioKey", "baesics");
+        Allure.parameter("cat", "Remera");
+        assertThat(tagger.esGymrat("Boxy Mesh Rust", "baesics", "Remera", "", null))
+                .isTrue();
+    }
+
+    @Test
     void calzadoDeSitioGymNoEsGymrat() {
         // Hard guard: gymrat is clothing only — footwear never gets the tag,
         // even when the store is in GYM_SITIOS.

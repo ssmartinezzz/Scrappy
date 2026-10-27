@@ -12,7 +12,7 @@ aparece en `/marcas` ni en la búsqueda. Un sitio nuevo de marca propia necesita
 el flag **y** su nombre en la tabla `marca` (FK; si falta, el upsert dice
 `"0 nuevos"`). Hoy: freres, fuark, mmartinez, monkyforce, harvey, bulks,
 bullbenny, batuk, tussy, foreverbstrd, forever, fursten, barnes, vcp, eldon,
-midway, inpro, flowin, vayzenhome, mrplacadeco, ambiancedeco. Zentra **no**:
+midway, inpro, flowin, vayzenhome, mrplacadeco, ambiancedeco, baesics. Zentra **no**:
 revende el catálogo de INPRO.
 
 | Sitio | Plataforma | Rubro | Notas |
@@ -21,7 +21,8 @@ revende el catálogo de INPRO.
 | foreverbstrd | Tiendanube | moda | `/collections/all` (URL estilo Shopify) pasó a dar 404; catálogo real en `/productos/`. Es TN real — **NO** agregarlo al name-set |
 | harvey | Tiendanube | moda | Única con `urls_extra` (outlet `otras-temporadas1`, pagina con `?page=N`; `?mpage=N` no pagina — el server ignora el parámetro y sirve siempre la misma página) |
 | midway, batuk, tussy, bulks, bullbenny, barnes, eldon | Tiendanube | moda | Batuk+Huoky misma tienda (huoky comentado) |
-| fuark, fursten | Tiendanube | gym | Fursten pagina solo vía fallback `?page=N`. No existe flag `GYM_SITIOS` |
+| fuark, fursten | Tiendanube | gym | Fursten pagina solo vía fallback `?page=N`. `gymrat` sale de `SiteClassification.GYM_SITIOS` (Java), no de una columna de `sitio` |
+| baesics | Shopify | gym | Marca propia. **56 productos**, todos en la página 1 de `/products.json` (medido 2026-10-27). Sólo fila de seed (`V54`) + `GYM_SITIOS`. curl pelado recibe `429 local_rate_limited`; Playwright no |
 | monkyforce | Monkyforce (propio) | gym | |
 | entreno | Tiendanube | suplementos | **~636 productos**: 53 páginas de 12, la 54 devuelve 0 (medido 2026-08-20). Hasta el tope configurable rendía ~313 — el techo de 25 páginas cortaba a la mitad, en silencio. El scroll infinito corre **sólo** en `/productos/` pelado y se **apaga** con `?page=N` en la URL, así que lo que pagina de verdad es `?page=N`; `?mpage=N` es marcador client-side y no pagina nada en el HTML crudo. No tiene links de pager en el DOM: llega a la página 2 por el fallback que construye la URL |
 | morashop | Morashop (Tiendanube, page propia) | suplementos | Competidor directo de entreno, ~510 productos crudos en 12 categorías hoja. **NO es plataforma `tiendanube`** aunque la tienda lo sea: el extractor compartido le sirve tal cual, pero necesita page propia porque **no tiene URL de catálogo**. `/productos/` es una landing del tema con CERO productos y `/suplementos/` es un índice, también cero — apuntar a cualquiera de las dos da 0 en silencio (la clase de bug que cerró `V24`). `MorashopPage` descubre las hojas del landing en runtime y **tira `MorashopDiscoveryException`** si no encuentra ninguna. La API REST de TN da 404 acá, pero además está **apagada a propósito** (`usaApi()=false`): devuelve la tienda entera sin filtro por sección, y morashop además vende supermercado, electro-hogar y bodega, rubros que no tienen valor en el dominio. Sólo se crawlea `/suplementos/` |
@@ -57,7 +58,7 @@ QLOUD   → rockethard
 OSCOMMERCE → venex
 INPRO   → inpro
 VTEX    → sporting, o url contiene vtexcommercestable.com.br / vteximg.com.br
-SHOPIFY → freres, vcp, forever, flowin, o url contiene myshopify.com
+SHOPIFY → freres, vcp, forever, flowin, baesics, o url contiene myshopify.com
 MONKYFORCE → monkyforce
 MORASHOP → morashop
 PRESTASHOP → armytech
