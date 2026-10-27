@@ -102,6 +102,11 @@ class V35RollbackRoundTripTest extends PostgresTestBase {
     private void sembrarUnasSpecs() throws Exception {
         String url = "https://v35-rollback.test/cpu-1";
         try (Connection c = dataSource().getConnection()) {
+            try (Statement seed = c.createStatement()) {
+                seed.execute("INSERT INTO sitio (nombre, sitio_key, plataforma, es_premium, rubro_forzado, origen) "
+                        + "VALUES ('Sitio', 'sitio', 'tiendanube', false, NULL, 'historico') "
+                        + "ON CONFLICT DO NOTHING");
+            }
             try (PreparedStatement ps = c.prepareStatement(
                     "INSERT INTO productos (url, sitio, nombre, precio, rubro) "
                             + "VALUES (?, 'Sitio', 'Producto', 1000, 'tecnologia')")) {
