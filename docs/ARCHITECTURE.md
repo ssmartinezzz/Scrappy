@@ -863,6 +863,12 @@ y `gymrat` es un tag ortogonal (`productos.gymrat`), así que la card pide
 `/api/mejores?gymrat=true` en vez de inventar un rubro `'gymrat'`. Dentro del
 panel `'gymrat'` es sólo la clave de cache local; nunca viaja como `rubro`.
 
+**La sección es más angosta que el tag.** Gymrat en `/picks` muestra sólo los
+sitios de `GYM_SITIOS` y Under Armour (`SiteClassification.esMarcaGymPicks`), pero
+el tag `gymrat` sigue siendo amplio porque el gate gym/casual del armador de
+outfits lo lee (`OutfitRules.pasaEstiloGate`): achicarlo dejaba los outfits gym
+con ~1.131 productos y mandaba la ropa deportiva de Nike/adidas a los casual.
+
 **Las portadas salen del catálogo, no de un banco de imágenes.** Cada card usa
 el `imgCat` del primer pick de su propio rubro. Una URL de stock hardcodeada
 sería una dependencia de red externa para decorar datos que ya tenemos, y

@@ -1,5 +1,6 @@
 package ar.scraper.web.cache;
 
+import ar.scraper.classification.SiteClassification;
 import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
 import ar.scraper.json.ProductJson;
 import ar.scraper.model.Product;
@@ -92,7 +93,7 @@ final class MarcasPicksView {
             .filter(p -> StringUtils.isNotBlank(p.categoria()))
             .filter(p -> StringUtils.isBlank(rubro)
                 || rubro.equalsIgnoreCase(p.rubro() != null ? p.rubro() : "indumentaria"))
-            .filter(p -> !gymrat || p.esGymrat())
+            .filter(p -> !gymrat || (p.esGymrat() && SiteClassification.esMarcaGymPicks(p.sitio(), p.marca())))
             .filter(p -> !"infantil".equalsIgnoreCase(p.genero() == null ? "" : p.genero().trim()))
             .collect(java.util.stream.Collectors.groupingBy(Product::categoria));
 

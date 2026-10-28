@@ -665,9 +665,12 @@ vacío, sin el viejo fallback marca→sitio. `q` busca en `nombre` **y** en
 Mejores picks por categoría, calculados sobre el snapshot en memoria.
 Parámetros: `rubro` (opcional; vocabulario cerrado de rubros) y `gymrat`
 (opcional, booleano). `gymrat=true` reduce el universo a los productos con
-`gymrat = true` (`count` y los picks sólo cuentan esos). Hoy `GymratTagger` sólo
-taggea indumentaria, así que en la práctica es ropa de gym;
-combinado con `rubro` es la intersección. Ausente o `false` es el comportamiento
+`gymrat = true` **de las marcas gym de `/picks`**: los sitios de `GYM_SITIOS`
+(Bulks, Fuark, Fursten, Baesics, Monkyforce) más Under Armour donde se venda
+(`SiteClassification.esMarcaGymPicks`). `count` y los picks sólo cuentan esos.
+Es más angosto que el tag a propósito: Nike o adidas siguen siendo `gymrat` para
+el armador de outfits, pero no aparecen en esta sección. Combinado con `rubro`
+es la intersección. Ausente o `false` es el comportamiento
 de siempre. `gymrat` es un filtro ortogonal, no un rubro: `rubro=gymrat` no
 existe. Cada combinación `(rubro, gymrat)` es una entrada propia de la cache.
 
