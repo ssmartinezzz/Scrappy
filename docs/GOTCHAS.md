@@ -524,6 +524,13 @@ cinturón de seguridad; quien corta de verdad es el chequeo de dos páginas vac�
 seguidas, que en Tiendanube funciona porque pasado el final sirve una página
 vacía en vez de repetir la última como hace osCommerce.
 
+**`includes()` sobre el `textContent` de una card matchea dentro de otras palabras.**
+El DOM de Tiendanube detectaba género con `cardText.includes('men')` sobre todo el
+texto de la card; en Monkyforce cada card lleva un JSON de variantes con
+`price_with_payment_discount` → "men" → la tienda entera salió `hombre` (y `manga`
+→ "man"). Las palabras de género matchean como palabra entera, con borde
+`[^a-záéíóúñü]` (el `\b` de JS es ASCII).
+
 ### Taxonomía y clasificación
 
 **`AccentStripper` es hot path:** lo usan 10 clases, en el path de normalización
