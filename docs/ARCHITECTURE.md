@@ -851,20 +851,25 @@ barra de rubros existía para acotarlas, pero es chrome de dashboard: dice qué
 filtros hay, no qué hay adentro de cada uno. Un rubro con 12 categorías y otro
 con 3 se veían exactamente igual antes de entrar.
 
-El carrusel de entrada muestra los **cuatro rubros reales** —el vocabulario de
+El carrusel de entrada muestra los **seis rubros reales** —el vocabulario de
 `lib/rubros.js` menos su neutro `''`, que es "Todos" y sigue estando en la barra
-de la galería— cada uno con su portada, su cantidad de categorías y su cantidad
+de la galería— más una card **Gymrat**, cada una con su portada, su cantidad de categorías y su cantidad
 de productos. Elegir uno recién entonces abre la galería. `RubroCard`
 (`ui/rubro-card.jsx`) es un `role="button"`, no un `<a>`: un rubro es un paso del
 flujo local del panel, no una ruta —el mismo criterio que `CategoryCard`—.
+
+**Gymrat no es un rubro.** `rubro` es un dominio cerrado (`chk_productos_rubro_domain`)
+y `gymrat` es un tag ortogonal (`productos.gymrat`), así que la card pide
+`/api/mejores?gymrat=true` en vez de inventar un rubro `'gymrat'`. Dentro del
+panel `'gymrat'` es sólo la clave de cache local; nunca viaja como `rubro`.
 
 **Las portadas salen del catálogo, no de un banco de imágenes.** Cada card usa
 el `imgCat` del primer pick de su propio rubro. Una URL de stock hardcodeada
 sería una dependencia de red externa para decorar datos que ya tenemos, y
 mostraría lo mismo con el catálogo lleno que con el catálogo vacío.
 
-**El costo es cuatro requests en el montaje donde antes había una**, porque la
-pantalla de entrada necesita los cuatro rubros a la vez para poder dibujar sus
+**El costo es siete requests en el montaje donde antes había una**, porque la
+pantalla de entrada necesita los seis rubros y Gymrat a la vez para poder dibujar sus
 contadores. Se paga una sola vez: los `cats` quedan cacheados por rubro, así que
 ir y volver entre el carrusel y una galería —y cambiar de solapa dentro de la
 galería— no emite ninguna request más. `/api/mejores` lee el snapshot en memoria,

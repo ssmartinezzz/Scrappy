@@ -623,6 +623,18 @@ abstiene incondicionalmente — los otros tres líderes de
 ya estaban en `Otros` y dos se habían ido a `GPU`, donde competían por el slot
 gpu del armador. Una PC armada de verdad lidera con `PC`, que es `KW_PC_LIDER`.
 
+**El líder también corre al revés: una prenda adelante salta TECH entero.** TECH
+evalúa antes que ropa, así que un token de hardware *más atrás* en un nombre de
+ropa ganaba: `"Zapatillas Salomon X Ultra 360 Mid Gtx"` (Gore-Tex) y `"Remera
+Under Armour Curry Arc"` eran `GPU`, `"Mochila Reebok Portanotebook"` era
+`Notebook`, `"Sweater Canguro Mother"` era `Motherboard`, `"Campera … Intel 30k"`
+era `CPU`. `KW_PRENDA_LIDER` corta eso antes de `clasificarTech`. Corrido sobre
+las 34.463 filas activas (2026-10-27): **37 cambios, cero en hardware real**.
+Las zapatillas pasan a ser calzado, y eso también las saca de `gymrat`. Lo que
+queda: `"Mochila Notebook … Triple Kit"` cae en `Conjunto` por `" kit "`, y
+`"Biotin … Tablets"` en `Otros` (sacar `"tablets "` de `KW_TABLET` la sacó de
+`Tablet`, pero `KW_VITAMINAS` no conoce biotina ni lisina).
+
 ⚠️ **Un arreglo de clasificación no se ve hasta el próximo scrape, y eso se
 parece exactamente a que no esté arreglado.** La categoría se fija al scrapear
 y vive en `productos.categoria`; el armador lee el snapshot de la base, no

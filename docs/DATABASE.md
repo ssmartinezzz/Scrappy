@@ -3510,5 +3510,78 @@ DELETE FROM marca m WHERE m.nombre = 'Baesics'
 -- <<< rollback:V54
 ```
 
-Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V52` (que dropea
-`monomarca`). Con productos ya scrapeados no borra nada: esas filas referencian el sitio y la marca.
+Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V55` y antes que el
+de `V52` (que dropea `monomarca`). Con productos ya scrapeados no borra nada: esas filas referencian el sitio y la marca.
+
+---
+
+## `V55` — `gymrat` sólo en indumentaria
+
+`GymratTagger` no tenía guard de rubro: el keyword `performance` de `KW_TRAINING_ROPA` y las
+`GYM_MARCAS` taggeaban gabinetes, monitores y pasta térmica como gymrat (40 filas en dev, 34
+activas, 2026-10-27). El tagger ahora rechaza todo rubro que no sea indumentaria; `V55` alinea las
+filas ya guardadas en vez de esperar a que se vuelva a scrapear cada sitio afectado.
+
+- **Una sola sentencia** `UPDATE … WHERE gymrat AND rubro <> 'indumentaria'`: atómica dentro de la
+  transacción de Flyway, e idempotente porque sólo toca filas que siguen marcadas.
+- **`rubro IS NULL` queda afuera** por la semántica de `<>`, que es lo que quiere: el tagger trata el
+  rubro vacío como indumentaria.
+- **Toca filas inactivas también.** Si un producto vuelve a aparecer, el upsert reescribe `gymrat`
+  desde el tagger nuevo igual (`gymrat = EXCLUDED.gymrat` en `R__sp_upsert_run`).
+- **Costo:** seq scan de `productos` sin índice nuevo; en dev (36.455 filas, 40 afectadas) el
+  `EXPLAIN ANALYZE` da 15 ms (seq scan 9 ms, 3.590 buffers). Una corrección de una sola vez no justifica un índice parcial que viva para siempre.
+
+### Rollback
+
+```sql
+-- >>> rollback:V55
+-- No-op a propósito: gymrat es derivado y cada scrape lo recalcula (GymratTagger).
+-- Restaurar las 40 filas sería restaurar datos que el código ya considera incorrectos;
+-- el rollback real es revertir GymratTagger, y el próximo scrape vuelve a marcarlas.
+SELECT 1;
+-- <<< rollback:V55
+```
+
+Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V56` y antes que el de `V54`.
+
+---
+
+## `V56` — una prenda adelante sale de las categorías de hardware
+
+`CategoryClassifier` evaluaba TECH antes que ropa, así que un token de hardware *más atrás* en un
+nombre de ropa ganaba: `"Zapatillas … Gtx"` (Gore-Tex) era `GPU`, `"Mochila … Notebook"` era
+`Notebook`, `"Sweater Canguro Mother"` era `Motherboard`. `KW_PRENDA_LIDER` ahora salta TECH (ver
+`GOTCHAS.md` → Taxonomía); `V56` alinea las filas ya guardadas (37 activas en dev, 2026-10-27).
+
+- **Una sola sentencia** `UPDATE … FROM (subconsulta)`: atómica dentro de la transacción de Flyway.
+  Idempotente porque una fila movida ya no está en ninguna categoría origen.
+- **Sólo se mueven** las filas en una categoría que TECH puede devolver, más las loncheras que estaban
+  en `Otros`. **Nunca una fila bloqueada a mano** (`bloqueado_por`, `V3`). Los zapatillas Asics que
+  la base tiene en `Otros` son drift de un arreglo anterior, no de éste: quedan para el scrape.
+- **Destino grueso.** Cada sustantivo líder va a su categoría canónica (`Zapatilla`, `Borcego` si el
+  nombre trae un keyword de `KW_BORCEGO`, `Mochila`, `Campera`…). El próximo scrape puede refinarla
+  (`Zapatilla` → `Zapatilla Running`); la fuente de verdad sigue siendo el clasificador.
+- **`sub_categoria` vuelve a `''`.** Se resuelve con `(nombre, categoria)`: el valor calculado para
+  `Notebook` no es un hecho sobre una `Mochila`. `''` es la abstención; el scrape la recalcula.
+- **Una zapatilla nunca es gymrat** (guard de calzado de `GymratTagger`), así que las que pasan a
+  calzado quedan con `gymrat = false`.
+- **`producto_tech_specs` no se toca:** las filas de esas mochilas están todas en NULL.
+- **Costo:** en dev (36.455 filas, 39 movidas: 37 activas) el `EXPLAIN ANALYZE` da ~100 ms, casi todo
+  en evaluar los regex sobre los candidatos (`Otros` es grande); hash join contra un seq scan. Una
+  corrección de una sola vez no justifica un índice. Corrida en seco contra el clasificador nuevo:
+  coincide en 36 de 37 filas activas; la que difiere es `"Mochila Notebook … Triple Kit"`, que SQL
+  deja en `Mochila` y el clasificador manda a `Conjunto` por `" kit "` (el scrape decide).
+
+### Rollback
+
+```sql
+-- >>> rollback:V56
+-- No-op a propósito: categoria, sub_categoria y gymrat son derivados y cada scrape los recalcula.
+-- Volver a poner "GPU" en una zapatilla sería restaurar un error; el rollback real es revertir
+-- KW_PRENDA_LIDER en CategoryClassifier, y el próximo scrape las vuelve a clasificar así.
+SELECT 1;
+-- <<< rollback:V56
+```
+
+Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V55`.
+

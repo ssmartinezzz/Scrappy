@@ -139,8 +139,11 @@ public class CategoryClassifier {
 
         // ── TECH (antes de textil para evitar falsos positivos) ─────── El ORDEN de acá abajo es
         // load-bearing y está MEDIDO contra las 16.830 filas activas, no elegido por prolijidad.
-        String tech = clasificarTech(t);
-        if (!tech.isEmpty()) return tech;
+        // Una prenda adelante gana sobre un token de hardware más atrás ("Zapatillas … Gtx").
+        if (!startsWithAny(t, GarmentTaxonomy.KW_PRENDA_LIDER)) {
+            String tech = clasificarTech(t);
+            if (!tech.isEmpty()) return tech;
+        }
 
         // ── COMBO / MULTI-PIEZA (ver ADR-4) — antes de ropa/calzado, para que un SKU combo no
         // quede first-matched como una sola pieza;

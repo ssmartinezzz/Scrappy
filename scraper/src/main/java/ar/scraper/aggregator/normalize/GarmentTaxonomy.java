@@ -336,7 +336,7 @@ public final class GarmentTaxonomy {
 
     public static final String[] KW_BOLSO = {
         "bolso","cartera","handbag","tote bag","clutch","minibag",
-        "bolsa de mano","bandolera","shoulder bag","crossbody"
+        "bolsa de mano","bandolera","shoulder bag","crossbody","lonchera"
     };
 
     public static final String[] KW_MOCHILA = {
@@ -768,6 +768,16 @@ public final class GarmentTaxonomy {
      */
     public static final String[] KW_MINIPC_LIDER = { " mini pc ", " minipc ", " nuc ", " brix ", " cubi " };
 
+    /**
+     * Líder ⇒ NO es hardware: salta el bloque TECH entero. Medido sobre la base (2026-10-27): 27
+     * filas activas con una prenda adelante caían en GPU ("Gtx" = Gore-Tex, "Curry Arc"), Notebook
+     * ("Portanotebook"), Motherboard ("Canguro Mother"), CPU ("Intel 30k") o Cooler.
+     */
+    public static final String[] KW_PRENDA_LIDER = {
+        " zapatilla", " remera ", " mochila ", " sweater ", " campera ", " chaqueta",
+        " pelota", " lonchera "
+    };
+
     public static final String[] KW_CPU_LIDER = {
         " procesador ", " microprocesador ", " micro amd ", " micro intel "
     };
@@ -833,7 +843,7 @@ public final class GarmentTaxonomy {
     };
 
     public static final String[] KW_TABLET = {
-        " tablet ","tablets "
+        " tablet "
     };
 
     /** Corre ANTES de Mouse: */

@@ -21,8 +21,17 @@ const RUBRO_THEME = {
   oficina:      '36 60% 30%',
   construccion: '20 18% 38%',
   hogar:        '340 35% 42%',
+  gymrat:       '0 68% 38%',
 };
 const RUBROS_ENTRADA = RUBROS.filter(r => r.key);
+
+// Gymrat is a boolean filter, not a rubro: this key only indexes
+// the local cache/state and is never sent as the `rubro` param.
+const GYMRAT = 'gymrat';
+const GYMRAT_ENTRADA = { key: GYMRAT, icon: '🏋', label: 'Gymrat' };
+const ENTRADAS = [...RUBROS_ENTRADA, GYMRAT_ENTRADA];
+
+const cargarPicks = key => (key === GYMRAT ? fetchMejores('', { gymrat: true }) : fetchMejores(key));
 
 // ─── Banner de categoría (shadcn-style CategoryCard — image top, content below) ─
 function CategoryBanner({ cat, onClick }) {
@@ -79,14 +88,14 @@ function RubroCarousel({ byRubro, cargando, onSelect }) {
     <div className="picks-immersive">
       <div className="picks-header">
         <div className="picks-title">🏆 Mejor picks</div>
-        <div className="picks-subtitle">Elegí un rubro para ver todas sus categorías</div>
+        <div className="picks-subtitle">Elegí un rubro para ver todas sus categorías, o Gymrat para todo lo de gym</div>
       </div>
 
       <div className="picks-main">
         <CategoryPicksCarousel
           title="Rubros"
           subtitle={cargando ? 'Cargando picks...' : 'El mejor de cada categoría según precio/calidad'}
-          items={RUBROS_ENTRADA}
+          items={ENTRADAS}
           className="picks-rubro-carousel"
           renderItem={r => {
             const { img, categorias, productos } = resumenRubro(byRubro[r.key]);
@@ -110,7 +119,7 @@ function RubroCarousel({ byRubro, cargando, onSelect }) {
 }
 
 // ─── Gallery: hero + grid + search, con reveal progresivo ────────────────────
-function PicksGallery({ cats, busq, onSelectCat }) {
+function PicksGallery({ cats, busq, onSelectCat, subtitulo = 'El mejor de cada categoría según precio/calidad' }) {
   const [visibleCount, setVisibleCount] = useState(INITIAL_BATCH);
   const sentinelRef = useRef(null);
 
@@ -149,7 +158,7 @@ function PicksGallery({ cats, busq, onSelectCat }) {
     <div className="picks-immersive">
       <div className="picks-header">
         <div className="picks-title">🏆 Mejor picks</div>
-        <div className="picks-subtitle">El mejor de cada categoría según precio/calidad</div>
+        <div className="picks-subtitle">{subtitulo}</div>
       </div>
 
       <div className="picks-main">
@@ -189,8 +198,8 @@ export default function PicksPanel({ onProductClick }) {
   // Entry step needs every rubro at once (cover image + counters per card).
   useEffect(() => {
     let cancelled = false;
-    Promise.all(RUBROS_ENTRADA.map(r =>
-      fetchMejores(r.key).then(d => [r.key, Array.isArray(d) ? d : []])
+    Promise.all(ENTRADAS.map(r =>
+      cargarPicks(r.key).then(d => [r.key, Array.isArray(d) ? d : []])
     )).then(pares => {
       if (cancelled) return;
       setByRubro(prev => ({ ...Object.fromEntries(pares), ...prev }));
@@ -205,7 +214,7 @@ export default function PicksPanel({ onProductClick }) {
     if (rubro === null || byRubro[rubro]) return;
     let cancelled = false;
     setLoading(true);
-    fetchMejores(rubro).then(d => {
+    cargarPicks(rubro).then(d => {
       if (cancelled) return;
       setByRubro(prev => ({ ...prev, [rubro]: Array.isArray(d) ? d : [] }));
       setLoading(false);
@@ -250,6 +259,9 @@ export default function PicksPanel({ onProductClick }) {
             className={`picks-rubro-btn${rubro===r.key ? ' active' : ''}`}
           >{r.icon} {r.label}</button>
         ))}
+        <button onClick={() => abrirRubro(GYMRAT)}
+          className={`picks-rubro-btn${rubro===GYMRAT ? ' active' : ''}`}
+        >{GYMRAT_ENTRADA.icon} {GYMRAT_ENTRADA.label}</button>
         <CategorySearchBar value={busq} onChange={setBusq} />
       </div>
 
@@ -265,7 +277,8 @@ export default function PicksPanel({ onProductClick }) {
           </div>
         )}
         {!loading && cats.length > 0 && (
-          <PicksGallery cats={cats} busq={busq} onSelectCat={setSelCat} />
+          <PicksGallery cats={cats} busq={busq} onSelectCat={setSelCat}
+            subtitulo={rubro === GYMRAT ? 'Toda la ropa de gym en un solo lugar' : undefined} />
         )}
       </div>
     </div>

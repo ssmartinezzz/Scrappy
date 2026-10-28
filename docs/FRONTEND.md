@@ -11,6 +11,13 @@ Comparar `/grupos` · Cuotas `/financiacion` · Favoritos `/favoritos` ·
 Outfits `/outfits` · PCs `/pcs` · Historial de precios `/historial/:key`.
 `/tendencias` redirige a `/analisis/mercado`.
 
+**`/picks` tiene una card "Gymrat" al final del carrusel de rubros** (y una solapa
+equivalente en la barra de la galería). No es un rubro: `lib/rubros.js` sigue
+siendo el dominio de la base. La card pide `fetchMejores('', { gymrat: true })`
+→ `GET /api/mejores?gymrat=true`, que junta los productos `gymrat` (hoy, sólo
+indumentaria: ver `GymratTagger`); `'gymrat'` es sólo la clave interna de estado/cache del panel y nunca
+viaja como `rubro`.
+
 **Logos de `/marcas` son archivos del repo** (`frontend/public/brand-logos/`,
 mapa marca → archivo en `src/lib/brandLogos.js`, fuentes y licencias en el
 `README.md` de la carpeta). Clearbit, que se usaba antes, ya no resuelve

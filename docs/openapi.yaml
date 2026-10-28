@@ -1879,6 +1879,10 @@ paths:
         - name: rubro
           in: query
           schema: { type: string }
+        - name: gymrat
+          in: query
+          description: "When `true`, only products flagged `gymrat` are considered (today the tagger only flags indumentaria); combined with `rubro` it intersects. Absent or `false` leaves the picks unfiltered. It is a filter, not a rubro."
+          schema: { type: boolean, default: false }
       responses:
         "200":
           description: Picks by category.
