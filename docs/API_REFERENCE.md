@@ -660,6 +660,19 @@ vacío, sin el viejo fallback marca→sitio. `q` busca en `nombre` **y** en
 
 ---
 
+## GET /mejores
+
+Mejores picks por categoría, calculados sobre el snapshot en memoria.
+Parámetros: `rubro` (opcional; vocabulario cerrado de rubros) y `gymrat`
+(opcional, booleano). `gymrat=true` reduce el universo a los productos con
+`gymrat = true` (`count` y los picks sólo cuentan esos). Hoy `GymratTagger` sólo
+taggea indumentaria, así que en la práctica es ropa de gym;
+combinado con `rubro` es la intersección. Ausente o `false` es el comportamiento
+de siempre. `gymrat` es un filtro ortogonal, no un rubro: `rubro=gymrat` no
+existe. Cada combinación `(rubro, gymrat)` es una entrada propia de la cache.
+
+---
+
 ## GET /tendencias
 
 Cuando hay `categoria_stats` persistidas, la response de este endpoint incluye

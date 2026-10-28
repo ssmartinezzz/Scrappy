@@ -6,6 +6,7 @@ import {
   enviarCorreoDePrueba,
   fetchData,
   fetchIndices,
+  fetchMejores,
   fetchPcPreferencia,
   fetchPreferenciaAvisos,
   fetchPcsBuilder,
@@ -133,6 +134,25 @@ describe('fetchData query serialisation', () => {
     global.fetch.mockResolvedValue({ ok: false, status: 500 });
 
     await expect(fetchData({})).resolves.toBeNull();
+  });
+});
+
+describe('fetchMejores', () => {
+  it('sends only the rubro by default', async () => {
+    await fetchMejores('suplementos');
+
+    const params = calledUrl().searchParams;
+    expect(params.get('rubro')).toBe('suplementos');
+    expect(params.has('gymrat')).toBe(false);
+  });
+
+  it('adds gymrat=true on top of the rubro, and never when it is false', async () => {
+    await fetchMejores('', { gymrat: true });
+    expect(calledUrl().searchParams.get('gymrat')).toBe('true');
+    expect(calledUrl().searchParams.has('rubro')).toBe(false);
+
+    await fetchMejores('', { gymrat: false });
+    expect(calledUrl().searchParams.has('gymrat')).toBe(false);
   });
 });
 

@@ -84,10 +84,15 @@ final class MarcasPicksView {
     }
 
     static List<MarcasPicksDtos.MejoresCategoria> mejores(AggregatedResult r, String rubro) {
+        return mejores(r, rubro, false);
+    }
+
+    static List<MarcasPicksDtos.MejoresCategoria> mejores(AggregatedResult r, String rubro, boolean gymrat) {
         java.util.Map<String, java.util.List<Product>> byCat = r.productos().stream()
             .filter(p -> StringUtils.isNotBlank(p.categoria()))
             .filter(p -> StringUtils.isBlank(rubro)
                 || rubro.equalsIgnoreCase(p.rubro() != null ? p.rubro() : "indumentaria"))
+            .filter(p -> !gymrat || p.esGymrat())
             .filter(p -> !"infantil".equalsIgnoreCase(p.genero() == null ? "" : p.genero().trim()))
             .collect(java.util.stream.Collectors.groupingBy(Product::categoria));
 
