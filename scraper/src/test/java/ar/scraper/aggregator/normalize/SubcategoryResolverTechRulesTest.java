@@ -75,7 +75,7 @@ class SubcategoryResolverTechRulesTest {
     @ParameterizedTest(name = "[{index}] [{1}] \"{0}\" -> {2}")
     @CsvSource({
         "'Remera Oversize Negra Boxy',                    Remera, oversize",
-        "'Remera de Gym Compression Negra',               Remera, deportiva",
+        "'Remera de Gym Compression Negra',               Remera, compresión",
         "'Remera Manga Larga Rustica',                    Remera, 'manga larga'",
         "'Camisa Manga Larga Lino Militar',               Camisa, lino",
         "'Lumberjack Shirt Cuadros',                      Camisa, cuadros",

@@ -57,6 +57,7 @@ public class SubcategoryResolver {
             new String[]{"térmica",    "termica"}
         ));
         SUBCATEG_TIER1.put("Musculosa", Arrays.<String[]>asList(
+            new String[]{"compresión", "compression", "compresion"},
             new String[]{"deportiva",  "deportiva", "gym", "training", "entrenamiento", "fitness", "sport"}
         ));
         SUBCATEG_TIER1.put("Calzoncillos", Arrays.<String[]>asList(
@@ -159,8 +160,8 @@ public class SubcategoryResolver {
         ));
 
         SUBCATEG_TIER1.put("Remera", Arrays.<String[]>asList(
-            new String[]{"deportiva",   "deportiva", "gym", "training", "entrenamiento",
-                                        "compression", "compresion", "dri-fit"},
+            new String[]{"compresión",  "compression", "compresion"},
+            new String[]{"deportiva",   "deportiva", "gym", "training", "entrenamiento", "dri-fit"},
             new String[]{"manga larga", "larga"},
             new String[]{"oversize",    "oversize", "oversized", "boxy", "remeron"},
             new String[]{"estampada",   "estampada", "print", "estampado"}

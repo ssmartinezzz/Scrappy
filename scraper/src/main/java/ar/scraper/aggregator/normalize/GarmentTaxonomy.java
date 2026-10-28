@@ -366,8 +366,17 @@ public final class GarmentTaxonomy {
 
     public static final String[] KW_GORRA = {
         "gorra"," cap "," hat ","sombrero","boina","snapback",
-        "bucket hat","buff","balaclava","vincha","visera","dad hat"
+        "bucket hat","buff","balaclava","vincha","visera","dad hat"," bandana "
     };
+
+    /**
+     * Gym-brand names with no garment noun ("Morley Tank", "Boxy Fit Boxing", "CROPTOP 4REAL"),
+     * evaluated after every other apparel and accessory block so a name that already matched
+     * something ("Think Tank" bag, "Jean Slim Fit") keeps its category.
+     */
+    public static final String[] KW_MUSCULOSA_TARDIA = {" tank ", " stringer ", " musculos "};
+    public static final String[] KW_REMERA_TARDIA = {" boxy ", " long sleeve ", " slim fit ", " v-neck "};
+    public static final String[] KW_CORPINO_TARDIO = {" croptop ", " crop top ", " bras "};
 
     public static final String[] KW_BUFANDA = {
         "bufanda","scarf","panuelo cuello","echarpe","cuello polar",

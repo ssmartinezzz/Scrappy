@@ -3583,5 +3583,42 @@ SELECT 1;
 -- <<< rollback:V56
 ```
 
-Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V55`.
+Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V57` y antes que el de `V55`.
 
+---
+
+## `V57` — género, compresión y prendas de gym fuera de `Otros`
+
+La sección Gymrat de `/picks` se parte en Hombre/Mujer y las remeras de compresión tienen su tarjeta.
+Eso pedía tres reglas que el código no tenía; `V57` alinea las filas ya guardadas (dev, 2026-10-28:
+410 de 1179 filas gymrat sin `genero`, ~50 remeras de compresión, 89 filas de sitios gym en `Otros`)
+en vez de esperar a que se vuelva a scrapear cada sitio.
+
+- **Tres sentencias en la transacción de Flyway:** atómicas en conjunto, cada una idempotente porque una
+  fila ya tratada deja de cumplir su propio `WHERE`.
+- **`Otros` → categoría.** `tank`/`stringer`/`musculos` → `Musculosa`, `boxy`/`long sleeve`/`slim fit`/
+  `v-neck` → `Remera`, `croptop`/`crop top`/`bras` → `Corpino`, `bandana` → `Gorra` (los mismos
+  keywords que `GarmentTaxonomy.KW_*_TARDIA`; el espacio es el límite de palabra). Sólo se mueven filas
+  que están en `Otros`, y `sub_categoria` vuelve a `''`. Lo que no es prenda (gift card, llavero,
+  sticker, perfume) se queda en `Otros`; el Gymrat de `/picks` ya no muestra `Otros`.
+- **`genero`.** Las filas sin género (`''` o `NULL`) con `wmn`/`girl`/`croptop`/`crop top`/`bras` como
+  palabra completa pasan a `mujer`. Una fila que ya dice `hombre` o `unisex` conserva lo suyo.
+- **`sub_categoria = 'compresión'`** para `Remera` y `Musculosa` con `compression`/`compresion` en el
+  nombre (acentos quitados), pisando `deportiva`. Corre después del movimiento, así que las prendas
+  recién movidas también la reciben.
+- **Nunca una fila bloqueada a mano** (`bloqueado_por`, `V3`). `chk_productos_genero_domain` admite
+  `mujer`; `sub_categoria` no tiene CHECK.
+
+### Rollback
+
+```sql
+-- >>> rollback:V57
+-- No-op a propósito: categoria, sub_categoria y genero son derivados y cada scrape los recalcula.
+-- Devolver a Otros una musculosa o dejar un short sin género sería restaurar un error; el
+-- rollback real es revertir GenderResolver, SubcategoryResolver y GarmentTaxonomy.KW_*_TARDIA, y
+-- el próximo scrape vuelve a clasificar así.
+SELECT 1;
+-- <<< rollback:V57
+```
+
+Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V56`.
