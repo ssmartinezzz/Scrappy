@@ -708,6 +708,7 @@ body { overflow-x: hidden; }
 .picks-rubro-btn { padding: 4px 10px; border-radius: 16px; border: none; cursor: pointer;
   font-size: .72rem; font-weight: 700; background: var(--s2); color: var(--t4); }
 .picks-rubro-btn.active { background: var(--p); color: #fff; }
+.picks-genero { display: flex; gap: 4px; padding-left: 8px; border-left: 1px solid var(--bd2); }
 .picks-rubro-back { padding: 4px 10px; border-radius: 16px; border: 1px solid var(--bd2);
   background: var(--s2); color: var(--t2); font: 700 .72rem var(--font); cursor: pointer;
   flex-shrink: 0; }

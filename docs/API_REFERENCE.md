@@ -672,7 +672,13 @@ Es más angosto que el tag a propósito: Nike o adidas siguen siendo `gymrat` pa
 el armador de outfits, pero no aparecen en esta sección. Combinado con `rubro`
 es la intersección. Ausente o `false` es el comportamiento
 de siempre. `gymrat` es un filtro ortogonal, no un rubro: `rubro=gymrat` no
-existe. Cada combinación `(rubro, gymrat)` es una entrada propia de la cache.
+existe. Cada combinación `(rubro, gymrat, genero)` es una entrada propia de la cache.
+
+`genero` (opcional, `hombre` o `mujer`; cualquier otro valor se ignora) deja los productos de ese
+género más los `unisex` y los que no tienen género, que aparecen en los dos. `infantil` queda
+afuera siempre. Ausente, no filtra por género. Con `gymrat=true` la sección además no muestra
+`Otros` y las remeras con `sub_categoria` `compresión` forman su propia tarjeta,
+`Remera de compresión`, en vez de contar dentro de `Remera`.
 
 ---
 

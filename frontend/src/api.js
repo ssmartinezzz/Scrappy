@@ -305,10 +305,11 @@ export async function fetchGrupos(filters = {}) {
   return { grupos: data, total: page?.total ?? 0, page: page?.number ?? 0, size: page?.size ?? 0 };
 }
 
-export async function fetchMejores(rubro = '', { gymrat = false } = {}) {
+export async function fetchMejores(rubro = '', { gymrat = false, genero = '' } = {}) {
   const p = new URLSearchParams();
   if (rubro) p.set('rubro', rubro);
   if (gymrat) p.set('gymrat', 'true');
+  if (genero) p.set('genero', genero);
   const r = await authedFetch(`${BASE}/api/mejores?${p}`);
   return softUnwrap(r, []);
 }

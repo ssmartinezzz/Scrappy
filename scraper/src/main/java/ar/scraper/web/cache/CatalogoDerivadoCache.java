@@ -58,9 +58,15 @@ public class CatalogoDerivadoCache {
         }
     }
 
-    public record MejoresKey(long ver, String rubro, boolean gymrat) {
+    public record MejoresKey(long ver, String rubro, boolean gymrat, String genero) {
+        public static MejoresKey de(long ver, String rubro, Boolean gymrat, String genero) {
+            String g = normalizar(genero == null ? null : genero.trim());
+            return new MejoresKey(ver, normalizar(rubro), Boolean.TRUE.equals(gymrat),
+                    "hombre".equals(g) || "mujer".equals(g) ? g : "");
+        }
+
         public static MejoresKey de(long ver, String rubro, Boolean gymrat) {
-            return new MejoresKey(ver, normalizar(rubro), Boolean.TRUE.equals(gymrat));
+            return de(ver, rubro, gymrat, null);
         }
 
         public static MejoresKey de(long ver, String rubro) {
@@ -79,7 +85,7 @@ public class CatalogoDerivadoCache {
     public List<MarcasPicksDtos.MejoresCategoria> mejores(MejoresKey k) {
         var r = snapshot.getLastResult();
         if (r == null) return List.of();
-        return List.copyOf(MarcasPicksView.mejores(r, k.rubro(), k.gymrat()));
+        return List.copyOf(MarcasPicksView.mejores(r, k.rubro(), k.gymrat(), k.genero()));
     }
 
     private static String normalizar(String s) {

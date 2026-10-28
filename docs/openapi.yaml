@@ -1883,6 +1883,10 @@ paths:
           in: query
           description: "When `true`, only `gymrat` products from the /picks gym brands are considered (the GYM_SITIOS stores plus Under Armour); combined with `rubro` it intersects. Absent or `false` leaves the picks unfiltered. It is a filter, not a rubro."
           schema: { type: boolean, default: false }
+        - name: genero
+          in: query
+          description: "`hombre` or `mujer`; any other value is ignored. Keeps products of that gender plus `unisex` and ungendered ones (they show in both); `infantil` is always excluded. Absent leaves the picks unfiltered by gender. With `gymrat=true`, `Otros` is left out and `Remera` rows with sub_categoria `compresión` form their own `Remera de compresión` card."
+          schema: { type: string, enum: [hombre, mujer] }
       responses:
         "200":
           description: Picks by category.

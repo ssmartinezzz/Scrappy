@@ -154,6 +154,14 @@ describe('fetchMejores', () => {
     await fetchMejores('', { gymrat: false });
     expect(calledUrl().searchParams.has('gymrat')).toBe(false);
   });
+
+  it('adds genero only when given', async () => {
+    await fetchMejores('', { gymrat: true, genero: 'mujer' });
+    expect(calledUrl().searchParams.get('genero')).toBe('mujer');
+
+    await fetchMejores('', { gymrat: true });
+    expect(calledUrl().searchParams.has('genero')).toBe(false);
+  });
 });
 
 describe('fetchSuplementosTipos', () => {

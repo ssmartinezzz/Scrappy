@@ -13,6 +13,8 @@ import java.util.List;
 final class MarcasPicksView {
 
     private static final int MAX_PICKS_POR_CATEGORIA = 10;
+    private static final String SUB_COMPRESION = "compresión";
+    private static final String CATEGORIA_COMPRESION = "Remera de compresión";
 
     private MarcasPicksView() {}
 
@@ -85,17 +87,25 @@ final class MarcasPicksView {
     }
 
     static List<MarcasPicksDtos.MejoresCategoria> mejores(AggregatedResult r, String rubro) {
-        return mejores(r, rubro, false);
+        return mejores(r, rubro, false, "");
     }
 
     static List<MarcasPicksDtos.MejoresCategoria> mejores(AggregatedResult r, String rubro, boolean gymrat) {
+        return mejores(r, rubro, gymrat, "");
+    }
+
+    /** {@code genero} is {@code hombre}, {@code mujer} or blank; unisex and unlabelled products fit both. */
+    static List<MarcasPicksDtos.MejoresCategoria> mejores(AggregatedResult r, String rubro, boolean gymrat,
+                                                          String genero) {
         java.util.Map<String, java.util.List<Product>> byCat = r.productos().stream()
             .filter(p -> StringUtils.isNotBlank(p.categoria()))
+            .filter(p -> !gymrat || !"Otros".equals(p.categoria()))
             .filter(p -> StringUtils.isBlank(rubro)
                 || rubro.equalsIgnoreCase(p.rubro() != null ? p.rubro() : "indumentaria"))
             .filter(p -> !gymrat || (p.esGymrat() && SiteClassification.esMarcaGymPicks(p.sitio(), p.marca())))
             .filter(p -> !"infantil".equalsIgnoreCase(p.genero() == null ? "" : p.genero().trim()))
-            .collect(java.util.stream.Collectors.groupingBy(Product::categoria));
+            .filter(p -> aplicaAGenero(p, genero))
+            .collect(java.util.stream.Collectors.groupingBy(p -> etiquetaDeCategoria(p, gymrat)));
 
         List<MarcasPicksDtos.MejoresCategoria> result = new ArrayList<>();
 
@@ -107,32 +117,11 @@ final class MarcasPicksView {
                 var   prods  = entry.getValue();
                 if (prods.isEmpty()) return;
 
-                Product mejor = prods.stream()
-                    .filter(p -> p.ml() != null && StringUtils.isNotBlank(p.imagenUrl()))
-                    .min(java.util.Comparator.comparingInt(
-                        p -> p.ml().scoreP() > 0 ? p.ml().scoreP() : 999))
-                    .orElse(prods.get(0));
-
-                Product premium = prods.stream()
-                    .filter(p -> p.ml() != null
-                        && ("premium".equals(p.ml().segment()) || "standard".equals(p.ml().segment()))
-                        && p.ml().scoreP() >= 30 && p.ml().scoreP() <= 65
-                        && StringUtils.isNotBlank(p.imagenUrl()))
-                    .findFirst().orElse(null);
-
-                Product histLow = prods.stream()
-                    .filter(p -> p.ml() != null && p.ml().badges() != null
-                        && p.ml().badges().contains("all_time_low"))
-                    .findFirst().orElse(null);
-
-                Product oferta = prods.stream()
-                    .filter(p -> p.ml() != null && p.ml().badges() != null
-                        && p.ml().badges().contains("verified_deal"))
-                    .findFirst().orElse(null);
+                Seleccion sel = Seleccion.de(prods);
+                Product mejor = sel.mejor != null ? sel.mejor : prods.get(0);
 
                 // Unit price (pack-aware), not shelf price, so genuine packs are not penalised.
-                double mediana = prods.stream().mapToDouble(ProductJson::precioUnitario)
-                    .sorted().skip(prods.size()/2).findFirst().orElse(0);
+                double mediana = sel.medianaPrecioUnitario();
                 String imgCat = StringUtils.defaultString(mejor.imagenUrl());
                 if (imgCat.startsWith("//")) imgCat = "https:" + imgCat;
                 String rubroVal = mejor.rubro() != null ? mejor.rubro() : "indumentaria";
@@ -141,16 +130,11 @@ final class MarcasPicksView {
                 java.util.Set<String> incluidos = new java.util.HashSet<>();
                 // Curated highlights first (they keep their label), then fill with the next best by
                 // scoreP so packs with a good unit price are not shut out of "valor".
-                addMejorPickDedup(picks, mejor,   "valor",    "Mejor precio/calidad", incluidos);
-                addMejorPickDedup(picks, premium, "premium",  "Premium accesible",    incluidos);
-                addMejorPickDedup(picks, histLow, "histLow",  "Mínimo histórico",     incluidos);
-                addMejorPickDedup(picks, oferta,  "oferta",   "Oferta real",          incluidos);
-                java.util.List<Product> ordenados = prods.stream()
-                    .filter(p -> p.ml() != null && StringUtils.isNotBlank(p.imagenUrl()))
-                    .sorted(java.util.Comparator.comparingInt(
-                        p -> p.ml().scoreP() > 0 ? p.ml().scoreP() : 999))
-                    .collect(java.util.stream.Collectors.toList());
-                for (Product p : ordenados) {
+                addMejorPickDedup(picks, mejor,        "valor",    "Mejor precio/calidad", incluidos);
+                addMejorPickDedup(picks, sel.premium,  "premium",  "Premium accesible",    incluidos);
+                addMejorPickDedup(picks, sel.histLow,  "histLow",  "Mínimo histórico",     incluidos);
+                addMejorPickDedup(picks, sel.oferta,   "oferta",   "Oferta real",          incluidos);
+                for (Product p : sel.mejoresPorScore()) {
                     if (picks.size() >= MAX_PICKS_POR_CATEGORIA) break;
                     addMejorPickDedup(picks, p, "top", "Buena compra", incluidos);
                 }
@@ -159,6 +143,103 @@ final class MarcasPicksView {
             });
 
         return result;
+    }
+
+    private static boolean aplicaAGenero(Product p, String genero) {
+        if (StringUtils.isBlank(genero)) return true;
+        String g = StringUtils.defaultString(p.genero()).trim();
+        return g.isEmpty() || "unisex".equalsIgnoreCase(g) || genero.equalsIgnoreCase(g);
+    }
+
+    private static String etiquetaDeCategoria(Product p, boolean gymrat) {
+        return gymrat && "Remera".equals(p.categoria()) && SUB_COMPRESION.equals(p.subCategoria())
+            ? CATEGORIA_COMPRESION : p.categoria();
+    }
+
+    private static int clave(Product p) {
+        return p.ml().scoreP() > 0 ? p.ml().scoreP() : 999;
+    }
+
+    /**
+     * One pass over a category: the curated highlights, the unit-price median and the best
+     * {@link #MAX_PICKS_POR_CATEGORIA} distinct urls by score. The highlights keep encounter order
+     * (first match wins) and the ranking is stable on ties, as the sort it replaces was.
+     */
+    private static final class Seleccion {
+        Product mejor;
+        Product premium;
+        Product histLow;
+        Product oferta;
+        private double[] precios;
+        private final List<Product> top = new ArrayList<>(MAX_PICKS_POR_CATEGORIA + 1);
+        private final List<Integer> topIdx = new ArrayList<>(MAX_PICKS_POR_CATEGORIA + 1);
+
+        static Seleccion de(List<Product> prods) {
+            Seleccion s = new Seleccion();
+            s.precios = new double[prods.size()];
+            int i = 0;
+            for (Product p : prods) {
+                s.precios[i] = ProductJson.precioUnitario(p);
+                if (p.ml() != null) {
+                    boolean conImagen = StringUtils.isNotBlank(p.imagenUrl());
+                    if (conImagen && (s.mejor == null || clave(p) < clave(s.mejor))) s.mejor = p;
+                    if (conImagen && s.premium == null && esPremiumAccesible(p)) s.premium = p;
+                    if (s.histLow == null && tieneBadge(p, "all_time_low")) s.histLow = p;
+                    if (s.oferta == null && tieneBadge(p, "verified_deal")) s.oferta = p;
+                    if (conImagen) s.ofrecer(p, i);
+                }
+                i++;
+            }
+            return s;
+        }
+
+        private static boolean esPremiumAccesible(Product p) {
+            return ("premium".equals(p.ml().segment()) || "standard".equals(p.ml().segment()))
+                && p.ml().scoreP() >= 30 && p.ml().scoreP() <= 65;
+        }
+
+        private static boolean tieneBadge(Product p, String badge) {
+            return p.ml().badges() != null && p.ml().badges().contains(badge);
+        }
+
+        private boolean antes(Product p, int idx, Product q, int qIdx) {
+            int c = Integer.compare(clave(p), clave(q));
+            return c < 0 || (c == 0 && idx < qIdx);
+        }
+
+        private void ofrecer(Product p, int idx) {
+            String url = StringUtils.defaultString(p.url());
+            if (!url.isBlank()) {
+                for (int k = 0; k < top.size(); k++) {
+                    if (url.equals(StringUtils.defaultString(top.get(k).url()))) {
+                        if (antes(p, idx, top.get(k), topIdx.get(k))) { top.remove(k); topIdx.remove(k); insertar(p, idx); }
+                        return;
+                    }
+                }
+            }
+            if (top.size() < MAX_PICKS_POR_CATEGORIA
+                    || antes(p, idx, top.get(top.size() - 1), topIdx.get(topIdx.size() - 1))) {
+                insertar(p, idx);
+                if (top.size() > MAX_PICKS_POR_CATEGORIA) {
+                    top.remove(top.size() - 1);
+                    topIdx.remove(topIdx.size() - 1);
+                }
+            }
+        }
+
+        private void insertar(Product p, int idx) {
+            int pos = top.size();
+            while (pos > 0 && antes(p, idx, top.get(pos - 1), topIdx.get(pos - 1))) pos--;
+            top.add(pos, p);
+            topIdx.add(pos, idx);
+        }
+
+        List<Product> mejoresPorScore() { return top; }
+
+        double medianaPrecioUnitario() {
+            java.util.Arrays.sort(precios);
+            return precios[precios.length / 2];
+        }
     }
 
     private static void addMejorPickDedup(List<MarcasPicksDtos.Pick> picks,

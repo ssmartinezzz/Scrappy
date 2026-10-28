@@ -30,13 +30,18 @@ public class MarcasPicksController {
 
     @GetMapping("/mejores")
     public ResponseEntity<ApiResponse<List<MarcasPicksDtos.MejoresCategoria>>> mejoresPorCategoria(@RequestParam(required = false) String rubro,
-            @RequestParam(required = false) Boolean gymrat) {
+            @RequestParam(required = false) Boolean gymrat,
+            @RequestParam(required = false) String genero) {
         if (service.getLastResult() == null) return ResponseEntity.noContent().build();
         return ResponseEntity.ok(ApiResponse.ok(
-                derivados.mejores(MejoresKey.de(service.snapshotVersion(), rubro, gymrat))));
+                derivados.mejores(MejoresKey.de(service.snapshotVersion(), rubro, gymrat, genero))));
+    }
+
+    public ResponseEntity<ApiResponse<List<MarcasPicksDtos.MejoresCategoria>>> mejoresPorCategoria(String rubro, Boolean gymrat) {
+        return mejoresPorCategoria(rubro, gymrat, null);
     }
 
     public ResponseEntity<ApiResponse<List<MarcasPicksDtos.MejoresCategoria>>> mejoresPorCategoria(String rubro) {
-        return mejoresPorCategoria(rubro, null);
+        return mejoresPorCategoria(rubro, null, null);
     }
 }
