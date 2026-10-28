@@ -31,7 +31,15 @@ const GYMRAT = 'gymrat';
 const GYMRAT_ENTRADA = { key: GYMRAT, icon: '🏋', label: 'Gymrat' };
 const ENTRADAS = [...RUBROS_ENTRADA, GYMRAT_ENTRADA];
 
-const cargarPicks = key => (key === GYMRAT ? fetchMejores('', { gymrat: true }) : fetchMejores(key));
+const GENEROS = [{ key: 'hombre', label: 'Hombre' }, { key: 'mujer', label: 'Mujer' }];
+
+// Gymrat's entry summary is every gender (key 'gymrat'); its gallery is one gender (key 'gymrat:hombre').
+const claveCache = (rubro, genero) => (rubro === GYMRAT && genero ? `${GYMRAT}:${genero}` : rubro);
+
+const cargarPicks = (key, genero) => {
+  if (key !== GYMRAT) return fetchMejores(key);
+  return fetchMejores('', genero ? { gymrat: true, genero } : { gymrat: true });
+};
 
 // ─── Banner de categoría (shadcn-style CategoryCard — image top, content below) ─
 function CategoryBanner({ cat, onClick }) {
@@ -194,6 +202,7 @@ export default function PicksPanel({ onProductClick }) {
   const [resumenListo, setResumenListo] = useState(false);
   const [selCat,  setSelCat]  = useState(null);
   const [busq,    setBusq]    = useState('');
+  const [genero,  setGenero]  = useState('hombre');
 
   // Entry step needs every rubro at once (cover image + counters per card).
   useEffect(() => {
@@ -210,19 +219,21 @@ export default function PicksPanel({ onProductClick }) {
     return () => { cancelled = true; };
   }, []);
 
+  const clave = rubro === null ? null : claveCache(rubro, rubro === GYMRAT ? genero : '');
+
   useEffect(() => {
-    if (rubro === null || byRubro[rubro]) return;
+    if (clave === null || byRubro[clave]) return;
     let cancelled = false;
     setLoading(true);
-    cargarPicks(rubro).then(d => {
+    cargarPicks(rubro, rubro === GYMRAT ? genero : '').then(d => {
       if (cancelled) return;
-      setByRubro(prev => ({ ...prev, [rubro]: Array.isArray(d) ? d : [] }));
+      setByRubro(prev => ({ ...prev, [clave]: Array.isArray(d) ? d : [] }));
       setLoading(false);
     }).catch(() => {
       // Unreachable backend: keep the loading state for this rubro.
     });
     return () => { cancelled = true; };
-  }, [rubro, byRubro]);
+  }, [clave, rubro, genero, byRubro]);
 
   const abrirRubro = useCallback(key => {
     setSelCat(null);
@@ -245,7 +256,7 @@ export default function PicksPanel({ onProductClick }) {
     </div>
   );
 
-  const cats = byRubro[rubro] || [];
+  const cats = byRubro[clave] || [];
 
   return (
     <div className="picks-panel">
@@ -262,6 +273,15 @@ export default function PicksPanel({ onProductClick }) {
         <button onClick={() => abrirRubro(GYMRAT)}
           className={`picks-rubro-btn${rubro===GYMRAT ? ' active' : ''}`}
         >{GYMRAT_ENTRADA.icon} {GYMRAT_ENTRADA.label}</button>
+        {rubro === GYMRAT && (
+          <div className="picks-genero" role="group" aria-label="Género">
+            {GENEROS.map(g => (
+              <button key={g.key} onClick={() => setGenero(g.key)}
+                className={`picks-rubro-btn${genero===g.key ? ' active' : ''}`}
+              >{g.label}</button>
+            ))}
+          </div>
+        )}
         <CategorySearchBar value={busq} onChange={setBusq} />
       </div>
 

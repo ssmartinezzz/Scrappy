@@ -16,6 +16,9 @@ public class GenderResolver {
     private static final Set<String> FEMININE_CODED_CATEGORIES =
             Set.of("Calza", "Pollera", "Vestido", "Enterito", "Corpino", "Malla");
 
+    private static final Set<String> WOMEN_TOKENS =
+            Set.of(" wmn ", " girl ", " croptop ", " crop top ", " bras ");
+
     public String resolver(String raw, String nombre, String categoria) {
         String nombreNorm = normalizarAcentos(nombre != null ? nombre : "");
         String combined = normalizarAcentos((raw != null ? raw : "") + " " + (nombre != null ? nombre : ""));
@@ -51,6 +54,9 @@ public class GenderResolver {
         if (combined.contains("mujer")  || combined.contains("femenino") ||
             combined.contains("women")  || combined.contains("female")   ||
             combined.contains("dama")   || combined.contains("damas")) return "mujer";
+
+        String padded = " " + combined + " ";
+        if (WOMEN_TOKENS.stream().anyMatch(padded::contains)) return "mujer";
 
         if (combined.contains("unisex") || combined.contains("neutro")) return "unisex";
 

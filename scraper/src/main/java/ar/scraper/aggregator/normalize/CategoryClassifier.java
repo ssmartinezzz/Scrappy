@@ -215,6 +215,9 @@ public class CategoryClassifier {
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_GORRA))      return "Gorra";
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_MEDIAS))     return "Medias";
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_ACCESORIO_DEPORTIVO)) return "Accesorio Deportivo";
+        if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_MUSCULOSA_TARDIA))    return "Musculosa";
+        if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_REMERA_TARDIA))       return "Remera";
+        if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_CORPINO_TARDIO))      return "Corpino";
 
         // ── CALZADO POR MODELO/MARCA (fallback, sin sustantivo explícito) ─ Corre AL FINAL,
         // después de todos los sustantivos explícitos de arriba: Por eso GENERICO solo cuenta si

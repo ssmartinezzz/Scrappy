@@ -17,7 +17,10 @@ siendo el dominio de la base. La card pide `fetchMejores('', { gymrat: true })`
 → `GET /api/mejores?gymrat=true`, que junta los productos `gymrat` de las marcas
 gym (Bulks, Fuark, Fursten, Baesics, Monkyforce y Under Armour; ver
 `SiteClassification.esMarcaGymPicks`); `'gymrat'` es sólo la clave interna de estado/cache del panel y nunca
-viaja como `rubro`.
+viaja como `rubro`. Dentro de la galería de Gymrat hay un selector **Hombre | Mujer** (arranca en
+Hombre): pide `fetchMejores('', { gymrat: true, genero })` → `GET /api/mejores?gymrat=true&genero=hombre|mujer`
+y cachea cada género por separado (`gymrat:hombre`, `gymrat:mujer`); la card de la entrada sigue pidiendo
+Gymrat sin género.
 
 **Logos de `/marcas` son archivos del repo** (`frontend/public/brand-logos/`,
 mapa marca → archivo en `src/lib/brandLogos.js`, fuentes y licencias en el
