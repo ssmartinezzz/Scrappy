@@ -3542,4 +3542,46 @@ SELECT 1;
 -- <<< rollback:V55
 ```
 
-Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V54`.
+Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V56` y antes que el de `V54`.
+
+---
+
+## `V56` — una prenda adelante sale de las categorías de hardware
+
+`CategoryClassifier` evaluaba TECH antes que ropa, así que un token de hardware *más atrás* en un
+nombre de ropa ganaba: `"Zapatillas … Gtx"` (Gore-Tex) era `GPU`, `"Mochila … Notebook"` era
+`Notebook`, `"Sweater Canguro Mother"` era `Motherboard`. `KW_PRENDA_LIDER` ahora salta TECH (ver
+`GOTCHAS.md` → Taxonomía); `V56` alinea las filas ya guardadas (37 activas en dev, 2026-10-27).
+
+- **Una sola sentencia** `UPDATE … FROM (subconsulta)`: atómica dentro de la transacción de Flyway.
+  Idempotente porque una fila movida ya no está en ninguna categoría origen.
+- **Sólo se mueven** las filas en una categoría que TECH puede devolver, más las loncheras que estaban
+  en `Otros`. **Nunca una fila bloqueada a mano** (`bloqueado_por`, `V3`). Los zapatillas Asics que
+  la base tiene en `Otros` son drift de un arreglo anterior, no de éste: quedan para el scrape.
+- **Destino grueso.** Cada sustantivo líder va a su categoría canónica (`Zapatilla`, `Borcego` si el
+  nombre trae un keyword de `KW_BORCEGO`, `Mochila`, `Campera`…). El próximo scrape puede refinarla
+  (`Zapatilla` → `Zapatilla Running`); la fuente de verdad sigue siendo el clasificador.
+- **`sub_categoria` vuelve a `''`.** Se resuelve con `(nombre, categoria)`: el valor calculado para
+  `Notebook` no es un hecho sobre una `Mochila`. `''` es la abstención; el scrape la recalcula.
+- **Una zapatilla nunca es gymrat** (guard de calzado de `GymratTagger`), así que las que pasan a
+  calzado quedan con `gymrat = false`.
+- **`producto_tech_specs` no se toca:** las filas de esas mochilas están todas en NULL.
+- **Costo:** en dev (36.455 filas, 39 movidas: 37 activas) el `EXPLAIN ANALYZE` da ~100 ms, casi todo
+  en evaluar los regex sobre los candidatos (`Otros` es grande); hash join contra un seq scan. Una
+  corrección de una sola vez no justifica un índice. Corrida en seco contra el clasificador nuevo:
+  coincide en 36 de 37 filas activas; la que difiere es `"Mochila Notebook … Triple Kit"`, que SQL
+  deja en `Mochila` y el clasificador manda a `Conjunto` por `" kit "` (el scrape decide).
+
+### Rollback
+
+```sql
+-- >>> rollback:V56
+-- No-op a propósito: categoria, sub_categoria y gymrat son derivados y cada scrape los recalcula.
+-- Volver a poner "GPU" en una zapatilla sería restaurar un error; el rollback real es revertir
+-- KW_PRENDA_LIDER en CategoryClassifier, y el próximo scrape las vuelve a clasificar así.
+SELECT 1;
+-- <<< rollback:V56
+```
+
+Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V55`.
+
