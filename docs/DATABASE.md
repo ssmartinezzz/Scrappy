@@ -3510,5 +3510,36 @@ DELETE FROM marca m WHERE m.nombre = 'Baesics'
 -- <<< rollback:V54
 ```
 
-Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V52` (que dropea
-`monomarca`). Con productos ya scrapeados no borra nada: esas filas referencian el sitio y la marca.
+Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V55` y antes que el
+de `V52` (que dropea `monomarca`). Con productos ya scrapeados no borra nada: esas filas referencian el sitio y la marca.
+
+---
+
+## `V55` — `gymrat` sólo en indumentaria
+
+`GymratTagger` no tenía guard de rubro: el keyword `performance` de `KW_TRAINING_ROPA` y las
+`GYM_MARCAS` taggeaban gabinetes, monitores y pasta térmica como gymrat (40 filas en dev, 34
+activas, 2026-10-27). El tagger ahora rechaza todo rubro que no sea indumentaria; `V55` alinea las
+filas ya guardadas en vez de esperar a que se vuelva a scrapear cada sitio afectado.
+
+- **Una sola sentencia** `UPDATE … WHERE gymrat AND rubro <> 'indumentaria'`: atómica dentro de la
+  transacción de Flyway, e idempotente porque sólo toca filas que siguen marcadas.
+- **`rubro IS NULL` queda afuera** por la semántica de `<>`, que es lo que quiere: el tagger trata el
+  rubro vacío como indumentaria.
+- **Toca filas inactivas también.** Si un producto vuelve a aparecer, el upsert reescribe `gymrat`
+  desde el tagger nuevo igual (`gymrat = EXCLUDED.gymrat` en `R__sp_upsert_run`).
+- **Costo:** seq scan de `productos` sin índice nuevo; en dev (36.455 filas, 40 afectadas) el
+  `EXPLAIN ANALYZE` da 15 ms (seq scan 9 ms, 3.590 buffers). Una corrección de una sola vez no justifica un índice parcial que viva para siempre.
+
+### Rollback
+
+```sql
+-- >>> rollback:V55
+-- No-op a propósito: gymrat es derivado y cada scrape lo recalcula (GymratTagger).
+-- Restaurar las 40 filas sería restaurar datos que el código ya considera incorrectos;
+-- el rollback real es revertir GymratTagger, y el próximo scrape vuelve a marcarlas.
+SELECT 1;
+-- <<< rollback:V55
+```
+
+Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V54`.

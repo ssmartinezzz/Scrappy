@@ -81,4 +81,24 @@ class GymratTaggerTest {
         assertThat(tagger.esGymrat("Remera Basica Lisa", "bulksupplements", "Remera", "", null))
                 .isFalse();
     }
+
+    // "Performance" is a KW_TRAINING_ROPA keyword; on the dev DB it tagged 34 gabinetes,
+    // monitores and pastas térmicas as gymrat. gymrat is clothing: other rubros never qualify.
+    @Test
+    void productoDeTecnologiaConKeywordDeTrainingNoEsGymrat() {
+        assertThat(tagger.esGymrat("Monitor LED 24\" Performance PF236U VGA HDMI",
+                "maximus", "Monitor", "tecnologia", null)).isFalse();
+    }
+
+    @Test
+    void productoDeTecnologiaDeMarcaGymNoEsGymrat() {
+        assertThat(tagger.esGymrat("Joystick Inalámbrico Gamesir G7 Pro",
+                "armytech", "Joystick", "tecnologia", "Champion")).isFalse();
+    }
+
+    @Test
+    void ropaConRubroIndumentariaExplicitoSigueSiendoGymrat() {
+        assertThat(tagger.esGymrat("Calza Performance", "dexter", "Calza", "indumentaria", null))
+                .isTrue();
+    }
 }
