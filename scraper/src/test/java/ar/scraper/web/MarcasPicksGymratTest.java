@@ -35,11 +35,14 @@ class MarcasPicksGymratTest {
     @BeforeEach
     void setUp() {
         var catalogo = catalogo(
-                producto("a", "Remera", "indumentaria", true),
-                producto("b", "Remera", "indumentaria", false),
-                producto("c", "Remera", "indumentaria", false),
-                producto("d", "Proteina", "suplementos", true),
-                producto("e", "Proteina", "suplementos", false));
+                producto("a", "Remera", "indumentaria", true, "Fuark", "Fuark"),
+                producto("b", "Remera", "indumentaria", false, "Sitio", "Marca"),
+                producto("c", "Remera", "indumentaria", false, "Sitio", "Marca"),
+                producto("d", "Proteina", "suplementos", true, "Vaypol", "Under Armour"),
+                producto("e", "Proteina", "suplementos", false, "Sitio", "Marca"),
+                // gymrat by the tagger, but not one of the /picks gym brands
+                producto("f", "Remera", "indumentaria", true, "Vaypol", "Nike"),
+                producto("g", "Short", "indumentaria", true, "Vaypol", "adidas"));
         service = mock(ScraperService.class);
         when(service.getLastResult()).thenReturn(catalogo);
         when(service.snapshotVersion()).thenReturn(1L);
@@ -59,11 +62,12 @@ class MarcasPicksGymratTest {
         ctx.close();
     }
 
-    private static Product producto(String id, String categoria, String rubro, boolean gymrat) {
+    private static Product producto(String id, String categoria, String rubro, boolean gymrat,
+                                    String sitio, String marca) {
         return Product.builder()
-                .sitio("Sitio").nombre(categoria + " " + id).precio(1000).precioOriginal(null)
+                .sitio(sitio).nombre(categoria + " " + id).precio(1000).precioOriginal(null)
                 .url("https://s/" + id).imagenUrl("img").categoria(categoria).genero("unisex")
-                .talles(List.of("M")).ml(Product.MlScore.EMPTY).marca("Marca").rubro(rubro)
+                .talles(List.of("M")).ml(Product.MlScore.EMPTY).marca(marca).rubro(rubro)
                 .gymrat(gymrat).marcaPremium(false).senal(Product.SenalCompra.EMPTY)
                 .finan(Product.SenalFinanciacion.EMPTY).cantidadUnidades(1).subCategoria("")
                 .visual(Product.VisualAttrs.EMPTY).build();
@@ -94,6 +98,14 @@ class MarcasPicksGymratTest {
     }
 
     @Test
+    void gymratOnlyKeepsTheGymBrandsEvenWhenTheTaggerSaysGymrat() {
+        var body = data(controller.mejoresPorCategoria("indumentaria", true));
+
+        assertThat(count(body, "Remera")).isEqualTo(1);
+        assertThat(count(body, "Short")).isEqualTo(-1);
+    }
+
+    @Test
     void gymratIntersectsWithRubro() {
         var body = data(controller.mejoresPorCategoria("suplementos", true));
 
@@ -106,7 +118,7 @@ class MarcasPicksGymratTest {
         var sinParam = data(controller.mejoresPorCategoria(null, null));
         var falso = data(controller.mejoresPorCategoria(null, false));
 
-        assertThat(count(sinParam, "Remera")).isEqualTo(3);
+        assertThat(count(sinParam, "Remera")).isEqualTo(4);
         assertThat(count(sinParam, "Proteina")).isEqualTo(2);
         assertThat(falso).isEqualTo(sinParam);
     }
@@ -127,6 +139,6 @@ class MarcasPicksGymratTest {
         assertThat(cache.mejores(MejoresKey.de(1, "", true))).isSameAs(gym);
         assertThat(cache.mejores(MejoresKey.de(1, "", false))).isSameAs(plano);
         assertThat(gym.stream().mapToInt(c -> c.getCount()).sum()).isEqualTo(2);
-        assertThat(plano.stream().mapToInt(c -> c.getCount()).sum()).isEqualTo(5);
+        assertThat(plano.stream().mapToInt(c -> c.getCount()).sum()).isEqualTo(7);
     }
 }

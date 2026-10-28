@@ -278,7 +278,7 @@ export default function PicksPanel({ onProductClick }) {
         )}
         {!loading && cats.length > 0 && (
           <PicksGallery cats={cats} busq={busq} onSelectCat={setSelCat}
-            subtitulo={rubro === GYMRAT ? 'Toda la ropa de gym en un solo lugar' : undefined} />
+            subtitulo={rubro === GYMRAT ? 'Lo mejor de las marcas de gym' : undefined} />
         )}
       </div>
     </div>

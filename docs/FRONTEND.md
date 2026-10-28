@@ -14,8 +14,9 @@ Outfits `/outfits` · PCs `/pcs` · Historial de precios `/historial/:key`.
 **`/picks` tiene una card "Gymrat" al final del carrusel de rubros** (y una solapa
 equivalente en la barra de la galería). No es un rubro: `lib/rubros.js` sigue
 siendo el dominio de la base. La card pide `fetchMejores('', { gymrat: true })`
-→ `GET /api/mejores?gymrat=true`, que junta los productos `gymrat` (hoy, sólo
-indumentaria: ver `GymratTagger`); `'gymrat'` es sólo la clave interna de estado/cache del panel y nunca
+→ `GET /api/mejores?gymrat=true`, que junta los productos `gymrat` de las marcas
+gym (Bulks, Fuark, Fursten, Baesics, Monkyforce y Under Armour; ver
+`SiteClassification.esMarcaGymPicks`); `'gymrat'` es sólo la clave interna de estado/cache del panel y nunca
 viaja como `rubro`.
 
 **Logos de `/marcas` son archivos del repo** (`frontend/public/brand-logos/`,

@@ -24,6 +24,18 @@ public final class SiteClassification {
         "nike", "adidas", "puma", "champion", "under armour", "reebok"
     );
 
+    /**
+     * The /picks Gymrat section is narrower than the gymrat tag: only the gym stores of
+     * {@link #GYM_SITIOS} plus these brands, wherever they are sold. The tag itself stays broad
+     * because the outfit builder's gym/casual gate reads it.
+     */
+    public static final Set<String> GYM_PICKS_MARCAS = Set.of("under armour");
+
+    public static boolean esMarcaGymPicks(String sitio, String marca) {
+        return GYM_SITIOS.contains(sitioKey(sitio))
+                || (marca != null && GYM_PICKS_MARCAS.contains(marca.trim().toLowerCase()));
+    }
+
     /** Normaliza el nombre de un sitio a su clave comparable (lowercase, sin no-alfanuméricos). */
     public static String sitioKey(String sitio) {
         return (sitio != null ? sitio : "").toLowerCase().replaceAll("[^a-z0-9]", "");
