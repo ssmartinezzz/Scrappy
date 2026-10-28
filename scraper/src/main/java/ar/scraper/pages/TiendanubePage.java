@@ -260,7 +260,7 @@ public class TiendanubePage extends StorePage implements CatalogPage {
         return CatalogJson.genero(fuentes);
     }
 
-    private List<Product> scrapeJs(String startUrl) {
+    List<Product> scrapeJs(String startUrl) {
         List<Product> result = new ArrayList<>();
         String url = startUrl;
         int pagina = 1;
@@ -400,6 +400,7 @@ public class TiendanubePage extends StorePage implements CatalogPage {
 
             "var palabrasH=['hombre','masculino','men','man','caballero'];" +
             "var palabrasM=['mujer','femenino','women','woman','dama'];" +
+            "var tieneP=function(t,p){return new RegExp('(^|[^a-záéíóúñü])'+p+'([^a-záéíóúñü]|$)').test(t);};" +
 
             "items.forEach(function(el){" +
             "  try{" +
@@ -487,8 +488,8 @@ public class TiendanubePage extends StorePage implements CatalogPage {
 
             "    var cardText=(nombre+' '+(el.textContent||'')).toLowerCase();" +
             "    var genero='';" +
-            "    var esH=palabrasH.some(function(p){return cardText.includes(p);});" +
-            "    var esM=palabrasM.some(function(p){return cardText.includes(p);});" +
+            "    var esH=palabrasH.some(function(p){return tieneP(cardText,p);});" +
+            "    var esM=palabrasM.some(function(p){return tieneP(cardText,p);});" +
             "    if(esH&&!esM)genero='hombre';" +
             "    else if(esM&&!esH)genero='mujer';" +
             "    else if(esH&&esM)genero='unisex';" +
