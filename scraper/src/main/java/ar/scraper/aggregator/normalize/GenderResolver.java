@@ -4,7 +4,6 @@ import ar.scraper.aggregator.text.AccentStripper;
 import org.springframework.stereotype.Component;
 
 import java.util.Set;
-import java.util.regex.Pattern;
 import org.apache.commons.lang3.StringUtils;
 
 /** Gender resolution with feminine-coded category override + infantil guard. */
@@ -20,11 +19,12 @@ public class GenderResolver {
     private static final Set<String> WOMEN_TOKENS =
             Set.of(" wmn ", " girl ", " croptop ", " crop top ", " bras ");
 
-    // Whole words bounded by non-alphanumerics (not \b: it misreads accented text). Same rule as V58.
-    private static final Pattern NAME_WOMEN = Pattern.compile(
-            "(?<![a-z0-9])(wmn|girl|croptop|crop top|bras|woman|women|mujer|mujeres|dama|damas|femenino|calza|calzas)(?![a-z0-9])");
-    private static final Pattern NAME_MEN = Pattern.compile(
-            "(?<![a-z0-9])(hombre|hombres|men|mens|masculino|caballero|caballeros|varon|varones)(?![a-z0-9])");
+    // Whole words bounded by non-[a-z0-9] (not \b: it misreads accented text), plus "crop top"
+    // split by exactly one space. Same rule as V58.
+    private static final Set<String> NAME_WOMEN = Set.of("wmn", "girl", "croptop", "bras", "woman", "women",
+            "mujer", "mujeres", "dama", "damas", "femenino", "calza", "calzas");
+    private static final Set<String> NAME_MEN = Set.of("hombre", "hombres", "men", "mens", "masculino",
+            "caballero", "caballeros", "varon", "varones");
 
     public String resolver(String raw, String nombre, String categoria) {
         String nombreNorm = normalizarAcentos(nombre != null ? nombre : "");
@@ -55,7 +55,7 @@ public class GenderResolver {
         }
 
         // The name beats the site tag: collections (e.g. Monkyforce) tag women's garments as hombre/unisex.
-        if (NAME_WOMEN.matcher(nombreNorm).find() && !NAME_MEN.matcher(nombreNorm).find()) return "mujer";
+        if (nombreDiceMujer(nombreNorm)) return "mujer";
 
         if (combined.contains("hombre") || combined.contains("masculino") ||
             combined.contains(" men")   || combined.contains("male")      ||
@@ -79,6 +79,32 @@ public class GenderResolver {
         if ("Calza".equals(categoria)) return "mujer";
 
         return "";
+    }
+
+    /** One pass over the name's words: a women word and no men word. */
+    private static boolean nombreDiceMujer(String n) {
+        boolean mujer = false;
+        String prev = null;
+        int prevEnd = -2;
+        int i = 0;
+        while (i < n.length()) {
+            if (!esAlfanumerico(n.charAt(i))) { i++; continue; }
+            int inicio = i;
+            while (i < n.length() && esAlfanumerico(n.charAt(i))) i++;
+            String w = n.substring(inicio, i);
+            if (NAME_MEN.contains(w)) return false;
+            if (NAME_WOMEN.contains(w)
+                    || ("top".equals(w) && "crop".equals(prev) && inicio == prevEnd + 1 && n.charAt(prevEnd) == ' ')) {
+                mujer = true;
+            }
+            prev = w;
+            prevEnd = i;
+        }
+        return mujer;
+    }
+
+    private static boolean esAlfanumerico(char c) {
+        return (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9');
     }
 
     private String normalizarAcentos(String s) {
