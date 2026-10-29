@@ -4,6 +4,7 @@ import ar.scraper.aggregator.text.AccentStripper;
 import org.springframework.stereotype.Component;
 
 import java.util.Set;
+import java.util.regex.Pattern;
 import org.apache.commons.lang3.StringUtils;
 
 /** Gender resolution with feminine-coded category override + infantil guard. */
@@ -18,6 +19,12 @@ public class GenderResolver {
 
     private static final Set<String> WOMEN_TOKENS =
             Set.of(" wmn ", " girl ", " croptop ", " crop top ", " bras ");
+
+    // Whole words bounded by non-alphanumerics (not \b: it misreads accented text). Same rule as V58.
+    private static final Pattern NAME_WOMEN = Pattern.compile(
+            "(?<![a-z0-9])(wmn|girl|croptop|crop top|bras|woman|women|mujer|mujeres|dama|damas|femenino|calza|calzas)(?![a-z0-9])");
+    private static final Pattern NAME_MEN = Pattern.compile(
+            "(?<![a-z0-9])(hombre|hombres|men|mens|masculino|caballero|caballeros|varon|varones)(?![a-z0-9])");
 
     public String resolver(String raw, String nombre, String categoria) {
         String nombreNorm = normalizarAcentos(nombre != null ? nombre : "");
@@ -46,6 +53,9 @@ public class GenderResolver {
         if (FEMININE_CODED_CATEGORIES.contains(categoria) && !hasExplicitMascSignal) {
             return "mujer";
         }
+
+        // The name beats the site tag: collections (e.g. Monkyforce) tag women's garments as hombre/unisex.
+        if (NAME_WOMEN.matcher(nombreNorm).find() && !NAME_MEN.matcher(nombreNorm).find()) return "mujer";
 
         if (combined.contains("hombre") || combined.contains("masculino") ||
             combined.contains(" men")   || combined.contains("male")      ||
