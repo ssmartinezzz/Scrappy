@@ -3621,4 +3621,35 @@ SELECT 1;
 -- <<< rollback:V57
 ```
 
-Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V56`.
+Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V58` y antes que el de `V56`.
+
+---
+
+## `V58` — la palabra de mujer en el nombre le gana al género del sitio
+
+`GenderResolver` dejaba que el `genero` crudo del sitio (colecciones de Monkyforce: `hombre`/`unisex`)
+le ganara a una palabra de mujer en el NOMBRE, y `woman`/`calza` no eran señal. Ahora el nombre manda;
+`V58` alinea las filas ya guardadas (dev, 2026-10-29: 42 filas, 30 sin `genero`, 7 `hombre`, 5 `unisex`)
+en vez de esperar a que se vuelva a scrapear cada sitio. El próximo scrape es la fuente de verdad.
+
+- **Regla (igual a `GenderResolver`):** nombre sin acentos (`ñ`→`n`), palabra completa de
+  `wmn|girl|croptop|crop top|bras|woman|women|mujer|mujeres|dama|damas|femenino|calza|calzas` y NINGUNA de
+  `hombre|hombres|men|mens|masculino|caballero|caballeros|varon|varones` → `genero = 'mujer'`. El `top`
+  suelto no es señal.
+- **Infantil se salta:** filas con `infantil` o cuyo nombre contiene `nino|nina|kids|infantil|bebe`.
+- **Falsos positivos conocidos:** "Antiparras … Wonder Woman" y "Colchoneta … Girl Fit".
+- **Una sentencia, idempotente:** una fila tratada ya es `mujer` y deja de cumplir su `WHERE`.
+- **Nunca una fila bloqueada a mano** (`bloqueado_por`, `V3`).
+
+### Rollback
+
+```sql
+-- >>> rollback:V58
+-- No-op a propósito: genero es un derivado y cada scrape lo recalcula. Devolver una prenda de mujer a
+-- hombre sería restaurar un error; el rollback real es revertir GenderResolver, y el próximo scrape
+-- vuelve a resolver así.
+SELECT 1;
+-- <<< rollback:V58
+```
+
+Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V57`.

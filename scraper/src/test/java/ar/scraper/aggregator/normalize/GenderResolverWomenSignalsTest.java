@@ -46,4 +46,37 @@ class GenderResolverWomenSignalsTest {
     void explicitMenSignalStillBeatsNewWomenSignals() {
         assertThat(resolver.resolver("", "Remera Hombre Girl Print", "Remera")).isEqualTo("hombre");
     }
+
+    @Test
+    void nameWomenSignalBeatsSiteGenero() {
+        assertThat(resolver.resolver("hombre", "Crop Top Hoodie", "Buzo")).isEqualTo("mujer");
+        assertThat(resolver.resolver("unisex", "Woman Force Short", "Short")).isEqualTo("mujer");
+        assertThat(resolver.resolver("", "PACK BUZO V-ROOT YOURSELF BLACK + CALZA LARGA 4REAL BLACK + MEDIAS WHITE",
+                "Conjunto")).isEqualTo("mujer");
+        assertThat(resolver.resolver("hombre", "Botas De Snowboard Dc Shoes Lotus Mujer Verde Menta", "Botas"))
+                .isEqualTo("mujer");
+    }
+
+    @Test
+    void menWordInNameBlocksTheNameWomenStep() {
+        assertThat(resolver.resolver("hombre", "Calza adidas Techfit de Hombre", "Calza")).isEqualTo("hombre");
+        assertThat(resolver.resolver("", "Remera Hombre Girl Print", "Remera")).isEqualTo("hombre");
+        assertThat(resolver.resolver("hombre", "Remera Men Wmn", "Remera")).isEqualTo("hombre");
+    }
+
+    @Test
+    void nameWomenStepMatchesWholeWordsOnly() {
+        assertThat(resolver.resolver("hombre", "Calzado Urbano", "Zapatilla")).isEqualTo("hombre");
+        assertThat(resolver.resolver("hombre", "Womanizer Tee", "Remera")).isEqualTo("hombre");
+    }
+
+    @Test
+    void bareTopIsNotAWomenSignal() {
+        assertThat(resolver.resolver("hombre", "Top Ls Velvet Monogram Brown", "Musculosa")).isEqualTo("hombre");
+    }
+
+    @Test
+    void infantilStillBeatsTheNameWomenStep() {
+        assertThat(resolver.resolver("", "Calza Kids Nena", "Calza")).isEqualTo("infantil");
+    }
 }
