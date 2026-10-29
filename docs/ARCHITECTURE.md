@@ -1,5 +1,11 @@
 # Arquitectura del Fashion Scraper
 
+![Vista general de la arquitectura de Scrappy](./img/architecture.png)
+
+Vista general al commit `3a91c340`: el recorrido principal (usuario → frontend →
+API → corrida → scrapers → tiendas) y sus ramas. Armadores agrupa outfits,
+suplementos y PCs; los índices IPC/dólar no están dibujados.
+
 ---
 
 ## Base de datos → [`DATABASE.md`](./DATABASE.md)
