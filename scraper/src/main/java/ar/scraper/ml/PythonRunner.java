@@ -41,14 +41,20 @@ public class PythonRunner {
         new java.util.concurrent.atomic.AtomicReference<>(BackfillStatus.idle());
 
     private final StatusEvents bus;
+    private final HistorialParaMl historial;
 
     public PythonRunner() {
         this(StatusEvents.NONE);
     }
 
-    @Autowired
     public PythonRunner(StatusEvents bus) {
+        this(bus, HistorialParaMl.NINGUNO);
+    }
+
+    @Autowired
+    public PythonRunner(StatusEvents bus, HistorialParaMl historial) {
         this.bus = bus;
+        this.historial = historial;
     }
 
     private void setTraining(TrainingStatus nuevo) {
@@ -114,11 +120,11 @@ public class PythonRunner {
     private JsonNode ejecutarScoring(String productosJson) {
         boolean useGpuSnapshot = this.useGpu;
         var stderrTail = new java.util.concurrent.ConcurrentLinkedDeque<String>();
+        Path histPath = Paths.get("").toAbsolutePath().resolve("ml_historial.json");
         try {
             Path workDir   = Paths.get("").toAbsolutePath();
             Path prodPath  = workDir.resolve("ml_productos.json");
             Path outPath   = workDir.resolve("ml_output.json");
-            Path histPath  = workDir.resolve("precio_historico.json");
             Path scriptPath = extraerScript(workDir);
             // Stage-1b category/gender image refinement (ml_pipeline.py `import ml_embeddings`)
             // degrades to text-only (via ml_pipeline.py's own import guard) if this sibling script
@@ -137,6 +143,8 @@ public class PythonRunner {
                 LOG.error("[ML] Python no encontrado — pipeline ML NO ejecutado (NOT_RUN)");
                 return null;
             }
+
+            historial.preparar(histPath, productosJson);
 
             LOG.info("[ML] Ejecutando pipeline Python...");
             ProcessBuilder pb = construirProcessBuilderScoring(
@@ -174,6 +182,8 @@ public class PythonRunner {
             LOG.error("[ML] Excepción en pipeline — NOT_RUN. stderr tail:\n{}",
                     String.join("\n", stderrTail), e);
             return null;
+        } finally {
+            historial.descartar(histPath);
         }
     }
 

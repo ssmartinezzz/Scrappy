@@ -18,7 +18,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  *
  * <p>Why a reservation at all: {@code ejecutar} resolves THREE fixed paths in
  * the process cwd — {@code ml_productos.json}, {@code ml_output.json} and
- * {@code precio_historico.json} — and hands them to the subprocess as argv.
+ * {@code ml_historial.json} — and hands them to the subprocess as argv.
  * Two concurrent scoring runs therefore write each other's files. The scrape
  * path reaches {@code ejecutar} through {@code ResultAggregator}, and
  * {@code POST /api/ml/aplicar} reached it from an unguarded virtual thread,

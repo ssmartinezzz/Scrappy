@@ -1,9 +1,11 @@
 package ar.scraper.db;
 
 import ar.scraper.catalog.HistorialEntry;
+import ar.scraper.catalog.HistorialImportPort;
 import ar.scraper.catalog.HistorialPort;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
@@ -20,7 +22,7 @@ import org.apache.commons.lang3.StringUtils;
  * and its history pruning, which belong to the product aggregate.
  */
 @Repository
-class HistorialRepository implements HistorialPort {
+class HistorialRepository implements HistorialPort, HistorialImportPort {
 
     private static final Logger LOG = LoggerFactory.getLogger(HistorialRepository.class);
 
@@ -94,5 +96,39 @@ class HistorialRepository implements HistorialPort {
             LOG.warn("[DB] historial batch ({} urls): {}", validUrls.size(), e.getMessage());
         }
         return result;
+    }
+
+    @Override
+    public int importarCambios(Map<String, List<HistorialEntry>> cambiosPorUrl) {
+        var filas = new ArrayList<Object[]>();
+        cambiosPorUrl.forEach((url, cambios) -> cambios.forEach(c ->
+                filas.add(new Object[] {url, c.precio(), c.fecha(), url})));
+        if (filas.isEmpty()) return 0;
+        // La FK a productos no admite huérfanos: el EXISTS descarta en silencio las urls ya borradas.
+        String sql = "INSERT INTO precio_historico (url, precio, fecha) "
+                + "SELECT ?, ?, ?::date WHERE EXISTS (SELECT 1 FROM productos WHERE url = ?) "
+                + "ON CONFLICT (url, fecha) DO NOTHING";
+        return jdbc.execute((ConnectionCallback<Integer>) con -> {
+            boolean auto = con.getAutoCommit();
+            con.setAutoCommit(false);
+            try (var ps = con.prepareStatement(sql)) {
+                for (Object[] f : filas) {
+                    ps.setString(1, (String) f[0]);
+                    ps.setDouble(2, (Double) f[1]);
+                    ps.setString(3, (String) f[2]);
+                    ps.setString(4, (String) f[3]);
+                    ps.addBatch();
+                }
+                int insertadas = 0;
+                for (int n : ps.executeBatch()) insertadas += Math.max(n, 0);
+                con.commit();
+                return insertadas;
+            } catch (Exception e) {
+                con.rollback();
+                throw e;
+            } finally {
+                con.setAutoCommit(auto);
+            }
+        });
     }
 }

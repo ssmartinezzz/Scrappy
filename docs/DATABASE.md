@@ -56,7 +56,7 @@ productos            -- Catálogo canónico (upsert por URL; cols ML, rubro, gym
 producto_talle       -- Talles por producto, ordenados (url+posicion PK) (V7)
 producto_badge       -- Badges ML por producto, principal primero (url+posicion PK) (V7)
 cron_job_sitio       -- Sitios de cada cronjob, ordenados (job_id+posicion PK) (V9)
-precio_historico     -- Precio por fecha (UNIQUE url+fecha)
+precio_historico     -- Cambios de precio por fecha (UNIQUE url+fecha). Único dueño del historial: el ML lo recibe derivado
 ml_output            -- Último output JSON del pipeline
 image_embeddings     -- Cache de embeddings Marqo (url PK, bytea, model_version)
 categoria_stats      -- Stats de precio por categoría, 12 columnas tipadas + FK a categoria (V16)
@@ -179,6 +179,13 @@ una URL nunca vista— y la reactivación escribía un punto de historial aunque
 precio no se hubiera movido. El `UNIQUE(url, fecha)` tapaba el síntoma mientras
 el producto volviera el mismo día; recién se veía cuando volvía días después,
 que es el caso real.
+
+⚠️ **Varios cambios el mismo día dejan el ÚLTIMO precio.** La rama de cambio de
+`sp_upsert_run` inserta con `ON CONFLICT (url, fecha) DO UPDATE SET precio =
+EXCLUDED.precio`: la fila del día es el precio vigente, que es lo que el ML
+siempre conservó. (Con `DO NOTHING` quedaba el primero.) La rama de producto nuevo
+sigue en `DO NOTHING`. El ML recibe esta tabla densificada a un punto por día, ver
+[`ML_PIPELINE.md`](./ML_PIPELINE.md) → Historial de precios.
 
 ⚠️ **El soft-delete está acotado a los sitios del batch, y esa cota no es
 opcional.** `sp_soft_delete_ausentes` recibe `p_sitios` y sólo desactiva dentro

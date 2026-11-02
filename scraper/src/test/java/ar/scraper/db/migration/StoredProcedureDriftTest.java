@@ -306,6 +306,20 @@ class StoredProcedureDriftTest {
                     Pattern.compile("WHERE activo AND sitio = ANY\\(p_sitios\\) AND NOT"),
                     "WHERE activo AND NOT"));
 
+    /**
+     * Un segundo cambio de precio el mismo día pisa la fila del día en vez de descartarse: el
+     * historial conserva el ÚLTIMO precio, no el primero. Comentario y cláusula por separado.
+     */
+    private static final List<Substitution> SP_UPSERT_RUN_R_SAME_DAY_LAST_PRICE = List.of(
+            new Substitution(
+                    "comentario del último precio del día",
+                    Pattern.compile("-- Varios cambios el mismo dia: .*?tambien para el ML\\)\\. "),
+                    ""),
+            new Substitution(
+                    "ON CONFLICT (url, fecha) DO UPDATE SET precio -> DO NOTHING",
+                    Pattern.compile("ON CONFLICT \\(url, fecha\\) DO UPDATE SET precio = EXCLUDED\\.precio;"),
+                    "ON CONFLICT (url, fecha) DO NOTHING;"));
+
     private static final List<Hop> CHAIN = List.of(
             new Hop(SP_UPSERT_RUN_START, V1, V3, List.of(UNGUARD_LOCKED_COLUMNS)),
             new Hop(SP_UPSERT_RUN_START, V3, V5, SP_UPSERT_RUN_V5_CASTS),
@@ -328,9 +342,10 @@ class StoredProcedureDriftTest {
             // — que es como debería haber funcionado desde el principio, en
             // vez de con siete copias y una tabla de sustituciones.
             new Hop(SP_UPSERT_RUN_START, V22, R_UPSERT,
-                    concat(concat(List.of(SP_UPSERT_RUN_E7_SITIO_GET_OR_CREATE),
+                    concat(concat(concat(List.of(SP_UPSERT_RUN_E7_SITIO_GET_OR_CREATE),
                                     SP_UPSERT_RUN_R_REACTIVATION_IS_NOT_NEW),
-                            SP_UPSERT_RUN_R_PRICE_DROP_OUTBOX)),
+                            SP_UPSERT_RUN_R_PRICE_DROP_OUTBOX),
+                            SP_UPSERT_RUN_R_SAME_DAY_LAST_PRICE)),
             new Hop(SP_SOFT_DELETE_AUSENTES_START, V5, R_SOFT_DELETE,
                     SP_SOFT_DELETE_AUSENTES_R_SITE_SCOPE)
     );

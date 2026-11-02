@@ -5,7 +5,7 @@ Fashion Scraper ML Pipeline v2 — Statistical Price Intelligence
 ===============================================================
 Entrada : ml_productos.json  (arg 1)
 Salida  : ml_output.json     (arg 2)
-Historial: precio_historico.json (arg 3)
+Historial: ml_historial.json (arg 3) — derivado de la tabla por Java; sólo lectura acá
 
 Modelos estadísticos:
   1. PriceStats por categoría+género: media, mediana, moda, desvío estándar,
@@ -574,7 +574,7 @@ def assign_badges(hist, comp, mz, cheap, alta, trend, exp, ratio, desc_pct, es_o
 
 def main():
     if len(sys.argv) < 3:
-        print("Uso: ml_pipeline.py productos.json ml_output.json [precio_historico.json]",
+        print("Uso: ml_pipeline.py productos.json ml_output.json [ml_historial.json]",
               file=sys.stderr)
         sys.exit(1)
 
@@ -734,7 +734,7 @@ def main():
     print("[ML] Cargando historial...", file=sys.stderr)
     history = cargar_historial(hist_path)
 
-    # Actualizar historial con precios actuales
+    # Precio de hoy, sólo en memoria: la tabla lo recibe en el upsert, que corre después del ML.
     for p in productos:
         pid = p.get('url', '') or p.get('nombre', '')
         if not pid: continue
@@ -1410,10 +1410,6 @@ def main():
 
     with open(out_path, 'w', encoding='utf-8') as f:
         json.dump(output, f, ensure_ascii=False, indent=2)
-
-    if hist_path:
-        with open(hist_path, 'w', encoding='utf-8') as f:
-            json.dump(history, f, ensure_ascii=False)
 
     print(f"[ML] Output → {out_path}", file=sys.stderr)
 
