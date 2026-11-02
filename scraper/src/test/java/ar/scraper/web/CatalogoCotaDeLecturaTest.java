@@ -156,7 +156,7 @@ class CatalogoCotaDeLecturaTest extends ar.scraper.db.support.PostgresTestBase {
 
     private ResponseEntity<?> data() {
         return controller.data(0, 24, null, null, null, null, null, null, null, null,
-                null, null, "precio_asc", null, null, null, null, null, null, null, null);
+                null, null, "precio_asc", null, null, null, null, null, null, null, null, null);
     }
 
     private Product producto(String sitio, String url, double precio, String marca) {

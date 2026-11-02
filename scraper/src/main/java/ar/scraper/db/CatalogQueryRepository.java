@@ -358,6 +358,11 @@ class CatalogQueryRepository implements CatalogQueryPort {
                     + "OR sel.v LIKE lower(coalesce(p.categoria,'')) || ' %')");
             params.add(new TextArray(escaparLike(enMinusculas(f.categorias()))));
         }
+        if (noVacia(f.excluirCategorias())) {
+            // NULL <> ALL(...) is NULL, which WHERE drops: the IS NULL arm keeps uncategorised rows.
+            cond.add("(p.categoria IS NULL OR lower(btrim(p.categoria)) <> ALL(?))");
+            params.add(new TextArray(enMinusculas(f.excluirCategorias())));
+        }
         if (noVacia(f.subCategorias())) {
             cond.add("lower(coalesce(p.sub_categoria,'')) = ANY(?)");
             params.add(new TextArray(enMinusculas(f.subCategorias())));

@@ -83,11 +83,12 @@ public class CatalogoController {
             @RequestParam(required = false)     String fit,
             @RequestParam(required = false)     String estampado,
             @RequestParam(required = false)     String escote,
-            @RequestParam(required = false)     String colorDominante) {
+            @RequestParam(required = false)     String colorDominante,
+            @RequestParam(required = false)     List<String> excluirCategoria) {
         CatalogFilter filtro = new CatalogFilter(
                 talle, genero, categoria, q, sitio, marca, badge, segment, rubro,
                 gymrat, pack, precioMin, precioMax, subCategoria,
-                fit, estampado, escote, colorDominante);
+                fit, estampado, escote, colorDominante, excluirCategoria);
 
         // Summary and page share one bound: an unbounded summary next to a bounded page would offer
         // facets the page cannot satisfy.
