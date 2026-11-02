@@ -82,7 +82,7 @@ Orden de prioridad (principal = primero del set), tal como `assign_badges()` en
 |-------|----------|---------------------|
 | `all_time_low` | Mínimo histórico | precio actual = mínimo histórico propio del producto **y el precio se movió**: algún precio anterior es estrictamente mayor. Un historial plano (nunca cambió de precio) no es un mínimo, es sólo un precio |
 | `below_market` | Por debajo del mercado | precio unitario claramente bajo el mercado de su categoría (pctil/z-score modificado) |
-| `verified_deal` | Descuento verificado | descuento significativo Y precio en la mitad inferior del mercado |
+| `verified_deal` | Descuento verificado | descuento significativo Y precio en la mitad inferior del mercado Y, con ≥3 puntos de historial propio, el producto está en su mínimo histórico (mismo criterio que `all_time_low`). Un tachado que nunca cambió —oferta perpetua— no se verifica: en el catálogo del 2026-11-02 eso sacó 646 de 2111 |
 | `trending` | En demanda | pertenece a un cluster TF-IDF con demanda alta |
 | `price_dropping` | Bajando de precio | tendencia de precio a la baja (`priceVelocity` negativa) |
 | `above_market` | Caro vs. mercado | precio unitario por encima del mercado de su categoría |
