@@ -62,6 +62,20 @@ public class CatalogoController {
         this.financiacionEnricher = new ar.scraper.ml.FinanciacionEnricher(presets, indiceService);
     }
 
+    /**
+     * The 20-argument shape from before {@code excluirCategoria}. Not a handler (no mapping
+     * annotation): it only keeps direct callers, 249 call sites in the tests, from having to pass a
+     * trailing null.
+     */
+    public ResponseEntity<ApiResponse<CatalogoDtos.Catalogo>> data(int page, int size, List<String> talle,
+            String genero, List<String> categoria, String q, String sitio, List<String> marca, String badge,
+            String segment, String rubro, Boolean gymrat, String orden, Boolean pack, Double precioMin,
+            Double precioMax, List<String> subCategoria, String fit, String estampado, String escote,
+            String colorDominante) {
+        return data(page, size, talle, genero, categoria, q, sitio, marca, badge, segment, rubro, gymrat,
+                orden, pack, precioMin, precioMax, subCategoria, fit, estampado, escote, colorDominante, null);
+    }
+
     @GetMapping("/data")
     public ResponseEntity<ApiResponse<CatalogoDtos.Catalogo>> data(@RequestParam(defaultValue = "0")   int page,
             @RequestParam(defaultValue = "24")  int size,
@@ -83,11 +97,12 @@ public class CatalogoController {
             @RequestParam(required = false)     String fit,
             @RequestParam(required = false)     String estampado,
             @RequestParam(required = false)     String escote,
-            @RequestParam(required = false)     String colorDominante) {
+            @RequestParam(required = false)     String colorDominante,
+            @RequestParam(required = false)     List<String> excluirCategoria) {
         CatalogFilter filtro = new CatalogFilter(
                 talle, genero, categoria, q, sitio, marca, badge, segment, rubro,
                 gymrat, pack, precioMin, precioMax, subCategoria,
-                fit, estampado, escote, colorDominante);
+                fit, estampado, escote, colorDominante, excluirCategoria);
 
         // Summary and page share one bound: an unbounded summary next to a bounded page would offer
         // facets the page cannot satisfy.

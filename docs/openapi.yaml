@@ -204,6 +204,13 @@ components:
       name: colorDominante
       in: query
       schema: { type: string }
+    ExcluirCategoria:
+      name: excluirCategoria
+      in: query
+      schema: { type: array, items: { type: string } }
+      description: >-
+        Categories to leave out (case-insensitive exact match). Rows with no
+        `categoria` are kept. Absent or empty excludes nothing.
     RefreshCsrf:
       name: X-Refresh-CSRF
       in: header
@@ -761,6 +768,7 @@ paths:
         - $ref: "#/components/parameters/Estampado"
         - $ref: "#/components/parameters/Escote"
         - $ref: "#/components/parameters/ColorDominante"
+        - $ref: "#/components/parameters/ExcluirCategoria"
       responses:
         "200":
           description: "`data`: `{ meta, productos[] }` plus `page`. An empty catalog answers 200 with empty items and `page.total = 0`, never 204."
