@@ -9,10 +9,12 @@ import { RUBROS } from '../lib/rubros';
 // A capped preview: the full listing lives behind the /analisis/oportunidades/:badge
 // drill-down. Each badge is its own /api/data read, ranked by real discount and scoped to the
 // selected rubro, so the preview shows what the drill-down would show first.
+// all_time_low ranks by the biggest drop from its own historical max (baja_historica);
+// verified_deal by the discount against the listed original price (desc_pct).
 // below_market has no discount to rank by (it is a position against the market), so it uses
 // mercado_asc: the lowest composite price score first.
 const PREVIEW_BADGES = ['all_time_low', 'verified_deal', 'below_market'];
-const PREVIEW_ORDEN = { all_time_low: 'desc_pct', verified_deal: 'desc_pct', below_market: 'mercado_asc' };
+const PREVIEW_ORDEN = { all_time_low: 'baja_historica', verified_deal: 'desc_pct', below_market: 'mercado_asc' };
 const PREVIEW_SIZE = 8;
 
 const TopDeals = ({ grupos, onProductClick }) => {
