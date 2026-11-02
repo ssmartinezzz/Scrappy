@@ -109,3 +109,8 @@ tests/perf/jmeter/target/
 # Artefactos de trabajo locales (SDD y ODD): no se versionan.
 openspec/
 odd/
+
+# Salidas de herramientas locales: el HTML y los receipts de archify (su fuente
+# vive en docs/img/architecture.archify.json) y las capturas del MCP de Playwright.
+.archify/
+.playwright-mcp/
