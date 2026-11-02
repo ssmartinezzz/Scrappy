@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { fetchData } from '../api';
 import { BADGE_META } from '../lib/colors';
+import { EXCLUIR_CATEGORIAS, rubroDeQuery, rutaOportunidades } from '../lib/oportunidades';
 import ProductGrid from './ProductGrid';
 
 const PAGE_SIZE = 48;
@@ -15,6 +16,8 @@ const PAGE_SIZE = 48;
 export default function OportunidadesBadgePage({ onProductClick }) {
   const { badge } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const rubro = rubroDeQuery(searchParams);
   const [prods, setProds] = useState([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
@@ -26,7 +29,9 @@ export default function OportunidadesBadgePage({ onProductClick }) {
   const loadPage = useCallback(async (p, replace) => {
     if (loadingRef.current) return;
     loadingRef.current = true;
-    const data = await fetchData({ badge, page: p, size: PAGE_SIZE });
+    const data = await fetchData({
+      badge, rubro, excluirCategoria: EXCLUIR_CATEGORIAS, page: p, size: PAGE_SIZE,
+    });
     loadingRef.current = false;
     if (!data) return;
     const nuevos = data.productos || [];
@@ -43,7 +48,7 @@ export default function OportunidadesBadgePage({ onProductClick }) {
     });
     setTotal(totalNuevo);
     setPage(p + 1);
-  }, [badge]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [badge, rubro]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     // Reset the in-flight guard too: a fetch for the PREVIOUS badge may still
@@ -55,9 +60,9 @@ export default function OportunidadesBadgePage({ onProductClick }) {
     setHasMore(true);
     loadPage(0, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [badge]);
+  }, [badge, rubro]);
 
-  const goBack = () => navigate('/analisis/oportunidades');
+  const goBack = () => navigate(rutaOportunidades(rubro));
 
   return (
     <div className="picks-scroll">
