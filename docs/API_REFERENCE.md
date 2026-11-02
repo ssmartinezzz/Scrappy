@@ -658,6 +658,11 @@ En una multimarca nunca (V19, D3): `?marca=<tienda>` devuelve un result set
 vacío, sin el viejo fallback marca→sitio. `q` busca en `nombre` **y** en
 `marca`.
 
+`excluirCategoria` (lista) es el inverso de `categoria`: saca esas categorías
+(match exacto, sin distinguir mayúsculas). Las filas **sin** categoría se
+quedan: `NULL <> ALL(...)` es `NULL` y descartaría justo a las que no se
+pueden clasificar. Ausente o vacío no excluye nada.
+
 ---
 
 ## GET /mejores
