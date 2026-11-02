@@ -103,7 +103,7 @@ class CatalogoBadgeMembershipTest extends ar.scraper.db.support.PostgresTestBase
 
         ResponseEntity<?> resp = controller.data(0, 24, null, null, null, null, null, null,
                 "trending", null, null, null, "precio_asc", null, null, null, null,
-                null, null, null, null);
+                null, null, null, null, null);
 
         JsonNode productos = Wire.data(resp).path("productos");
         assertThat(productos).hasSize(1);
@@ -118,7 +118,7 @@ class CatalogoBadgeMembershipTest extends ar.scraper.db.support.PostgresTestBase
 
         ResponseEntity<?> resp = controller.data(0, 24, null, null, null, null, null, null,
                 "all_time_low", null, null, null, "precio_asc", null, null, null, null,
-                null, null, null, null);
+                null, null, null, null, null);
 
         JsonNode productos = Wire.data(resp).path("productos");
         assertThat(productos).hasSize(1);
@@ -134,10 +134,10 @@ class CatalogoBadgeMembershipTest extends ar.scraper.db.support.PostgresTestBase
 
         ResponseEntity<?> page1 = controller.data(0, 1, null, null, null, null, null, null,
                 "trending", null, null, null, "precio_asc", null, null, null, null,
-                null, null, null, null);
+                null, null, null, null, null);
         ResponseEntity<?> page2 = controller.data(1, 1, null, null, null, null, null, null,
                 "trending", null, null, null, "precio_asc", null, null, null, null,
-                null, null, null, null);
+                null, null, null, null, null);
 
         assertThat(Wire.page(page1).path("total").asInt()).isEqualTo(2);
         assertThat(Wire.data(page1).path("productos")).hasSize(1);
@@ -166,7 +166,7 @@ class CatalogoBadgeMembershipTest extends ar.scraper.db.support.PostgresTestBase
 
         ResponseEntity<?> resp = controller.data(0, 24, null, null, null, null, null, null,
                 null, null, null, null, "precio_asc", null, null, null, null,
-                null, null, null, null);
+                null, null, null, null, null);
 
         JsonNode ml = Wire.data(resp).path("productos").get(0).path("ml");
         assertThat(ml.path("badge").asText()).isEqualTo("verified_deal");

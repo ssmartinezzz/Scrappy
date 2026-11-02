@@ -123,7 +123,7 @@ class CatalogoMarcaMultiSelectTest extends ar.scraper.db.support.PostgresTestBas
         Allure.parameter("marca", List.of("Nike", "Adidas"));
         ResponseEntity<?> resp = controller.data(0, 24, null, null, null, null, null,
                 List.of("Nike", "Adidas"), null, null, null, null, "precio_asc", null, null, null, null,
-                null, null, null, null);
+                null, null, null, null, null);
 
         JsonNode productos = Wire.data(resp).path("productos");
         assertThat(productos).hasSize(2);
@@ -141,7 +141,7 @@ class CatalogoMarcaMultiSelectTest extends ar.scraper.db.support.PostgresTestBas
 
         ResponseEntity<?> resp = controller.data(0, 24, null, null, null, null, null,
                 List.of(), null, null, null, null, "precio_asc", null, null, null, null,
-                null, null, null, null);
+                null, null, null, null, null);
 
         JsonNode productos = Wire.data(resp).path("productos");
         assertThat(productos).hasSize(2);
@@ -155,7 +155,7 @@ class CatalogoMarcaMultiSelectTest extends ar.scraper.db.support.PostgresTestBas
 
         ResponseEntity<?> resp = controller.data(0, 24, null, null, null, null, null,
                 null, null, null, null, null, "precio_asc", null, null, null, null,
-                null, null, null, null);
+                null, null, null, null, null);
 
         JsonNode productos = Wire.data(resp).path("productos");
         assertThat(productos).hasSize(2);
@@ -172,7 +172,7 @@ class CatalogoMarcaMultiSelectTest extends ar.scraper.db.support.PostgresTestBas
         Allure.parameter("marca", List.of("Nike"));
         ResponseEntity<?> resp = controller.data(0, 24, null, null, null, null, null,
                 List.of("Nike"), null, null, null, null, "precio_asc", null, null, null, null,
-                null, null, null, null);
+                null, null, null, null, null);
 
         JsonNode productos = Wire.data(resp).path("productos");
         assertThat(productos).hasSize(1);
@@ -189,7 +189,7 @@ class CatalogoMarcaMultiSelectTest extends ar.scraper.db.support.PostgresTestBas
         Allure.parameter("marca", List.of("nike"));
         ResponseEntity<?> resp = controller.data(0, 24, null, null, null, null, null,
                 List.of("nike"), null, null, null, null, "precio_asc", null, null, null, null,
-                null, null, null, null);
+                null, null, null, null, null);
 
         JsonNode productos = Wire.data(resp).path("productos");
         assertThat(productos).hasSize(1);
