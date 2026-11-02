@@ -48,6 +48,11 @@ describe.each([['{Enter}'], [' ']])('clickable cards are keyboard-operable (key 
 
   it('OportunidadesPanel product preview', async () => {
     const onProductClick = vi.fn();
+    // The preview reads /api/data once per badge; only all_time_low has a product here.
+    fetchData.mockImplementation(async f => ({
+      productos: f.badge === 'all_time_low' ? [PROD] : [],
+      meta: { total: f.badge === 'all_time_low' || !f.badge ? 1 : 0 },
+    }));
     render(<MemoryRouter><OportunidadesPanel onProductClick={onProductClick} /></MemoryRouter>);
 
     await activateWithKeyboard(userEvent.setup(), await screen.findByRole('button', { name: /Remera Basic/ }), key);
