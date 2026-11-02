@@ -47,13 +47,14 @@ beforeEach(() => {
 });
 
 describe('OportunidadesPanel', () => {
-  it('fetches each preview badge ranked by discount, scoped to the rubro and without the junk categories', async () => {
+  it('fetches each preview badge ranked by its own order, scoped to the rubro and without the junk categories', async () => {
     renderPanel('/analisis/oportunidades?rubro=indumentaria');
     await screen.findByText('Prod all_time_low 0');
 
-    for (const badge of ['all_time_low', 'verified_deal', 'below_market']) {
+    const ordenes = { all_time_low: 'desc_pct', verified_deal: 'desc_pct', below_market: 'mercado_asc' };
+    for (const [badge, orden] of Object.entries(ordenes)) {
       expect(llamadas()).toContainEqual({
-        badge, rubro: 'indumentaria', excluirCategoria: ['Otros', 'Alimentos'], orden: 'desc_pct', size: 8,
+        badge, rubro: 'indumentaria', excluirCategoria: ['Otros', 'Alimentos'], orden, size: 8,
       });
     }
   });

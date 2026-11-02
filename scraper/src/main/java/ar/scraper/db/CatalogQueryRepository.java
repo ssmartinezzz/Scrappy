@@ -411,6 +411,9 @@ class CatalogQueryRepository implements CatalogQueryPort {
             case "composite", "ml_score" -> "ORDER BY p.ml_score DESC, p.url ASC";
             // El comparador en memoria descartaba los productos sin descuento DENTRO del sort, así
             // que cambiar el orden cambiaba el total y la paginación — total sigue sin cambiar acá.
+            // ml_score is the composite price score: 0 = cheapest against its market. Ascending is
+            // "cheapest vs market"; `composite`/`ml_score` above sort the other way.
+            case "mercado_asc" -> "ORDER BY p.ml_score ASC NULLS LAST, p.url ASC";
             case "desc_pct" -> "ORDER BY " + PCT_DESCUENTO + " DESC NULLS LAST, p.url ASC";
             default -> "ORDER BY p.precio ASC, p.url ASC";
         };
