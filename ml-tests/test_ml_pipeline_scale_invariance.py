@@ -40,13 +40,13 @@ ESCRITORIOS = [399000, 449100, 499000, 599000, 799000, 999000,
 FACTORES = [0.01, 10, 100, 1000]
 
 
-def _evaluar(precios, x):
+def _evaluar(precios, x, hist=False):
     """comp, mz y badges de `x` dentro de `precios`, con el código real."""
     st = ml_pipeline.PriceStats(precios)
     comp = st.composite_score(x)
     mz = st.z_score_modified(x)
     badges = ml_pipeline.assign_badges(
-        hist=False, comp=comp, mz=mz,
+        hist=hist, comp=comp, mz=mz,
         cheap=st.is_cheap_outlier(x), alta=False, trend=None,
         exp=st.is_expensive_outlier(x), ratio=0.0, desc_pct=0.0,
         es_oferta_real=False)
@@ -106,7 +106,8 @@ def test_los_extremos_reales_reciben_el_badge_correcto():
     DENTRO de su categoría. Que el catálogo entero tenga precios altos no hace
     que todo sea 'caro': el scoring es siempre relativo a la categoría.
     """
-    _, badges_barato, seg_barato = _evaluar(SILLAS, 260990)
+    # below_market exige corroboración por un movimiento de precio: acá el mínimo histórico.
+    _, badges_barato, seg_barato = _evaluar(SILLAS, 260990, hist=True)
     _, badges_caro, seg_caro = _evaluar(SILLAS, 2999000)
 
     assert "below_market" in badges_barato
