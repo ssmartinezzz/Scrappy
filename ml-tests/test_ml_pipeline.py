@@ -99,3 +99,60 @@ def test_historical_low_is_scale_invariant():
         moved = ml_pipeline.HistoricalAnalysis(_pts(*[p * factor for p in (8, 8, 5)]))
         assert flat.is_historical_low(5 * factor) is False
         assert moved.is_historical_low(5 * factor) is True
+
+
+# ─── assign_badges(): below_market needs a real price move to corroborate it ─
+
+
+def _badges(**over):
+    args = dict(hist=False, comp=10, mz=-2.0, cheap=True, alta=False, trend='estable',
+                exp=False, ratio=0.0, desc_pct=0.0, es_oferta_real=False)
+    args.update(over)
+    return ml_pipeline.assign_badges(**args)
+
+
+def test_below_market_alone_is_not_enough():
+    """Cheap against the market with no price move is where misclassified items pile up."""
+    assert 'below_market' not in _badges()
+
+
+def test_below_market_is_kept_when_the_price_is_a_historical_low():
+    assert 'below_market' in _badges(hist=True)
+
+
+def test_below_market_is_kept_with_a_verified_deal():
+    assert 'below_market' in _badges(es_oferta_real=True)
+
+
+def test_below_market_is_kept_when_the_price_is_dropping():
+    assert 'below_market' in _badges(trend='bajando')
+
+
+def test_dropping_corroboration_needs_the_price_dropping_condition_itself():
+    """trend 'bajando' with comp > 40 does not earn price_dropping, so it cannot corroborate."""
+    assert 'below_market' not in _badges(trend='bajando', comp=45, cheap=True)
+
+
+def test_corroboration_does_not_create_below_market_on_its_own():
+    assert 'below_market' not in _badges(hist=True, cheap=False, comp=30, mz=0.0)
+
+
+def test_below_market_corroboration_is_scale_invariant():
+    st_precios = [100, 120, 150, 180, 200, 260, 300, 400, 900]
+    for factor in (0.01, 1, 1000):
+        st = ml_pipeline.PriceStats([p * factor for p in st_precios])
+        x = 100 * factor
+        got = ml_pipeline.assign_badges(
+            hist=True, comp=st.composite_score(x), mz=st.z_score_modified(x),
+            cheap=st.is_cheap_outlier(x), alta=False, trend='estable',
+            exp=st.is_expensive_outlier(x), ratio=0.0, desc_pct=0.0, es_oferta_real=False)
+        assert ('below_market' in got) == ('below_market' in _scaled_reference(st_precios))
+
+
+def _scaled_reference(precios):
+    st = ml_pipeline.PriceStats(precios)
+    x = precios[0]
+    return ml_pipeline.assign_badges(
+        hist=True, comp=st.composite_score(x), mz=st.z_score_modified(x),
+        cheap=st.is_cheap_outlier(x), alta=False, trend='estable',
+        exp=st.is_expensive_outlier(x), ratio=0.0, desc_pct=0.0, es_oferta_real=False)
