@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { fetchData, fmt } from '../api';
 import { BADGE_META, SEMANTIC } from '../lib/colors';
-import { EXCLUIR_CATEGORIAS, rubroDeQuery, rutaOportunidades } from '../lib/oportunidades';
+import { EXCLUIR_CATEGORIAS, rubroDeQuery, rutaOportunidades, unicosPorNombreYSitio } from '../lib/oportunidades';
 import { RUBROS } from '../lib/rubros';
 
 // ─── Top deals preview (capped) ───────────────────────────────────────────
@@ -15,7 +15,9 @@ import { RUBROS } from '../lib/rubros';
 // mercado_asc: the lowest composite price score first.
 const PREVIEW_BADGES = ['all_time_low', 'verified_deal', 'below_market'];
 const PREVIEW_ORDEN = { all_time_low: 'baja_historica', verified_deal: 'desc_pct', below_market: 'mercado_asc' };
+// Shown cards, and how many are read: duplicates by (nombre, sitio) are dropped, so ask for more.
 const PREVIEW_SIZE = 8;
+const PREVIEW_FETCH = 16;
 
 const TopDeals = ({ grupos, onProductClick }) => {
   const sections = PREVIEW_BADGES.map(b => [b, grupos[b] || []]).filter(([, ps]) => ps.length > 0);
@@ -100,7 +102,7 @@ export default function OportunidadesPanel({ onProductClick }) {
       const [base, ...porBadge] = await Promise.all([
         fetchData({ ...alcance, size: 1 }),
         ...keys.map(badge => PREVIEW_BADGES.includes(badge)
-          ? fetchData({ badge, ...alcance, orden: PREVIEW_ORDEN[badge], size: PREVIEW_SIZE })
+          ? fetchData({ badge, ...alcance, orden: PREVIEW_ORDEN[badge], size: PREVIEW_FETCH })
           : fetchData({ badge, ...alcance, size: 1 })),
       ]);
       if (!base || porBadge.some(r => !r)) return { error: true };
@@ -108,7 +110,7 @@ export default function OportunidadesPanel({ onProductClick }) {
       const counts = {};
       keys.forEach((badge, i) => {
         counts[badge] = porBadge[i].meta?.total || 0;
-        if (PREVIEW_BADGES.includes(badge)) grupos[badge] = porBadge[i].productos || [];
+        if (PREVIEW_BADGES.includes(badge)) grupos[badge] = unicosPorNombreYSitio(porBadge[i].productos, PREVIEW_SIZE);
       });
       return { total: base.meta?.total || 0, grupos, counts };
     };
