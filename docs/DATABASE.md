@@ -56,7 +56,7 @@ productos            -- Catálogo canónico (upsert por URL; cols ML, rubro, gym
 producto_talle       -- Talles por producto, ordenados (url+posicion PK) (V7)
 producto_badge       -- Badges ML por producto, principal primero (url+posicion PK) (V7)
 cron_job_sitio       -- Sitios de cada cronjob, ordenados (job_id+posicion PK) (V9)
-precio_historico     -- Precio por fecha (UNIQUE url+fecha)
+precio_historico     -- Cambios de precio por fecha (UNIQUE url+fecha). Único dueño del historial: el ML lo recibe derivado
 ml_output            -- Último output JSON del pipeline
 image_embeddings     -- Cache de embeddings Marqo (url PK, bytea, model_version)
 categoria_stats      -- Stats de precio por categoría, 12 columnas tipadas + FK a categoria (V16)

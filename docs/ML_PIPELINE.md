@@ -7,7 +7,9 @@ Java: ResultAggregator.agregar()
     ↓ MlEnricher.serializarProductos() → ml_productos.json
     ↓ PythonRunner.ejecutar()
         → extrae ml_pipeline.py del JAR (si no existe)
-        → subprocess: python ml_pipeline.py ml_productos.json ml_output.json precio_historico.json
+        → PrecioHistoricoExporter escribe ml_historial.json desde la tabla
+        → subprocess: python ml_pipeline.py ml_productos.json ml_output.json ml_historial.json
+        → borra ml_historial.json al terminar
     ↓ MlEnricher.enriquecer() → Product.MlScore populated
     ↓ DatabaseService.guardarMlOutput()
 ```
@@ -21,7 +23,7 @@ Java: ResultAggregator.agregar()
 | `ml_pipeline.py` | Script extraído del JAR (no editar aquí, editar en `src/main/resources/ml/`) |
 | `ml_productos.json` | Input: lista de productos normalizados |
 | `ml_output.json` | Output: scores por URL + tendencias globales |
-| `precio_historico.json` | Historial de precios acumulado entre runs |
+| `ml_historial.json` | Input efímero: Java lo arma desde la tabla `precio_historico` antes de cada corrida y lo borra al terminar. El ML sólo lo lee |
 
 ---
 
@@ -244,7 +246,7 @@ cada una — se compara correctamente como ~$5000 por unidad.
 **Lo que NO cambia** (sigue usando precio de estantería, no precio unitario):
 - Display (`precio` crudo en el output, lo que ve el usuario).
 - Cálculo de descuento (`precioOriginal` / `precio`, `descuentoPct`, `descuentoSig`).
-- Historial de precios (`precio_historico.json`) — trackea el precio de
+- Historial de precios (tabla `precio_historico`) — trackea el precio de
   estantería del producto, no el precio por unidad.
 - `tendencias.categoriaStats` (panel de tendencias) — usa `cat_prices`/`cat_stats_output`,
   una agregación separada de `cats_precios`, intencionalmente en precio crudo.
@@ -307,21 +309,45 @@ producto, un concern distinto.
 
 ## Historial de precios
 
-El archivo `precio_historico.json` acumula cambios de precio por URL. Estructura:
+La tabla `precio_historico` es el **único dueño** del historial de precios: guarda
+CAMBIOS (ver [`DATABASE.md`](./DATABASE.md)). El ML no lleva estado propio.
+
+Antes de cada corrida, `PrecioHistoricoExporter` (invocado por `PythonRunner`) arma
+`ml_historial.json` desde la tabla, sólo para los productos que se van a puntuar:
+
 ```json
 {
   "https://url-producto": [
-    {"fecha": "2026-05-20", "precio": 15990},
-    {"fecha": "2026-05-28", "precio": 14990}
+    {"fecha": "2026-10-31", "precio": 15990},
+    {"fecha": "2026-11-01", "precio": 15990},
+    {"fecha": "2026-11-02", "precio": 14990}
   ]
 }
 ```
 
-Se sincroniza con la tabla `precio_historico` en PostgreSQL.
+El log de cambios se **densifica** a un punto por día, en escalón (el último precio
+vigente se arrastra), sobre los últimos 60 días terminando hoy
+(`HistorialDensificador`). Así `trend()` (media móvil de 7), `histN >= 3` y
+`is_historical_low` conservan su semántica sin tocar la lógica de badges. Un producto
+sin ninguna fila en la tabla no figura en el JSON.
+
+`ml_pipeline.py` agrega el precio de hoy **en memoria** (el ML corre ANTES del upsert,
+así que la tabla todavía no lo tiene) y **nunca reescribe el archivo**. `PythonRunner`
+lo borra en un `finally`, también si el pipeline falla.
+
+**Importación única del historial viejo**: antes el ML era dueño de ese JSON (un punto
+por día visto, tope de 60). Si al empezar una corrida hay un `precio_historico.json`
+en el directorio —sólo puede ser el viejo: el derivado se llama `ml_historial.json`—, se
+aparta como `precio_historico.json.legacy`, se colapsa a cambios (último precio de cada
+día, sólo donde el precio se movió) y se inserta en la tabla en una transacción, solo
+para URLs presentes en `productos` y con `ON CONFLICT DO NOTHING` (idempotente; nunca
+pisa lo que la tabla ya tiene). Recién entonces el archivo pasa a
+`precio_historico.json.imported`. Si la importación falla, el `.legacy` queda y se
+reintenta en la corrida siguiente.
 
 **Actualización (decouple-services-postgres, Batch 2, design D4)**: desde este cambio, Python SÍ tiene acceso directo a la base — `ml_pipeline.py`/`ml_embeddings.py`/`ml_train.py` conectan vía `psycopg2` usando el env var `DATABASE_URL` (el mismo `DATABASE_URL` que usa Java para `spring.datasource.url`, pero traducido de formato JDBC a DSN libpq por `PythonRunner.toPsycopgDsn` antes de pasarlo al subproceso — psycopg2 no entiende el prefijo `jdbc:`). Ya no hay un `db_path` posicional ni un archivo `scraper.db` que resolver: `PythonRunner` fija `DATABASE_URL`/`SCRAPER_MODELS_ROOT`/`HF_HOME` como variables de entorno del subproceso (design D5).
 
-**Purga automática**: entradas > 90 días se eliminan en cada run.
+**Purga automática**: entradas > 90 días se eliminan en cada run (salvo favoritos).
 
 ---
 
@@ -360,7 +386,7 @@ Cache en `image_embeddings` (invalidada por `MODEL_VERSION`). `HF_HOME` =
 
 ⚠️ **El scoring NO es reentrante, y a lo sumo corre UNA vez a la vez.**
 `PythonRunner.ejecutar` resuelve tres rutas **fijas** en el cwd del proceso
-—`ml_productos.json`, `ml_output.json`, `precio_historico.json`— y se las pasa
+—`ml_productos.json`, `ml_output.json`, `ml_historial.json`— y se las pasa
 al subproceso como argv, así que dos corridas concurrentes se escriben los
 archivos entre sí y ninguna falla ruidosamente: la segunda lee el input de la
 primera o publica un output mezclado. Había dos llamadores capaces de chocar —el

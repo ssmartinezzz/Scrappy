@@ -107,6 +107,28 @@ cerrar entre sí. `DATABASE_URL` apunta a `postgres:5432` (nombre del servicio, 
 
 ---
 
+### ¿Por qué el historial de precios tiene un solo dueño, la tabla, y el ML recibe una copia derivada?
+
+**Decisión** (`unify-price-history`): `precio_historico` (tabla) es la única fuente. Antes el
+ML era dueño de un `precio_historico.json` propio (un punto por día visto, tope 60) y la tabla
+guardaba sólo cambios; divergían (un `DELETE /api/db/productos` vaciaba la tabla pero no el
+JSON, y 406 productos con `all_time_low` figuraban planos en la tabla). Ahora Java arma un
+`ml_historial.json` desde la tabla en cada corrida, lo densifica a un punto por día y lo borra al terminar;
+`ml_pipeline.py` lo lee y no lo escribe.
+
+**Razones**:
+1. **Una fuente, sin deriva**: ni borrados ni retomas desincronizan el badge del orden `baja_historica`.
+2. **La tabla sigue siendo un log de cambios**: guardar un avistaje por producto por corrida
+   son millones de filas y una escritura extra por producto, por una señal que se reconstruye gratis.
+3. **Densificar en Java, no tocar el ML**: `trend()`, `histN >= 3` e `is_historical_low`
+   conservan su semántica porque reciben lo mismo que antes (un punto por día).
+
+**Consecuencias**: el ML corre antes del upsert, así que el precio de hoy se agrega en
+memoria en Python. Un cambio de precio el mismo día deja el último precio (`R__sp_upsert_run.sql`).
+El JSON viejo se importa una vez a la tabla (ver [`ML_PIPELINE.md`](./ML_PIPELINE.md)).
+
+---
+
 ### ¿Por qué Playwright headless y no requests/BeautifulSoup?
 
 **Decisión**: Playwright (Chromium headless) para todos los scrapers.

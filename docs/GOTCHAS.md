@@ -449,6 +449,13 @@ cualquier despertar por `LISTEN`. `purgar()` es su propio `@Scheduled` (cada min
 la fija `NOTIFICACIONES_PURGA_CADA_HORAS`), sólo encola el trabajo en el hilo `notificaciones-purga` y
 una bandera impide dos purgas a la vez.
 
+**`ml_historial.json` no es estado: es un input que Java reconstruye.**
+`PrecioHistoricoExporter` lo escribe desde la tabla antes de cada corrida del ML y
+`PythonRunner` lo borra al terminar; `ml_pipeline.py` no lo reescribe. Editarlo a mano
+no sirve. Un `precio_historico.json` junto al jar es el JSON viejo del ML: la próxima
+corrida lo importa a la tabla (queda como `.legacy` hasta que la importación pasa,
+después `.imported`). Detalle en [`ML_PIPELINE.md`](./ML_PIPELINE.md) → Historial de precios.
+
 ### Leer un sitio
 
 **Chromium sale por `EgressProxy`: un sitio en loopback o en la LAN no se
