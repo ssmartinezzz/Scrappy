@@ -40,16 +40,16 @@ ESCRITORIOS = [399000, 449100, 499000, 599000, 799000, 999000,
 FACTORES = [0.01, 10, 100, 1000]
 
 
-def _evaluar(precios, x, hist=False):
+def _evaluar(precios, x, hist=False, trend=None, es_oferta_real=False):
     """comp, mz y badges de `x` dentro de `precios`, con el código real."""
     st = ml_pipeline.PriceStats(precios)
     comp = st.composite_score(x)
     mz = st.z_score_modified(x)
     badges = ml_pipeline.assign_badges(
         hist=hist, comp=comp, mz=mz,
-        cheap=st.is_cheap_outlier(x), alta=False, trend=None,
+        cheap=st.is_cheap_outlier(x), alta=False, trend=trend,
         exp=st.is_expensive_outlier(x), ratio=0.0, desc_pct=0.0,
-        es_oferta_real=False)
+        es_oferta_real=es_oferta_real)
     return comp, badges, st.price_segment(x)
 
 
@@ -66,6 +66,42 @@ def test_badges_no_cambian_al_escalar_la_distribucion(precios, factor):
         assert _evaluar(precios, p) == _evaluar(escalada, p * factor), (
             "el producto de $%s cambia de badge al escalar la distribucion x%s "
             "-> hay un threshold denominado en pesos" % (p, factor))
+
+
+# `below_market` exige corroboración por un movimiento de precio (mínimo histórico,
+# oferta real o baja sostenida). Sin ella el barrido de arriba no puede producir ese
+# badge y deja de cubrirlo: estas tres variantes lo recuperan.
+CORROBORACIONES = {
+    "minimo_historico": dict(hist=True),
+    "oferta_real": dict(es_oferta_real=True),
+    "bajando": dict(trend="bajando"),
+}
+
+
+@pytest.mark.parametrize("factor", FACTORES)
+@pytest.mark.parametrize("corroboracion", list(CORROBORACIONES))
+def test_badges_corroborados_no_cambian_al_escalar_y_below_market_aparece(corroboracion, factor):
+    """El mismo barrido, con la corroboración presente, sobre las dos distribuciones.
+
+    Además de la invariancia exige que `below_market` APAREZCA en algún producto:
+    un barrido en el que el badge nunca se asigna pasaría igual con un threshold en
+    pesos adentro, y no probaría nada sobre él. (ESCRITORIOS no tiene outlier
+    inferior, así que la presencia se exige sobre el conjunto, no por distribución.)
+    """
+    kw = CORROBORACIONES[corroboracion]
+    con_below_market = 0
+    for precios in (SILLAS, ESCRITORIOS):
+        escalada = [v * factor for v in precios]
+        for p in precios:
+            base = _evaluar(precios, p, **kw)
+            esc = _evaluar(escalada, p * factor, **kw)
+            assert base == esc, (
+                "el producto de $%s cambia de badge al escalar la distribucion x%s "
+                "-> hay un threshold denominado en pesos" % (p, factor))
+            con_below_market += "below_market" in esc[1]
+    assert con_below_market > 0, (
+        "ningun producto escalado x%s recibe below_market con %s: el barrido no cubre el badge"
+        % (factor, corroboracion))
 
 
 def test_el_segmento_de_precio_tampoco_tiene_escala():
