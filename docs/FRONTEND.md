@@ -22,6 +22,17 @@ Hombre): pide `fetchMejores('', { gymrat: true, genero })` → `GET /api/mejores
 y cachea cada género por separado (`gymrat:hombre`, `gymrat:mujer`); la card de la entrada sigue pidiendo
 Gymrat sin género.
 
+**`/analisis/oportunidades` se filtra por rubro y juzga con `/api/data`.** Una fila de chips
+(`RUBROS` de `lib/rubros.js`) elige el rubro y lo deja en la URL como `?rubro=`, así que se
+comparte y sobrevive al drill-down y al "Volver" (`lib/oportunidades.js`: `rubroDeQuery`,
+`rutaOportunidades`). El preview, las barras de la distribución y el drill-down
+(`/analisis/oportunidades/:badge`) leen de `GET /api/data` con el mismo `rubro` y la misma
+`excluirCategoria` fija (`EXCLUIR_CATEGORIAS` = `Otros`, `Alimentos`, un único dueño en
+`lib/oportunidades.js`), de modo que una barra y la lista detrás coinciden. El preview ordena por
+`desc_pct` (descuento real), también `below_market`: `ml_score` es 0 = más barato y se ordena DESC,
+así que ningún orden existente significa "más barato contra el mercado". El porcentaje de cada barra
+es contra el total del mismo rubro y exclusión sin badge.
+
 **Logos de `/marcas` son archivos del repo** (`frontend/public/brand-logos/`,
 mapa marca → archivo en `src/lib/brandLogos.js`, fuentes y licencias en el
 `README.md` de la carpeta). Clearbit, que se usaba antes, ya no resuelve
