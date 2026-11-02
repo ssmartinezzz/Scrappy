@@ -80,7 +80,7 @@ Orden de prioridad (principal = primero del set), tal como `assign_badges()` en
 
 | Badge | Label UI | Condición (resumen) |
 |-------|----------|---------------------|
-| `all_time_low` | Mínimo histórico | precio actual = mínimo histórico propio del producto |
+| `all_time_low` | Mínimo histórico | precio actual = mínimo histórico propio del producto **y el precio se movió**: algún precio anterior es estrictamente mayor. Un historial plano (nunca cambió de precio) no es un mínimo, es sólo un precio |
 | `below_market` | Por debajo del mercado | precio unitario claramente bajo el mercado de su categoría (pctil/z-score modificado) |
 | `verified_deal` | Descuento verificado | descuento significativo Y precio en la mitad inferior del mercado |
 | `trending` | En demanda | pertenece a un cluster TF-IDF con demanda alta |
