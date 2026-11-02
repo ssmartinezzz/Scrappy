@@ -31,7 +31,9 @@ comparte y sobrevive al drill-down y al "Volver" (`lib/oportunidades.js`: `rubro
 `lib/oportunidades.js`), de modo que una barra y la lista detrás coinciden. El preview ordena `all_time_low` por `baja_historica` (la mayor caída relativa contra su
 máximo histórico), `verified_deal` por `desc_pct` (descuento real) y `below_market` por `mercado_asc` (el más barato
 contra su mercado: `ml_score` ascendente; `composite`/`ml_score` ordenan DESC, el menos barato
-primero). El porcentaje de cada barra
+primero). Las tarjetas del preview se deduplican por (nombre, sitio) —el catálogo puede tener el mismo
+producto bajo varias urls—, conservando la primera en el orden del servidor; por eso se piden 16
+y se muestran hasta 8. El drill-down no deduplica. El porcentaje de cada barra
 es contra el total del mismo rubro y exclusión sin badge.
 
 **Logos de `/marcas` son archivos del repo** (`frontend/public/brand-logos/`,

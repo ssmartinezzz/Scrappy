@@ -54,9 +54,33 @@ describe('OportunidadesPanel', () => {
     const ordenes = { all_time_low: 'baja_historica', verified_deal: 'desc_pct', below_market: 'mercado_asc' };
     for (const [badge, orden] of Object.entries(ordenes)) {
       expect(llamadas()).toContainEqual({
-        badge, rubro: 'indumentaria', excluirCategoria: ['Otros', 'Alimentos'], orden, size: 8,
+        badge, rubro: 'indumentaria', excluirCategoria: ['Otros', 'Alimentos'], orden, size: 16,
       });
     }
+  });
+
+  it('shows one card per product even when the catalog holds it under several urls, up to 8', async () => {
+    const dup = (url, nombre, sitio) => ({ url, nombre, sitio, marca: 'm', precio: 100, img: '' });
+    fetchData.mockImplementation(async f => {
+      if (f.badge === 'all_time_low' && f.size > 1) {
+        const productos = [
+          dup('https://x/1', 'Medias Sox Hiking', 'Sporting'),
+          dup('https://x/2', '  medias SOX  hiking ', 'sporting'),
+          dup('https://x/3', 'Medias Sox Hiking', 'Otra Tienda'),
+          ...Array.from({ length: 10 }, (_, i) => dup(`https://x/u${i}`, `Unico ${i}`, 'Sporting')),
+        ];
+        return { productos, meta: { total: productos.length } };
+      }
+      return respuesta(f);
+    });
+    renderPanel();
+    await screen.findByText('Unico 0');
+
+    expect(screen.getAllByText('Medias Sox Hiking', { exact: false })).toHaveLength(2); // Sporting + Otra Tienda
+    expect(screen.getByText('Unico 5')).toBeTruthy(); // 2 medias + 6 unicos = 8
+    expect(screen.queryByText('Unico 6')).toBeNull();
+    const fetch16 = llamadas().filter(c => c.badge === 'all_time_low' && c.size === 16);
+    expect(fetch16).toHaveLength(1);
   });
 
   it('counts every badge inside the same rubro and exclusion, against the no-badge total', async () => {
@@ -91,7 +115,7 @@ describe('OportunidadesPanel', () => {
 
     await waitFor(() => expect(screen.getByTestId('where').textContent).toBe('/analisis/oportunidades?rubro=tecnologia'));
     await waitFor(() => expect(llamadas()).toContainEqual(expect.objectContaining({
-      badge: 'all_time_low', rubro: 'tecnologia', orden: 'baja_historica', size: 8,
+      badge: 'all_time_low', rubro: 'tecnologia', orden: 'baja_historica', size: 16,
     })));
   });
 
