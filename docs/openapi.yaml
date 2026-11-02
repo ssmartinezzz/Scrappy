@@ -892,7 +892,7 @@ paths:
   /api/ml/aplicar:
     post:
       tags: [ML]
-      summary: Apply computed ML results to the in-memory catalog.
+      summary: Re-run the ML pipeline and persist its results (memory, `ml_output`, `productos.ml_*`, `producto_badge`).
       x-access: ADMIN
       responses:
         "200":

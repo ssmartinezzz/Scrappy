@@ -37,6 +37,15 @@ public interface ProductPort {
 
     void actualizarCategoria(String url, String nuevaCategoria);
 
+    /**
+     * Persists the ML fields of already-stored products (score, oferta, tendencia, segment, zscore
+     * and the badge set), the same columns an upsert writes, without touching anything else. A url
+     * that is not in {@code productos} is skipped: this never inserts a product.
+     *
+     * @return how many stored products were updated
+     */
+    int actualizarMl(List<Product> productos);
+
     int actualizarNormalizacion(String url, String categoria, String marca, String genero,
                                 List<String> talles, String subCategoria);
 

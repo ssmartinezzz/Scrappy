@@ -135,13 +135,14 @@ class ProductRepository implements ProductPort {
             row.put("genero", p.genero());
             ArrayNode tallesJson = row.putArray("talles");
             if (p.talles() != null) p.talles().forEach(tallesJson::add);
+            MlColumnas ml = MlColumnas.de(p);
             ArrayNode badgesJson = row.putArray("mlBadges");
-            if (p.ml() != null && p.ml().badges() != null) p.ml().badges().forEach(badgesJson::add);
-            row.put("mlScore", p.ml() != null ? p.ml().scoreP() : 50);
-            row.put("mlOferta", p.ml() != null && p.ml().ofertaReal());
-            row.put("mlTendencia", p.ml() != null ? p.ml().tendencia() : "");
-            row.put("mlSegment", p.ml() != null ? p.ml().segment() : "standard");
-            row.put("mlZscore", p.ml() != null ? p.ml().zScore() : 0.0);
+            ml.badges().forEach(badgesJson::add);
+            row.put("mlScore", ml.score());
+            row.put("mlOferta", ml.oferta());
+            row.put("mlTendencia", ml.tendencia());
+            row.put("mlSegment", ml.segment());
+            row.put("mlZscore", ml.zscore());
             row.put("rubro", p.rubro() != null ? p.rubro() : "indumentaria");
             row.put("marca", p.marca() != null ? p.marca() : "");
             row.put("gymrat", p.gymrat());
@@ -374,6 +375,60 @@ class ProductRepository implements ProductPort {
         return result;
     }
 
+
+    /**
+     * One transaction, three batches. UPDATE-only so a url the catalog does not hold is skipped, and
+     * the badge insert is guarded by the same existence check. Badge order is {@code posicion}, as in
+     * {@code sp_upsert_run}: principal first.
+     */
+    @Override
+    public int actualizarMl(List<Product> productos) {
+        List<MlColumnas> filas = productos.stream()
+                .filter(p -> StringUtils.isNotBlank(p.url()))
+                .map(MlColumnas::de).toList();
+        if (filas.isEmpty()) return 0;
+        return tx.execute(status -> {
+            int[][] actualizados = jdbc.batchUpdate(
+                    "UPDATE productos SET ml_score=?, ml_oferta=?, ml_tendencia=?, ml_segment=?, ml_zscore=? "
+                            + "WHERE url=?",
+                    filas, filas.size(), (ps, f) -> {
+                        ps.setInt(1, f.score());
+                        ps.setBoolean(2, f.oferta());
+                        ps.setString(3, f.tendencia());
+                        ps.setString(4, f.segment());
+                        ps.setDouble(5, f.zscore());
+                        ps.setString(6, f.url());
+                    });
+            jdbc.batchUpdate("DELETE FROM producto_badge WHERE url=?", filas, filas.size(),
+                    (ps, f) -> ps.setString(1, f.url()));
+            List<Object[]> badges = new ArrayList<>();
+            for (MlColumnas f : filas) {
+                int pos = 0;
+                for (String b : f.badges()) {
+                    if (StringUtils.isEmpty(b)) continue;
+                    badges.add(new Object[]{f.url(), (short) ++pos, b, f.url()});
+                }
+            }
+            jdbc.batchUpdate("INSERT INTO producto_badge (url, posicion, badge) "
+                    + "SELECT ?, ?, ? WHERE EXISTS (SELECT 1 FROM productos WHERE url=?)", badges);
+            return Arrays.stream(actualizados).flatMapToInt(Arrays::stream).map(n -> n > 0 ? 1 : 0).sum();
+        });
+    }
+
+    /** The ML columns of a product, as {@code sp_upsert_run} defaults them. One mapping for both writers. */
+    private record MlColumnas(String url, int score, boolean oferta, String tendencia, String segment,
+                              double zscore, List<String> badges) {
+        static MlColumnas de(Product p) {
+            Product.MlScore ml = p.ml();
+            return new MlColumnas(p.url(),
+                    ml != null ? ml.scoreP() : 50,
+                    ml != null && ml.ofertaReal(),
+                    ml != null && ml.tendencia() != null ? ml.tendencia() : "",
+                    ml != null && ml.segment() != null ? ml.segment() : "standard",
+                    ml != null ? ml.zScore() : 0.0,
+                    ml != null && ml.badges() != null ? ml.badges() : List.of());
+        }
+    }
 
     /**
      * Lleva {@code AND bloqueado_por IS NULL}: un producto bloqueado no debe perder su categoría
