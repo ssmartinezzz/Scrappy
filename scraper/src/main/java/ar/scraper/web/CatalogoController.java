@@ -62,20 +62,6 @@ public class CatalogoController {
         this.financiacionEnricher = new ar.scraper.ml.FinanciacionEnricher(presets, indiceService);
     }
 
-    /**
-     * The 20-argument shape from before {@code excluirCategoria}. Not a handler (no mapping
-     * annotation): it only keeps direct callers, 249 call sites in the tests, from having to pass a
-     * trailing null.
-     */
-    public ResponseEntity<ApiResponse<CatalogoDtos.Catalogo>> data(int page, int size, List<String> talle,
-            String genero, List<String> categoria, String q, String sitio, List<String> marca, String badge,
-            String segment, String rubro, Boolean gymrat, String orden, Boolean pack, Double precioMin,
-            Double precioMax, List<String> subCategoria, String fit, String estampado, String escote,
-            String colorDominante) {
-        return data(page, size, talle, genero, categoria, q, sitio, marca, badge, segment, rubro, gymrat,
-                orden, pack, precioMin, precioMax, subCategoria, fit, estampado, escote, colorDominante, null);
-    }
-
     @GetMapping("/data")
     public ResponseEntity<ApiResponse<CatalogoDtos.Catalogo>> data(@RequestParam(defaultValue = "0")   int page,
             @RequestParam(defaultValue = "24")  int size,
