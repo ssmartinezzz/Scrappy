@@ -414,6 +414,13 @@ class CatalogQueryRepository implements CatalogQueryPort {
             // ml_score is the composite price score: 0 = cheapest against its market. Ascending is
             // "cheapest vs market"; `composite`/`ml_score` above sort the other way.
             case "mercado_asc" -> "ORDER BY p.ml_score ASC NULLS LAST, p.url ASC";
+            // Relative drop from the product's own historical max, so a $100 item that fell 90%
+            // beats a $900 one that fell 10%. A correlated subquery here and only here: COUNT(*)
+            // and every other order never touch precio_historico. No history -> NULL -> last.
+            // Measured on the dev DB: ~85 ms for rubro=indumentaria&badge=all_time_low, size 8.
+            case "baja_historica" -> "ORDER BY (SELECT (h.mx - p.precio) / NULLIF(h.mx, 0) FROM "
+                    + "(SELECT max(ph.precio) AS mx FROM precio_historico ph WHERE ph.url = p.url) h) "
+                    + "DESC NULLS LAST, p.url ASC";
             case "desc_pct" -> "ORDER BY " + PCT_DESCUENTO + " DESC NULLS LAST, p.url ASC";
             default -> "ORDER BY p.precio ASC, p.url ASC";
         };

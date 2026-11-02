@@ -51,7 +51,7 @@ describe('OportunidadesPanel', () => {
     renderPanel('/analisis/oportunidades?rubro=indumentaria');
     await screen.findByText('Prod all_time_low 0');
 
-    const ordenes = { all_time_low: 'desc_pct', verified_deal: 'desc_pct', below_market: 'mercado_asc' };
+    const ordenes = { all_time_low: 'baja_historica', verified_deal: 'desc_pct', below_market: 'mercado_asc' };
     for (const [badge, orden] of Object.entries(ordenes)) {
       expect(llamadas()).toContainEqual({
         badge, rubro: 'indumentaria', excluirCategoria: ['Otros', 'Alimentos'], orden, size: 8,
@@ -91,7 +91,7 @@ describe('OportunidadesPanel', () => {
 
     await waitFor(() => expect(screen.getByTestId('where').textContent).toBe('/analisis/oportunidades?rubro=tecnologia'));
     await waitFor(() => expect(llamadas()).toContainEqual(expect.objectContaining({
-      badge: 'all_time_low', rubro: 'tecnologia', orden: 'desc_pct', size: 8,
+      badge: 'all_time_low', rubro: 'tecnologia', orden: 'baja_historica', size: 8,
     })));
   });
 

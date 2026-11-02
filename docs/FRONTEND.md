@@ -28,8 +28,8 @@ comparte y sobrevive al drill-down y al "Volver" (`lib/oportunidades.js`: `rubro
 `rutaOportunidades`). El preview, las barras de la distribución y el drill-down
 (`/analisis/oportunidades/:badge`) leen de `GET /api/data` con el mismo `rubro` y la misma
 `excluirCategoria` fija (`EXCLUIR_CATEGORIAS` = `Otros`, `Alimentos`, un único dueño en
-`lib/oportunidades.js`), de modo que una barra y la lista detrás coinciden. El preview ordena `all_time_low` y
-`verified_deal` por `desc_pct` (descuento real) y `below_market` por `mercado_asc` (el más barato
+`lib/oportunidades.js`), de modo que una barra y la lista detrás coinciden. El preview ordena `all_time_low` por `baja_historica` (la mayor caída relativa contra su
+máximo histórico), `verified_deal` por `desc_pct` (descuento real) y `below_market` por `mercado_asc` (el más barato
 contra su mercado: `ml_score` ascendente; `composite`/`ml_score` ordenan DESC, el menos barato
 primero). El porcentaje de cada barra
 es contra el total del mismo rubro y exclusión sin badge.
