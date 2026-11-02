@@ -376,6 +376,16 @@ de scrape. En el frontend, `MlStatusPanel.handleApply` **tiene** que avisar del
 rechazo: mostraba "Aplicando..." tres segundos indistinguibles del camino feliz,
 así que un guard correcto se veía como un no-op silencioso.
 
+**`/api/ml/aplicar` también escribe en la base.** `/api/data` (y con él el panel de
+Oportunidades) lee de la base, y `productos.ml_*` más `producto_badge` sólo los
+escribía el upsert de un scrape. Por eso un "aplicar" manual actualizaba la memoria y
+`ml_output` pero la base seguía idéntica (`all_time_low` 6463 antes y después).
+Ahora, tras `enriquecer`, persiste con `ProductPort.actualizarMl`: un `UPDATE` de
+`ml_score`/`ml_oferta`/`ml_tendencia`/`ml_segment`/`ml_zscore` y el reemplazo de los
+`producto_badge` (principal primero, `posicion`), en una transacción. Sólo toca filas
+que ya existen, nunca inserta un producto; el trigger de versión del catálogo se
+dispara con el cambio de badges, que es lo que invalida las caches.
+
 **Ojo con la taxonomía de `categoria`:** el vocabulario canónico pasó de 88 a
 103 valores en `richer-category-taxonomy`, a **105** en `V32` y a **106** en `V38` (`Mini PC`), y vive en DOS
 lugares que no pueden divergir — `CategoryGroups.canonicalCategories()` y la

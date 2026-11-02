@@ -286,6 +286,24 @@ class MlControllerTest {
     }
 
     @Test
+    void mlAplicarPersistsTheEnrichedMlFieldsSoTheDbReadsSeeThem() throws Exception {
+        var facets = new Facets(Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
+        var crudo = ar.scraper.model.Product.builder().sitio("Sitio").nombre("Remera").precio(1000.0).url("https://s.com/a").categoria("Remera").build();
+        var enriquecido = ar.scraper.model.Product.builder().sitio("Sitio").nombre("Remera").precio(1000.0).url("https://s.com/a").categoria("Remera").build();
+        when(service.getLastResult()).thenReturn(new AggregatedResult(List.of(crudo), Map.of(), Map.of(), facets, 0, 0));
+        var enricher = mock(ar.scraper.ml.MlEnricher.class);
+        when(aggregator.getMlEnricher()).thenReturn(enricher);
+        when(enricher.serializarProductos(any())).thenReturn("[]");
+        var mlOut = new com.fasterxml.jackson.databind.ObjectMapper().readTree("{}");
+        when(pythonRunner.ejecutar(any())).thenReturn(mlOut);
+        when(enricher.enriquecer(any(), any())).thenReturn(List.of(enriquecido));
+
+        controller.mlAplicar();
+
+        verify(productPort, timeout(2000)).actualizarMl(List.of(enriquecido));
+    }
+
+    @Test
     void mlAplicarReturns409WhileAScrapeIsRunning() {
         var facets = new Facets(Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
         when(service.getLastResult()).thenReturn(new AggregatedResult(List.of(), Map.of(), Map.of(), facets, 0, 0));

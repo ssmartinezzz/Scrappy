@@ -63,6 +63,10 @@ public class MlController {
                         if (orig != null && !p.categoria().equals(orig))
                             try { productos.actualizarCategoria(p.url(), p.categoria()); } catch(Exception ignored){}
                     });
+                    // The catalog reads (/api/data, the Oportunidades panel) come from the DB, which only
+                    // a scrape's upsert wrote ML into before: persist the re-applied run too.
+                    int persistidos = productos.actualizarMl(enriquecidos);
+                    LOG.info("[ML/aplicar] ML persistido en {} productos", persistidos);
                     aggregator.setLastMlOutput(mlOut);
                     mlOutput.guardarMlOutput(mlOut);
                     LOG.info("[ML/aplicar] Pipeline re-aplicado: {} productos refinados", enriquecidos.size());
