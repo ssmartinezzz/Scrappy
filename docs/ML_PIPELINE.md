@@ -80,9 +80,9 @@ Orden de prioridad (principal = primero del set), tal como `assign_badges()` en
 
 | Badge | Label UI | Condición (resumen) |
 |-------|----------|---------------------|
-| `all_time_low` | Mínimo histórico | precio actual = mínimo histórico propio del producto |
-| `below_market` | Por debajo del mercado | precio unitario claramente bajo el mercado de su categoría (pctil/z-score modificado) |
-| `verified_deal` | Descuento verificado | descuento significativo Y precio en la mitad inferior del mercado |
+| `all_time_low` | Mínimo histórico | precio actual = mínimo histórico propio del producto **y el precio se movió**: algún precio anterior es estrictamente mayor. Un historial plano (nunca cambió de precio) no es un mínimo, es sólo un precio |
+| `below_market` | Por debajo del mercado | precio unitario claramente bajo el mercado de su categoría (pctil/z-score modificado) **y** corroborado por un movimiento real de precio: `all_time_low`, `verified_deal` o `price_dropping`. Sin eso el extremo barato lo dominan los mal clasificados (funda como Billetera, gorra de natación como Gorra) |
+| `verified_deal` | Descuento verificado | descuento significativo Y precio en la mitad inferior del mercado Y, con ≥3 puntos de historial propio, el producto está en su mínimo histórico (mismo criterio que `all_time_low`). Un tachado que nunca cambió —oferta perpetua— no se verifica: en el catálogo del 2026-11-02 eso sacó 646 de 2111 |
 | `trending` | En demanda | pertenece a un cluster TF-IDF con demanda alta |
 | `price_dropping` | Bajando de precio | tendencia de precio a la baja (`priceVelocity` negativa) |
 | `above_market` | Caro vs. mercado | precio unitario por encima del mercado de su categoría |
@@ -115,7 +115,9 @@ distribuciones, y los badges se acomodan solos. **No hay recalibración.**
 
 Se verificó ejercitando `PriceStats` y `assign_badges` reales sobre los precios
 de INPRO medidos en vivo, escalando las distribuciones ×10, ×100, ×1000 y
-×0,01: **88 combinaciones, cero cambios de badge**.
+×0,01: **352 combinaciones, cero cambios de badge** (88 sin corroboración y 264 con
+ella: `below_market` sólo se asigna con mínimo histórico, oferta real o baja, y el barrido exige
+que aparezca).
 `ml-tests/test_ml_pipeline_scale_invariance.py` lo fija.
 
 > ⚠️ **Al agregar un badge, mantené la propiedad.** Una condición como

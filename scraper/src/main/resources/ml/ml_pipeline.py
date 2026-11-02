@@ -352,9 +352,13 @@ class HistoricalAnalysis:
         return max(p['precio'] for p in self.points) if self.points else 0
 
     def is_historical_low(self, current, tolerance=0.05):
-        """True si el precio actual es el mínimo histórico (con tolerancia del 5%)."""
+        """True si el precio actual es el mínimo histórico (con tolerancia del 5%)
+        Y el precio se movió: algún precio anterior es estrictamente mayor.
+        Un historial plano está en su propio mínimo sin haber bajado nunca."""
         hist_min = self.min_price()
-        return hist_min > 0 and current <= hist_min * (1 + tolerance)
+        if not (hist_min > 0 and current <= hist_min * (1 + tolerance)):
+            return False
+        return any(p['precio'] > current for p in self.points)
 
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -528,12 +532,19 @@ def assign_badges(hist, comp, mz, cheap, alta, trend, exp, ratio, desc_pct, es_o
     qualifies for, given its precomputed statistical signals."""
     badges = []
 
+    es_minimo = bool(hist and comp <= 35)
+    esta_bajando = trend == 'bajando' and comp <= 40
+
     # ALL_TIME_LOW: precio actual es mínimo histórico (requiere historial)
-    if hist and comp <= 35:
+    if es_minimo:
         badges.append('all_time_low')
 
-    # BELOW_MARKET: outlier inferior de Tukey O z-score < -1.5
-    if cheap or (comp <= 20 and mz <= -1.5):
+    # BELOW_MARKET: outlier inferior de Tukey O z-score < -1.5, CORROBORADO por un
+    # movimiento real de precio (mínimo histórico, oferta real o baja sostenida).
+    # Sin eso, el extremo barato lo dominan los mal clasificados (funda de celular
+    # como Billetera, gorra de natación como Gorra): son baratos contra una
+    # categoría equivocada, no contra su mercado.
+    if (cheap or (comp <= 20 and mz <= -1.5)) and (es_minimo or es_oferta_real or esta_bajando):
         badges.append('below_market')
 
     # VERIFIED_DEAL: descuento estadísticamente significativo Y precio competitivo
@@ -545,7 +556,7 @@ def assign_badges(hist, comp, mz, cheap, alta, trend, exp, ratio, desc_pct, es_o
         badges.append('trending')
 
     # PRICE_DROPPING: tendencia histórica a la baja
-    if trend == 'bajando' and comp <= 40:
+    if esta_bajando:
         badges.append('price_dropping')
 
     # ABOVE_MARKET: outlier superior de Tukey O z-score > +1.5
