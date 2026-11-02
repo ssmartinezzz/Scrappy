@@ -168,9 +168,11 @@ BEGIN
             ON CONFLICT (url, fecha) DO NOTHING;
         ELSIF abs(v_prev_precio - v_new_precio) > 0.01 THEN
             v_actualizados := v_actualizados + 1;
+            -- Varios cambios el mismo dia: queda el ULTIMO precio, que es el vigente
+            -- (el historial es la unica fuente de verdad, tambien para el ML).
             INSERT INTO precio_historico (url, precio, fecha)
             VALUES (r->>'url', v_new_precio, (r->>'fecha')::date)
-            ON CONFLICT (url, fecha) DO NOTHING;
+            ON CONFLICT (url, fecha) DO UPDATE SET precio = EXCLUDED.precio;
 
             -- Outbox: las bajas se juntan acá y se encolan de una sola vez después
             -- del loop, en la MISMA transacción que escribe el precio, así un

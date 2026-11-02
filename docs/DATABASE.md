@@ -180,6 +180,13 @@ precio no se hubiera movido. El `UNIQUE(url, fecha)` tapaba el síntoma mientras
 el producto volviera el mismo día; recién se veía cuando volvía días después,
 que es el caso real.
 
+⚠️ **Varios cambios el mismo día dejan el ÚLTIMO precio.** La rama de cambio de
+`sp_upsert_run` inserta con `ON CONFLICT (url, fecha) DO UPDATE SET precio =
+EXCLUDED.precio`: la fila del día es el precio vigente, que es lo que el ML
+siempre conservó. (Con `DO NOTHING` quedaba el primero.) La rama de producto nuevo
+sigue en `DO NOTHING`. El ML recibe esta tabla densificada a un punto por día, ver
+[`ML_PIPELINE.md`](./ML_PIPELINE.md) → Historial de precios.
+
 ⚠️ **El soft-delete está acotado a los sitios del batch, y esa cota no es
 opcional.** `sp_soft_delete_ausentes` recibe `p_sitios` y sólo desactiva dentro
 de esos sitios. "Ausente" únicamente significa algo dentro de un sitio que se
