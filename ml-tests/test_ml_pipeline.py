@@ -73,3 +73,29 @@ def test_gate_accepts_explicit_genericas_override():
     custom = frozenset({"custom-generic"})
     assert ml_pipeline.needs_image_fallback(0.99, "custom-generic", "hombre", genericas=custom) is True
     assert ml_pipeline.needs_image_fallback(0.99, "indumentaria", "hombre", genericas=custom) is False
+
+
+# ─── HistoricalAnalysis.is_historical_low(): the price must have moved ───────
+
+
+def _pts(*precios):
+    return [{'fecha': '2026-10-%02d' % (i + 1), 'precio': p} for i, p in enumerate(precios)]
+
+
+def test_flat_history_is_not_a_historical_low():
+    """A price that never changed has no 'low' to be: it sits at its own min."""
+    hist = ml_pipeline.HistoricalAnalysis(_pts(5000, 5000, 5000, 5000))
+    assert hist.is_historical_low(5000) is False
+
+
+def test_price_that_dropped_below_an_earlier_price_is_a_historical_low():
+    hist = ml_pipeline.HistoricalAnalysis(_pts(8000, 8000, 5000))
+    assert hist.is_historical_low(5000) is True
+
+
+def test_historical_low_is_scale_invariant():
+    for factor in (0.01, 1, 1000):
+        flat = ml_pipeline.HistoricalAnalysis(_pts(*[p * factor for p in (5, 5, 5)]))
+        moved = ml_pipeline.HistoricalAnalysis(_pts(*[p * factor for p in (8, 8, 5)]))
+        assert flat.is_historical_low(5 * factor) is False
+        assert moved.is_historical_low(5 * factor) is True

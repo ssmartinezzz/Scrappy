@@ -352,9 +352,13 @@ class HistoricalAnalysis:
         return max(p['precio'] for p in self.points) if self.points else 0
 
     def is_historical_low(self, current, tolerance=0.05):
-        """True si el precio actual es el mínimo histórico (con tolerancia del 5%)."""
+        """True si el precio actual es el mínimo histórico (con tolerancia del 5%)
+        Y el precio se movió: algún precio anterior es estrictamente mayor.
+        Un historial plano está en su propio mínimo sin haber bajado nunca."""
         hist_min = self.min_price()
-        return hist_min > 0 and current <= hist_min * (1 + tolerance)
+        if not (hist_min > 0 and current <= hist_min * (1 + tolerance)):
+            return False
+        return any(p['precio'] > current for p in self.points)
 
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
