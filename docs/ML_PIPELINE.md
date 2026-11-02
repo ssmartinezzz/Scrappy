@@ -115,7 +115,9 @@ distribuciones, y los badges se acomodan solos. **No hay recalibración.**
 
 Se verificó ejercitando `PriceStats` y `assign_badges` reales sobre los precios
 de INPRO medidos en vivo, escalando las distribuciones ×10, ×100, ×1000 y
-×0,01: **88 combinaciones, cero cambios de badge**.
+×0,01: **352 combinaciones, cero cambios de badge** (88 sin corroboración y 264 con
+ella: `below_market` sólo se asigna con mínimo histórico, oferta real o baja, y el barrido exige
+que aparezca).
 `ml-tests/test_ml_pipeline_scale_invariance.py` lo fija.
 
 > ⚠️ **Al agregar un badge, mantené la propiedad.** Una condición como
