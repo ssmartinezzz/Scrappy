@@ -122,7 +122,12 @@ components:
     Orden:
       name: orden
       in: query
-      schema: { type: string, enum: [precio_asc, precio_desc, nombre], default: precio_asc }
+      schema: { type: string, enum: [precio_asc, precio_desc, nombre, nombre_asc, composite, ml_score, desc_pct, mercado_asc, baja_historica], default: precio_asc }
+      description: >-
+        Sort key; an unknown value falls back to `precio_asc`. `composite`/`ml_score` sort the
+        composite price score DESC (the LEAST cheap first); `mercado_asc` sorts it ASC, the
+        cheapest against its market first. `desc_pct` is the biggest real discount first.
+        Products without the datum go last; `url` breaks every tie.
     Talle:
       name: talle
       in: query

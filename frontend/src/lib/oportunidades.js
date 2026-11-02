@@ -20,3 +20,22 @@ export function rutaOportunidades(rubro, badge) {
   const base = badge ? `${RUTA_OPORTUNIDADES}/${badge}` : RUTA_OPORTUNIDADES;
   return rubro ? `${base}?rubro=${encodeURIComponent(rubro)}` : base;
 }
+
+const normalizar = t => (t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+
+/**
+ * One card per (nombre, sitio): the catalog can hold one product under several urls. Keeps the first
+ * in server order, so the ranking decides which url survives, and stops at `max`.
+ */
+export function unicosPorNombreYSitio(productos, max) {
+  const vistos = new Set();
+  const out = [];
+  for (const p of productos || []) {
+    const clave = `${normalizar(p.nombre)}|${normalizar(p.sitio)}`;
+    if (vistos.has(clave)) continue;
+    vistos.add(clave);
+    out.push(p);
+    if (out.length === max) break;
+  }
+  return out;
+}

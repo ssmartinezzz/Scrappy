@@ -28,9 +28,12 @@ comparte y sobrevive al drill-down y al "Volver" (`lib/oportunidades.js`: `rubro
 `rutaOportunidades`). El preview, las barras de la distribución y el drill-down
 (`/analisis/oportunidades/:badge`) leen de `GET /api/data` con el mismo `rubro` y la misma
 `excluirCategoria` fija (`EXCLUIR_CATEGORIAS` = `Otros`, `Alimentos`, un único dueño en
-`lib/oportunidades.js`), de modo que una barra y la lista detrás coinciden. El preview ordena por
-`desc_pct` (descuento real), también `below_market`: `ml_score` es 0 = más barato y se ordena DESC,
-así que ningún orden existente significa "más barato contra el mercado". El porcentaje de cada barra
+`lib/oportunidades.js`), de modo que una barra y la lista detrás coinciden. El preview ordena `all_time_low` por `baja_historica` (la mayor caída relativa contra su
+máximo histórico), `verified_deal` por `desc_pct` (descuento real) y `below_market` por `mercado_asc` (el más barato
+contra su mercado: `ml_score` ascendente; `composite`/`ml_score` ordenan DESC, el menos barato
+primero). Las tarjetas del preview se deduplican por (nombre, sitio) —el catálogo puede tener el mismo
+producto bajo varias urls—, conservando la primera en el orden del servidor; por eso se piden 16
+y se muestran hasta 8. El drill-down no deduplica. El porcentaje de cada barra
 es contra el total del mismo rubro y exclusión sin badge.
 
 **Logos de `/marcas` son archivos del repo** (`frontend/public/brand-logos/`,

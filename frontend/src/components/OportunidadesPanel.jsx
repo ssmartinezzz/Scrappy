@@ -2,20 +2,22 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { fetchData, fmt } from '../api';
 import { BADGE_META, SEMANTIC } from '../lib/colors';
-import { EXCLUIR_CATEGORIAS, rubroDeQuery, rutaOportunidades } from '../lib/oportunidades';
+import { EXCLUIR_CATEGORIAS, rubroDeQuery, rutaOportunidades, unicosPorNombreYSitio } from '../lib/oportunidades';
 import { RUBROS } from '../lib/rubros';
 
 // ─── Top deals preview (capped) ───────────────────────────────────────────
 // A capped preview: the full listing lives behind the /analisis/oportunidades/:badge
 // drill-down. Each badge is its own /api/data read, ranked by real discount and scoped to the
 // selected rubro, so the preview shows what the drill-down would show first.
-//
-// below_market also ranks by desc_pct: the only other badge-relevant order, `composite`/`ml_score`,
-// sorts DESC over a score where 0 is the cheapest (ml_score DESC lists the LEAST cheap first),
-// so no existing order means "cheapest against the market".
+// all_time_low ranks by the biggest drop from its own historical max (baja_historica);
+// verified_deal by the discount against the listed original price (desc_pct).
+// below_market has no discount to rank by (it is a position against the market), so it uses
+// mercado_asc: the lowest composite price score first.
 const PREVIEW_BADGES = ['all_time_low', 'verified_deal', 'below_market'];
-const PREVIEW_ORDEN = { all_time_low: 'desc_pct', verified_deal: 'desc_pct', below_market: 'desc_pct' };
+const PREVIEW_ORDEN = { all_time_low: 'baja_historica', verified_deal: 'desc_pct', below_market: 'mercado_asc' };
+// Shown cards, and how many are read: duplicates by (nombre, sitio) are dropped, so ask for more.
 const PREVIEW_SIZE = 8;
+const PREVIEW_FETCH = 16;
 
 const TopDeals = ({ grupos, onProductClick }) => {
   const sections = PREVIEW_BADGES.map(b => [b, grupos[b] || []]).filter(([, ps]) => ps.length > 0);
@@ -100,7 +102,7 @@ export default function OportunidadesPanel({ onProductClick }) {
       const [base, ...porBadge] = await Promise.all([
         fetchData({ ...alcance, size: 1 }),
         ...keys.map(badge => PREVIEW_BADGES.includes(badge)
-          ? fetchData({ badge, ...alcance, orden: PREVIEW_ORDEN[badge], size: PREVIEW_SIZE })
+          ? fetchData({ badge, ...alcance, orden: PREVIEW_ORDEN[badge], size: PREVIEW_FETCH })
           : fetchData({ badge, ...alcance, size: 1 })),
       ]);
       if (!base || porBadge.some(r => !r)) return { error: true };
@@ -108,7 +110,7 @@ export default function OportunidadesPanel({ onProductClick }) {
       const counts = {};
       keys.forEach((badge, i) => {
         counts[badge] = porBadge[i].meta?.total || 0;
-        if (PREVIEW_BADGES.includes(badge)) grupos[badge] = porBadge[i].productos || [];
+        if (PREVIEW_BADGES.includes(badge)) grupos[badge] = unicosPorNombreYSitio(porBadge[i].productos, PREVIEW_SIZE);
       });
       return { total: base.meta?.total || 0, grupos, counts };
     };

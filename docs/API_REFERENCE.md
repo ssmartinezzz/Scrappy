@@ -663,6 +663,13 @@ vacío, sin el viejo fallback marca→sitio. `q` busca en `nombre` **y** en
 quedan: `NULL <> ALL(...)` es `NULL` y descartaría justo a las que no se
 pueden clasificar. Ausente o vacío no excluye nada.
 
+`orden` acepta además `mercado_asc` (el más barato contra su mercado primero: `ml_score`
+ascendente, donde 0 es el más barato). `composite`/`ml_score` ordenan el mismo score DESC, o sea
+el menos barato primero; no son lo mismo que `mercado_asc`.
+`baja_historica` ordena por la caída relativa contra el máximo histórico propio del producto
+(`precio_historico`): un producto de $100 que cayó 90% va antes que uno de $900 que cayó 10%. Sin
+historial va al final. Sólo ese orden toca `precio_historico`; el total no cambia.
+
 ---
 
 ## GET /mejores
