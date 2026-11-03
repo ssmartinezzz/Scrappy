@@ -103,7 +103,7 @@ final class MarcasPicksView {
             .filter(p -> StringUtils.isBlank(rubro)
                 || rubro.equalsIgnoreCase(p.rubro() != null ? p.rubro() : "indumentaria"))
             .filter(p -> !gymrat || (p.esGymrat() && SiteClassification.esMarcaGymPicks(p.sitio(), p.marca())))
-            .filter(p -> !"infantil".equalsIgnoreCase(p.genero() == null ? "" : p.genero().trim()))
+            .filter(ar.scraper.outfits.EligibilityPolicy::elegible)
             .filter(p -> aplicaAGenero(p, genero))
             .collect(java.util.stream.Collectors.groupingBy(p -> etiquetaDeCategoria(p, gymrat)));
 
