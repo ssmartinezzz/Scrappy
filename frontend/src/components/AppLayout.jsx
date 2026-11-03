@@ -67,6 +67,7 @@ const init = {
   subCategoria: [],        // activity/sport sub-dimension multi-select (server-side OR filter)
   fit:          '',        // visual-attrs single-select filters (server-side, /api/data params)
   estampado:    '',
+  deporte:      '',
   escote:       '',
   colorDominante: '',
   precioMin:    undefined, // Sidebar price-range filter (server-side, /api/data param)
@@ -120,6 +121,7 @@ function filterParams(f) {
     ['subCategoria', f.subCategoria.length > 0, f.subCategoria],
     ['fit', f.fit, f.fit],
     ['estampado', f.estampado, f.estampado],
+    ['deporte', f.deporte, f.deporte],
     ['escote', f.escote, f.escote],
     ['colorDominante', f.colorDominante, f.colorDominante],
   ];
@@ -141,7 +143,7 @@ function reducer(state, action) {
       segment:'', genero:'', categorias:[], talles:[], gymrat:false,
       gymSubcats:{}, gymSubcatFiltro:null, pack:false, subCategoria:[],
       precioMin:undefined, precioMax:undefined,
-      fit:'', estampado:'', escote:'', colorDominante:'',
+      fit:'', estampado:'', deporte:'', escote:'', colorDominante:'',
       pag:0, prods:[], hasMore:true,
     };
     case 'TOGGLE_TALLE': {
@@ -708,7 +710,7 @@ export default function AppLayout() {
   }, [S.busq, S.sitioFiltro, S.rubroFiltro, S.marca, S.badge,
       S.segment, S.genero, S.categorias, S.talles, S.gymrat, S.pack,
       S.precioMin, S.precioMax, S.orden, S.subCategoria,
-      S.fit, S.estampado, S.escote, S.colorDominante]);
+      S.fit, S.estampado, S.deporte, S.escote, S.colorDominante]);
 
   // Category unit-price stats (medianas por categoría, keyed normalized) that
   // power the price bar and the pack savings % badge. Sourced from
@@ -755,12 +757,12 @@ export default function AppLayout() {
       marca: S.marca, badge: S.badge, segment: S.segment, genero: S.genero,
       categorias: S.categorias, talles: S.talles, gymrat: S.gymrat, pack: S.pack,
       precioMin: S.precioMin, precioMax: S.precioMax, subCategoria: S.subCategoria,
-      fit: S.fit, estampado: S.estampado, escote: S.escote, colorDominante: S.colorDominante,
+      fit: S.fit, estampado: S.estampado, deporte: S.deporte, escote: S.escote, colorDominante: S.colorDominante,
     }),
   }), [S.busq, S.sitioFiltro, S.rubroFiltro, S.marca, S.badge, S.segment,
        S.genero, S.categorias, S.talles, S.gymrat, S.pack,
        S.precioMin, S.precioMax, S.orden, S.subCategoria,
-       S.fit, S.estampado, S.escote, S.colorDominante]);
+       S.fit, S.estampado, S.deporte, S.escote, S.colorDominante]);
 
   const loadFirstPage = useCallback(async () => {
     if (loadingRef.current) return;

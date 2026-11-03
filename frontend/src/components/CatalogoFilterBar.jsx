@@ -3,6 +3,7 @@ import { useOutletContext } from 'react-router-dom';
 import { Sheet, SheetContent, SheetTitle } from './ui/sheet';
 import { cn, sortByCountDesc } from '@/lib/utils';
 import { BADGE_LABELS } from '../api';
+import { deporteLabel } from '../lib/deportes';
 import { SEG_COLORS, BADGE_COLORS, SEMANTIC } from '../lib/colors';
 
 const SEGMENTOS = [
@@ -98,6 +99,7 @@ export default function CatalogoFilterBar({ hidden }) {
   const subCategorias = facets.subCategorias || {};
   const fits           = facets.fits            || {};
   const estampados     = facets.estampados      || {};
+  const deportes       = facets.deportes        || {};
   const escotes         = facets.escotes         || {};
   const colorDominantes = facets.colorDominantes || {};
 
@@ -146,6 +148,7 @@ export default function CatalogoFilterBar({ hidden }) {
     + (S.precioMin != null || S.precioMax != null ? 1 : 0)
     + (S.fit ? 1 : 0)
     + (S.estampado ? 1 : 0)
+    + (S.deporte ? 1 : 0)
     + (S.escote ? 1 : 0)
     + (S.colorDominante ? 1 : 0);
 
@@ -394,6 +397,17 @@ export default function CatalogoFilterBar({ hidden }) {
                       <Pill key={v} label={v} count={n}
                         active={S.estampado === v}
                         onClick={() => onFilter({ estampado: S.estampado === v ? '' : v })} />
+                    ))}
+                  </Section>
+                )}
+
+                {/* Deporte */}
+                {Object.keys(deportes).length > 0 && (
+                  <Section title="Deporte">
+                    {Object.entries(deportes).map(([v, n]) => (
+                      <Pill key={v} label={deporteLabel(v)} count={n}
+                        active={S.deporte === v}
+                        onClick={() => onFilter({ deporte: S.deporte === v ? '' : v })} />
                     ))}
                   </Section>
                 )}
