@@ -58,7 +58,7 @@ VAYPOL  → vaypol, city
 QLOUD   → rockethard
 OSCOMMERCE → venex
 INPRO   → inpro
-VTEX    → sporting, o url contiene vtexcommercestable.com.br / vteximg.com.br
+VTEX    → sporting, easy, o url contiene vtexcommercestable.com.br / vteximg.com.br
 SHOPIFY → freres, vcp, forever, flowin, baesics, o url contiene myshopify.com
 MONKYFORCE → monkyforce
 MORASHOP → morashop

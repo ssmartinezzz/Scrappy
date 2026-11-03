@@ -3753,6 +3753,27 @@ DELETE FROM sitio s WHERE s.sitio_key = 'notebookspro'
 -- <<< rollback:V61
 ```
 
-Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V60`. Con productos ya
+Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V62` y antes que el de `V60`. Con
+productos ya scrapeados no borra nada: esas filas referencian el sitio.
+
+---
+
+## `V62` — seed de Easy
+
+Easy (easy.com.ar) es una tienda VTEX de mejoramiento del hogar: herramientas, plomería, electricidad, pinturas,
+aberturas, jardín, muebles y electrodomésticos. Sólo seed: `'vtex'` ya era una `plataforma` válida. Es un sitio
+mixto, así que `rubro_forzado` queda en NULL y el rubro lo resuelve cada producto por su categoría. Revende marcas
+de terceros, así que no lleva `monomarca` ni fila en `marca`.
+
+### Rollback
+
+```sql
+-- >>> rollback:V62
+DELETE FROM sitio s WHERE s.sitio_key = 'easy'
+  AND NOT EXISTS (SELECT 1 FROM productos p WHERE p.sitio_key = s.sitio_key);
+-- <<< rollback:V62
+```
+
+Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V61`. Con productos ya
 scrapeados no borra nada: esas filas referencian el sitio.
 
