@@ -823,7 +823,7 @@ paths:
       x-access: AUTHENTICATED
       responses:
         "200":
-          description: "`data`: same shape as `/api/data`'s `meta.facets`; empty maps on an empty catalog."
+          description: "`data`: same shape as `/api/data`'s `meta.facets` (maps of value to count over active rows: `talles`, `generos`, `categorias`, `marcas`, `badges`, `subCategorias`, `fits`, `estampados`, `escotes`, `colorDominantes`, `deportes`); empty maps on an empty catalog."
           content:
             application/json:
               schema:

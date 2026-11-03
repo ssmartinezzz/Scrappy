@@ -85,7 +85,7 @@ class CachingCatalogQueryPort implements CatalogQueryPort {
         return f.talles().isEmpty() && f.generos().isEmpty() && f.categorias().isEmpty()
                 && f.marcas().isEmpty() && f.badges().isEmpty() && f.subCategorias().isEmpty()
                 && f.fits().isEmpty() && f.estampados().isEmpty() && f.escotes().isEmpty()
-                && f.colorDominantes().isEmpty();
+                && f.colorDominantes().isEmpty() && f.deportes().isEmpty();
     }
 
     private <T> T conCache(String kind, Optional<Instant> desde, Predicate<T> esFallback, Supplier<T> compute) {

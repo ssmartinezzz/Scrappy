@@ -168,6 +168,18 @@ class FacetCalculatorTest {
     }
 
     @Test
+    void deportes_countedExcludingBlank() {
+        Product futbol1 = productoConVisual("A", Product.VisualAttrs.EMPTY).toBuilder().deporte("futbol").build();
+        Product futbol2 = productoConVisual("B", Product.VisualAttrs.EMPTY).toBuilder().deporte("futbol").build();
+        Product tenis   = productoConVisual("C", Product.VisualAttrs.EMPTY).toBuilder().deporte("tenis").build();
+        Product ninguno = productoConVisual("D", Product.VisualAttrs.EMPTY);
+
+        Facets facets = FacetCalculator.calcular(List.of(futbol1, futbol2, tenis, ninguno));
+
+        assertThat(facets.deportes()).containsOnly(Map.entry("futbol", 2L), Map.entry("tenis", 1L));
+    }
+
+    @Test
     void escotes_countedFromVisualAttrsExcludingBlank() {
         Product cuelloRedondo = productoConVisual("A", new Product.VisualAttrs("", "", "cuello redondo", ""));
         Product sinDato       = productoConVisual("B", Product.VisualAttrs.EMPTY);

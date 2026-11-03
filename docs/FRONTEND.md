@@ -11,6 +11,11 @@ Comparar `/grupos` · Cuotas `/financiacion` · Favoritos `/favoritos` ·
 Outfits `/outfits` · PCs `/pcs` · Historial de precios `/historial/:key`.
 `/tendencias` redirige a `/analisis/mercado`.
 
+El panel "Más filtros" del catálogo tiene una sección **Deporte** con un chip por deporte
+presente en `facets.deportes` (single-select: otro clic lo desmarca). Manda
+`?deporte=<codigo>` a `/api/data`, suma al contador del panel y lo limpia "Limpiar".
+Las etiquetas viven en `lib/deportes.js`; un código desconocido se muestra tal cual.
+
 **`/picks` tiene una card "Gymrat" al final del carrusel de rubros** (y una solapa
 equivalente en la barra de la galería). No es un rubro: `lib/rubros.js` sigue
 siendo el dominio de la base. La card pide `fetchMejores('', { gymrat: true })`

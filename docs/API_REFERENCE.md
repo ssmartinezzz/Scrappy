@@ -669,7 +669,9 @@ pueden clasificar. Ausente o vacío no excluye nada.
 400 `solicitud_invalida`, no el catálogo entero. Cada
 fila trae `deporte` (`""` si no tiene): el catálogo lista por defecto las filas con
 deporte; sólo los armadores y los feeds (`/mejores`, `/recomendados`, outfits) las
-dejan afuera, igual que a las `infantil`.
+dejan afuera, igual que a las `infantil`. `GET /api/facets` (y `meta.facets` de
+`/api/data`) trae `deportes`: `{codigo: conteo}` sobre filas activas, sin las que no
+tienen deporte; es lo que alimenta los chips del catálogo.
 
 `orden` acepta además `mercado_asc` (el más barato contra su mercado primero: `ml_score`
 ascendente, donde 0 es el más barato). `composite`/`ml_score` ordenan el mismo score DESC, o sea

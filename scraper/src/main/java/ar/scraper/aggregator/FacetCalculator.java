@@ -77,8 +77,10 @@ public final class FacetCalculator {
         Map<String, Long> escotes          = contarNoBlanco(productos, p -> p.visual() != null ? p.visual().escote() : "");
         Map<String, Long> colorDominantes  = contarNoBlanco(productos, p -> p.visual() != null ? p.visual().colorDominante() : "");
 
+        Map<String, Long> deportes         = contarNoBlanco(productos, Product::deporte);
+
         return new Facets(talles, generos, categorias, marcas, badges, subCategorias,
-                fits, estampados, escotes, colorDominantes);
+                fits, estampados, escotes, colorDominantes, deportes);
     }
 
     /**

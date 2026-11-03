@@ -54,18 +54,19 @@ public final class CatalogoDtos {
         private Map<String, Long> estampados;
         private Map<String, Long> escotes;
         private Map<String, Long> colorDominantes;
+        private Map<String, Long> deportes;
         private Map<String, Long> rubros;
         private long gymratCount;
         private long packCount;
 
         public static FacetsDto vacio() {
             Map<String, Long> m = Map.of();
-            return new FacetsDto(m, m, m, m, m, m, m, m, m, m, null, 0, 0);
+            return new FacetsDto(m, m, m, m, m, m, m, m, m, m, m, null, 0, 0);
         }
 
         public static FacetsDto of(Facets f, Map<String, Long> rubros, long gymrat, long packs) {
             return new FacetsDto(f.talles(), f.generos(), f.categorias(), f.marcas(), f.badges(),
-                    f.subCategorias(), f.fits(), f.estampados(), f.escotes(), f.colorDominantes(),
+                    f.subCategorias(), f.fits(), f.estampados(), f.escotes(), f.colorDominantes(), f.deportes(),
                     rubros, gymrat, packs);
         }
     }
