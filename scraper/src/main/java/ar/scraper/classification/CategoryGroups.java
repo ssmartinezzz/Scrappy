@@ -64,7 +64,11 @@ public final class CategoryGroups {
 
     private static final Set<String> CATEGORIAS_CONSTRUCCION = Set.of(
         "Placa Decorativa", "Vinilo Decorativo", "Piso", "Césped Sintético",
-        "Adhesivo", "Moldura", "Planta Artificial"
+        "Adhesivo", "Moldura", "Planta Artificial",
+        "Cemento", "Ladrillo", "Árido", "Hierro", "Impermeabilizante", "Madera", "Tablero",
+        "Chapa", "Aislante", "Placa de Yeso", "Perfilería", "Pintura", "Enduido", "Diluyente",
+        "Accesorio de Pintura", "Empapelado", "Puerta", "Ventana", "Portón", "Mosquitero",
+        "Toldo", "Cerámico", "Porcelanato", "Pastina", "Revestimiento", "Escalera"
     );
 
     private static final Set<String> CATEGORIAS_HOGAR = Set.of(

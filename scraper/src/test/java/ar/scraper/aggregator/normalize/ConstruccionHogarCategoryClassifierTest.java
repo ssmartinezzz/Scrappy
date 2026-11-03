@@ -105,7 +105,11 @@ class ConstruccionHogarCategoryClassifierTest {
     void newCategoriesAreCanonical() {
         assertThat(CategoryGroups.categoriasConstruccion()).containsExactlyInAnyOrder(
                 "Placa Decorativa", "Vinilo Decorativo", "Piso", "Césped Sintético",
-                "Adhesivo", "Moldura", "Planta Artificial");
+                "Adhesivo", "Moldura", "Planta Artificial",
+                "Cemento", "Ladrillo", "Árido", "Hierro", "Impermeabilizante", "Madera", "Tablero",
+                "Chapa", "Aislante", "Placa de Yeso", "Perfilería", "Pintura", "Enduido", "Diluyente",
+                "Accesorio de Pintura", "Empapelado", "Puerta", "Ventana", "Portón", "Mosquitero",
+                "Toldo", "Cerámico", "Porcelanato", "Pastina", "Revestimiento", "Escalera");
         assertThat(CategoryGroups.categoriasHogar()).containsExactlyInAnyOrder(
                 "Almohadón", "Funda", "Manta", "Mantel", "Alfombra", "Respaldo");
         assertThat(CategoryGroups.canonicalCategories())

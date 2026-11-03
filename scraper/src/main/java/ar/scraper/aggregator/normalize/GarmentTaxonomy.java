@@ -450,13 +450,22 @@ public final class GarmentTaxonomy {
     };
     public static final String[] KW_ADHESIVO_LIDER = {
         " adhesivo polimero"," adhesivo sellador"," adhesivo hibrido"," adhesivo de montaje",
-        " cartucho adhesivo"," sellador "
+        " cartucho adhesivo"," sellador "," adhesivo cementicio"," adhesivo impermeable",
+        " adhesivo multimaterial"," adhesivo instantaneo"," adhesivo para ceramic",
+        " adhesivo para porcelanato"," pegamento "," cola vinilica"," cola de contacto",
+        " cemento de contacto"," silicona "," espuma de poliuretano"," espuma poliuretano"
     };
     public static final String[] KW_MOLDURA_LIDER = {
-        " moldura "," cinta/moldura "
+        " moldura "," cinta/moldura "," zocalo "," zocalos "," guardacanto"," listel",
+        " guarda decorativa"," guarda de pared"
     };
     public static final String[] KW_PISO = {
-        " piso autoadhesivo"," piso pvc"," piso vinilico"," pisos vinilicos"
+        " piso autoadhesivo"," piso pvc"," piso vinilico"," pisos vinilicos"," piso spc",
+        " pisos spc"," piso flotante"," pisos flotantes"," piso laminado"," pisos laminados"
+    };
+    public static final String[] KW_PISO_LIDER = {
+        " deck wpc"," deck baldosa"," deck de madera"," deck de eucalipto"," deck de pino"," deck de pvc",
+        " deck de exterior"," deck antideslizante"," deck modular"," deck flotante"
     };
     public static final String[] KW_PLACA_DECORATIVA = {
         " placa decorativa"," placas decorativas"," wall panel"," paneles acusticos",
@@ -472,7 +481,119 @@ public final class GarmentTaxonomy {
     };
     public static final String[] KW_VINILO_DECORATIVO = {
         " vinilo "," vinilos "," papel marmol"," papel texturado"," rollo marmol",
-        " rollo autoadhesivo"," rollo lino"," rollo esmerilado"," rollo velvet"," texturado simil "
+        " rollo autoadhesivo"," rollo lino"," rollo esmerilado"," rollo velvet"," texturado simil ",
+        " vinilico autoadhesivo"," papel autoadhesivo"
+    };
+
+    public static final String[] KW_CERAMICO_LIDER = {
+        " ceramico "," ceramicos "," ceramica "," ceramicas "," cer."," cer "," piso ceramico",
+        " revestimiento ceramico"," baldosa "," baldosas "
+    };
+    public static final String[] KW_PORCELANATO_LIDER = { " porcelanato"," porcelanatos"," porc " };
+    public static final String[] KW_PASTINA_LIDER = { " pastina "," pastinas " };
+    public static final String[] KW_REVESTIMIENTO_LIDER = {
+        " revestimiento "," revestimientos "," base coat"," placa pvc"
+    };
+    public static final String[] KW_TABLERO_LIDER = {
+        " placa mdf"," placas mdf"," placa osb"," placa de osb"," placa fenolica"," placa melaminica",
+        " placa superboard"," tablero mdf"," tablero de mdf"," tablero osb"," tablero melaminico",
+        " tablero aglomerado"," tablero de aglomerado"," tablero de pino"," tablero alistonado",
+        " tablero fenolico"," tablero de madera"," terciado "," multilaminado "," fibrofacil"
+    };
+    public static final String[] KW_PLACA_DE_YESO_LIDER = {
+        " placa yeso"," placa de yeso"," placas de yeso"," placa durlock"," placa knauf"
+    };
+    public static final String[] KW_AISLANTE_LIDER = {
+        " aislante "," aislantes "," aislacion "," lana de vidrio"," lana mineral"," lana de roca",
+        " ladrillo telgopor"," ladrillos telgopor"
+    };
+    public static final String[] KW_LADRILLO_LIDER = {
+        " ladrillo "," ladrillos "," bloque cemento"," bloque de cemento"," bloques de cemento",
+        " bloque de hormigon"," bloque ceramico"," bloque liso"," bloque tabique"," bloque de vidrio",
+        " bloque vidrio"," adoquin "," adoquines "," tejuela"
+    };
+    public static final String[] KW_ARIDO_LIDER = {
+        " arena fina"," arena gruesa"," arena mediana"," arena lavada"," arena de rio"," arena para obra",
+        " bolsa de arena"," bolson arena"," bolson de arena"," piedra partida"," canto rodado",
+        " ripio "," granza "," cascote"," agregado liviano"," agregado "
+    };
+    public static final String[] KW_CEMENTO_LIDER = {
+        " cemento "," cementos "," cal hidraulica"," cal hidrat"," cal viva"," mortero "," morteros ",
+        " revoque "," hormigon "," plasticor"
+    };
+    public static final String[] KW_HIERRO_LIDER = {
+        " hierro redondo"," hierro nervado"," hierro aletado"," hierro adn"," hierros "," hierro del ",
+        " malla sima"," malla electrosoldada"," barra de hierro"
+    };
+    public static final String[] KW_IMPERMEABILIZANTE_LIDER = {
+        " impermeabilizante "," impermeabilizantes "," membrana asfaltica"," membrana aluminio"," membrana geo"," membrana liquida"," membrana fibrada"," membrana poliuretanica"," membrana impermeabilizante"," membrana no crack"," membrana para techo"," antihumedad",
+        " hidrofugo"," pintura impermeabilizante"," pintura impermeable"," aerosol membrana",
+        " pintura asfaltica"," emulsion asfaltica"
+    };
+    public static final String[] KW_CHAPA_LIDER = {
+        " chapa acanalada"," chapas acanaladas"," chapa galvanizada"," chapa trapezoidal",
+        " chapa sinusoidal"," chapa cincalum"," chapa ondulada"," chapa de zinc"," chapa lisa"
+    };
+    public static final String[] KW_MADERA_LIDER = {
+        " madera pino"," madera de pino"," madera cepillada"," madera dura"," liston pino"," liston de pino"," liston cepillado"," liston de madera"," listones de pino"," listones de madera"," machimbre"," pino cepillado"," pino elliotis"," pino parana"," eucalipto grandis"," eucalipto cepillado"," saligna ",
+        " tabla saligna"," tabla de pino"," tablas de pino"," tablon "," tirante pino"," tirante de pino",
+        " tirantes de pino"," tirante eucalipto"," tirante de eucalipto"," tirante saligna",
+        " tirante de madera"," poste de eucalipto"," poste de madera"," viga de madera"
+    };
+    public static final String[] KW_PERFILERIA_LIDER = {
+        " montante "," montantes "," cantonera "," buna perimetral"," perfil omega"," perfil pvc",
+        " perfil moldura"," perfil u "," perfil c "," perfil de aluminio"," perfiles de aluminio"
+    };
+    public static final String[] KW_SOLERA_LIDER = { " solera " };
+    public static final String[] KW_SOLERA_CALIFICADOR = { " mm"," rigid"," e0"," 35 "," 70 "," 90 " };
+    public static final String[] KW_ENDUIDO_LIDER = { " enduido "," enduidos "," masilla "," masillas " };
+    public static final String[] KW_DILUYENTE_LIDER = { " diluyente"," aguarras "," thinner " };
+    public static final String[] KW_ACCESORIO_PINTURA_LIDER = {
+        " pinceleta"," set brocha"," protector de superficie"," bandeja para pintor"," bandeja pintor"
+    };
+    public static final String[] KW_PINCEL_BROCHA_LIDER = { " pincel "," pinceles "," brocha "," brochas " };
+    public static final String[] KW_PINCEL_BROCHA_CALIFICADOR = {
+        " n°"," cerda"," profesional"," para pintar"," de pintar"," pintor"," virola"
+    };
+    public static final String[] KW_RODILLO_LIDER = { " rodillo "," rodillos " };
+    public static final String[] KW_RODILLO_CALIFICADOR = {
+        " antigota"," lanar"," lana "," microfibra"," pelo "," poliester"," n°"," simil"," texturado",
+        " para pintar"," de pintar"," pintor"
+    };
+    public static final String[] KW_PINTURA_LIDER = {
+        " pintura "," latex interior"," latex exterior"," latex acrilico"," latex lavable"," latex para"," latex cielorraso"," latex satinado"," esmalte sintetico"," esmalte al agua"," esmalte acrilico",
+        " esmalte antioxido"," esmalte convertidor"," barniz "," barnices "," lasur "," impregnante ",
+        " impregnantes "," fijador al agua"," fijador sellador"," fijador sintetico"," fijador acrilico"," fijador de pared"," entonador "," entonadores "," colorante liquido",
+        " colorante universal"," convertidor de oxido"," antioxido"
+    };
+    public static final String[] KW_PINTURA_VETO = {
+        " facial"," corporal"," dedos"," cara "," rostro"," tela "," unas"," pelo"," cabello"
+    };
+    public static final String[] KW_AEROSOL_LIDER = { " aerosol " };
+    public static final String[] KW_AEROSOL_PINTURA_CALIFICADOR = {
+        " brillante"," mate "," satinado"," esmalte"," pintura"
+    };
+    public static final String[] KW_EMPAPELADO_LIDER = {
+        " papel tapiz"," papel pintado"," papel de pared"," empapelado"," empapelados"
+    };
+    public static final String[] KW_PUERTA_LIDER = { " puerta "," puertas "," pta " };
+    public static final String[] KW_PUERTA_VETO = {
+        " heladera"," freezer"," horno"," auto "," camioneta"," cocina"," lavarropas"," mueble"," placard",
+        " ropero"," vitrina"," microondas"," rejilla"," barrera"," mascota"," perro"," gato"," jaula",
+        " ducha"," mampara"," baulera"," bebe"," juguete"
+    };
+    public static final String[] KW_VENTANA_LIDER = { " ventana "," ventanas "," aireador"," aireadores " };
+    public static final String[] KW_VENTANA_VETO = { " auto "," moto "," camion"," polarizad" };
+    public static final String[] KW_PORTON_LIDER = { " porton "," portones " };
+    public static final String[] KW_MOSQUITERO_LIDER = { " mosquitero "," mosquiteros " };
+    public static final String[] KW_MOSQUITERO_VETO = {
+        " cuna"," cochecito"," bebe"," electric"," lampara"," carpa"," repelente"," raqueta"
+    };
+    public static final String[] KW_TOLDO_LIDER = { " toldo "," toldos "," alero "," aleros " };
+    public static final String[] KW_TOLDO_VETO = { " camping"," carpa"," playa"," pileta"," mascota"," perro" };
+    public static final String[] KW_ESCALERA_LIDER = { " escalera "," escaleras " };
+    public static final String[] KW_ESCALERA_VETO = {
+        " mascota"," perr"," gat"," cama"," piscina"," pileta"," bebe"," juguete"," muneca"," casita"
     };
 
     public static final String[] KW_FUNDA_LIDER = { " funda "," fundas " };

@@ -138,6 +138,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V53` | Índices GIN `gin_trgm_ops` sobre `productos(nombre)` y `productos(marca)` (extensión `pg_trgm`): el `q` del catálogo es un `ILIKE '%q%'` |
 | `V54` | Seed de Baesics (Shopify, gym, marca propia): fila en `sitio` con `monomarca` y su fila en `marca` |
 | `V63` | `sitio_categoria` (árbol de categorías del sitio, 3FN) + `productos.sitio_categoria_id` |
+| `V64` | 26 categorías de `construccion` (obra gruesa, maderas, techos, construcción en seco, pinturas, aberturas, pisos y revestimientos) |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -3837,7 +3838,51 @@ DROP TABLE sitio_categoria;
 -- <<< rollback:V63
 ```
 
-Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V62`. Además de correr el
+Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V64` y antes que el de `V62`. Además de correr el
 bloque hay que borrar `R__sp_upsert_sitio_categoria.sql`: Flyway lo re-aplicaría y las funciones volverían a
 nacer apuntando a tablas que ya no existen. Se pierde el árbol y los vínculos; el catálogo no pierde filas.
 
+---
+
+## `V64` — categorías de `construccion`: obra, maderas, pinturas, aberturas, pisos
+
+Easy mezcla ferretería y corralón: sin estas categorías, sus ladrillos, pinturas, puertas y cerámicos caen en
+`Otros`. `V64` agrega 26 filas a `categoria` (sólo datos, sin cambio de esquema); el `rubro` sale de
+`CategoryGroups.CATEGORIAS_CONSTRUCCION`, que `RubroResolver` consulta, así que no hay un `rubro` que sembrar.
+
+| Familia | Categorías nuevas |
+|---|---|
+| Obra gruesa | `Cemento` (cementos, cales, morteros, revoques), `Ladrillo` (ladrillos, bloques, adoquines), `Árido`, `Hierro`, `Impermeabilizante` |
+| Maderas y techos | `Madera`, `Tablero`, `Chapa`, `Aislante` |
+| Construcción en seco | `Placa de Yeso`, `Perfilería` |
+| Pinturas | `Pintura`, `Enduido`, `Diluyente`, `Accesorio de Pintura`, `Empapelado` |
+| Aberturas | `Puerta`, `Ventana`, `Portón`, `Mosquitero`, `Toldo`, `Escalera` |
+| Pisos y revestimientos | `Cerámico`, `Porcelanato`, `Pastina`, `Revestimiento` |
+
+`Piso`, `Moldura` y `Adhesivo` (de `V45`) no se tocan en la base: sólo amplían sus keywords. Una categoría nueva son
+dos cambios (keyword + migración); sin la fila, el upsert viola `fk_productos_categoria` y el síntoma es `"0 nuevos"`.
+
+### Rollback
+
+```sql
+-- >>> rollback:V64
+UPDATE productos SET categoria = NULL WHERE categoria IN
+    ('Cemento','Ladrillo','Árido','Hierro','Impermeabilizante','Madera','Tablero','Chapa',
+     'Aislante','Placa de Yeso','Perfilería','Pintura','Enduido','Diluyente',
+     'Accesorio de Pintura','Empapelado','Puerta','Ventana','Portón','Mosquitero','Toldo',
+     'Cerámico','Porcelanato','Pastina','Revestimiento','Escalera');
+DELETE FROM categoria_stats WHERE categoria IN
+    ('Cemento','Ladrillo','Árido','Hierro','Impermeabilizante','Madera','Tablero','Chapa',
+     'Aislante','Placa de Yeso','Perfilería','Pintura','Enduido','Diluyente',
+     'Accesorio de Pintura','Empapelado','Puerta','Ventana','Portón','Mosquitero','Toldo',
+     'Cerámico','Porcelanato','Pastina','Revestimiento','Escalera');
+DELETE FROM categoria WHERE nombre IN
+    ('Cemento','Ladrillo','Árido','Hierro','Impermeabilizante','Madera','Tablero','Chapa',
+     'Aislante','Placa de Yeso','Perfilería','Pintura','Enduido','Diluyente',
+     'Accesorio de Pintura','Empapelado','Puerta','Ventana','Portón','Mosquitero','Toldo',
+     'Cerámico','Porcelanato','Pastina','Revestimiento','Escalera');
+-- <<< rollback:V64
+```
+
+Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V63`. Los productos
+reclasificados quedan con `categoria` NULL hasta el próximo scrape.
