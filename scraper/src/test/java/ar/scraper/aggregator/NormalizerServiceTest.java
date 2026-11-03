@@ -141,4 +141,17 @@ class NormalizerServiceTest {
 
         assertThat(out.visual()).isEqualTo(visual);
     }
+
+    @Test
+    void clubKitGetsTheSportAndKeepsItsGarmentCategory() {
+        Product out = normalizarUno("Camiseta adidas Titular Boca Juniors 26/27 de Hombre", "adidas", "Remera");
+
+        assertThat(out.deporte()).isEqualTo("futbol");
+        assertThat(out.categoria()).isEqualTo("Remera");
+    }
+
+    @Test
+    void everydayGarmentHasNoSport() {
+        assertThat(normalizarUno("Remera Timberland Kennebec River Tree", "Timberland", "Remera").deporte()).isEmpty();
+    }
 }

@@ -5,6 +5,7 @@ import ar.scraper.aggregator.normalize.GenderResolver;
 import ar.scraper.aggregator.normalize.GymratTagger;
 import ar.scraper.aggregator.normalize.PackQuantityDetector;
 import ar.scraper.aggregator.normalize.SizeNormalizer;
+import ar.scraper.aggregator.normalize.SportResolver;
 import ar.scraper.aggregator.normalize.SubcategoryResolver;
 import ar.scraper.classification.BrandExtractor;
 import ar.scraper.classification.RubroResolver;
@@ -31,7 +32,7 @@ class NormalizerMonomarcaMarcaTest {
                 "midway", new Sitio("Midway", "midway", "tiendanube", false, null, "config", false)));
         return new NormalizerService(new PackQuantityDetector(), new CategoryClassifier(), new BrandExtractor(),
                 new GenderResolver(), new SizeNormalizer(), new SubcategoryResolver(),
-                new RubroResolver(registry), new GymratTagger(), registry);
+                new RubroResolver(registry), new GymratTagger(), new SportResolver(), registry);
     }
 
     private String marcaDe(String sitio, String nombre, String marcaScrapeada) {

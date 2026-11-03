@@ -110,7 +110,7 @@ BEGIN
         INSERT INTO productos (
             url, sitio, nombre, precio, precio_orig, imagen_url, categoria, genero,
             ml_score, ml_oferta, ml_tendencia, ml_segment, ml_zscore,
-            rubro, marca, gymrat, cantidad_unidades, sub_categoria,
+            rubro, marca, gymrat, cantidad_unidades, sub_categoria, deporte,
             fit, estampado, escote, color_dominante, activo, touched_at, created_at
         ) VALUES (
             r->>'url', r->>'sitio', r->>'nombre', v_new_precio, (r->>'precioOrig')::DOUBLE PRECISION, r->>'imagenUrl',
@@ -120,7 +120,7 @@ BEGIN
             COALESCE((r->>'mlZscore')::DOUBLE PRECISION, 0.0),
             COALESCE(r->>'rubro', 'indumentaria'), nullif(r->>'marca',''),
             COALESCE((r->>'gymrat')::boolean, false),
-            COALESCE((r->>'cantidadUnidades')::INTEGER, 1), COALESCE(r->>'subCategoria', ''),
+            COALESCE((r->>'cantidadUnidades')::INTEGER, 1), COALESCE(r->>'subCategoria', ''), nullif(r->>'deporte',''),
             v_fit, v_estampado, v_escote, v_color, true,
             (r->>'now')::timestamptz, (r->>'now')::timestamptz
         )
@@ -142,6 +142,7 @@ BEGIN
             gymrat            = EXCLUDED.gymrat,
             cantidad_unidades = EXCLUDED.cantidad_unidades,
             sub_categoria     = CASE WHEN productos.bloqueado_por IS NULL THEN EXCLUDED.sub_categoria ELSE productos.sub_categoria END,
+            deporte           = CASE WHEN productos.bloqueado_por IS NULL THEN EXCLUDED.deporte ELSE productos.deporte END,
             fit               = COALESCE(NULLIF(EXCLUDED.fit, ''), productos.fit),
             estampado         = COALESCE(NULLIF(EXCLUDED.estampado, ''), productos.estampado),
             escote            = COALESCE(NULLIF(EXCLUDED.escote, ''), productos.escote),

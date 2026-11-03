@@ -25,6 +25,7 @@ public record Product(
         SenalFinanciacion finan,
         int cantidadUnidades,  // unit count detected from nombre (pack/combo); 1 = single unit
         String subCategoria,
+        String deporte,        // sport code of sport-specific merch (futbol, natacion…); "" = none
         VisualAttrs visual     // image-derived attributes (fit/estampado/escote/color); fill-only,
                                // additive PER FIELD — MlEnricher/DatabaseService only overwrite a
                                // field when the ML score/upsert value is non-blank, else the prior
@@ -41,7 +42,7 @@ public record Product(
         return new ProductBuilder()
                 .ml(MlScore.EMPTY).marca("").rubro("indumentaria")
                 .senal(SenalCompra.EMPTY).finan(SenalFinanciacion.EMPTY)
-                .cantidadUnidades(1).subCategoria("").visual(VisualAttrs.EMPTY);
+                .cantidadUnidades(1).subCategoria("").deporte("").visual(VisualAttrs.EMPTY);
     }
 
     @Override

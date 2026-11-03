@@ -7,6 +7,7 @@ import ar.scraper.aggregator.normalize.GenderResolver;
 import ar.scraper.aggregator.normalize.GymratTagger;
 import ar.scraper.aggregator.normalize.PackQuantityDetector;
 import ar.scraper.aggregator.normalize.SizeNormalizer;
+import ar.scraper.aggregator.normalize.SportResolver;
 import ar.scraper.aggregator.normalize.SubcategoryResolver;
 import ar.scraper.classification.BrandExtractor;
 import ar.scraper.classification.RubroResolver;
@@ -31,7 +32,7 @@ class MarcasPicksViewMonomarcaTest {
                 "monkyforce", new Sitio("Monkyforce", "monkyforce", "monkyforce", false, null, "config", true)));
         var normalizer = new NormalizerService(new PackQuantityDetector(), new CategoryClassifier(),
                 new BrandExtractor(), new GenderResolver(), new SizeNormalizer(), new SubcategoryResolver(),
-                new RubroResolver(registry), new GymratTagger(), registry);
+                new RubroResolver(registry), new GymratTagger(), new SportResolver(), registry);
         List<Product> crudos = List.of(
                 Product.builder().sitio("Monkyforce").nombre("Buzo Oversize").precio(100).url("http://m/1")
                         .categoria("Buzo").build(),

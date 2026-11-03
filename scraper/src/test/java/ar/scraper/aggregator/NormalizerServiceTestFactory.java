@@ -4,6 +4,7 @@ import ar.scraper.aggregator.normalize.CategoryClassifier;
 import ar.scraper.aggregator.normalize.GenderResolver;
 import ar.scraper.aggregator.normalize.GymratTagger;
 import ar.scraper.aggregator.normalize.PackQuantityDetector;
+import ar.scraper.aggregator.normalize.SportResolver;
 import ar.scraper.classification.BrandExtractor;
 import ar.scraper.classification.RubroResolver;
 import ar.scraper.classification.SiteRegistry;
@@ -39,6 +40,7 @@ public final class NormalizerServiceTestFactory {
                 new SubcategoryResolver(),
                 new RubroResolver(siteRegistry),
                 new GymratTagger(),
+                new SportResolver(),
                 siteRegistry);
     }
 }
