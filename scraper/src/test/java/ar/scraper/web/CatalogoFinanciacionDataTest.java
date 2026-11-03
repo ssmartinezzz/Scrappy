@@ -254,7 +254,7 @@ class CatalogoFinanciacionDataTest extends PostgresTestBase {
     private JsonNode pedirData(Boolean pack) {
         ResponseEntity<?> resp = controller.data(0, 24, null, null, null, null, null, null,
                 null, null, null, null, "precio_asc", pack, null, null, null,
-                null, null, null, null, null);
+                null, null, null, null, null, null);
         return Wire.data(resp);
     }
 

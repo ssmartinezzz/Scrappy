@@ -320,6 +320,29 @@ class StoredProcedureDriftTest {
                     Pattern.compile("ON CONFLICT \\(url, fecha\\) DO UPDATE SET precio = EXCLUDED\\.precio;"),
                     "ON CONFLICT (url, fecha) DO NOTHING;"));
 
+    /**
+     * V59 (deporte-dimension): {@code productos.deporte} joins the INSERT, the VALUES (NULL when
+     * blank: an abstention is not an FK value) and the ON CONFLICT SET behind the manual lock.
+     * Declared as three pieces for the same reason as V22: a half-applied edit leaves the INSERT
+     * with a different number of columns and values, which {@code ProductRepository} reports as
+     * "0 nuevos".
+     */
+    private static final List<Substitution> SP_UPSERT_RUN_R_DEPORTE = List.of(
+            new Substitution(
+                    "INSERT column list: deporte",
+                    Pattern.compile(Pattern.quote("cantidad_unidades, sub_categoria, deporte, fit,")),
+                    "cantidad_unidades, sub_categoria, fit,"),
+            new Substitution(
+                    "INSERT VALUES: NULLIF(deporte, '')",
+                    Pattern.compile(Pattern.quote("COALESCE(r->>'subCategoria', ''), nullif(r->>'deporte',''), v_fit")),
+                    "COALESCE(r->>'subCategoria', ''), v_fit"),
+            new Substitution(
+                    "ON CONFLICT SET: deporte behind the manual lock",
+                    Pattern.compile(Pattern.quote(
+                            "deporte = CASE WHEN productos.bloqueado_por IS NULL THEN EXCLUDED.deporte "
+                                    + "ELSE productos.deporte END, ")),
+                    ""));
+
     private static final List<Hop> CHAIN = List.of(
             new Hop(SP_UPSERT_RUN_START, V1, V3, List.of(UNGUARD_LOCKED_COLUMNS)),
             new Hop(SP_UPSERT_RUN_START, V3, V5, SP_UPSERT_RUN_V5_CASTS),
@@ -342,10 +365,11 @@ class StoredProcedureDriftTest {
             // — que es como debería haber funcionado desde el principio, en
             // vez de con siete copias y una tabla de sustituciones.
             new Hop(SP_UPSERT_RUN_START, V22, R_UPSERT,
-                    concat(concat(concat(List.of(SP_UPSERT_RUN_E7_SITIO_GET_OR_CREATE),
+                    concat(concat(concat(concat(List.of(SP_UPSERT_RUN_E7_SITIO_GET_OR_CREATE),
                                     SP_UPSERT_RUN_R_REACTIVATION_IS_NOT_NEW),
                             SP_UPSERT_RUN_R_PRICE_DROP_OUTBOX),
-                            SP_UPSERT_RUN_R_SAME_DAY_LAST_PRICE)),
+                            SP_UPSERT_RUN_R_SAME_DAY_LAST_PRICE),
+                    SP_UPSERT_RUN_R_DEPORTE)),
             new Hop(SP_SOFT_DELETE_AUSENTES_START, V5, R_SOFT_DELETE,
                     SP_SOFT_DELETE_AUSENTES_R_SITE_SCOPE)
     );

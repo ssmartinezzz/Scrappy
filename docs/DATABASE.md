@@ -3659,4 +3659,80 @@ SELECT 1;
 -- <<< rollback:V58
 ```
 
-Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V57`.
+Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V59` y antes que el de `V57`.
+
+---
+
+## `V59` — `deporte`: el deporte de la prenda, como dimensión
+
+La merch deportiva (camisetas de club, mallas, hockey, rugby…) vivía mezclada en `Remera`/`Short`/`Buzo` y
+entraba a los armadores y recomendaciones. `deporte` es una dimensión al lado de `genero`/`rubro`, no una
+categoría: una camiseta de Boca sigue siendo `Remera` y gana `deporte = 'futbol'`.
+
+- **`deporte` (tabla de dominio, 3NF):** `codigo` PK + `nombre`, sembrada con `futbol`, `natacion`, `hockey`,
+  `rugby`, `tenis` (incluye pádel), `basquet`, `voley`, `ciclismo`, `golf`, `combate`. Un deporte nuevo es una fila acá
+  más una entrada en `SportTaxonomy`.
+- **`productos.deporte`:** `TEXT NULL REFERENCES deporte(codigo)` con índice parcial `WHERE deporte IS NOT NULL`.
+  "Sin deporte" es `NULL`, nunca `''`: un centinela de abstención no es un valor de FK. El upsert escribe
+  `NULLIF(r->>'deporte','')`.
+- **`sp_upsert_run`** (editado en su `R__`): `deporte` se actualiza en `ON CONFLICT` con el patrón de
+  `bloqueado_por` (una fila bloqueada a mano conserva el suyo). Un código fuera de la tabla rompe la FK y,
+  como el upsert se traga los errores SQL, se ve como `"0 nuevos"`.
+- **Backfill (misma transacción de Flyway):** espeja `SportResolver` — nombre sin acentos, la puntuación
+  cuenta como espacio, palabra completa, gana el primer deporte en orden de `SportTaxonomy`, `Botines` es
+  fútbol. Sólo indumentaria (`rubro` NULL/vacío incluido), nunca una fila bloqueada, nunca una que ya tiene
+  deporte. El archivo entero es re-ejecutable; el próximo scrape es la fuente de verdad.
+- **Falsos positivos evitados:** los clubes van por nombre completo (`river plate`, no `river`) y `arena` no
+  es palabra de natación (es un color). `V59DeporteTest.parityWithJava` compara SQL y Java sobre cada keyword.
+
+### Rollback
+
+```sql
+-- >>> rollback:V59
+ALTER TABLE productos DROP COLUMN deporte;
+DROP TABLE deporte;
+-- <<< rollback:V59
+```
+
+El orden es obligatorio: la FK de `productos.deporte` apunta a `deporte`, así que la columna se suelta primero
+(el índice parcial se va con ella). Después hay que revertir `R__sp_upsert_run.sql` y el código (`Product`,
+`ProductRepository`, `ProductRowMapper`), o el upsert escribe una columna que ya no existe.
+
+Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V60` y antes que el de `V58`.
+
+---
+
+## `V60` — talles infantiles con sufijo (`Jr`, `Kid`, `Youth`…)
+
+`GenderResolver` sólo veía `nino|nina|kids|infantil|bebe` como subcadena, así que lo infantil rotulado con un
+sufijo de talle (`Jr`, `Junior`, `Kid`, `Kids`, `Youth`, `PS`, `GS`, `TD`, `Toddler`) conservaba su género adulto
+o vacío y llegaba a los armadores (dev, 2026-11-02: ~126 filas). Ahora el resolver también los reconoce como
+palabra completa; `V60` alinea las filas ya guardadas en vez de esperar a que se vuelva a scrapear cada sitio.
+El próximo scrape es la fuente de verdad.
+
+- **Regla (igual a `GenderResolver`):** nombre sin acentos, la puntuación cuenta como espacio, palabra completa de
+  `jr|junior|kid|kids|youth|ps|gs|td|toddler` → `genero = 'infantil'`. Palabra completa a propósito: "Boca
+  Juniors" y "Argentinos Juniors" no son `junior`. En el mismo cambio, `GenderResolver` pasó también a palabra
+  completa las señales viejas (`nino|nina|kids|infantil|bebe`, más `w|men|male|dama` para adulto), que como
+  subcadena marcaban "argiNINA" como `infantil` y "New Balance" como `mujer`. Eso no tiene backfill: sin el
+  `genero` crudo del sitio no se sabe de dónde salió el valor guardado, y lo corrige el próximo scrape.
+- **Sólo indumentaria** (`rubro` NULL/vacío incluido): `PS` también es una consola. Activa o no.
+- **Nunca una fila bloqueada a mano** (`bloqueado_por`, `V3`) ni una que ya es `infantil`.
+- **Una sentencia, idempotente:** una fila tratada ya es `infantil` y deja de cumplir su `WHERE`.
+- **Dominio:** `infantil` está en el `CHECK` de `genero` desde `V6`.
+- **Sólo mira el nombre:** el resolver también lee el `genero` crudo del sitio, que la base no conserva; esas
+  filas esperan al próximo scrape.
+
+### Rollback
+
+```sql
+-- >>> rollback:V60
+-- No-op a propósito, y con pérdida: genero es un derivado y cada scrape lo recalcula, pero el género
+-- anterior de las filas tratadas no se guardó, así que no se puede restaurar. Devolverlas a adulto sería
+-- inventar un valor; el rollback real es revertir GenderResolver, y el próximo scrape vuelve a resolver así.
+SELECT 1;
+-- <<< rollback:V60
+```
+
+Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V59`.
+

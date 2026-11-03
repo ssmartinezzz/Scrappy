@@ -75,8 +75,8 @@ final class OutfitRules {
     }
 
     static boolean generoElegible(Product p, String generoSolicitado) {
+        if (!EligibilityPolicy.elegible(p)) return false; // nunca en el armador, ni pidiendo unisex
         String g = p.genero() != null ? p.genero().trim() : "";
-        if ("infantil".equalsIgnoreCase(g)) return false; // nunca en el armador, ni pidiendo unisex
         if (g.isEmpty()) return true;
         if ("unisex".equalsIgnoreCase(g)) return true;
         if (StringUtils.isBlank(generoSolicitado)) return true; // sin genero pedido: todo elegible

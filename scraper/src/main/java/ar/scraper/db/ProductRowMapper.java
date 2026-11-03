@@ -21,7 +21,7 @@ final class ProductRowMapper {
     static final String COLUMNAS =
             "SELECT url,sitio,nombre,precio,precio_orig,imagen_url," +
             "categoria,genero,ml_score,ml_oferta,ml_tendencia," +
-            "ml_segment,ml_zscore,rubro,marca,gymrat,cantidad_unidades,sub_categoria," +
+            "ml_segment,ml_zscore,rubro,marca,gymrat,cantidad_unidades,sub_categoria,deporte," +
             "fit,estampado,escote,color_dominante FROM productos";
 
     private ProductRowMapper() {
@@ -47,6 +47,7 @@ final class ProductRowMapper {
         int cantidadUnidades = rs.getInt("cantidad_unidades");
         if (cantidadUnidades < 1) cantidadUnidades = 1;
         String subCategoria = rs.getString("sub_categoria");
+        String deporte = rs.getString("deporte");
 
         String fit = rs.getString("fit");
         String estampado = rs.getString("estampado");
@@ -79,6 +80,7 @@ final class ProductRowMapper {
                 .finan(Product.SenalFinanciacion.EMPTY)
                 .cantidadUnidades(cantidadUnidades)
                 .subCategoria(subCategoria != null ? subCategoria : "")
+                .deporte(deporte != null ? deporte : "")
                 .visual(visual)
                 .build();
     }

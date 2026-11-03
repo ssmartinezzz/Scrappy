@@ -5,6 +5,7 @@ import ar.scraper.aggregator.normalize.GenderResolver;
 import ar.scraper.aggregator.normalize.GymratTagger;
 import ar.scraper.aggregator.normalize.PackQuantityDetector;
 import ar.scraper.aggregator.normalize.SizeNormalizer;
+import ar.scraper.aggregator.normalize.SportResolver;
 import ar.scraper.classification.BrandExtractor;
 import ar.scraper.classification.RubroResolver;
 import ar.scraper.classification.SiteRegistry;
@@ -32,6 +33,7 @@ public class NormalizerService {
     private final SubcategoryResolver subcategoryResolver;
     private final RubroResolver rubroResolver;
     private final GymratTagger gymratTagger;
+    private final SportResolver sportResolver;
     private final SiteRegistry siteRegistry;
 
     public List<Product> normalizar(List<Product> productos) {
@@ -49,12 +51,13 @@ public class NormalizerService {
     private Product normalizarProducto(Product p) {
         String nombre = StringUtils.defaultString(p.nombre());
         String cat    = categoryClassifier.normalizarCategoria(p.categoria(), nombre);
-        String genero = genderResolver.resolver(p.genero(), nombre, cat);
-        List<String> talles = sizeNormalizer.normalizar(p.talles());
         String sitioKey       = sitioKey(p.sitio());
-        String marca          = marcaDe(p, nombre, sitioKey);
         String rubro          = rubroResolver.resolver(sitioKey, cat, p.rubro());
+        String genero = genderResolver.resolver(p.genero(), nombre, cat, rubro);
+        List<String> talles = sizeNormalizer.normalizar(p.talles());
+        String marca          = marcaDe(p, nombre, sitioKey);
         boolean gymrat        = gymratTagger.esGymrat(nombre, sitioKey, cat, rubro, marca);
+        String deporte        = sportResolver.resolver(nombre, cat, rubro);
         boolean marcaPremium  = siteRegistry.esPremium(sitioKey);
         int cantidadUnidades  = packQuantityDetector.detectar(nombre, cat);
         String subCategoria   = subcategoryResolver.resolver(nombre, cat);
@@ -70,6 +73,7 @@ public class NormalizerService {
                 .marcaPremium(marcaPremium)
                 .cantidadUnidades(cantidadUnidades)
                 .subCategoria(subCategoria)
+                .deporte(deporte)
                 .build();
     }
 }

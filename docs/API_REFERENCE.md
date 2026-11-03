@@ -663,6 +663,14 @@ vacío, sin el viejo fallback marca→sitio. `q` busca en `nombre` **y** en
 quedan: `NULL <> ALL(...)` es `NULL` y descartaría justo a las que no se
 pueden clasificar. Ausente o vacío no excluye nada.
 
+`deporte` (un código) deja sólo los productos de ese deporte: `futbol`, `natacion`,
+`hockey`, `rugby`, `tenis`, `basquet`, `voley`, `ciclismo`, `golf` o `combate`
+(sin distinguir mayúsculas). Ausente o vacío no filtra; un código desconocido es un
+400 `solicitud_invalida`, no el catálogo entero. Cada
+fila trae `deporte` (`""` si no tiene): el catálogo lista por defecto las filas con
+deporte; sólo los armadores y los feeds (`/mejores`, `/recomendados`, outfits) las
+dejan afuera, igual que a las `infantil`.
+
 `orden` acepta además `mercado_asc` (el más barato contra su mercado primero: `ml_score`
 ascendente, donde 0 es el más barato). `composite`/`ml_score` ordenan el mismo score DESC, o sea
 el menos barato primero; no son lo mismo que `mercado_asc`.

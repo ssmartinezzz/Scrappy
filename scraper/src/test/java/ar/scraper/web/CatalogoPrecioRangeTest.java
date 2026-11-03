@@ -150,7 +150,7 @@ class CatalogoPrecioRangeTest extends ar.scraper.db.support.PostgresTestBase {
 
         ResponseEntity<?> resp = controller.data(0, 24, null, null, null, null, null, null,
                 null, null, null, null, "precio_asc", null, 10000.0, 20000.0, null,
-                null, null, null, null, null);
+                null, null, null, null, null, null);
 
         JsonNode body = Wire.data(resp);
         JsonNode productos = body.path("productos");
@@ -168,7 +168,7 @@ class CatalogoPrecioRangeTest extends ar.scraper.db.support.PostgresTestBase {
         Allure.parameter("precioMin", 5000.0);
         ResponseEntity<?> resp = controller.data(0, 24, null, null, null, null, null, null,
                 null, null, null, null, "precio_asc", null, 5000.0, null, null,
-                null, null, null, null, null);
+                null, null, null, null, null, null);
 
         JsonNode productos = Wire.data(resp).path("productos");
         assertThat(productos).hasSize(1);
@@ -184,7 +184,7 @@ class CatalogoPrecioRangeTest extends ar.scraper.db.support.PostgresTestBase {
         Allure.parameter("precioMax", 5000.0);
         ResponseEntity<?> resp = controller.data(0, 24, null, null, null, null, null, null,
                 null, null, null, null, "precio_asc", null, null, 5000.0, null,
-                null, null, null, null, null);
+                null, null, null, null, null, null);
 
         JsonNode productos = Wire.data(resp).path("productos");
         assertThat(productos).hasSize(1);
@@ -202,7 +202,7 @@ class CatalogoPrecioRangeTest extends ar.scraper.db.support.PostgresTestBase {
         Allure.parameter("precioMax", 20000.0);
         ResponseEntity<?> resp = controller.data(0, 24, null, null, null, null, null, null,
                 null, null, null, null, "precio_asc", null, 10000.0, 20000.0, null,
-                null, null, null, null, null);
+                null, null, null, null, null, null);
 
         JsonNode productos = Wire.data(resp).path("productos");
         assertThat(productos).hasSize(2);
@@ -220,7 +220,7 @@ class CatalogoPrecioRangeTest extends ar.scraper.db.support.PostgresTestBase {
 
         ResponseEntity<?> resp = controller.data(0, 24, null, null, null, null, null, null,
                 null, null, null, null, "precio_asc", null, 10000.0, 15000.0, null,
-                null, null, null, null, null);
+                null, null, null, null, null, null);
 
         JsonNode productos = Wire.data(resp).path("productos");
         assertThat(productos).hasSize(1);
@@ -236,7 +236,7 @@ class CatalogoPrecioRangeTest extends ar.scraper.db.support.PostgresTestBase {
 
         ResponseEntity<?> resp = controller.data(0, 24, null, null, null, null, null, null,
                 null, null, null, null, "precio_asc", null, 10000.0, 15000.0, null,
-                null, null, null, null, null);
+                null, null, null, null, null, null);
 
         JsonNode productos = Wire.data(resp).path("productos");
         assertThat(productos).isEmpty();
@@ -252,7 +252,7 @@ class CatalogoPrecioRangeTest extends ar.scraper.db.support.PostgresTestBase {
 
         ResponseEntity<?> respWithoutNewParams = controller.data(0, 24, null, null, null, null, null, null,
                 null, null, null, null, "precio_asc", null, null, null, null,
-                null, null, null, null, null);
+                null, null, null, null, null, null);
 
         JsonNode body = Wire.data(respWithoutNewParams);
         assertThat(body.path("productos")).hasSize(2);

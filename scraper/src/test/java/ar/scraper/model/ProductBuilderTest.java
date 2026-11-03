@@ -32,9 +32,10 @@ class ProductBuilderTest {
         Product explicit = new Product("Sitio", "Remera", 100, null,
                 "http://x", "http://img", "Remera", "hombre", TALLES,
                 MlScore.EMPTY, "", "indumentaria", false, false,
-                SenalCompra.EMPTY, SenalFinanciacion.EMPTY, 1, "", VisualAttrs.EMPTY);
+                SenalCompra.EMPTY, SenalFinanciacion.EMPTY, 1, "", "", VisualAttrs.EMPTY);
 
         assertThat(built).isEqualTo(explicit);
+        assertThat(built.deporte()).isEmpty();
     }
 
     @Test
@@ -43,7 +44,7 @@ class ProductBuilderTest {
                 "http://x", "http://img", "Remera", "mujer", TALLES,
                 new MlScore(80, List.of("oferta"), true, "baja", 90, 1.5, "premium"),
                 "Nike", "tecnologia", true, true,
-                SenalCompra.EMPTY, SenalFinanciacion.EMPTY, 3, "Basica", VisualAttrs.EMPTY);
+                SenalCompra.EMPTY, SenalFinanciacion.EMPTY, 3, "Basica", "", VisualAttrs.EMPTY);
 
         assertThat(full.toBuilder().build()).isEqualTo(full);
         assertThat(full.toBuilder().precio(1).build().precio()).isEqualTo(1);

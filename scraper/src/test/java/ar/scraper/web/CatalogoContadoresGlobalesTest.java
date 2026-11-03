@@ -118,7 +118,7 @@ class CatalogoContadoresGlobalesTest extends ar.scraper.db.support.PostgresTestB
     private JsonNode facetsDeData(String rubroFiltro) {
         ResponseEntity<?> resp = controller.data(
                 1, 24, null, null, null, null, null, null, null, null, rubroFiltro, null,
-                "precio_asc", null, null, null, null, null, null, null, null, null);
+                "precio_asc", null, null, null, null, null, null, null, null, null, null);
         return Wire.data(resp).path("meta").path("facets");
     }
 

@@ -17,12 +17,6 @@ import org.apache.commons.lang3.StringUtils;
  */
 public class RecommendationService {
 
-    /**
-     * Hard veto: genero=="infantil" never appears in recomendados, regardless of caller, query
-     * params, or relaxation fallback.
-     */
-    private static final String GENERO_VETADO = "infantil";
-
     private static final int    BONUS_OFERTA_REAL_FLAG      = 25;
     private static final int    BONUS_BADGE_OFERTA_REAL      = 15;
     private static final int    BONUS_BADGE_PRECIO_HIST_BAJO = 15;
@@ -48,8 +42,9 @@ public class RecommendationService {
         // Score once per product, not once per comparison: the comparator used to rebuild the
         // marca|categoria key and rescan the badges ~n·log n times over a 30k+ catalog.
         return productos.stream()
-                // Infantil hard veto — runs FIRST, before pair/categoria exclude.
-                .filter(p -> !GENERO_VETADO.equalsIgnoreCase(p.genero() == null ? "" : p.genero().trim()))
+                // Hard veto (infantil, sport-specific) — runs FIRST, before pair/categoria exclude,
+                // regardless of caller, query params or relaxation fallback.
+                .filter(EligibilityPolicy::elegible)
                 .filter(p -> !exclude.contains(OutfitService.FeedbackModel.keyOf(p)))
                 .filter(p -> p.categoria() == null || !excludeCategoria.contains(p.categoria()))
                 .map(p -> new Puntuado(p, -finalScore(p, boostLikeCount),

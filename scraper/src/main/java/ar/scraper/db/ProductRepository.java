@@ -149,6 +149,7 @@ class ProductRepository implements ProductPort {
             row.put("marcaPremium", p.marcaPremium());
             row.put("cantidadUnidades", p.cantidadUnidades());
             row.put("subCategoria", p.subCategoria() != null ? p.subCategoria() : "");
+            row.put("deporte", p.deporte() != null ? p.deporte() : "");
 
             if (includeVisual) {
                 Product.VisualAttrs visual = p.visual() != null ? p.visual() : Product.VisualAttrs.EMPTY;

@@ -39,6 +39,7 @@ public final class ProductJson {
         n.put("genero",     safe(p.genero()));
         n.put("marca",      safe(p.marca()));
         n.put("rubro",      p.rubro() != null ? p.rubro() : "indumentaria");
+        n.put("deporte",    safe(p.deporte()));
         n.put("cantidadUnidades", p.cantidadUnidades());
         n.put("esPack",     p.esPack());
         n.put("precioUnitario", precioUnitario(p));

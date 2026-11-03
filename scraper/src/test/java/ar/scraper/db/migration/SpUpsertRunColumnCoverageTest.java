@@ -48,7 +48,7 @@ class SpUpsertRunColumnCoverageTest extends PostgresTestBase {
             "fit", "estampado", "escote", "color_dominante");
 
     private static final Set<String> LOCKED = Set.of(
-            "categoria", "sub_categoria", "marca", "genero", "rubro");
+            "categoria", "sub_categoria", "marca", "genero", "rubro", "deporte");
 
     private static final Set<String> LOCKED_METADATA = Set.of(
             "bloqueado_por", "bloqueado_at");
