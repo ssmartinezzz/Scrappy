@@ -465,6 +465,13 @@ que lo permita; si no, recibe 403. Dos trampas al probarlo: `page.route` no ve
 los saltos de un redirect (por eso no es la defensa), y Chrome rechaza puertos
 como el 9 (`ERR_UNSAFE_PORT`) antes de llegar al proxy — usá puertos efímeros.
 
+**En WooCommerce, que `/tienda/` muestre productos no la hace la tienda.** Puede
+ser una página de WordPress con un shortcode de N productos fijos y sin
+paginación (notebookspro: 8 de 117, sin error). El archivo real lleva
+`body.post-type-archive-product`; `WooCommercePage.detectarShopUrl` lo prefiere.
+Al sumar un sitio, compará el total del scrape con `x-wp-total` de
+`/wp-json/wc/store/v1/products`.
+
 **`page.content()` sirve el DOM re-serializado, no el HTML crudo del servidor:**
 descubierto escribiendo `OsCommercePage` — un fixture construido a partir de
 `curl` (comillas simples en un atributo `onclick`, JSON con comillas dobles

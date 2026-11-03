@@ -88,6 +88,10 @@ public class WooCommercePage extends StorePage implements CatalogPage {
             baseUrl + "/"
         };
 
+        // A WordPress page with a product shortcode also shows cards, but a fixed handful with no
+        // pagination (notebookspro's /tienda/: 8 of 117). The shop archive wins; the first page
+        // with cards is only the fallback for themes that drop the archive body class.
+        String primeraConProductos = null;
         for (String url : candidatas) {
             try {
                 navigateTo(url);
@@ -97,13 +101,16 @@ public class WooCommercePage extends StorePage implements CatalogPage {
                     "document.querySelector('li.product, .woocommerce-loop-product__title," +
                     " ul.products, .products.columns') !== null"
                 );
-                if (Boolean.TRUE.equals(tieneProductos)) {
-                    // Normalizar: asegurar que termina en /
-                    return url.endsWith("/") ? url : url + "/";
-                }
+                if (!Boolean.TRUE.equals(tieneProductos)) continue;
+                String normalizada = url.endsWith("/") ? url : url + "/";
+                Boolean esArchivo = (Boolean) page.evaluate(
+                    "document.body.classList.contains('post-type-archive-product')"
+                );
+                if (Boolean.TRUE.equals(esArchivo)) return normalizada;
+                if (primeraConProductos == null) primeraConProductos = normalizada;
             } catch (Exception ignored) {}
         }
-        return null;
+        return primeraConProductos;
     }
 
     private Optional<Product> fromNode(JsonNode n) {
@@ -192,7 +199,9 @@ public class WooCommercePage extends StorePage implements CatalogPage {
 
             "var cards = Array.from(document.querySelectorAll(" +
             "  'li.product, .product-item, .wc-block-grid__product, " +
-            "   article.product-type-simple, article.product-type-variable'));" +
+            "   article.product-type-simple, article.product-type-variable, " +
+            // Flatsome theme: div.product-small.col.type-product, no li.product
+            "   div.type-product'));" +
 
             "cards.forEach(function(card) {" +
             "  try {" +

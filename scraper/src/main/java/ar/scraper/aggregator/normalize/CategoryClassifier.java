@@ -16,6 +16,10 @@ public class CategoryClassifier {
     private static final Pattern PESO_VOLUMEN =
         Pattern.compile("\\d+\\s*(g|ml|kg|mg|oz|l)\\s*$", Pattern.CASE_INSENSITIVE);
 
+    private static final Pattern DIAGONAL_NOTEBOOK =
+        Pattern.compile("(?<![\\d.,])1[0-8](?:[.,]\\d{1,2})?\\s*(?:\u2033|\u201d|\u00bb|\"|''|pulgadas|pulg)");
+    private static final String[] ALMACENAMIENTO_INTERNO = {" ssd ", " disco ", " emmc ", " nvme ", " sata "};
+
     private static final Pattern PREFIJO_DE_VENTA = Pattern.compile(
         "^ (?:(?:pack|grande|chico|x|de|caja|promo|combo|outlet|m2|2x1|x?\\d+(?:[.,]\\d+)?)\\s+)+");
 
@@ -100,6 +104,17 @@ public class CategoryClassifier {
 
     private static String sinPrefijoDeVenta(String t) {
         return PREFIJO_DE_VENTA.matcher(t).replaceFirst(" ");
+    }
+
+    /**
+     * A laptop listed only by model line ("HP VICTUS 15-FA2013DX – i5 – SSD 512 GB – 15.6″") names
+     * no product noun, and its specs pull it into GPU/CPU/RAM. A laptop-size panel (10–18.x inches)
+     * plus a storage spec is the shape: monitors list no storage, parts list no diagonal, and an
+     * all-in-one's 21"+ panel is out of range.
+     */
+    private static boolean esFormaDeNotebook(String t) {
+        // Storage first: plain contains() rules out almost every name before the regex runs.
+        return GarmentTaxonomy.anyMatch(t, ALMACENAMIENTO_INTERNO) && DIAGONAL_NOTEBOOK.matcher(t).find();
     }
 
     private boolean tieneIndicadorPeso(String nombre) {
@@ -271,7 +286,8 @@ public class CategoryClassifier {
                 || (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_RED_SWITCH) && esContextoRed(t)))
             return "Red";
         if (esCableLider(t))                                                  return "Cable";
-        if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_NOTEBOOK))         return "Notebook";
+        if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_NOTEBOOK) || esFormaDeNotebook(t))
+            return "Notebook";
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_TABLET))           return "Tablet";
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_CAMARA))           return "Cámara";
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_PC))               return "PC";
