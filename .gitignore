@@ -114,3 +114,4 @@ odd/
 # vive en docs/img/architecture.archify.json) y las capturas del MCP de Playwright.
 .archify/
 .playwright-mcp/
+tests/perf/micro/target/
