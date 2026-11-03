@@ -96,17 +96,17 @@ class CatalogQueryRepository implements CatalogQueryPort {
 
             return new Facets(
                     talles, generos, categorias, marcas, badges, subCategorias,
-                    fits, estampados, escotes, colores);
+                    fits, estampados, escotes, colores, filas.get(8));
         } catch (Exception e) {
             LOG.error("[DB] Error calculando facetas: {}", e.getMessage(), e);
             return new Facets(
                     Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(),
-                    Map.of(), Map.of(), Map.of(), Map.of());
+                    Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
         }
     }
 
     /**
-     * Las ocho expresiones que antes eran ocho {@code contar(...)} — ocho barridos de
+     * Las nueve expresiones que antes eran nueve {@code contar(...)} — nueve barridos de
      * {@code productos} — en UNA: un {@code GROUPING SETS} de un solo scan. El orden de
      * {@link #FACET_EXPRS} es el índice:
      */
@@ -129,7 +129,7 @@ class CatalogQueryRepository implements CatalogQueryPort {
         List<Map<String, Long>> crudo = new ArrayList<>(exprs.length);
         for (int i = 0; i < exprs.length; i++) crudo.add(new java.util.LinkedHashMap<>());
         // Acumula en listas primero: el orden final (conteo DESC, clave ASC) se decide en Java por
-        // faceta, no en el ORDER BY — mezclar ocho criterios de orden distintos en una sola
+        // faceta, no en el ORDER BY — mezclar nueve criterios de orden distintos en una sola
         // cláusula no vale la pena.
         List<List<Map.Entry<String, Long>>> porFaceta = new ArrayList<>(exprs.length);
         for (int i = 0; i < exprs.length; i++) porFaceta.add(new ArrayList<>());
@@ -166,7 +166,7 @@ class CatalogQueryRepository implements CatalogQueryPort {
         return sb.toString();
     }
 
-    /** Orden fijo: género, categoría, marca, sub_categoría, fit, estampado, escote, color. */
+    /** Orden fijo: género, categoría, marca, sub_categoría, fit, estampado, escote, color, deporte. */
     private static final String[] FACET_EXPRS = {
             "lower(btrim(genero))",
             "upper(left(btrim(categoria),1)) || lower(substr(btrim(categoria),2))",
@@ -176,6 +176,7 @@ class CatalogQueryRepository implements CatalogQueryPort {
             "btrim(estampado)",
             "btrim(escote)",
             "btrim(color_dominante)",
+            "btrim(deporte)",
     };
 
     @Override
