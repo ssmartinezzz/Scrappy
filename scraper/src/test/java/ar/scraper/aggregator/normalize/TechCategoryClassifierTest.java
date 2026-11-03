@@ -378,4 +378,37 @@ class TechCategoryClassifierTest {
         assertThat(cat("Controladora Cooler Master A1 Gen 2 ARGB P/Fan Coolers"))
                 .isNotEqualTo("Cooler");
     }
+
+    @Test
+    @DisplayName("A laptop named only by its model line is a Notebook: screen diagonal plus storage")
+    void notebookPorFormaSinLaPalabraNotebook() {
+        // Real notebookspro names (2026-11-03): they never say "notebook", and fell into
+        // GPU / CPU / RAM by the specs they list.
+        assertThat(cat("HP VICTUS 15-FA2013DX – i5-13420H – SSD 512 GB – 16 GB RAM – 15.6″ FHD IPS 144Hz – RTX 3050"))
+                .isEqualTo("Notebook");
+        assertThat(cat("LENOVO IDEAPAD 1 15AMN7 – RYZEN 5 7520U – SSD 256 GB – 8 GB RAM DDR5 – 15.6″ FHD"))
+                .isEqualTo("Notebook");
+        assertThat(cat("DELL INSPIRON 15 3520 – i7-1255U – 1 TB SSD – 32 GB RAM –  15.6″ FHD"))
+                .isEqualTo("Notebook");
+        assertThat(cat("CYMAX 2 NUBE LITE – Intel Celeron N5095 – 512 GB Disco – 8GB RAM – 15.6″ FHD – 4 Núcleos"))
+                .isEqualTo("Notebook");
+        assertThat(cat("ASUS VIVOBOOK X1404V – INTEL CORE 5-120U – SSD 512 GB – 16 GB RAM – 14\" FHD"))
+                .isEqualTo("Notebook");
+        assertThat(cat("ACER ASPIRE GO 15 – RYZEN 7 7730U – SSD 512 GB – 16 GB RAM  – 15.6» FHD  – 8 Núcleos"))
+                .isEqualTo("Notebook");
+        assertThat(cat("CYMAX STAR UP – RYZEN 5 3500U – SATA 512 GB – 8 GB RAM – 15.6″ FHD – 4 Núcleos"))
+                .isEqualTo("Notebook");
+    }
+
+    @Test
+    @DisplayName("Diagonal without storage, or storage without a laptop-size diagonal, is not a Notebook")
+    void formaDeNotebookNecesitaLasDosSenales() {
+        assertThat(cat("MONITOR ARZOPA A1 – 15.6″ FHD")).isEqualTo("Monitor");
+        assertThat(cat("Placa de Video ASUS ROG STRIX RTX 4070 12GB")).isEqualTo("GPU");
+        assertThat(cat("Disco Externo 2.5\" Seagate 2TB HDD USB 3.0")).isNotEqualTo("Notebook");
+        assertThat(cat("MINI PC CYMAX VOLT R9 – RYZEN 9 4900H – SSD 512 GB – 16 GB RAM")).isEqualTo("Mini PC");
+        // An all-in-one is a desktop: its 24" panel is outside the laptop range.
+        assertThat(cat("CYMAX AERO i5 ALL IN ONE – i5-12450H – SSD 512 GB – 16 GB RAM – 24″ FHD IPS"))
+                .isNotEqualTo("Notebook");
+    }
 }
