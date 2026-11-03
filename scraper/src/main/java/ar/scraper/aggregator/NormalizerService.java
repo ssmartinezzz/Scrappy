@@ -51,11 +51,11 @@ public class NormalizerService {
     private Product normalizarProducto(Product p) {
         String nombre = StringUtils.defaultString(p.nombre());
         String cat    = categoryClassifier.normalizarCategoria(p.categoria(), nombre);
-        String genero = genderResolver.resolver(p.genero(), nombre, cat);
-        List<String> talles = sizeNormalizer.normalizar(p.talles());
         String sitioKey       = sitioKey(p.sitio());
-        String marca          = marcaDe(p, nombre, sitioKey);
         String rubro          = rubroResolver.resolver(sitioKey, cat, p.rubro());
+        String genero = genderResolver.resolver(p.genero(), nombre, cat, rubro);
+        List<String> talles = sizeNormalizer.normalizar(p.talles());
+        String marca          = marcaDe(p, nombre, sitioKey);
         boolean gymrat        = gymratTagger.esGymrat(nombre, sitioKey, cat, rubro, marca);
         String deporte        = sportResolver.resolver(nombre, cat, rubro);
         boolean marcaPremium  = siteRegistry.esPremium(sitioKey);

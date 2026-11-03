@@ -430,7 +430,13 @@ ciclismo, golf, combate; el primero que matchea gana). Dar de alta un deporte so
 (FK). Los clubes van con nombre completo (`river plate`, no `river`: "Kennebec
 River" es Timberland). `EligibilityPolicy` saca de armadores, recomendados y picks
 todo lo que tiene deporte o es `infantil`; el catálogo los sigue listando y filtra
-con `?deporte=`.
+con `?deporte=`. Los sufijos de talle de kids (`jr`, `ps`, `gs`, `td`…) sólo
+cuentan en ropa (`V60`): fuera de ella "450 GS" son gramos y "PC/PS" es una consola.
+Y todas las señales cortas de género (`nino`, `bebe`, `w`, `men`, `male`, `dama`) son
+palabras enteras: como substring "argiNINA" era `infantil` y "neW Era" o "New
+Balance" eran `mujer` (167 prendas activas, medido 2026-11-02). Las filas ya
+guardadas se corrigen en el próximo scrape: sin el género crudo del sitio, una
+migración no puede saber si el `mujer` venía del nombre o del sitio.
 
 **Un nombre de marca no es un sustantivo de producto.** `Proteína` era la
 categoría más grande del rubro suplementos y **61 de sus 201 filas no eran
