@@ -7,7 +7,7 @@ Antes de codear, determinar la plataforma del sitio:
 ```
 ¿Tiene /products.json?          → Shopify
 ¿Tiene /api/catalog_system/pub? → VTEX Legacy
-¿Es WooCommerce (wp-json/wc)?   → WooCommerce  {dcshoes}
+¿Es WooCommerce (wp-json/wc)?   → WooCommerce  {dcshoes, notebookspro}
 ¿URL termina en /productos/p/N? → Vaypol/City platform
 ¿Es tiendanube.com?             → Tiendanube (JS heurístico)
 ¿`prestashop = {` en el HTML?   → PrestaShop 1.7  {armytech}

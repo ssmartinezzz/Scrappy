@@ -3734,5 +3734,25 @@ SELECT 1;
 -- <<< rollback:V60
 ```
 
-Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V59`.
+Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V61` y antes que el de `V59`.
+
+---
+
+## `V61` — seed de NotebooksPro
+
+NotebooksPro vende notebooks, monitores y mini PC sobre WooCommerce (tema Flatsome): sólo seed, `'woocommerce'`
+ya era una `plataforma` válida y `'tecnologia'` un `rubro_forzado` válido. Revende marcas de terceros, así que no
+lleva `monomarca` ni fila en `marca`.
+
+### Rollback
+
+```sql
+-- >>> rollback:V61
+DELETE FROM sitio s WHERE s.sitio_key = 'notebookspro'
+  AND NOT EXISTS (SELECT 1 FROM productos p WHERE p.sitio_key = s.sitio_key);
+-- <<< rollback:V61
+```
+
+Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V60`. Con productos ya
+scrapeados no borra nada: esas filas referencian el sitio.
 
