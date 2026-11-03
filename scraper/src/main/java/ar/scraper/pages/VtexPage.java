@@ -26,7 +26,9 @@ public class VtexPage extends StorePage implements CatalogPage, ArbolDeCategoria
     private static final long ESPERA_REINTENTO_MS = 2_000;
     private static final int PROFUNDIDAD_ARBOL = 3;
 
+    private final CriterioDeServicio criterioDeServicio;
     private List<CategoriaVtex> arbolObservado = List.of();
+    private Set<Integer> hojasDeServicio = Set.of();
 
     private static final Set<String> PALABRAS_HOMBRE = Set.of(
             "hombre","hombres","masculino","masculinos","men","man","male","caballero","caballeros");
@@ -38,7 +40,15 @@ public class VtexPage extends StorePage implements CatalogPage, ArbolDeCategoria
     public VtexPage(Page page, int timeoutMs,
                     String sitio, String baseUrl,
                     double precioMin, double precioMax) {
+        this(page, timeoutMs, sitio, baseUrl, precioMin, precioMax, new ServicioPorNombreDeCategoria());
+    }
+
+    public VtexPage(Page page, int timeoutMs,
+                    String sitio, String baseUrl,
+                    double precioMin, double precioMax,
+                    CriterioDeServicio criterioDeServicio) {
         super(page, timeoutMs, sitio, baseUrl, precioMin, precioMax);
+        this.criterioDeServicio = criterioDeServicio;
     }
 
     public List<Product> scrapeAll() {
@@ -112,6 +122,7 @@ public class VtexPage extends StorePage implements CatalogPage, ArbolDeCategoria
             List<CategoriaVtex> arbol = parseArbol(MAPPER.readTree(
                     getText(dom + "/api/catalog_system/pub/category/tree/" + PROFUNDIDAD_ARBOL)));
             arbolObservado = arbol;
+            hojasDeServicio = idsDeServicio(arbol, criterioDeServicio);
             if (!arbol.isEmpty()) {
                 partes = particionar(arbol, path -> totalLegacy(dom, path).orElse(0), VENTANA_LEGACY)
                         .stream().map(path -> "&fq=C:" + path).toList();
@@ -216,9 +227,22 @@ public class VtexPage extends StorePage implements CatalogPage, ArbolDeCategoria
         return nodos;
     }
 
-    private static void aplanar(CategoriaVtex c, Integer padre, List<SitioCategoriaNodo> nodos) {
-        nodos.add(new SitioCategoriaNodo(c.id(), padre, c.nombre()));
+    private void aplanar(CategoriaVtex c, Integer padre, List<SitioCategoriaNodo> nodos) {
+        nodos.add(new SitioCategoriaNodo(c.id(), padre, c.nombre(), hojasDeServicio.contains(c.id())));
         for (CategoriaVtex h : c.hijos()) aplanar(h, c.id(), nodos);
+    }
+
+    static Set<Integer> idsDeServicio(List<CategoriaVtex> arbol, CriterioDeServicio criterio) {
+        Set<Integer> ids = new HashSet<>();
+        for (CategoriaVtex c : arbol) marcarServicios(c, false, criterio, ids);
+        return Set.copyOf(ids);
+    }
+
+    private static void marcarServicios(CategoriaVtex c, boolean heredado, CriterioDeServicio criterio,
+                                        Set<Integer> ids) {
+        boolean servicio = heredado || criterio.esServicio(c.nombre());
+        if (servicio) ids.add(c.id());
+        for (CategoriaVtex h : c.hijos()) marcarServicios(h, servicio, criterio, ids);
     }
 
     static List<String> particionar(List<CategoriaVtex> arbol, ToIntFunction<String> totalDe, int ventana) {
@@ -362,6 +386,8 @@ public class VtexPage extends StorePage implements CatalogPage, ArbolDeCategoria
     private Optional<Product> toProduct(JsonNode prod, String dom, String nombre, boolean io) {
         try {
             if (nombre.isBlank()) return Optional.empty();
+            Integer hoja = categoriaHoja(prod);
+            if (hoja != null && hojasDeServicio.contains(hoja)) return Optional.empty();
 
             String linkText = prod.path("linkText").asText("");
             String url = linkText.isBlank() ? "" : dom + "/" + linkText + "/p";
@@ -384,7 +410,7 @@ public class VtexPage extends StorePage implements CatalogPage, ArbolDeCategoria
             }
 
             return Optional.of(producto(nombre, p, oferta.get().original(), url, img, categoria,
-                    extraerGeneroVtex(prod, nombre), extraerTallesVtex(prod), categoriaHoja(prod)));
+                    extraerGeneroVtex(prod, nombre), extraerTallesVtex(prod), hoja));
         } catch (Exception e) {
             return Optional.empty();
         }

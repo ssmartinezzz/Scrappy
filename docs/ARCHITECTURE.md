@@ -1654,6 +1654,8 @@ vende revestimientos y textiles de hogar bajo un solo rubro forzado.
 resuelve a `productos.sitio_categoria_id` (FK a `sitio_categoria`, `V63`) en la misma transacción que el árbol.
 La capacidad de exponer el árbol es la interfaz `ar.scraper.pages.ArbolDeCategorias`, que implementa sólo
 `VtexPage`; `BaseScraper` la lee con un `instanceof` y la deja en `ScrapeResult.arbolDeCategorias`.
+Los servicios del sitio (hojas cuyo nombre es "Instalación…", "Armado…") los decide un `CriterioDeServicio`
+inyectado en `VtexPage`, no un `if` por sitio: sus productos no se emiten y el nodo se guarda con `es_servicio`.
 
 Helpers: `esPack()`, `esTech()`, `esGymrat()`, `esMarcaPremium()`.
 `MlScore` incluye scoreP/badges/ofertaReal/tendencia/pctilCategoria/zScore/segment;

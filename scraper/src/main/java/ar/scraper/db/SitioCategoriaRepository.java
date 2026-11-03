@@ -40,6 +40,7 @@ class SitioCategoriaRepository implements SitioCategoriaPort {
             nodo.put("origen_id", n.origenId());
             if (n.padreOrigenId() != null) nodo.put("padre_origen_id", n.padreOrigenId());
             nodo.put("nombre", n.nombre());
+            nodo.put("es_servicio", n.esServicio());
         }
         try {
             return MAPPER.writeValueAsString(nodos);

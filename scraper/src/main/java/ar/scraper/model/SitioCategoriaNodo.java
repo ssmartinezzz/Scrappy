@@ -1,3 +1,3 @@
 package ar.scraper.model;
 
-public record SitioCategoriaNodo(int origenId, Integer padreOrigenId, String nombre) { }
+public record SitioCategoriaNodo(int origenId, Integer padreOrigenId, String nombre, boolean esServicio) { }

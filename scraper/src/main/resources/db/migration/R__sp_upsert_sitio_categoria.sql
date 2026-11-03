@@ -9,11 +9,12 @@ BEGIN
         RETURN 0;
     END IF;
 
-    INSERT INTO sitio_categoria (sitio_key, origen_id, nombre)
-    SELECT DISTINCT ON (n.origen_id) v_key, n.origen_id, n.nombre
-    FROM jsonb_to_recordset(p_nodos) AS n(origen_id integer, nombre text)
+    INSERT INTO sitio_categoria (sitio_key, origen_id, nombre, es_servicio)
+    SELECT DISTINCT ON (n.origen_id) v_key, n.origen_id, n.nombre, COALESCE(n.es_servicio, false)
+    FROM jsonb_to_recordset(p_nodos) AS n(origen_id integer, nombre text, es_servicio boolean)
     WHERE n.origen_id IS NOT NULL AND COALESCE(n.nombre, '') <> ''
-    ON CONFLICT (sitio_key, origen_id) DO UPDATE SET nombre = EXCLUDED.nombre;
+    ON CONFLICT (sitio_key, origen_id) DO UPDATE
+        SET nombre = EXCLUDED.nombre, es_servicio = EXCLUDED.es_servicio;
     GET DIAGNOSTICS v_cantidad = ROW_COUNT;
 
     UPDATE sitio_categoria c

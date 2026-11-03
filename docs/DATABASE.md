@@ -3789,8 +3789,7 @@ productos ya scrapeados no borra nada: esas filas referencian el sitio.
 
 Un sitio VTEX publica su propio árbol de categorías (`/api/catalog_system/pub/category/tree/N`). Hasta acá el
 scraper lo usaba sólo para partir el crawl y lo tiraba; ahora se guarda, para usarlo como verdad de referencia al
-medir el clasificador y para excluir los servicios (`es_servicio`, que `V63` sólo crea: arranca en `false` y nada
-lo escribe todavía).
+medir el clasificador y para excluir los servicios (`es_servicio`).
 
 | Columna | Qué guarda |
 |---|---|
@@ -3799,7 +3798,7 @@ lo escribe todavía).
 | `origen_id` | El id de la categoría en el sitio de origen. `UNIQUE (sitio_key, origen_id)`: es la clave natural por la que se hace el upsert |
 | `padre_id` | FK a `sitio_categoria(id)`, `ON DELETE SET NULL`. NULL = categoría raíz; no hay centinela |
 | `nombre` | Nombre de la categoría tal como lo publica el sitio |
-| `es_servicio` | `NOT NULL DEFAULT false` |
+| `es_servicio` | `NOT NULL DEFAULT false`. `true` = la categoría vende un servicio (instalación, armado), no un producto. Lo decide el scraper, ver abajo |
 
 `productos.sitio_categoria_id` es una FK nullable a `sitio_categoria(id)` con `ON DELETE SET NULL`: la hoja del
 árbol donde el sitio ubica al producto. NULL es "sin hoja conocida" (un sitio que no publica árbol, o un producto
@@ -3818,6 +3817,13 @@ re-vincula.
 
 `sp_upsert_run` **no cambió**: el vínculo es una función aparte en `R__sp_upsert_sitio_categoria.sql`, una
 responsabilidad por función. Por eso `StoredProcedureDriftTest` no gana ningún salto.
+
+**Servicios.** `VtexPage` marca un nodo como servicio con un `CriterioDeServicio` inyectado (por defecto
+`ServicioPorNombreDeCategoria`: el nombre empieza con Instalación/Instalaciones/Armado/Armados/Servicio/Colocación,
+anclado al inicio para que "Accesorios de instalación" siga siendo producto). El flag se hereda a los hijos. Los
+productos cuya hoja es un servicio no se emiten, así que nunca llegan a `productos`; el nodo sí se guarda, con
+`es_servicio = true`, y el upsert lo actualiza en cada corrida (`ON CONFLICT ... SET es_servicio`). En Easy
+(2026-11-03) son 12 nodos y 377 SKUs.
 
 ### Rollback
 
