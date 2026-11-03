@@ -1624,13 +1624,14 @@ Spring 6.1 no agrega un viaje por `null`: con el driver de PostgreSQL,
 ---
 
 <!-- Movido desde CLAUDE.md (2026-09-28) -->
-## Model `Product` (record, 19 campos)
+## Model `Product` (record, 21 campos)
 
 ```java
 sitio, nombre, precio, precioOriginal (Double), url, imagenUrl, categoria, genero,
 talles, ml (MlScore), marca, rubro, gymrat, marcaPremium,
 senal (SenalCompra), finan (SenalFinanciacion),
-cantidadUnidades, subCategoria, visual (VisualAttrs)
+cantidadUnidades, subCategoria, deporte, visual (VisualAttrs),
+sitioCategoriaOrigenId (Integer)
 ```
 
 `precioOriginal` es `Double` desde `close-1nf-and-3nf-foundation` (antes
@@ -1647,6 +1648,12 @@ manda —un suplemento es un suplemento lo venda quien lo venda— y por eso gan
 sobre el rubro forzado del sitio. `construccion` y `hogar` también deciden por
 categoría (después de los forzados `tecnologia` y `oficina`): `ambiancedeco`
 vende revestimientos y textiles de hogar bajo un solo rubro forzado.
+
+`sitioCategoriaOrigenId` es la hoja del árbol de categorías del propio sitio donde éste ubica al producto
+(`categoryId` en VTEX): `null` es "el sitio no la publica", nunca un sentinel. Sólo `VtexPage` la llena; el upsert la
+resuelve a `productos.sitio_categoria_id` (FK a `sitio_categoria`, `V63`) en la misma transacción que el árbol.
+La capacidad de exponer el árbol es la interfaz `ar.scraper.pages.ArbolDeCategorias`, que implementa sólo
+`VtexPage`; `BaseScraper` la lee con un `instanceof` y la deja en `ScrapeResult.arbolDeCategorias`.
 
 Helpers: `esPack()`, `esTech()`, `esGymrat()`, `esMarcaPremium()`.
 `MlScore` incluye scoreP/badges/ofertaReal/tendencia/pctilCategoria/zScore/segment;

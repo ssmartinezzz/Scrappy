@@ -35,6 +35,9 @@ public interface ProductPort {
 
     UpsertStats upsertParcial(List<Product> productos);
 
+    UpsertStats upsertParcial(String sitio, List<Product> productos,
+                              List<ar.scraper.model.SitioCategoriaNodo> arbolDeCategorias);
+
     void actualizarCategoria(String url, String nuevaCategoria);
 
     /**

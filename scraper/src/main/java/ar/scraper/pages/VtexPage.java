@@ -1,6 +1,7 @@
 package ar.scraper.pages;
 
 import ar.scraper.model.Product;
+import ar.scraper.model.SitioCategoriaNodo;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.microsoft.playwright.APIResponse;
@@ -11,7 +12,7 @@ import java.util.*;
 import org.apache.commons.lang3.StringUtils;
 
 /** Si no está, se hace heurística sobre nombre + categorías. */
-public class VtexPage extends StorePage implements CatalogPage {
+public class VtexPage extends StorePage implements CatalogPage, ArbolDeCategorias {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final int PAGE_SIZE = 50;
@@ -24,6 +25,8 @@ public class VtexPage extends StorePage implements CatalogPage {
     private static final int REINTENTOS = 3;
     private static final long ESPERA_REINTENTO_MS = 2_000;
     private static final int PROFUNDIDAD_ARBOL = 3;
+
+    private List<CategoriaVtex> arbolObservado = List.of();
 
     private static final Set<String> PALABRAS_HOMBRE = Set.of(
             "hombre","hombres","masculino","masculinos","men","man","male","caballero","caballeros");
@@ -108,6 +111,7 @@ public class VtexPage extends StorePage implements CatalogPage {
         try {
             List<CategoriaVtex> arbol = parseArbol(MAPPER.readTree(
                     getText(dom + "/api/catalog_system/pub/category/tree/" + PROFUNDIDAD_ARBOL)));
+            arbolObservado = arbol;
             if (!arbol.isEmpty()) {
                 partes = particionar(arbol, path -> totalLegacy(dom, path).orElse(0), VENTANA_LEGACY)
                         .stream().map(path -> "&fq=C:" + path).toList();
@@ -203,7 +207,19 @@ public class VtexPage extends StorePage implements CatalogPage {
         return result;
     }
 
-    record CategoriaVtex(int id, List<CategoriaVtex> hijos) { }
+    record CategoriaVtex(int id, String nombre, List<CategoriaVtex> hijos) { }
+
+    @Override
+    public List<SitioCategoriaNodo> arbolDeCategorias() {
+        List<SitioCategoriaNodo> nodos = new ArrayList<>();
+        for (CategoriaVtex c : arbolObservado) aplanar(c, null, nodos);
+        return nodos;
+    }
+
+    private static void aplanar(CategoriaVtex c, Integer padre, List<SitioCategoriaNodo> nodos) {
+        nodos.add(new SitioCategoriaNodo(c.id(), padre, c.nombre()));
+        for (CategoriaVtex h : c.hijos()) aplanar(h, c.id(), nodos);
+    }
 
     static List<String> particionar(List<CategoriaVtex> arbol, ToIntFunction<String> totalDe, int ventana) {
         List<String> partes = new ArrayList<>();
@@ -227,7 +243,8 @@ public class VtexPage extends StorePage implements CatalogPage {
         List<CategoriaVtex> out = new ArrayList<>();
         if (arbol == null || !arbol.isArray()) return out;
         for (JsonNode n : arbol) {
-            if (n.hasNonNull("id")) out.add(new CategoriaVtex(n.get("id").asInt(), parseArbol(n.path("children"))));
+            if (n.hasNonNull("id")) out.add(new CategoriaVtex(n.get("id").asInt(), n.path("name").asText("").trim(),
+                    parseArbol(n.path("children"))));
         }
         return out;
     }
@@ -367,9 +384,29 @@ public class VtexPage extends StorePage implements CatalogPage {
             }
 
             return Optional.of(producto(nombre, p, oferta.get().original(), url, img, categoria,
-                    extraerGeneroVtex(prod, nombre), extraerTallesVtex(prod)));
+                    extraerGeneroVtex(prod, nombre), extraerTallesVtex(prod), categoriaHoja(prod)));
         } catch (Exception e) {
             return Optional.empty();
+        }
+    }
+
+    private static Integer categoriaHoja(JsonNode prod) {
+        String id = prod.path("categoryId").asText("");
+        if (!id.isBlank()) return parseIdEntero(id);
+        JsonNode ids = prod.path("categoriesIds");
+        if (!ids.isArray() || ids.isEmpty()) return null;
+        String[] partes = ids.get(0).asText("").split("/");
+        for (int i = partes.length - 1; i >= 0; i--) {
+            if (!partes[i].isBlank()) return parseIdEntero(partes[i]);
+        }
+        return null;
+    }
+
+    private static Integer parseIdEntero(String id) {
+        try {
+            return Integer.valueOf(id.trim());
+        } catch (NumberFormatException e) {
+            return null;
         }
     }
 

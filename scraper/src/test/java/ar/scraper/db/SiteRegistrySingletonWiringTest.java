@@ -123,7 +123,7 @@ class SiteRegistrySingletonWiringTest {
                 FeedbackRepository.class, SavedOutfitsRepository.class,
                 SavedPcsRepository.class,
                 PreferenciaArmadorRepository.class,
-                PreciosExternosRepository.class,
+                PreciosExternosRepository.class, SitioCategoriaRepository.class,
                 DatabaseService.class)) {
 
             SiteRegistry theSingleton = context.getBean(SiteRegistry.class);

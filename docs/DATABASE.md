@@ -137,10 +137,12 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V52` | `sitio.monomarca`: en una tienda de marca propia la marca ES el sitio; seed, filas en `marca` y backfill |
 | `V53` | Índices GIN `gin_trgm_ops` sobre `productos(nombre)` y `productos(marca)` (extensión `pg_trgm`): el `q` del catálogo es un `ILIKE '%q%'` |
 | `V54` | Seed de Baesics (Shopify, gym, marca propia): fila en `sitio` con `monomarca` y su fila en `marca` |
+| `V63` | `sitio_categoria` (árbol de categorías del sitio, 3FN) + `productos.sitio_categoria_id` |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
+| `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
 
-> ⚠️ **Las dos funciones plpgsql se editan en su archivo `R__`, y en ningún
+> ⚠️ **Las funciones plpgsql se editan en su archivo `R__`, y en ningún
 > otro lado.** No agregues una migración versionada para tocarlas. Flyway
 > re-aplica una repetible cuando cambia su checksum, y las corre después de
 > todas las versionadas. Las copias históricas en `V1`/`V3`/`V5`/`V7`/`V17`/
@@ -1203,6 +1205,7 @@ como una optimización aparte.
 -- >>> rollback:V18
 ALTER TABLE productos       DROP CONSTRAINT IF EXISTS fk_productos_sitio;
 ALTER TABLE scrape_run_site DROP CONSTRAINT IF EXISTS fk_scrape_run_site_sitio;
+ALTER TABLE IF EXISTS sitio_categoria DROP CONSTRAINT IF EXISTS fk_sitio_categoria_sitio;
 DROP TABLE sitio;
 -- <<< rollback:V18
 ```
@@ -1226,6 +1229,9 @@ justo donde nadie lo está buscando. Por eso `V29` bautiza su restricción en ve
 de dejar que Postgres la nombre: este bloque la suelta por nombre, y un nombre
 autogenerado metería un detalle de implementación del motor adentro de un
 documento que un test ejecuta.
+
+`V63` es la tercera FK entrante (`fk_sitio_categoria_sitio`, desde `sitio_categoria`) y también está bautizada; el
+`ALTER TABLE IF EXISTS` es porque en una cadena de rollbacks el de `V63` corre antes y la tabla ya no está.
 
 Que esto se haya detectado es mérito de `V18RollbackRoundTripTest`, que
 **ejecuta** el bloque en vez de sólo mostrarlo: un rollback documentado que ya
@@ -3774,6 +3780,58 @@ DELETE FROM sitio s WHERE s.sitio_key = 'easy'
 -- <<< rollback:V62
 ```
 
-Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V61`. Con productos ya
-scrapeados no borra nada: esas filas referencian el sitio.
+Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V63` y antes que el de `V61`. Con
+productos ya scrapeados no borra nada: esas filas referencian el sitio.
+
+---
+
+## `V63` — `sitio_categoria`: el árbol de categorías del sitio
+
+Un sitio VTEX publica su propio árbol de categorías (`/api/catalog_system/pub/category/tree/N`). Hasta acá el
+scraper lo usaba sólo para partir el crawl y lo tiraba; ahora se guarda, para usarlo como verdad de referencia al
+medir el clasificador y para excluir los servicios (`es_servicio`, que `V63` sólo crea: arranca en `false` y nada
+lo escribe todavía).
+
+| Columna | Qué guarda |
+|---|---|
+| `id` | Identidad propia (`GENERATED ALWAYS AS IDENTITY`) |
+| `sitio_key` | FK a `sitio(sitio_key)`, `ON DELETE CASCADE`: el árbol no sobrevive a su sitio. Misma clave que usan `productos` y `scrape_run_site` |
+| `origen_id` | El id de la categoría en el sitio de origen. `UNIQUE (sitio_key, origen_id)`: es la clave natural por la que se hace el upsert |
+| `padre_id` | FK a `sitio_categoria(id)`, `ON DELETE SET NULL`. NULL = categoría raíz; no hay centinela |
+| `nombre` | Nombre de la categoría tal como lo publica el sitio |
+| `es_servicio` | `NOT NULL DEFAULT false` |
+
+`productos.sitio_categoria_id` es una FK nullable a `sitio_categoria(id)` con `ON DELETE SET NULL`: la hoja del
+árbol donde el sitio ubica al producto. NULL es "sin hoja conocida" (un sitio que no publica árbol, o un producto
+cuyo `categoryId` no está en el árbol), no un valor. Los dos índices son parciales (`padre_id IS NOT NULL`,
+`sitio_categoria_id IS NOT NULL`): casi todo el catálogo no tiene hoja, y el índice sólo existe para el
+`ON DELETE SET NULL` y los joins.
+
+**Atomicidad.** El árbol y los productos de un sitio se escriben en UNA transacción, la de
+`ProductRepository.upsertParcial(sitio, productos, arbol)`: primero `sp_upsert_sitio_categoria(sitio, nodos)`
+(upsert por `(sitio_key, origen_id)` que actualiza `nombre`, y después un `UPDATE` que resuelve `padre_id`, así
+que el orden de los nodos no importa), después `sp_upsert_run`, después `sp_vincular_sitio_categoria(filas)`, que
+resuelve el `sitioCategoriaOrigenId` de cada fila a `productos.sitio_categoria_id` por `(sitio_key, origen_id)`
+(sin match, NULL). Si cualquiera falla, `status.setRollbackOnly()` se lleva árbol y productos juntos. La pasada
+final del agregador (`upsertProductos`) no lleva el árbol: reusa el que la pasada por sitio ya dejó y sólo
+re-vincula.
+
+`sp_upsert_run` **no cambió**: el vínculo es una función aparte en `R__sp_upsert_sitio_categoria.sql`, una
+responsabilidad por función. Por eso `StoredProcedureDriftTest` no gana ningún salto.
+
+### Rollback
+
+```sql
+-- >>> rollback:V63
+DROP FUNCTION sp_vincular_sitio_categoria(jsonb);
+DROP FUNCTION sp_upsert_sitio_categoria(text, jsonb);
+DROP INDEX idx_productos_sitio_categoria;
+ALTER TABLE productos DROP COLUMN sitio_categoria_id;
+DROP TABLE sitio_categoria;
+-- <<< rollback:V63
+```
+
+Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V62`. Además de correr el
+bloque hay que borrar `R__sp_upsert_sitio_categoria.sql`: Flyway lo re-aplicaría y las funciones volverían a
+nacer apuntando a tablas que ya no existen. Se pierde el árbol y los vínculos; el catálogo no pierde filas.
 

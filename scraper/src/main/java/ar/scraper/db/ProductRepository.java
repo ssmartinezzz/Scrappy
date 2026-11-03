@@ -6,6 +6,8 @@ import ar.scraper.classification.SiteRegistry;
 import ar.scraper.catalog.ClasificacionBloqueada;
 import ar.scraper.catalog.FavoritosProtegidosException;
 import ar.scraper.catalog.ProductPort;
+import ar.scraper.catalog.SitioCategoriaPort;
+import ar.scraper.model.SitioCategoriaNodo;
 import ar.scraper.catalog.UpsertStats;
 import ar.scraper.model.Product;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -49,9 +51,11 @@ class ProductRepository implements ProductPort {
     private final RubroResolver rubroResolver;
     private final SiteRegistry siteRegistry;
     private final TransactionTemplate tx;
+    private final SitioCategoriaPort sitioCategorias;
 
     ProductRepository(DataSource dataSource, SiteRegistry siteRegistry, RubroResolver rubroResolver,
-                      PlatformTransactionManager txManager) {
+                      PlatformTransactionManager txManager, SitioCategoriaPort sitioCategorias) {
+        this.sitioCategorias = sitioCategorias;
         this.tx = new TransactionTemplate(txManager);
         this.jdbc = new JdbcTemplate(dataSource);
         this.rubroResolver = rubroResolver;
@@ -94,7 +98,7 @@ class ProductRepository implements ProductPort {
         try {
             String rowsJson = buildRowsJson(productos, now, today, true);
 
-            UpsertStats upsert = upsertRun(rowsJson, true);
+            UpsertStats upsert = upsertRun(rowsJson, true, conCategoriaDelSitio(productos));
 
             // El alcance del soft-delete NO sale de la lista de sitios pedidos: un sitio cuyo
             // scraper se rompió llega con 0 productos, y no hay que confundir "se rompió" con "se
@@ -117,6 +121,10 @@ class ProductRepository implements ProductPort {
             status.setRollbackOnly();
             return new UpsertStats(0, 0, 0, 0);
         }
+    }
+
+    private static boolean conCategoriaDelSitio(List<Product> productos) {
+        return productos.stream().anyMatch(p -> p.sitioCategoriaOrigenId() != null);
     }
 
     private String buildRowsJson(List<Product> productos, String now, String fecha, boolean includeVisual)
@@ -150,6 +158,7 @@ class ProductRepository implements ProductPort {
             row.put("cantidadUnidades", p.cantidadUnidades());
             row.put("subCategoria", p.subCategoria() != null ? p.subCategoria() : "");
             row.put("deporte", p.deporte() != null ? p.deporte() : "");
+            if (p.sitioCategoriaOrigenId() != null) row.put("sitioCategoriaOrigenId", p.sitioCategoriaOrigenId());
 
             if (includeVisual) {
                 Product.VisualAttrs visual = p.visual() != null ? p.visual() : Product.VisualAttrs.EMPTY;
@@ -237,20 +246,30 @@ class ProductRepository implements ProductPort {
     /** NUNCA hace soft-delete — solo inserta/actualiza los productos dados. */
     @Override
     public UpsertStats upsertParcial(List<Product> productos) {
+        return upsertParcial(null, productos, List.of());
+    }
+
+    /** The site's category tree and its products commit together or not at all. */
+    @Override
+    public UpsertStats upsertParcial(String sitio, List<Product> productos,
+                                     List<SitioCategoriaNodo> arbolDeCategorias) {
         if (productos == null || productos.isEmpty()) return UpsertStats.CERO;
         try {
-            return tx.execute(status -> upsertParcialEnTransaccion(productos, status));
+            return tx.execute(status -> upsertParcialEnTransaccion(sitio, productos, arbolDeCategorias, status));
         } catch (RuntimeException e) {
             LOG.warn("[DB] Error en upsertParcial: {}", e.getMessage());
             return UpsertStats.CERO;
         }
     }
 
-    private UpsertStats upsertParcialEnTransaccion(List<Product> productos, TransactionStatus status) {
+    private UpsertStats upsertParcialEnTransaccion(String sitio, List<Product> productos,
+                                                   List<SitioCategoriaNodo> arbolDeCategorias,
+                                                   TransactionStatus status) {
         String now   = LocalDateTime.now().format(DT);
         String today = LocalDate.now().format(DATE);
         try {
-            return upsertRun(buildRowsJson(productos, now, today, false), false);
+            sitioCategorias.upsertArbol(sitio, arbolDeCategorias);
+            return upsertRun(buildRowsJson(productos, now, today, false), false, conCategoriaDelSitio(productos));
         } catch (Exception e) {
             LOG.warn("[DB] Error en upsertParcial: {}", e.getMessage());
             status.setRollbackOnly();
@@ -259,7 +278,8 @@ class ProductRepository implements ProductPort {
     }
 
     /** {@code sp_upsert_run} counts what it changed; the soft-delete is the caller's. */
-    private UpsertStats upsertRun(String rowsJson, boolean includeVisual) throws Exception {
+    private UpsertStats upsertRun(String rowsJson, boolean includeVisual, boolean vincularCategorias)
+            throws Exception {
         List<String> filas = new ArrayList<>();
         jdbc.query("SELECT sp_upsert_run(?::jsonb, ?)", ps -> {
             ps.setString(1, rowsJson);
@@ -268,6 +288,9 @@ class ProductRepository implements ProductPort {
             filas.add(rs.getString(1));
         });
         if (filas.isEmpty()) return UpsertStats.CERO;
+        if (vincularCategorias) {
+            jdbc.queryForObject("SELECT sp_vincular_sitio_categoria(?::jsonb)", Integer.class, rowsJson);
+        }
         JsonNode stats = MAPPER.readTree(filas.get(0));
         return new UpsertStats(stats.path("nuevos").asInt(0), stats.path("actualizados").asInt(0),
                 stats.path("sinCambios").asInt(0), 0);
