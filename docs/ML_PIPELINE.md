@@ -422,6 +422,16 @@ cada producto, pero `ProductRepository` se traga los errores SQL: el síntoma es
 [`docs/DATABASE.md`](./DATABASE.md) (`V31`, `V32`) y
 [`docs/ARCHITECTURE.md`](./ARCHITECTURE.md).
 
+**`deporte` es una dimensión, no una categoría.** Una camiseta de Boca sigue siendo
+`Remera` y además lleva `deporte='futbol'` (`V59`). `SportResolver` decide con el
+mapa de `SportTaxonomy` (futbol, natacion, hockey, rugby, tenis, basquet, voley,
+ciclismo, golf, combate; el primero que matchea gana). Dar de alta un deporte son
+**dos** cambios, igual que una categoría: el keyword y la fila en la tabla `deporte`
+(FK). Los clubes van con nombre completo (`river plate`, no `river`: "Kennebec
+River" es Timberland). `EligibilityPolicy` saca de armadores, recomendados y picks
+todo lo que tiene deporte o es `infantil`; el catálogo los sigue listando y filtra
+con `?deporte=`.
+
 **Un nombre de marca no es un sustantivo de producto.** `Proteína` era la
 categoría más grande del rubro suplementos y **61 de sus 201 filas no eran
 proteína** (medido 2026-09-02): `"protein "` sin espacio adelante se metía

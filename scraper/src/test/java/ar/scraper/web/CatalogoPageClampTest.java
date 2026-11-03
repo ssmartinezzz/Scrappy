@@ -118,10 +118,10 @@ class CatalogoPageClampTest extends ar.scraper.db.support.PostgresTestBase {
 
         ResponseEntity<?> respZero = controller.data(0, 1, null, null, null, null, null, null,
                 null, null, null, null, "precio_asc", null, null, null, null,
-                null, null, null, null, null);
+                null, null, null, null, null, null);
         ResponseEntity<?> respOne = controller.data(1, 1, null, null, null, null, null, null,
                 null, null, null, null, "precio_asc", null, null, null, null,
-                null, null, null, null, null);
+                null, null, null, null, null, null);
 
         assertThat(respZero.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(Wire.data(respZero).path("productos").get(0).path("url").asText()).isEqualTo("https://site.com/a");
@@ -136,7 +136,7 @@ class CatalogoPageClampTest extends ar.scraper.db.support.PostgresTestBase {
 
         ResponseEntity<?> resp = controller.data(-3, 24, null, null, null, null, null, null,
                 null, null, null, null, "precio_asc", null, null, null, null,
-                null, null, null, null, null);
+                null, null, null, null, null, null);
 
         assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
         JsonNode productos = Wire.data(resp).path("productos");
@@ -150,10 +150,10 @@ class CatalogoPageClampTest extends ar.scraper.db.support.PostgresTestBase {
 
         ResponseEntity<?> respZero = controller.data(0, 24, null, null, null, null, null, null,
                 null, null, null, null, "precio_asc", null, null, null, null,
-                null, null, null, null, null);
+                null, null, null, null, null, null);
         ResponseEntity<?> respNeg = controller.data(-5, 24, null, null, null, null, null, null,
                 null, null, null, null, "precio_asc", null, null, null, null,
-                null, null, null, null, null);
+                null, null, null, null, null, null);
 
         assertThat(Wire.page(respZero).path("number").asInt()).isZero();
         assertThat(Wire.page(respNeg).path("number").asInt()).isZero();
@@ -168,7 +168,7 @@ class CatalogoPageClampTest extends ar.scraper.db.support.PostgresTestBase {
 
         ResponseEntity<?> resp = controller.data(2, 1, null, null, null, null, null, null,
                 null, null, null, null, "precio_asc", null, null, null, null,
-                null, null, null, null, null);
+                null, null, null, null, null, null);
 
         assertThat(Wire.page(resp).path("number").asInt()).isEqualTo(2);
     }
@@ -186,7 +186,7 @@ class CatalogoPageClampTest extends ar.scraper.db.support.PostgresTestBase {
 
         ResponseEntity<?> resp = controller.data(Integer.MAX_VALUE, 24, null, null, null, null, null, null,
                 null, null, null, null, "precio_asc", null, null, null, null,
-                null, null, null, null, null);
+                null, null, null, null, null, null);
 
         assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
         JsonNode productos = Wire.data(resp).path("productos");
@@ -197,7 +197,7 @@ class CatalogoPageClampTest extends ar.scraper.db.support.PostgresTestBase {
     void emptyCatalogAnswers200WithAnEmptyEnvelopeNotA204() {
         ResponseEntity<?> resp = controller.data(0, 24, null, null, null, null, null, null,
                 null, null, null, null, "precio_asc", null, null, null, null,
-                null, null, null, null, null);
+                null, null, null, null, null, null);
 
         assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
         JsonNode data = Wire.data(resp);

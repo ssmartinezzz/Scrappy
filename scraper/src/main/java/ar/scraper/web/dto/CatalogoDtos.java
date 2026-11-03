@@ -84,6 +84,7 @@ public final class CatalogoDtos {
         private String genero;
         private String marca;
         private String rubro;
+        private String deporte;
         private boolean gymrat;
         private boolean marcaPremium;
         private int cantidadUnidades;
@@ -113,6 +114,7 @@ public final class CatalogoDtos {
             r.genero = ProductJson.safe(p.genero());
             r.marca = ProductJson.safe(p.marca());
             r.rubro = p.rubro() != null ? p.rubro() : "indumentaria";
+            r.deporte = ProductJson.safe(p.deporte());
             r.gymrat = p.gymrat();
             r.marcaPremium = p.marcaPremium();
             r.cantidadUnidades = p.cantidadUnidades();

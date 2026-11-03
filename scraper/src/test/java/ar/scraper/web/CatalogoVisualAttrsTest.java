@@ -148,7 +148,7 @@ class CatalogoVisualAttrsTest extends ar.scraper.db.support.PostgresTestBase {
 
         ResponseEntity<?> resp = controller.data(0, 24, null, null, null, null, null,
                 null, null, null, null, null, "precio_asc", null, null, null, null,
-                null, null, null, null, null);
+                null, null, null, null, null, null);
         JsonNode body = Wire.data(resp);
 
         assertThat(body.path("meta").path("facets").path("fits").get("oversize").asLong()).isEqualTo(1L);
@@ -165,7 +165,7 @@ class CatalogoVisualAttrsTest extends ar.scraper.db.support.PostgresTestBase {
         Allure.parameter("estampado", "estampado");
         ResponseEntity<?> resp = controller.data(0, 24, null, null, null, null, null,
                 null, null, null, null, null, "precio_asc", null, null, null, null,
-                null, "estampado", null, null, null);
+                null, "estampado", null, null, null, null);
 
         JsonNode productos = Wire.data(resp).path("productos");
         assertThat(productos).hasSize(1);
@@ -180,7 +180,7 @@ class CatalogoVisualAttrsTest extends ar.scraper.db.support.PostgresTestBase {
 
         ResponseEntity<?> resp = controller.data(0, 24, null, null, null, null, null,
                 null, null, null, null, null, "precio_asc", null, null, null, null,
-                "oversize", null, null, null, null);
+                "oversize", null, null, null, null, null);
 
         JsonNode productos = Wire.data(resp).path("productos");
         assertThat(productos).hasSize(1);
@@ -195,7 +195,7 @@ class CatalogoVisualAttrsTest extends ar.scraper.db.support.PostgresTestBase {
 
         ResponseEntity<?> resp = controller.data(0, 24, null, null, null, null, null,
                 null, null, null, null, null, "precio_asc", null, null, null, null,
-                null, null, "cuello redondo", null, null);
+                null, null, "cuello redondo", null, null, null);
 
         JsonNode productos = Wire.data(resp).path("productos");
         assertThat(productos).hasSize(1);
@@ -210,7 +210,7 @@ class CatalogoVisualAttrsTest extends ar.scraper.db.support.PostgresTestBase {
 
         ResponseEntity<?> resp = controller.data(0, 24, null, null, null, null, null,
                 null, null, null, null, null, "precio_asc", null, null, null, null,
-                null, null, null, "azul", null);
+                null, null, null, "azul", null, null);
 
         JsonNode productos = Wire.data(resp).path("productos");
         assertThat(productos).hasSize(1);
@@ -225,7 +225,7 @@ class CatalogoVisualAttrsTest extends ar.scraper.db.support.PostgresTestBase {
 
         ResponseEntity<?> resp = controller.data(0, 24, null, null, null, null, null,
                 null, null, null, null, null, "precio_asc", null, null, null, null,
-                null, null, null, null, null);
+                null, null, null, null, null, null);
 
         JsonNode productos = Wire.data(resp).path("productos");
         assertThat(productos).hasSize(2);
@@ -238,7 +238,7 @@ class CatalogoVisualAttrsTest extends ar.scraper.db.support.PostgresTestBase {
 
         ResponseEntity<?> resp = controller.data(0, 24, null, null, null, null, null,
                 null, null, null, null, null, "precio_asc", null, null, null, null,
-                null, null, null, "AZUL", null);
+                null, null, null, "AZUL", null, null);
 
         JsonNode productos = Wire.data(resp).path("productos");
         assertThat(productos).hasSize(1);
@@ -253,7 +253,7 @@ class CatalogoVisualAttrsTest extends ar.scraper.db.support.PostgresTestBase {
 
         ResponseEntity<?> resp = controller.data(0, 24, null, null, null, null, null,
                 List.of("Nike"), null, null, null, null, "precio_asc", null, null, null, null,
-                null, null, null, null, null);
+                null, null, null, null, null, null);
 
         JsonNode productos = Wire.data(resp).path("productos");
         assertThat(productos).hasSize(1);

@@ -3,6 +3,7 @@ package ar.scraper.web;
 import ar.scraper.indices.IndiceService;
 
 import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
+import ar.scraper.aggregator.normalize.SportTaxonomy;
 import ar.scraper.catalog.CatalogFilter;
 import ar.scraper.catalog.CatalogPage;
 import ar.scraper.catalog.CatalogQueryPort;
@@ -29,6 +30,7 @@ import org.springframework.web.bind.annotation.*;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import org.apache.commons.lang3.StringUtils;
 
@@ -62,6 +64,17 @@ public class CatalogoController {
         this.financiacionEnricher = new ar.scraper.ml.FinanciacionEnricher(presets, indiceService);
     }
 
+    /** A sport code from the {@code deporte} domain, lower-cased; blank is no filter, a typo is a 400. */
+    private static String deporteConocido(String valor) {
+        if (StringUtils.isBlank(valor)) return null;
+        String codigo = valor.trim().toLowerCase(Locale.ROOT);
+        if (!SportTaxonomy.KEYWORDS.containsKey(codigo)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "solicitud_invalida",
+                    "deporte desconocido: " + codigo + ". Válidos: " + String.join(", ", SportTaxonomy.KEYWORDS.keySet()));
+        }
+        return codigo;
+    }
+
     @GetMapping("/data")
     public ResponseEntity<ApiResponse<CatalogoDtos.Catalogo>> data(@RequestParam(defaultValue = "0")   int page,
             @RequestParam(defaultValue = "24")  int size,
@@ -84,11 +97,12 @@ public class CatalogoController {
             @RequestParam(required = false)     String estampado,
             @RequestParam(required = false)     String escote,
             @RequestParam(required = false)     String colorDominante,
-            @RequestParam(required = false)     List<String> excluirCategoria) {
+            @RequestParam(required = false)     List<String> excluirCategoria,
+            @RequestParam(required = false)     String deporte) {
         CatalogFilter filtro = new CatalogFilter(
                 talle, genero, categoria, q, sitio, marca, badge, segment, rubro,
                 gymrat, pack, precioMin, precioMax, subCategoria,
-                fit, estampado, escote, colorDominante, excluirCategoria);
+                fit, estampado, escote, colorDominante, excluirCategoria, deporteConocido(deporte));
 
         // Summary and page share one bound: an unbounded summary next to a bounded page would offer
         // facets the page cannot satisfy.

@@ -334,6 +334,10 @@ class CatalogQueryRepository implements CatalogQueryPort {
         if (Boolean.TRUE.equals(f.gymrat())) {
             cond.add("p.gymrat");
         }
+        if (noVacio(f.deporte())) {
+            cond.add("p.deporte = ?");
+            params.add(f.deporte().trim());
+        }
         if (Boolean.TRUE.equals(f.pack())) {
             cond.add("p.cantidad_unidades > 1");
         }

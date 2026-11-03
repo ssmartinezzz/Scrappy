@@ -116,7 +116,7 @@ class CatalogoExcluirCategoriaTest extends ar.scraper.db.support.PostgresTestBas
 
         ResponseEntity<?> resp = controller.data(0, 24, null, null, null, null, null,
                 null, null, null, null, null, "precio_asc", null, null, null, null,
-                null, null, null, null, List.of("Otros", "Alimentos"));
+                null, null, null, null, List.of("Otros", "Alimentos"), null);
 
         JsonNode productos = Wire.data(resp).path("productos");
         assertThat(productos).hasSize(1);
@@ -129,7 +129,7 @@ class CatalogoExcluirCategoriaTest extends ar.scraper.db.support.PostgresTestBas
 
         ResponseEntity<?> resp = controller.data(0, 24, null, null, null, null, null,
                 null, null, null, null, null, "precio_asc", null, null, null, null,
-                null, null, null, null, null);
+                null, null, null, null, null, null);
 
         assertThat(Wire.data(resp).path("productos")).hasSize(2);
     }

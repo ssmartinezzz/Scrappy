@@ -216,6 +216,17 @@ components:
       description: >-
         Categories to leave out (case-insensitive exact match). Rows with no
         `categoria` are kept. Absent or empty excludes nothing.
+    Deporte:
+      name: deporte
+      in: query
+      schema:
+        type: string
+        enum: [futbol, natacion, hockey, rugby, tenis, basquet, voley, ciclismo, golf, combate]
+      description: >-
+        Only products of that sport (exact code, case-insensitive). Absent or
+        blank applies no filter; an unknown code is a 400 `solicitud_invalida`. Each product row carries `deporte`
+        (`""` when it has none); the catalog lists sport rows by default, only
+        the builders and feeds leave them out.
     RefreshCsrf:
       name: X-Refresh-CSRF
       in: header
@@ -774,6 +785,7 @@ paths:
         - $ref: "#/components/parameters/Escote"
         - $ref: "#/components/parameters/ColorDominante"
         - $ref: "#/components/parameters/ExcluirCategoria"
+        - $ref: "#/components/parameters/Deporte"
       responses:
         "200":
           description: "`data`: `{ meta, productos[] }` plus `page`. An empty catalog answers 200 with empty items and `page.total = 0`, never 204."
@@ -781,6 +793,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiPagedResponse"
+        "400":
+          description: "`solicitud_invalida` — `deporte` is not one of the known codes."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
     delete:
       tags: [Catálogo]
       summary: Soft-delete a catalog product (shared data, not personal).
