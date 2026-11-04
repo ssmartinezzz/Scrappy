@@ -50,6 +50,13 @@ record TextoClasificable(String crudo, String normalizado, String sinPrefijoDeVe
         return sinPrefijoDeVentaEmpiezaCon(lideres) && !contiene(vetos);
     }
 
+    boolean lideraUnNombreCompuestoSinVeto(String[] lideres, String[] vetos) {
+        for (String lider : lideres) {
+            if (sinPrefijoDeVenta.equals(lider)) return false;
+        }
+        return lideraSinVeto(lideres, vetos);
+    }
+
     boolean lideraConCalificador(String[] lideres, String[] calificadores) {
         return sinPrefijoDeVentaEmpiezaCon(lideres) && contiene(calificadores);
     }

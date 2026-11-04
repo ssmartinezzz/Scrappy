@@ -923,6 +923,7 @@ public final class GarmentTaxonomy {
         " aparador"," vitrina "," rinconero"," esquinero "," tocador "," cristalero"," repisero"," centro de trabajo",
         " centro trabajo"
     };
+    public static final String[] KW_ESCRITORIO_LIDER = { " escritorio "," escritorios " };
     public static final String[] KW_MUEBLE_VETO = { " gamer"," camping"," pc gamer"," exhibidor"," vestuario" };
     public static final String[] KW_MESA_LIDER = {
         " mesa "," mesas "," mesa ratona"," mesa de comedor"," comedor "," comedores "," juego de comedor",

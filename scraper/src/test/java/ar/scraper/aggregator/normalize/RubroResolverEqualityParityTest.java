@@ -132,7 +132,8 @@ class RubroResolverEqualityParityTest {
             for (String cat : cats) {
                 for (String rubroExistente : rubrosExistentes) {
                     total++;
-                    if (CategoryGroups.esCategoriaConstruccion(cat) || CategoryGroups.esCategoriaHogar(cat)) {
+                    if (CategoryGroups.esCategoriaConstruccion(cat) || CategoryGroups.esCategoriaHogar(cat)
+                            || CategoryGroups.categoriasOficina().contains(cat)) {
                         continue;
                     }
                     String oldResult = oldSubstringResolver(sitioKey, cat, rubroExistente);

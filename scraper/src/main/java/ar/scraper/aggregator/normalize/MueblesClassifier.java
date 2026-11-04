@@ -6,6 +6,7 @@ final class MueblesClassifier implements FamiliaClassifier {
     public String clasificar(TextoClasificable texto) {
         String dormitorio = clasificarDormitorio(texto);
         if (!dormitorio.isEmpty()) return dormitorio;
+        if (texto.lideraUnNombreCompuestoSinVeto(GarmentTaxonomy.KW_ESCRITORIO_LIDER, GarmentTaxonomy.KW_ESCRITORIO_PARTE)) return "Escritorio";
         if (texto.lideraSinVeto(GarmentTaxonomy.KW_MUEBLE_LIDER, GarmentTaxonomy.KW_MUEBLE_VETO)) return "Mueble";
         if (texto.lideraSinVeto(GarmentTaxonomy.KW_MESA_LIDER, GarmentTaxonomy.KW_MESA_VETO)) return "Mesa";
         if (texto.lideraSinVeto(GarmentTaxonomy.KW_SILLON_LIDER, GarmentTaxonomy.KW_SILLON_VETO)) return "Sillón";

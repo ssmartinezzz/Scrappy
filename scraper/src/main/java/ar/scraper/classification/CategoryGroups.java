@@ -141,8 +141,8 @@ public final class CategoryGroups {
     }
 
     /**
-     * {@link RubroResolver} resuelve {@code oficina} por {@code sitio.rubro_forzado}, nunca por la
-     * categoría.
+     * {@link RubroResolver} resuelve {@code oficina} por {@code sitio.rubro_forzado} y, en los sitios
+     * sin rubro forzado, por estas categorías.
      */
     public static Set<String> categoriasOficina() {
         return CATEGORIAS_OFICINA;

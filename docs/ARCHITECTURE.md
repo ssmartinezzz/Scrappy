@@ -185,11 +185,13 @@ como `tecnologia` no es un compromiso: es el dato roto que el `CHECK` existe
 para impedir, y además contamina las estadísticas por categoría de las que come
 el pipeline ML.
 
-El rubro se resuelve por `sitio.rubro_forzado` y **nunca** por la categoría —
-una silla la vende una tienda de oficina, pero una silla suelta en una tienda
-de ropa no convierte a esa tienda en otra cosa. `suplementos` es la excepción
-deliberada y ya existente: ahí la categoría gana sobre el sitio, porque un
-suplemento es un suplemento lo venda quien lo venda.
+El rubro `oficina` se resuelve por `sitio.rubro_forzado` y, en los sitios sin
+rubro forzado, por la categoría: un sitio mixto como Easy no tiene un rubro que
+forzar, y sin esa regla sus sillas quedaban en `indumentaria`, el default del
+builder. El costo es aceptado: una silla suelta en una tienda de ropa sin rubro
+forzado también cae en `oficina`. `suplementos` es la otra excepción: ahí la
+categoría gana sobre el sitio, porque un suplemento es un suplemento lo venda
+quien lo venda.
 
 El esquema, las tres ampliaciones de `CHECK` y su rollback están en
 [`DATABASE.md`, `V27`](./DATABASE.md).
@@ -1641,13 +1643,13 @@ momento del scrape — ver `V17` más abajo.
 
 `rubro` tiene **seis** valores desde `V45`: `indumentaria` · `tecnologia` ·
 `suplementos` · `oficina` · `construccion` · `hogar`. Lo resuelve `RubroResolver` por
-`sitio.rubro_forzado`, **nunca** por la categoría: una silla la vende una
-tienda de oficina, pero una silla suelta en una tienda de ropa no convierte a
-esa tienda en otra cosa. La excepción es `suplementos`, donde la categoría sí
-manda —un suplemento es un suplemento lo venda quien lo venda— y por eso gana
-sobre el rubro forzado del sitio. `construccion` y `hogar` también deciden por
-categoría (después de los forzados `tecnologia` y `oficina`): `ambiancedeco`
-vende revestimientos y textiles de hogar bajo un solo rubro forzado.
+`sitio.rubro_forzado`, salvo donde decide la categoría. `suplementos`: un
+suplemento es un suplemento lo venda quien lo venda, y por eso gana sobre el
+rubro forzado del sitio. `construccion` y `hogar` también deciden por categoría
+(después de los forzados `tecnologia` y `oficina`): `ambiancedeco` vende
+revestimientos y textiles de hogar bajo un solo rubro forzado. `oficina` decide
+por categoría sólo en los sitios sin rubro forzado: Easy es mixto, y sin esa
+regla sus sillas quedaban en `indumentaria`.
 
 `sitioCategoriaOrigenId` es la hoja del árbol de categorías del propio sitio donde éste ubica al producto
 (`categoryId` en VTEX): `null` es "el sitio no la publica", nunca un sentinel. Sólo `VtexPage` la llena; el upsert la

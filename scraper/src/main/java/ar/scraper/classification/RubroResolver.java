@@ -37,6 +37,8 @@ public class RubroResolver {
             return "hogar";
         } else if (catEsTextil) {
             return "indumentaria";
+        } else if (StringUtils.isBlank(rubroForzado) && CategoryGroups.categoriasOficina().contains(cat)) {
+            return "oficina";
         } else if (StringUtils.isNotBlank(rubroExistente)) {
             return rubroExistente;
         } else {
