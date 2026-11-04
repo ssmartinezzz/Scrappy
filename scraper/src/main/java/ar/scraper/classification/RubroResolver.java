@@ -43,7 +43,7 @@ public class RubroResolver {
             return "deporte";
         } else if (StringUtils.isBlank(rubroForzado) && CategoryGroups.esCategoriaJuguetes(cat)) {
             return "juguetes";
-        } else if (StringUtils.isBlank(rubroForzado) && CategoryGroups.esCategoriaTvYAudio(cat)) {
+        } else if (StringUtils.isBlank(rubroForzado) && CategoryGroups.esCategoriaTech(cat)) {
             return "tecnologia";
         } else if (StringUtils.isNotBlank(rubroExistente)) {
             return rubroExistente;

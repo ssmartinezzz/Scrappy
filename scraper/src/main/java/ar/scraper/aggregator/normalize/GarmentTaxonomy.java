@@ -408,7 +408,7 @@ public final class GarmentTaxonomy {
 
     public static final String[] KW_NOTEBOOK = {
         "notebook","laptop","netbook","macbook","chromebook",
-        "portatil","computadora portatil"
+        "computadora portatil"
     };
 
     // Van padded con espacios porque anyMatch es un contains() pelado sobre un texto que
@@ -1219,7 +1219,7 @@ public final class GarmentTaxonomy {
     };
     public static final String[] KW_ACCESORIO_PILETA_LIDER = {
         " sacahojas "," saca hojas"," limpiafondo "," limpiafondos "," limpia fondo"," pertiga "," pertigas ",
-        " cubre pileta"," cubre piscina"," accesorios para piletas"," filtros y bombas para piletas"," boya "," boyas "," expendedor "
+        " cartucho filtro"," cartucho de filtro"," cubre pileta"," cubre piscina"," accesorios para piletas"," filtros y bombas para piletas"," boya "," boyas "," expendedor "
     };
     public static final String[] KW_ACCESORIO_PILETA_CALIFICADOR = {
         " pileta"," piscina"," pelopincho"," filtrante"
@@ -1246,7 +1246,7 @@ public final class GarmentTaxonomy {
         " auto"," rack"," techo"," portaequipaje"," moto"," bici"," horno de"," para horno"
     };
     public static final String[] KW_ACCESORIO_PARRILLA_LIDER = {
-        " set parrillero"," set de parrilla"," set para parrilla"," set para asado"," set de asado"," set asado"," provoletera ",
+        " set parrillero"," set de parrilla"," set para parrilla"," set para asado"," set de asado"," set asado"," fuente parrillera"," provoletera ",
         " provoletero "," atizador "," atizadores "," pinche "," pinches "," plancheta "," planchetas "," accesorios para parrillas",
         " tablas y cuchillas"," tabla para asado"," tabla de asado"," tabla asado"," tabla parrillera"," tabla de picada",
         " tabla para picada"," tabla picada"," garras "," kit parrillero"," cepillo para parrilla"," cepillo de parrilla",
@@ -1346,7 +1346,7 @@ public final class GarmentTaxonomy {
         " rafia "," polietileno"," invernal"," plantas"," huerta"
     };
     public static final String[] KW_DECO_JARDIN_LIDER = {
-        " fuente de agua"," fuente de jardin"," fuente piedras"," fuente con"," fuente led"," fuente solar "," fuente de pared"," fuente de piso"," fuente poliresina",
+        " fuente decorativa"," fuente de agua"," fuente de jardin"," fuente piedras"," fuente con"," fuente led"," fuente solar "," fuente de pared"," fuente de piso"," fuente poliresina",
         " figura decorativa"," figura de jardin"," figura arcilla"," figura "," figuras "," antorcha "," antorchas "," piedra decorativa"," piedras decorativas",
         " bolson de piedra"," bolson piedra"," deco jardin"," sahumerio "," sahumerios "," estatua "," enano de jardin"," cesped decorativo"," pasto decorativo"," cerco decorativo"
     };
@@ -1393,7 +1393,7 @@ public final class GarmentTaxonomy {
         " carga"," de baterias"," prueba"," power"," inclinable"," ajustable"," banco de pesas"," de pesas"," fitness"," de banquetas"," mecanico"," tornillo"," herramienta"," morsa"," whisky"," vino"," coctel"," cocteleria"
     };
     public static final String[] KW_DEPOSITO_JARDIN_LIDER = {
-        " bodega "," bodegas "," deposito de jardin"," deposito para jardin"," deposito jardin"," deposito exterior"," deposito "," depositos "," invernadero "," invernaderos "," depositos de jardin"
+        " gabinete polipropileno"," gabinete rattan"," gabinete ratan"," gabinete resina"," gabinete plastico"," bodega "," bodegas "," deposito de jardin"," deposito para jardin"," deposito jardin"," deposito exterior"," deposito "," depositos "," invernadero "," invernaderos "," depositos de jardin"
     };
     public static final String[] KW_DEPOSITO_JARDIN_VETO = {
         " inodoro"," agua "," mochila"," dual"," bano"," sanitario"," descarga"," ferrum"," externo"," tanque"," bari"," pared"," ideal"," colgar"," para mochila"," cisterna"," loza"
@@ -1674,6 +1674,10 @@ public final class GarmentTaxonomy {
         " cable ", " cables ", " adaptador ", " adaptadores ", " ficha ",
         " patchcord ", " conversor ", " prolongador ", " extension usb "
     };
+
+    public static final String[] KW_CABLE_VETO = { " control de bloqueo" };
+    public static final String[] KW_GABINETE_VETO = { " bano"," cocina"," colgante"," herramienta"," mueble"," zapatero" };
+    public static final String[] KW_FUENTE_VETO = { " horno"," vidrio"," loza"," ensalad"," servir" };
 
     public static final String[] KW_GABINETE_ACCESORIO_LIDER = {
         " bracket ", " filtro ", " soporte ", " kit "

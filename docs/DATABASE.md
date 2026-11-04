@@ -4036,7 +4036,7 @@ reclasificados quedan con `categoria` NULL hasta el próximo scrape.
 
 ## `V68` — categorías de jardín, automotor y electrodomésticos
 
-Easy vende parrillas, piletas, carpas, productos para mascotas, repuestos y línea blanca: sin estas categorías sus heladeras caen en `Otros`, sus piletas en `Malla`, sus fuentes de jardín en `Fuente` (la de PC) y sus plantas en `Alimentos`. `V68` agrega 50 filas a `categoria` (sólo datos, sin cambio de esquema ni del `CHECK` de `rubro`, decisión D-1 de `easy-com-ar-site`). 49 van a `CategoryGroups.CATEGORIAS_HOGAR` y `TV y Audio` a `CATEGORIAS_TECH`, así que su rubro es `tecnologia`: `RubroResolver` tiene una rama propia para ella en los sitios sin `rubro_forzado`, porque si no heredaría el `indumentaria` que el builder deja por defecto. Es sólo para esa categoría; el resto de `CATEGORIAS_TECH` sigue sin esa rama.
+Easy vende parrillas, piletas, carpas, productos para mascotas, repuestos y línea blanca: sin estas categorías sus heladeras caen en `Otros`, sus piletas en `Malla`, sus fuentes de jardín en `Fuente` (la de PC) y sus plantas en `Alimentos`. `V68` agrega 50 filas a `categoria` (sólo datos, sin cambio de esquema ni del `CHECK` de `rubro`, decisión D-1 de `easy-com-ar-site`). 49 van a `CategoryGroups.CATEGORIAS_HOGAR` y `TV y Audio` a `CATEGORIAS_TECH`, así que su rubro es `tecnologia`: `RubroResolver` resuelve `tecnologia` por categoría en los sitios sin `rubro_forzado`, porque si no heredaría el `indumentaria` que el builder deja por defecto. Desde la decisión D-5 la rama cubre todo `CATEGORIAS_TECH` y no sólo esta categoría: un monitor o un reloj de un sitio mixto también es `tecnologia`.
 
 | Familia | Categorías nuevas |
 |---|---|

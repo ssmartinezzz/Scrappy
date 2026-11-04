@@ -52,8 +52,6 @@ public final class CategoryGroups {
         "Mini PC", "TV y Audio"
     );
 
-    private static final String CATEGORIA_TV_Y_AUDIO = "TV y Audio";
-
     /** Aparte de {@code INDUMENTARIA_O_CALZADO_EXTRA} a propósito: una pelota no es ropa. */
     private static final Set<String> CATEGORIAS_DEPORTE = Set.of(
         "Pelota","Paleta","Bicicleta","Monopatín","Repuesto de Bicicleta","Pesas","Accesorio de Fitness",
@@ -151,8 +149,8 @@ public final class CategoryGroups {
         return cat != null && CATEGORIAS_JUGUETES.contains(cat);
     }
 
-    public static boolean esCategoriaTvYAudio(String cat) {
-        return CATEGORIA_TV_Y_AUDIO.equals(cat);
+    public static boolean esCategoriaTech(String cat) {
+        return cat != null && CATEGORIAS_TECH.contains(cat);
     }
 
     public static boolean esCategoriaHogar(String cat) {

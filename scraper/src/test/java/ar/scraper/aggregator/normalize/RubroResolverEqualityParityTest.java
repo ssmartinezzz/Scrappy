@@ -94,6 +94,9 @@ class RubroResolverEqualityParityTest {
         SiteRegistry registry = SiteRegistry.forTesting(cache);
         RubroResolver equality = new RubroResolver(registry);
 
+        Map<String, String> rubroForzadoPorSitio = new HashMap<>();
+        for (SeedRow r : rows) rubroForzadoPorSitio.put(r.sitioKey(), r.rubroForzado());
+
         Set<String> sitioKeys = new LinkedHashSet<>();
         for (SeedRow r : rows) sitioKeys.add(r.sitioKey());
         assertThat(sitioKeys).as("sitio_key entries parsed from " + V18).hasSize(23);
@@ -134,7 +137,7 @@ class RubroResolverEqualityParityTest {
                     total++;
                     if (CategoryGroups.esCategoriaConstruccion(cat) || CategoryGroups.esCategoriaHogar(cat)
                             || CategoryGroups.categoriasOficina().contains(cat)
-                            || CategoryGroups.esCategoriaTvYAudio(cat)
+                            || (CategoryGroups.esCategoriaTech(cat) && sinRubroForzado(rubroForzadoPorSitio, sitioKey))
                             || CategoryGroups.esCategoriaDeporte(cat)
                             || CategoryGroups.esCategoriaJuguetes(cat)) {
                         continue;
@@ -156,6 +159,11 @@ class RubroResolverEqualityParityTest {
     }
 
     // ─── helpers — same parsing mechanism as SitioSeedSyncTest ────────────────
+
+    private static boolean sinRubroForzado(Map<String, String> rubroForzadoPorSitio, String sitioKey) {
+        String forzado = rubroForzadoPorSitio.get(sitioKey);
+        return forzado == null || forzado.isBlank();
+    }
 
     private record SeedRow(String nombre, String sitioKey, String plataforma,
                             boolean esPremium, String rubroForzado, String origen) {

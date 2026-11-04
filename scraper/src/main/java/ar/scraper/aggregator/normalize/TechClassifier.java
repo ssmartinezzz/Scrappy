@@ -24,7 +24,9 @@ final class TechClassifier implements FamiliaClassifier {
         if (texto.contiene(GarmentTaxonomy.KW_RED)
                 || (texto.contiene(GarmentTaxonomy.KW_RED_SWITCH) && texto.contiene(GarmentTaxonomy.KW_RED_CONTEXTO)))
             return "Red";
-        if (texto.empiezaLiteralmenteCon(GarmentTaxonomy.KW_CABLE_LIDER))    return "Cable";
+        if (texto.empiezaLiteralmenteCon(GarmentTaxonomy.KW_CABLE_LIDER)
+                && !texto.contiene(GarmentTaxonomy.KW_CABLE_VETO))
+            return "Cable";
         if (texto.contiene(GarmentTaxonomy.KW_NOTEBOOK) || esFormaDeNotebook(texto))
             return "Notebook";
         if (texto.contiene(GarmentTaxonomy.KW_TABLET))                       return "Tablet";
@@ -33,9 +35,12 @@ final class TechClassifier implements FamiliaClassifier {
         if (texto.contiene(GarmentTaxonomy.KW_MONITOR))                      return "Monitor";
         if (texto.contiene(GarmentTaxonomy.KW_GPU))                          return "GPU";
         if (texto.contiene(GarmentTaxonomy.KW_MOTHERBOARD))                  return "Motherboard";
-        if (texto.empiezaCon(GarmentTaxonomy.KW_FUENTE_LIDER))               return "Fuente";
-        if (texto.contiene(GarmentTaxonomy.KW_GABINETE))                     return "Gabinete";
-        if (texto.contiene(GarmentTaxonomy.KW_FUENTE))                       return "Fuente";
+        if (texto.empiezaCon(GarmentTaxonomy.KW_FUENTE_LIDER) && !texto.contiene(GarmentTaxonomy.KW_FUENTE_VETO))
+            return "Fuente";
+        if (texto.contiene(GarmentTaxonomy.KW_GABINETE) && !texto.contiene(GarmentTaxonomy.KW_GABINETE_VETO))
+            return "Gabinete";
+        if (texto.contiene(GarmentTaxonomy.KW_FUENTE) && !texto.contiene(GarmentTaxonomy.KW_FUENTE_VETO))
+            return "Fuente";
         if (texto.empiezaCon(GarmentTaxonomy.KW_ALMACENAMIENTO_LIDER)
                 && texto.contiene(GarmentTaxonomy.KW_ALMACENAMIENTO))
             return "Almacenamiento";

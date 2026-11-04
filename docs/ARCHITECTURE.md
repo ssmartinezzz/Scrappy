@@ -1653,7 +1653,9 @@ rubro forzado del sitio. `construccion` y `hogar` también deciden por categorí
 (después de los forzados `tecnologia` y `oficina`): `ambiancedeco` vende
 revestimientos y textiles de hogar bajo un solo rubro forzado. `oficina` decide
 por categoría sólo en los sitios sin rubro forzado: Easy es mixto, y sin esa
-regla sus sillas quedaban en `indumentaria`. `deporte` y `juguetes` siguen el mismo
+regla sus sillas quedaban en `indumentaria`. `tecnologia` también sale de la categoría en los sitios sin rubro forzado (decisión D-5, todo
+`CATEGORIAS_TECH`): un monitor de Easy ya no cae en `indumentaria`, y el costo aceptado es que un reloj Garmin o un
+periférico gamer de una tienda deportiva sin rubro forzado pasa a `tecnologia`. `deporte` y `juguetes` siguen el mismo
 criterio (decisión D-6): equipamiento deportivo y juguetes por categoría, sólo sin rubro forzado, y un rubro forzado
 gana siempre. La ropa deportiva se queda en `indumentaria`; el `deporte` de `SportResolver` es una dimensión aparte.
 
