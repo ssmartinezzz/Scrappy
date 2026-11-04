@@ -39,7 +39,7 @@ class GarmentTaxonomyFlatDerivationGuardTest {
     // KW_MUSCULOSA, KW_CAMISA, KW_REMERA) — transcribed independently of
     // GarmentTaxonomy's own derivation.
     private static final String[][] TORSO_COMPOSING_ARRAYS = {
-        {"puffer","plumon","pluma","down jacket","down coat",
+        {"puffer","plumon"," pluma "," plumas ","down jacket","down coat",
          "campera inflable","chaleco inflable","abrigo inflable","parka inflable",
          "acolchada","acolchado","anorak termico"},
         {"piloto","impermeable","lluvia","rain jacket","waterproof jacket",
@@ -47,15 +47,15 @@ class GarmentTaxonomyFlatDerivationGuardTest {
         {"saco ","sacos ","blazer","americana","sport coat",
          "tuxedo","saco de vestir","saco formal","saco lino",
          "saco tweed","saco sastre"},
-        {"chaleco","gilet","vest ","waistcoat","chaleco de abrigo",
+        {"chaleco","gilet"," vest ","waistcoat","chaleco de abrigo",
          "chaleco inflable","chaleco pluma","chaleco polar",
          "chaleco tejido","chaleco cuero"},
         {"campera","jacket","chaqueta","cortaviento","rompeviento",
          "windbreaker","anorak","softshell","shell",
-         "bomber","track jacket","tricota"},
+         " bomber ","track jacket","tricota"},
         {"sweater","pulover","pullover","jersey","knit","tejido",
-         "tricot","cardigan","lana","merino","crochet"},
-        {"buzo","hoodie","hoody","sweatshirt","sudadera",
+         "tricot","cardigan"," lana","merino","crochet"},
+        {" buzo "," buzos ","hoodie","hoody","sweatshirt","sudadera",
          "fleece","polar","zip hoodie","full zip","half zip","canguro"},
         {"casaca","camiseta de futbol","camiseta futbol","jersey futbol",
          "camiseta seleccion","camiseta club","replica","kit futbol",
@@ -86,7 +86,7 @@ class GarmentTaxonomyFlatDerivationGuardTest {
         {"calza","legging","leggin","tight","malla deportiva","capri","culote"},
         {"baggy","wide leg","pierna ancha","balloon","paperbag",
          "oversize jean","oversized jean","barrel","loose fit",
-         "baggy pant","wide pant","cargo pant","carpintero",
+         "baggy pant","wide pant","cargo pant","pantalon carpintero","jean carpintero",
          "parachute pant","jogger baggy"},
         {"jean","denim","jeans","vaquero","skinny jean",
          "slim jean","bootcut","straight jean"},
@@ -97,11 +97,11 @@ class GarmentTaxonomyFlatDerivationGuardTest {
         {"short","cargo short","swim short","boxer deportivo"},
         {"vestido","dress ","playero","maxidress","midi dress",
          "vestido largo","vestido corto","vestido de noche"},
-        {"enterito","mono ","jumpsuit","overol","romper","mameluco",
+        {"enterito"," mono ","jumpsuit","overol","romper","mameluco",
          "enterito largo","catsuit"},
         {"pollera","falda","skirt","minifalda","midi skirt",
          "maxi falda","falda plisada","mini pollera"},
-        {"pantalon","pant ","trouser","cargo ","chino ","formal pant"}
+        {"pantalon","pant ","trouser","cargo "," chino ","formal pant"}
     };
 
     private static String[] flatten(String[][] groups) {

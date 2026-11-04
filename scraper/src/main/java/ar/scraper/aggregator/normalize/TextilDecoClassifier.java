@@ -28,6 +28,8 @@ final class TextilDecoClassifier implements FamiliaClassifier {
         if (texto.lideraSinVeto(GarmentTaxonomy.KW_DECORACION_LIDER, GarmentTaxonomy.KW_DECORACION_VETO)
                 || texto.lideraConCalificador(GarmentTaxonomy.KW_ARBOL_LIDER, GarmentTaxonomy.KW_ARBOL_CALIFICADOR))
             return "Decoración";
+        if (texto.lideraConCalificador(GarmentTaxonomy.KW_RELOJ_DECO_LIDER, GarmentTaxonomy.KW_RELOJ_DECO_CALIFICADOR))
+            return "Decoración";
         if (texto.lideraSinVeto(GarmentTaxonomy.KW_BAZAR_LIDER, GarmentTaxonomy.KW_BAZAR_VETO)) return "Bazar";
         return "";
     }

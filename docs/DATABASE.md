@@ -61,7 +61,7 @@ ml_output            -- Último output JSON del pipeline
 image_embeddings     -- Cache de embeddings Marqo (url PK, bytea, model_version)
 categoria_stats      -- Stats de precio por categoría, 12 columnas tipadas + FK a categoria (V16)
 sitios_dinamicos     -- Sitios agregados desde el dashboard
-sitio                -- Identidad de sitio: plataforma, es_premium, rubro_forzado (V18, leída por SiteRegistry desde V20)
+sitio                -- Identidad de sitio: plataforma, es_premium, rubro_forzado (V18), rubro_por_defecto (V71); leída por SiteRegistry desde V20
 favoritos            -- Productos guardados
 precios_externos     -- Comparativas MercadoLibre
 outfit_feedback_item -- Likes/dislikes por ítem (la tabla legacy por-outfit se borró en V15)
@@ -145,6 +145,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V68` | 49 categorías de `hogar` (jardín, parrillas, piletas, camping, mascotas, automotor, electrodomésticos) y `TV y Audio` en `tecnologia` |
 | `V69` | Rubros `deporte` y `juguetes` (`chk_productos_rubro_domain` pasa de 6 a 8 valores) y 9 categorías de tiempo libre |
 | `V70` | `sitio_categoria.categoria` (FK nullable a `categoria`): el mapeo curado de las hojas de Easy, sembrado |
+| `V71` | `sitio.rubro_por_defecto` (nullable, mismo dominio que `rubro_forzado`): el rubro de las filas que llegan a la cola de `RubroResolver`; sembrado `construccion` para Easy |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -4187,8 +4188,37 @@ ALTER TABLE sitio_categoria DROP COLUMN categoria;
 -- <<< rollback:V70
 ```
 
-Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V69`. Tiene que correr antes que los de
+Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V71` y antes que el de `V69`. Tiene que correr antes que los de
 `V64`..`V69`, que borran filas de `categoria`: con la FK puesta, esos `DELETE` fallarían contra las hojas sembradas. El
 `DELETE` de la primera línea quita sólo las hojas sembradas que ningún scrape tocó (`padre_id` NULL y con categoría;
 las hojas de Easy tienen siempre un padre, así que tras el primer scrape ya no matchea nada); las filas del árbol que
 un scrape sí cargó se conservan, con `categoria` perdida.
+
+---
+
+## `V71` — `sitio.rubro_por_defecto`: el rubro de la cola del resolver
+
+`sitio.rubro_por_defecto` es **nullable** y tiene el mismo dominio que `rubro_forzado`
+(`sitio_rubro_por_defecto_check`: `tecnologia`, `suplementos`, `oficina`, `construccion`, `hogar`). NULL es "este sitio no
+declara default" y se comporta exactamente como antes. `RubroResolver` lo usa **sólo en la cola**: después de las ramas de
+`oficina`, `deporte`, `juguetes` y `tecnologia` por categoría y **antes** de `rubroExistente`, porque el default del
+builder (`indumentaria`) llena siempre ese argumento (mismo motivo que `D-3`). Una categoría textil, de suplementos, de
+construcción o de hogar y un `rubro_forzado` ganan siempre sobre el default; no hay un `if` por sitio.
+
+Sólo Easy lo lleva sembrado (`construccion`): de sus 1.733 filas en `Otros` y `Conjunto`, 1.221 (70 %) cuelgan de
+Ferretería, Plomería, Electricidad, Construcción, Herramientas y Pinturas. El costo es aceptado: el otro ~30 % (Textil,
+Organización, Jardín) recibe un rubro equivocado en vez del `indumentaria` equivocado de hoy. Un sitio nuevo con
+catálogo mixto lo declara en su migración de seed. `SiteRegistry.rubroPorDefecto(sitioKey)` lo expone y `JdbcSiteSource`
+lo lee con el resto de la fila; `SitiosRepository` y `ScrapeRunRepository` insertan filas de `sitio` sin la columna (NULL).
+
+### Rollback
+
+```sql
+-- >>> rollback:V71
+ALTER TABLE sitio DROP CONSTRAINT sitio_rubro_por_defecto_check;
+ALTER TABLE sitio DROP COLUMN rubro_por_defecto;
+-- <<< rollback:V71
+```
+
+Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V70`. No toca datos de `productos`: las
+filas ya clasificadas conservan su `rubro` hasta la próxima corrida, que vuelve a resolver la cola con `indumentaria`.

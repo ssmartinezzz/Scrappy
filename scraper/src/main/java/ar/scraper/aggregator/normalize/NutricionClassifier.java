@@ -16,7 +16,8 @@ final class NutricionClassifier implements FamiliaClassifier {
                 || (cabezaDeProteina
                     && GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_PROTEINA_VEGETAL_RECLAMO)))
             return "Proteína Vegetal";
-        if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_PROTEINA_ISOLADA)
+        if ((GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_PROTEINA_ISOLADA)
+                    && !GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_PROTEINA_ISOLADA_VETO))
                 || (cabezaDeProteina
                     && (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_PROTEINA_ISOLADA_PROCESO)
                      || GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_PROTEINA_ISOLADA_MARCA))))
@@ -27,8 +28,12 @@ final class NutricionClassifier implements FamiliaClassifier {
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_BCAA_SUP))         return "BCAA";
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_VITAMINAS))        return "Vitaminas";
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_QUEMADORES))       return "Quemadores";
-        if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_SUPLEMENTO))       return "Suplemento";
-        if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_COMIDA))           return "Alimentos";
+        if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_SUPLEMENTO)
+                && !GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_SUPLEMENTO_VETO))
+            return "Suplemento";
+        if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_COMIDA)
+                && !GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_COMIDA_VETO))
+            return "Alimentos";
         return "";
     }
 

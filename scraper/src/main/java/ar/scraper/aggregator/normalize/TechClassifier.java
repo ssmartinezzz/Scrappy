@@ -50,7 +50,7 @@ final class TechClassifier implements FamiliaClassifier {
         if (texto.contiene(GarmentTaxonomy.KW_CPU))                          return "CPU";
         if (texto.contiene(GarmentTaxonomy.KW_RAM))                          return "RAM";
         if (texto.contiene(GarmentTaxonomy.KW_ALMACENAMIENTO))               return "Almacenamiento";
-        if (texto.contiene(GarmentTaxonomy.KW_IMPRESION))                    return "Impresión";
+        if (texto.contiene(GarmentTaxonomy.KW_IMPRESION) && !texto.contiene(GarmentTaxonomy.KW_IMPRESION_VETO)) return "Impresión";
         if (texto.contiene(GarmentTaxonomy.KW_UPS))                          return "UPS";
         if (texto.contiene(GarmentTaxonomy.KW_JOYSTICK)
                 || (texto.contiene(GarmentTaxonomy.KW_VOLANTE_GENERICO) && texto.contiene(GarmentTaxonomy.KW_VOLANTE_CONTEXTO)))

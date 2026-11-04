@@ -193,6 +193,9 @@ forzado también cae en `oficina`. `suplementos` es la otra excepción: ahí la
 categoría gana sobre el sitio, porque un suplemento es un suplemento lo venda
 quien lo venda.
 
+`sitio.rubro_por_defecto` (`V71`) es el rubro de lo que llega a la cola del resolver sin categoría que lo decida: va después de
+las ramas por categoría y antes del default del builder, que llena siempre `rubroExistente`. Easy lo lleva en `construccion`.
+
 El esquema, las tres ampliaciones de `CHECK` y su rollback están en
 [`DATABASE.md`, `V27`](./DATABASE.md).
 

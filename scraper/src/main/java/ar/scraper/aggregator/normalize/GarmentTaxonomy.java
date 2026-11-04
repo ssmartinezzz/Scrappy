@@ -21,10 +21,10 @@ public final class GarmentTaxonomy {
         "gel-kayano","gel-nimbus","gel-cumulus","gel-pulse",
         "glycerin","beast","ghost","adrenaline","levitate",
         "triumph","endorphin","kinvara","ride",
-        "clifton","bondi","speedgoat","mach",
+        "clifton","bondi","speedgoat","hoka mach"," mach 4"," mach 5"," mach 6",
         "fresh foam","1080","990","880","860",
         "wave rider","wave inspire","wave horizon",
-        "speedcross","sense","x-ultra"
+        "speedcross"," sense ","x-ultra"
     };
 
     public static final String[] KW_RUNNING_GENERICO = {
@@ -34,7 +34,7 @@ public final class GarmentTaxonomy {
 
     public static final String[] KW_TRAINING_MODELO = {
         "metcon","free metcon","superrep",
-        "adipower","powerlift","nano","legacy lifter"
+        "adipower","powerlift"," nano","legacy lifter"
     };
 
     public static final String[] KW_TRAINING_GENERICO = {
@@ -73,8 +73,8 @@ public final class GarmentTaxonomy {
 
     public static final String[] KW_SNEAKER_MODELO = {
         "jordan 1","jordan 4","jordan 11","jordan 3","jordan 6","jordan 5",
-        "air jordan","travis scott","off-white","fragment","union","chicago",
-        "bred","shadow","university blue","royal",
+        "air jordan","travis scott","off-white","fragment","union la","chicago",
+        "bred","university blue","royal",
         "yeezy","boost 350","boost 700","foam runner",
         "dunk low","dunk high","sb dunk","panda dunk",
         "air max 1 ","air max 90","air max 95","air max 97",
@@ -89,7 +89,7 @@ public final class GarmentTaxonomy {
     // Plain contains() is safe: these strings appear nowhere else in the file and are not common
     // word fragments.
     public static final String[] KW_BOTIN = {
-        "botin","cleats","tachon","tachos","chimpun",
+        "botin ","botines","cleats","tachon","tachos","chimpun",
         "bota futbol","bota de futbol","predator","mercurial",
         "phantom","nemeziz"
     };
@@ -125,7 +125,7 @@ public final class GarmentTaxonomy {
         "birkenstock","crocs","havaianas","ipanema","kenner",
         "zueco","clogs","clog","slide sandal","pool slide",
         "rasteira","chinelo","badeleta","babuchas","suela plana",
-        "sandalia","sandal","diapositiva","slide"
+        "sandalia"," sandal ","sandals","diapositiva","slide"
     };
 
     // Tier B — "Reef" es marca de indumentaria/accesorios de playa que también vende mochilas,
@@ -153,11 +153,11 @@ public final class GarmentTaxonomy {
 
     public static final String[] KW_SWEATER = {
         "sweater","pulover","pullover","jersey","knit","tejido",
-        "tricot","cardigan","lana","merino","crochet"
+        "tricot","cardigan"," lana","merino","crochet"
     };
 
     public static final String[] KW_BUZO = {
-        "buzo","hoodie","hoody","sweatshirt","sudadera",
+        " buzo "," buzos ","hoodie","hoody","sweatshirt","sudadera",
         "fleece","polar","zip hoodie","full zip","half zip","canguro"
     };
 
@@ -171,7 +171,7 @@ public final class GarmentTaxonomy {
     };
 
     public static final String[] KW_PUFFER = {
-        "puffer","plumon","pluma","down jacket","down coat",
+        "puffer","plumon"," pluma "," plumas ","down jacket","down coat",
         "campera inflable","chaleco inflable","abrigo inflable","parka inflable",
         "acolchada","acolchado",
         "anorak termico"
@@ -185,11 +185,11 @@ public final class GarmentTaxonomy {
     public static final String[] KW_CAMPERA = {
         "campera","jacket","chaqueta","cortaviento","rompeviento",
         "windbreaker","anorak","softshell","shell",
-        "bomber","track jacket","tricota"
+        " bomber ","track jacket","tricota"
     };
 
     public static final String[] KW_CHALECO = {
-        "chaleco","gilet","vest ","waistcoat","chaleco de abrigo",
+        "chaleco","gilet"," vest ","waistcoat","chaleco de abrigo",
         "chaleco inflable","chaleco pluma","chaleco polar",
         "chaleco tejido","chaleco cuero"
     };
@@ -203,7 +203,7 @@ public final class GarmentTaxonomy {
     // Intencionalmente excluido de la detección de combos — los trajes siempre resuelven a "Traje",
     // ver ADR-4 / tasks.md 0.1 (confirmado por el product owner).
     public static final String[] KW_TRAJE = {
-        "traje","suit ","terno","smoking","smocking"
+        "traje","suit "," terno ","smoking","smocking"
     };
 
     public static final String[] KW_CHOMBA = {
@@ -214,7 +214,7 @@ public final class GarmentTaxonomy {
     // Solo clasificar como Chomba vía este keyword si no hay un sustantivo de accesorio explícito
     // en el mismo título — mirrors el patrón KW_BORCEGO_MARCA/esContextoBorcego.
     public static final String[] KW_CHOMBA_MARCA = {
-        "polo "
+        " polo "
     };
 
     public static final String[] KW_CASACA = {
@@ -279,15 +279,15 @@ public final class GarmentTaxonomy {
 
     public static final String[] KW_MALLA = {
         " malla ","mallas ","malla de bano","malla enteriza",
-        "bikini","traje de bano"," bano ","banos ",
+        "bikini","traje de bano",
         "one piece","swimsuit","swimwear","beachwear","tankini",
-        "ropa de playa","pileta"
+        "ropa de playa",
     };
 
     public static final String[] KW_BAGGY = {
         "baggy","wide leg","pierna ancha","balloon","paperbag",
         "oversize jean","oversized jean","barrel","loose fit",
-        "baggy pant","wide pant","cargo pant","carpintero",
+        "baggy pant","wide pant","cargo pant","pantalon carpintero","jean carpintero",
         "parachute pant","jogger baggy"
     };
 
@@ -328,16 +328,16 @@ public final class GarmentTaxonomy {
     public static final String[] KW_VESTIDO_VETO_LIDER = { " bolso "," bolsos "," bolsa "," mochila " };
 
     public static final String[] KW_ENTERITO = {
-        "enterito","mono ","jumpsuit","overol","romper","mameluco",
+        "enterito"," mono ","jumpsuit","overol","romper","mameluco",
         "enterito largo","catsuit"
     };
 
     public static final String[] KW_PANTALON = {
-        "pantalon","pant ","trouser","cargo ","chino ","formal pant"
+        "pantalon","pant ","trouser","cargo "," chino ","formal pant"
     };
 
     public static final String[] KW_BOLSO = {
-        "bolso","cartera","handbag","tote bag","clutch","minibag",
+        " bolso "," bolsos ","cartera","handbag","tote bag","clutch","minibag",
         "bolsa de mano","bandolera","shoulder bag","crossbody","lonchera"
     };
 
@@ -357,18 +357,18 @@ public final class GarmentTaxonomy {
     };
 
     public static final String[] KW_CINTURON = {
-        "cinturon","cinturon","belt ","belts","cinto ","faja ",
+        "cinturon","cinturon","belt ","belts"," cinto ","faja ",
         "correa pantalon","leather belt"
     };
 
     public static final String[] KW_GORRO = {
         "gorro","beanie","gorro de lana","gorro tejido","knit hat",
-        "winter hat","gorro invierno","pompom hat","toque"
+        "winter hat","gorro invierno","pompom hat",
     };
 
     public static final String[] KW_GORRA = {
         "gorra"," cap "," hat ","sombrero","boina","snapback",
-        "bucket hat","buff","balaclava","vincha","visera","dad hat"," bandana "
+        "bucket hat"," buff ","balaclava","vincha","visera","dad hat"," bandana "
     };
 
     /**
@@ -382,7 +382,7 @@ public final class GarmentTaxonomy {
 
     public static final String[] KW_BUFANDA = {
         "bufanda","scarf","panuelo cuello","echarpe","cuello polar",
-        "snood","gola","pashmina"
+        "snood"," gola ","pashmina"
     };
 
     public static final String[] KW_GUANTES = {
@@ -397,7 +397,7 @@ public final class GarmentTaxonomy {
     };
 
     public static final String[] KW_MEDIAS = {
-        "media","medias","sock","socks","calcetin","calcetines","tobillera sock"
+        " media ","medias","sock","socks","calcetin","calcetines","tobillera sock"
     };
 
     public static final String[] KW_ACCESORIO_DEPORTIVO = {
@@ -634,7 +634,7 @@ public final class GarmentTaxonomy {
     public static final String[] KW_CABLECANAL_LIDER = { " cablecanal"," cable canal"," cablecanales" };
     public static final String[] KW_CABLE_ELECTRICO_LIDER = {
         " cable unipolar"," cable bipolar"," cable tripolar"," cable tetrapolar"," cable taller",
-        " cable tipo taller"," cable subterraneo"," cable preensamblado"," cable paralelo"
+        " cable tipo taller"," cable subterraneo"," cable preensamblado"," cable paralelo"," cable perfil"," cable textil"," cable velador"," cable armado"
     };
     public static final String[] KW_CANALETA = { " canaleta"," canaletas" };
     public static final String[] KW_CANALETA_VETO = { " cable"," electric"," organiz" };
@@ -767,7 +767,7 @@ public final class GarmentTaxonomy {
         " cajas de herramientas"," gabinete para herramientas"," gabinete organizador de herramientas",
         " gabinete de herramientas"," carro portaherramientas"," carro porta herramientas"," carro de herramientas",
         " maletin de herramientas"," maletin portaherramientas"," bolso portaherramientas"," bolso para herramientas",
-        " organizador de herramientas"," banco de trabajo"," bancos de trabajo"
+        " organizador de herramientas"," banco de trabajo"," bancos de trabajo"," cinturon portaherramientas"," cinturon porta herramientas"
     };
     public static final String[] KW_HERRAMIENTA_MANUAL_LIDER = {
         " destornillador"," destornilladores"," martillo "," martillos "," maza de "," mazas de "," alicate"," alicates",
@@ -815,7 +815,7 @@ public final class GarmentTaxonomy {
     public static final String[] KW_FIJACION_LIDER = {
         " alambre "," alambres "," tuerca "," tuercas "," arandela "," arandelas "," remache "," remaches ",
         " abrazadera "," abrazaderas "," caja de fijacion"," caja fijacion"," soporte l "," soporte angulo",
-        " angulo de fijacion"," grillete"," grilletes"," mosqueton"," mosquetones"," varilla roscada"," cable de acero"," cable acero"
+        " angulo de fijacion"," grillete"," precinto "," precintos "," grilletes"," mosqueton"," mosquetones"," varilla roscada"," cable de acero"," cable acero"
     };
     public static final String[] KW_BISAGRA_LIDER = { " bisagra "," bisagras " };
     public static final String[] KW_CERRADURA_LIDER = {
@@ -850,7 +850,7 @@ public final class GarmentTaxonomy {
     public static final String[] KW_GUANTE_LIDER = { " guante "," guantes ", " par de guantes" };
     public static final String[] KW_GUANTE_TRABAJO_CALIFICADOR = {
         " vaqueta"," moteado"," latex"," nitrilo"," pvc"," trabajo"," soldador"," anticorte"," mecanico"," descarne",
-        " carnaza"," neoprene"," dielectrico"," rigger"," jardiner"," poliuretano"
+        " carnaza"," neoprene"," dielectrico"," rigger"," jardiner"," proteccion"," multiuso"," sin costura"," jardin"," rosas"," poliuretano"
     };
     public static final String[] KW_PROTECCION_LIDER = {
         " casco de seguridad"," casco seguridad"," casco industrial"," casco de obra"," casco dielectrico",
@@ -860,7 +860,7 @@ public final class GarmentTaxonomy {
         " arnes de seguridad"," arnes anticaidas"," chaleco refractario"," chaleco de seguridad"," chaleco reflectivo",
         " chaleco de trabajo"," botines de seguridad"," zapatos de seguridad"," calzado de seguridad"," bota de seguridad",
         " botas de seguridad"," botin de seguridad"," zapato de trabajo"," ropa de trabajo"," overol"," mameluco de trabajo",
-        " mamelucos de trabajo"," orejeras de proteccion"," orejera de proteccion"
+        " mamelucos de trabajo"," orejeras de proteccion"," orejera de proteccion"," faja lumbar"," cinturon liniero"
     };
     public static final String[] KW_ANTIPARRA_LIDER = { " antiparra "," antiparras " };
     public static final String[] KW_ANTIPARRA_PROTECCION_CALIFICADOR = {
@@ -981,7 +981,7 @@ public final class GarmentTaxonomy {
         " limpia pisos"," sacapelusas"," bolsas para escombros"," bolsas de residuos"," bolsa de residuos",
         " bolsas para residuos"," bolsas de consorcio"," bolsas de basura"," bolsa de basura"," bloque adhesivo",
         " pala de residuos"," cepillo de limpieza"," lampazo"," lampazos"," pano de limpieza"," panos de limpieza",
-        " rejilla de piso"," desinfectante"," lavandina"," detergente"
+        " rejilla de piso"," desinfectante"," guante de limpieza"," guante limpieza"," guantes de limpieza"," lavandina"," detergente"
     };
     public static final String[] KW_LIMPIEZA_VETO = {
         " maquillaje"," corporal"," bano "," ducha"," facial"," exfoliante"," pelo"," cabello"," beauty"," cosmetic"
@@ -1014,7 +1014,7 @@ public final class GarmentTaxonomy {
         " patin"," skate"," ruedas"," inline"," masaje"," espuma"," muscular"," pelo"," maquillaje"," pintura"," rodillo"
     };
     public static final String[] KW_ROPA_DE_CAMA_LIDER = {
-        " sabana "," sabanas "," juego de sabanas"," plumon "," plumones "," almohada "," almohadas ",
+        " sabana "," sabanas "," juego de sabanas"," plumon "," plumones "," funda plumon"," funda de plumon"," almohada "," almohadas ",
         " acolchado "," acolchados "," edredon"," cubrecama"," cubre cama"," cobertor"," frazada"," colcha "," colchas ",
         " cubrecolchon"," cubre colchon"," protector de colchon"," protector colchon"," sobrecama"," duvet "
     };
@@ -1023,7 +1023,7 @@ public final class GarmentTaxonomy {
         " running"," sleeping"," camping"," bebe"," lactancia"," mascota"," perro"," gato"," talle"
     };
     public static final String[] KW_TOALLA_LIDER = {
-        " toalla "," toallas "," toallon"," toallones "," toalla de playa"," toalla de bano"
+        " toalla "," toallas "," toallon"," toallones "," juego de toallas"," toalla de playa"," toalla de bano"
     };
     public static final String[] KW_TOALLA_VETO = {
         " gym"," training"," entrenamiento"," fitness"," nike"," adidas"," puma"," deportiv"," microfiber "
@@ -1262,7 +1262,7 @@ public final class GarmentTaxonomy {
         " espatula "," plancha "," tabla "," tablas "," cobertor "
     };
     public static final String[] KW_ACCESORIO_PARRILLA_CONTEXTO = {
-        " parrilla"," parrillero"," parrillera"," asado"," asador"," carne"," grill"," picada"," parrilleros"," bbq"," cenizas"
+        " parrilla"," parrillero"," parrillera"," asado"," asador"," carne"," grill"," picada"," parrilleros"," bbq"," cenizas"," asar"," weber"," alta temperatura"
     };
     public static final String[] KW_CARBON_LIDER = {
         " carbon "," bolsa de carbon"," bolsa carbon"," astillas "," lena "," pastillas de encendido"," pastillas encendido",
@@ -1285,7 +1285,7 @@ public final class GarmentTaxonomy {
     };
     public static final String[] KW_TERMO_BOTELLA_LIDER = {
         " termo "," termos "," botella "," botellas "," vaso termico"," vaso termo"," vaso outdoor"," vaso de acero"," vaso acero"," vaso de plastico",
-        " vasos termicos"," mug "," vasos y botellas"
+        " vasos termicos"," mug "," vasos y botellas"," bidon termico"," bidon polipropileno"," bidon plastico"
     };
     public static final String[] KW_TERMO_BOTELLA_VETO = {
         " tinta"," toner"," shaker"," proteina"," whey"," vino"," vinos"," ink"," impresora"," suplemento"," creatina"," pintura"," aceite"," agua mineral"," cerveza",
@@ -1479,7 +1479,7 @@ public final class GarmentTaxonomy {
     };
 
     public static final String[] KW_RAM = {
-        " ram ","memoria ram","dimm","ddr4","ddr5","sodimm",
+        " ram ","memoria ram"," dimm ","ddr4","ddr5","sodimm",
         "memoria ddr","modulo ram"
     };
 
@@ -1626,7 +1626,7 @@ public final class GarmentTaxonomy {
 
     public static final String[] KW_QUEMADORES = {
         "quemador de grasa","fat burner","termogenico","l-carnitina","l carnitina",
-        "carnitina","cla ","lipo6","lipo 6","lipo-6"
+        "carnitina"," cla ","lipo6","lipo 6","lipo-6"
     };
 
     public static final String[] KW_GAINERS = {
@@ -1643,12 +1643,12 @@ public final class GarmentTaxonomy {
         "colageno","collagen","hidrolizado",
         "barra proteica","barra energetica","snack proteico",
         "magnesio","magnesium","citrato de magnesio",
-        "quemador","fat burner","termogenico","l-carnitina","carnitina","cla ",
+        "quemador","fat burner","termogenico","l-carnitina","carnitina"," cla ",
         "suplemento","supplement","nutri","proteico","proteica"
     };
 
     public static final String[] KW_COMIDA = {
-        "yerba","cafe","te verde","infusion","cereal","granola",
+        "yerba","cafe"," te verde","infusion","cereal","granola",
         "frutos secos","almendra"," mani ","cacao","chocolate proteico",
         "avena","harina de avena","pasta","arroz",
         "salsa ","ketchup","mostaza","condimento","aderezo","mayonesa","vinagre",
@@ -1675,16 +1675,16 @@ public final class GarmentTaxonomy {
         " patchcord ", " conversor ", " prolongador ", " extension usb "
     };
 
-    public static final String[] KW_CABLE_VETO = { " control de bloqueo" };
-    public static final String[] KW_GABINETE_VETO = { " bano"," cocina"," colgante"," herramienta"," mueble"," zapatero" };
-    public static final String[] KW_FUENTE_VETO = { " horno"," vidrio"," loza"," ensalad"," servir" };
+    public static final String[] KW_CABLE_VETO = { " control de bloqueo"," riego"," pulgada"," tanque"," taladro"," rodillo"," espatula"," magnetico"," angular"," copa"," fijacion"," velador"," perilla"," heavy duty"," union doble" };
+    public static final String[] KW_GABINETE_VETO = { " bano"," cocina"," colgante"," herramienta"," mueble"," zapatero"," cm "," embutir"," puertas"," medidor"," modulos"," ip65"," monofasico"," trifasico"," din "," gas "," entrada gabinete" };
+    public static final String[] KW_FUENTE_VETO = { " horno"," vidrio"," loza"," ensalad"," servir"," madera"," tira" };
 
     public static final String[] KW_GABINETE_ACCESORIO_LIDER = {
         " bracket ", " filtro ", " soporte ", " kit "
     };
 
     /** Líder ⇒ accesorio, sin necesidad de que el título nombre su destino. */
-    public static final String[] KW_ACCESORIO_LIDER = { " bracket ", " controladora " };
+    public static final String[] KW_ACCESORIO_LIDER = { " bracket ", " controladora "," videoportero "," caja fuerte "," reja protectora "," gabinete protector "," base eleva "," base para notebook " };
 
     /** Líder ⇒ Almacenamiento, antes de {@link #KW_COOLER}: */
     public static final String[] KW_ALMACENAMIENTO_LIDER = { " hd ", " ssd ", " disco " };
@@ -1771,7 +1771,7 @@ public final class GarmentTaxonomy {
     };
 
     public static final String[] KW_IMPRESION = {
-        "impresora","impresoras","toner","cartucho","tinta alternativa",
+        "impresora","impresoras"," toner","cartucho","tinta alternativa",
         "botella tinta","botella de tinta","multifuncion laser","sistema continuo"
     };
 
@@ -1969,6 +1969,44 @@ public final class GarmentTaxonomy {
 
     public static String[] torsoFlat() { return TORSO_KEYWORDS_FLAT; }
     public static String[] piernasFlat() { return PIERNAS_KEYWORDS_FLAT; }
+
+    public static final String[] KW_MALLA_BANO = { " bano ","banos " };
+    public static final String[] KW_MALLA_BANO_PRENDA = { "short","traje","slip","boxer","bermuda","calza","ropa" };
+    public static final String[] KW_PROTEINA_ISOLADA_VETO = { " pinza "," electrodo" };
+    public static final String[] KW_MALLA_VETO = {
+        " mts"," cm "," mm "," m2"," lts"," kg "," grs"
+    };
+    public static final String[] KW_MOCHILA_VETO = {
+        " inodoro"," deposito"," valvula"," fuelle"," obturador"," flapper"," conexion"," pastilla"," limpiador"," bloque"," tirador"," fijacion"
+    };
+    public static final String[] KW_SWEATER_VETO = { "romboidal"," alambre"," no tejido"," tejido plastico"," rombo"," bonete" };
+    public static final String[] KW_PILOTO_VETO = {
+        " brazo"," bide"," sensor"," caja "," funda "," fondo "," protector "," transf "," pintura "," membrana "," impregnante "," sellador "
+    };
+    public static final String[] KW_BUZO_VETO = { " cm "," manta " };
+    public static final String[] KW_MEDIAS_VETO = { " cana"," sombra"," manija"," luna" };
+    public static final String[] KW_REMERA_VETO = {
+        " mm "," pvc"," rosca"," hierro "," ips"," bronce"," cromad"," npg"," polipropileno "," reduccion "
+    };
+    public static final String[] KW_CAMISA_VETO = { " tela oxford"," funda "," costado "," banquito " };
+    public static final String[] KW_PANTALON_VETO = { "pantalonero" };
+    public static final String[] KW_TRAJE_VETO = { " funda " };
+    public static final String[] KW_SACO_VETO = { " inflable"," dormir"," hidroquimica" };
+    public static final String[] KW_ACCESORIO_DEPORTIVO_VETO = { " combustible"," tapa de seguridad"," pico vertedor" };
+    public static final String[] KW_MOCHILA_SANITARIA_CALIFICADOR = {
+        " inodoro"," valvula"," fuelle"," obturador"," flapper"," conexion"," deposito"," brazo"," tirador"," fijacion"
+    };
+    public static final String[] KW_IMPRESION_VETO = {
+        " monocomando"," filtro"," montaje"," adhesivo"," ceramic"," grifer"," valvula"," soplete"," gases"
+    };
+    public static final String[] KW_COMIDA_VETO = {
+        " cm "," mm "," cc "," lts"," esmalte"," adhesivo"," dispensador"," cuchara"," roble "," desayunadora"," antigotera"," cementicia"," cama "
+    };
+    public static final String[] KW_SUPLEMENTO_VETO = { " paellero"," a gas"," de gas"," gas " };
+    public static final String[] KW_RELOJ_DECO_LIDER = { " reloj " };
+    public static final String[] KW_RELOJ_DECO_CALIFICADOR = {
+        " cm "," pared"," decorativ"," madera"," ceramica"," despertador"
+    };
 
     public static boolean anyMatch(String text, String[] keywords) {
         for (String kw : keywords) if (text.contains(kw)) return true;

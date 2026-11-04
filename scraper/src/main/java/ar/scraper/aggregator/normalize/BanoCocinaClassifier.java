@@ -12,6 +12,8 @@ final class BanoCocinaClassifier implements FamiliaClassifier {
     }
 
     private String clasificarSanitario(TextoClasificable texto) {
+        if (texto.contiene(" mochila ") && texto.contiene(GarmentTaxonomy.KW_MOCHILA_SANITARIA_CALIFICADOR))
+            return "Sanitario";
         if (texto.sinPrefijoDeVentaEmpiezaCon(GarmentTaxonomy.KW_SANITARIO_LIDER)) return "Sanitario";
         if (texto.lideraSinVeto(GarmentTaxonomy.KW_BACHA_LIDER, GarmentTaxonomy.KW_BACHA_VETO)) return "Bacha";
         if (texto.sinPrefijoDeVentaEmpiezaCon(GarmentTaxonomy.KW_VANITORY_LIDER))  return "Vanitory";

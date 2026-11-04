@@ -13,11 +13,17 @@ public final class SiteRegistry {
 
     public record Sitio(String nombre, String sitioKey, String plataforma,
                          boolean esPremium, String rubroForzado, String origen,
-                         boolean monomarca) {
+                         boolean monomarca, String rubroPorDefecto) {
+
+        public Sitio(String nombre, String sitioKey, String plataforma,
+                     boolean esPremium, String rubroForzado, String origen,
+                     boolean monomarca) {
+            this(nombre, sitioKey, plataforma, esPremium, rubroForzado, origen, monomarca, null);
+        }
 
         public Sitio(String nombre, String sitioKey, String plataforma,
                      boolean esPremium, String rubroForzado, String origen) {
-            this(nombre, sitioKey, plataforma, esPremium, rubroForzado, origen, false);
+            this(nombre, sitioKey, plataforma, esPremium, rubroForzado, origen, false, null);
         }
     }
 
@@ -48,7 +54,7 @@ public final class SiteRegistry {
     public Sitio porKey(String sitioKey) {
         Sitio found = porSitioKey.get(sitioKey);
         if (found != null) return found;
-        return new Sitio(sitioKey, sitioKey, ABSTENCION_PLATAFORMA, false, null, "historico", false);
+        return new Sitio(sitioKey, sitioKey, ABSTENCION_PLATAFORMA, false, null, "historico", false, null);
     }
 
     public String plataforma(String sitioKey) {
@@ -61,6 +67,10 @@ public final class SiteRegistry {
 
     public String rubroForzado(String sitioKey) {
         return porKey(sitioKey).rubroForzado();
+    }
+
+    public String rubroPorDefecto(String sitioKey) {
+        return porKey(sitioKey).rubroPorDefecto();
     }
 
     /** A single-brand store: the brand IS the site, so its nombre is the brand. */

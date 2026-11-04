@@ -17,7 +17,9 @@ public class RubroResolver {
         boolean catEsSuppl  = CategoryGroups.esCategoriaSuplemento(cat);
         boolean catEsConstr = CategoryGroups.esCategoriaConstruccion(cat);
         boolean catEsHogar  = CategoryGroups.esCategoriaHogar(cat);
-        String rubroForzado = siteRegistry.rubroForzado(sitioKey);
+        SiteRegistry.Sitio sitio = siteRegistry.porKey(sitioKey);
+        String rubroForzado = sitio.rubroForzado();
+        String rubroPorDefecto = sitio.rubroPorDefecto();
 
         if ("tecnologia".equals(rubroForzado) && !catEsTextil) {
             return "tecnologia";
@@ -45,6 +47,8 @@ public class RubroResolver {
             return "juguetes";
         } else if (StringUtils.isBlank(rubroForzado) && CategoryGroups.esCategoriaTech(cat)) {
             return "tecnologia";
+        } else if (StringUtils.isNotBlank(rubroPorDefecto)) {
+            return rubroPorDefecto;
         } else if (StringUtils.isNotBlank(rubroExistente)) {
             return rubroExistente;
         } else {
