@@ -266,13 +266,23 @@ public class ResultAggregator {
         return normalizer.normalizar(productos);
     }
 
+    private List<Product> conHojaDelSitio(List<Product> cargados) {
+        Map<String, Integer> origenes = productos.origenDeCategoriaDelSitioPorUrl();
+        if (origenes == null || origenes.isEmpty()) return cargados;
+        return cargados.stream()
+                .map(p -> origenes.containsKey(p.url())
+                        ? p.toBuilder().sitioCategoriaOrigenId(origenes.get(p.url())).build()
+                        : p)
+                .collect(Collectors.toList());
+    }
+
     /**
      * Re-aplica las reglas actuales de {@link NormalizerService} sobre el catálogo YA persistido en
      * la DB, sin re-scrapear (no toca internet, no usa Playwright).
      */
     public Map<String, Integer> renormalizarCatalogo() {
         List<Product> actuales      = productos.cargarProductos();
-        List<Product> renormalizados = normalizer.normalizar(actuales);
+        List<Product> renormalizados = normalizer.normalizar(conHojaDelSitio(actuales));
         Map<String, ClasificacionBloqueada> bloqueos = productos.cargarClasificacionBloqueada();
 
         int totalRevisados   = 0;

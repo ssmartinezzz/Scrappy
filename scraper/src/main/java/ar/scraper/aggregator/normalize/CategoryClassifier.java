@@ -47,8 +47,14 @@ public class CategoryClassifier {
     };
 
     public String normalizarCategoria(String raw, String nombre) {
+        return normalizarCategoria(raw, nombre, null);
+    }
+
+    public String normalizarCategoria(String raw, String nombre, String categoriaDelArbol) {
         String fromName = clasificar(nombre);
         if (!fromName.isEmpty()) return fromName;
+
+        if (StringUtils.isNotBlank(categoriaDelArbol)) return categoriaDelArbol;
 
         if (StringUtils.isNotBlank(raw)) {
             String fromRaw = clasificar(raw);

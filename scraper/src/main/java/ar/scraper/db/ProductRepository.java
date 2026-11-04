@@ -316,6 +316,22 @@ class ProductRepository implements ProductPort {
         return result;
     }
 
+    @Override
+    public Map<String, Integer> origenDeCategoriaDelSitioPorUrl() {
+        Map<String, Integer> origenes = new HashMap<>();
+        try {
+            jdbc.query("SELECT p.url, c.origen_id FROM productos p "
+                            + "JOIN sitio_categoria c ON c.id = p.sitio_categoria_id WHERE p.activo",
+                    rs -> {
+                        origenes.put(rs.getString(1), rs.getInt(2));
+                    });
+        } catch (DataAccessException e) {
+            LOG.warn("[DB] No se pudo leer la hoja del sitio de cada producto: {}", e.getMessage());
+            origenes.clear();
+        }
+        return origenes;
+    }
+
     /** Busca un producto por URL sin filtrar por `activo` (incluye descontinuados). */
     /**
      * Delega en {@link #obtenerProducto} después de traducir handle -> url, a propósito: la carga

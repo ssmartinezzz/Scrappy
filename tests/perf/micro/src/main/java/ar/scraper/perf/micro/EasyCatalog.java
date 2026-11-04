@@ -67,7 +67,16 @@ final class EasyCatalog {
                     rubroResolver,
                     new GymratTagger(),
                     new SportResolver(),
-                    siteRegistry);
+                    siteRegistry,
+                    new ar.scraper.catalog.SitioCategoriaPort() {
+                        public int upsertArbol(String sitio, java.util.List<ar.scraper.model.SitioCategoriaNodo> arbol) {
+                            return 0;
+                        }
+
+                        public Map<Integer, String> categoriaPorOrigen(String sitio) {
+                            return Map.of();
+                        }
+                    });
             normalized = normalizer.normalizar(scraped);
             names = scraped.stream().map(Product::nombre).toList();
         } catch (ReflectiveOperationException | java.io.IOException e) {

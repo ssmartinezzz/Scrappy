@@ -1666,6 +1666,10 @@ La capacidad de exponer el árbol es la interfaz `ar.scraper.pages.ArbolDeCatego
 `VtexPage`; `BaseScraper` la lee con un `instanceof` y la deja en `ScrapeResult.arbolDeCategorias`.
 Los servicios del sitio (hojas cuyo nombre es "Instalación…", "Armado…") los decide un `CriterioDeServicio`
 inyectado en `VtexPage`, no un `if` por sitio: sus productos no se emiten y el nodo se guarda con `es_servicio`.
+Cada hoja puede llevar además una `categoria` canónica curada (`sitio_categoria.categoria`, `V70`, sólo Easy): si el
+nombre del producto se abstiene, `CategoryClassifier` usa la de su hoja antes de mirar el `raw` del sitio. El nombre gana
+siempre y el rubro sigue a la categoría resultante; un sitio sin mapeo no cambia. `NormalizerService` carga el mapeo una
+vez por sitio y por lote vía `SitioCategoriaPort.categoriaPorOrigen`.
 
 Helpers: `esPack()`, `esTech()`, `esGymrat()`, `esMarcaPremium()`.
 `MlScore` incluye scoreP/badges/ofertaReal/tendencia/pctilCategoria/zScore/segment;

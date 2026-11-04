@@ -14,6 +14,8 @@ public interface ProductPort {
 
     List<Product> cargarProductos();
 
+    Map<String, Integer> origenDeCategoriaDelSitioPorUrl();
+
     Map<String, ClasificacionBloqueada> cargarClasificacionBloqueada();
 
     boolean estaBloqueado(String url);

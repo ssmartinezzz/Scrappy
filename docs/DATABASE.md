@@ -144,6 +144,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V67` | 27 categorías de `hogar` para baños y cocinas, muebles, organización y limpieza, textil, decoración y bazar |
 | `V68` | 49 categorías de `hogar` (jardín, parrillas, piletas, camping, mascotas, automotor, electrodomésticos) y `TV y Audio` en `tecnologia` |
 | `V69` | Rubros `deporte` y `juguetes` (`chk_productos_rubro_domain` pasa de 6 a 8 valores) y 9 categorías de tiempo libre |
+| `V70` | `sitio_categoria.categoria` (FK nullable a `categoria`): el mapeo curado de las hojas de Easy, sembrado |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -4140,7 +4141,54 @@ ALTER TABLE productos
 -- <<< rollback:V69
 ```
 
-Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V68`, y en cualquier caso **antes que
-el de `V45`**: ése angosta el dominio a 4 valores y fallaría contra una fila `deporte` o `juguetes`; y si `V69` corriera
+Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V70`, antes que el de `V68`, y en cualquier
+caso **antes que el de `V45`**: ése angosta el dominio a 4 valores y fallaría contra una fila `deporte` o `juguetes`; y si `V69` corriera
 después, volvería a ensanchar el dominio a 6. Los productos reclasificados quedan con `categoria` y `rubro` NULL hasta el
 próximo scrape (NULL se lee como `indumentaria`).
+
+---
+
+## `V70` — `sitio_categoria.categoria`: el mapeo curado de las hojas del sitio
+
+`sitio_categoria.categoria` es una FK **nullable** a `categoria(nombre)` (`fk_sitio_categoria_categoria`). La clave de
+`categoria` es su `nombre` TEXT, igual que en `productos.categoria` y `categoria_stats.categoria`, así que la columna se
+llama `categoria` y no `categoria_id`. NULL es "esta hoja se abstiene", nunca un centinela: una hoja mezclada o sin
+categoría canónica verdadera queda NULL.
+
+El clasificador la consulta **sólo cuando el nombre se abstiene** (`CategoryClassifier.normalizarCategoria(raw, nombre,
+categoriaDelArbol)`): nombre, mapeo del árbol, `raw`, alias, peso, `Otros`. El nombre siempre gana (`CODE-6`: el
+clasificador sigue siendo el único dueño de la decisión), y el rubro sigue a la categoría resultante por `RubroResolver`
+sin cambios. Un sitio sin mapeo (todos menos Easy) pasa `null` y se comporta exactamente igual que antes.
+
+El mapeo es **curado a mano** a partir de la ruta de la hoja y de una muestra de nombres, sin mirar qué categoría
+devolvía el clasificador: si se derivara de la moda del clasificador por hoja, el reporte de acuerdo sería circular y
+los errores del clasificador se propagarían al árbol (decisión D-7 de `easy-com-ar-site`). Una hoja entra sólo si casi
+todos sus productos son de esa categoría. La migración **siembra** las 304 hojas mapeadas de Easy con `INSERT ... ON
+CONFLICT (sitio_key, origen_id) DO UPDATE SET categoria`, porque la tabla está vacía hasta el primer scrape; `padre_id`
+queda NULL y lo completa el primer `sp_upsert_sitio_categoria`.
+
+`sp_upsert_sitio_categoria` **no cambió**: su `ON CONFLICT` actualiza sólo `nombre` y `es_servicio`, por lo que un
+re-scrape (o un renombre del nodo en VTEX) preserva `categoria`. Una hoja nueva del sitio entra con `categoria` NULL y
+se abstiene hasta que alguien la mapee en una migración nueva.
+
+La lectura va por `SitioCategoriaPort.categoriaPorOrigen(sitio)`: un `SELECT` por sitio y por lote. `NormalizerService`
+sólo lo pide para los sitios que traen al menos un producto con `sitioCategoriaOrigenId`, nunca por producto. Si la
+lectura falla se loguea y el sitio normaliza sin mapeo (abstiene). `renormalizarCatalogo` carga las filas de la base sin
+`sitioCategoriaOrigenId`, así que le agrega la hoja con `ProductPort.origenDeCategoriaDelSitioPorUrl()`; sin eso
+volvería a `Otros` todo lo que el árbol había rescatado.
+
+### Rollback
+
+```sql
+-- >>> rollback:V70
+DELETE FROM sitio_categoria WHERE sitio_key = 'easy' AND categoria IS NOT NULL AND padre_id IS NULL;
+ALTER TABLE sitio_categoria DROP CONSTRAINT fk_sitio_categoria_categoria;
+ALTER TABLE sitio_categoria DROP COLUMN categoria;
+-- <<< rollback:V70
+```
+
+Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V69`. Tiene que correr antes que los de
+`V64`..`V69`, que borran filas de `categoria`: con la FK puesta, esos `DELETE` fallarían contra las hojas sembradas. El
+`DELETE` de la primera línea quita sólo las hojas sembradas que ningún scrape tocó (`padre_id` NULL y con categoría;
+las hojas de Easy tienen siempre un padre, así que tras el primer scrape ya no matchea nada); las filas del árbol que
+un scrape sí cargó se conservan, con `categoria` perdida.

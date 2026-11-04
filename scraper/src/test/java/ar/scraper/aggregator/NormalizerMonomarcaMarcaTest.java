@@ -32,7 +32,8 @@ class NormalizerMonomarcaMarcaTest {
                 "midway", new Sitio("Midway", "midway", "tiendanube", false, null, "config", false)));
         return new NormalizerService(new PackQuantityDetector(), new CategoryClassifier(), new BrandExtractor(),
                 new GenderResolver(), new SizeNormalizer(), new SubcategoryResolver(),
-                new RubroResolver(registry), new GymratTagger(), new SportResolver(), registry);
+                new RubroResolver(registry), new GymratTagger(), new SportResolver(), registry,
+                org.mockito.Mockito.mock(ar.scraper.catalog.SitioCategoriaPort.class));
     }
 
     private String marcaDe(String sitio, String nombre, String marcaScrapeada) {
