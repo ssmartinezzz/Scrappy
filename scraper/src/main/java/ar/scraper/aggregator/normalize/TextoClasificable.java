@@ -3,7 +3,7 @@ package ar.scraper.aggregator.normalize;
 import java.util.regex.Pattern;
 import org.apache.commons.lang3.StringUtils;
 
-record TextoClasificable(String crudo, String normalizado, String sinPrefijoDeVenta) {
+record TextoClasificable(String crudo, String normalizado, String sinPrefijoDeVenta, ArraysEncontrados arrays) {
 
     private static final Pattern PESO_VOLUMEN =
         Pattern.compile("\\d+\\s*(g|ml|kg|mg|oz|l)\\s*$", Pattern.CASE_INSENSITIVE);
@@ -18,7 +18,9 @@ record TextoClasificable(String crudo, String normalizado, String sinPrefijoDeVe
                 .replaceAll("[áàä]", "a").replaceAll("[éèë]", "e")
                 .replaceAll("[íìï]", "i").replaceAll("[óòö]", "o")
                 .replaceAll("[úùü]", "u").replaceAll("[ñ]", "n") + " ";
-        return new TextoClasificable(crudo, normalizado, PREFIJO_DE_VENTA.matcher(normalizado).replaceFirst(" "));
+        String sinPrefijoDeVenta = PREFIJO_DE_VENTA.matcher(normalizado).replaceFirst(" ");
+        return new TextoClasificable(crudo, normalizado, sinPrefijoDeVenta,
+            ArraysEncontrados.de(normalizado, sinPrefijoDeVenta));
     }
 
     static boolean tieneIndicadorPeso(String texto) {
@@ -31,7 +33,9 @@ record TextoClasificable(String crudo, String normalizado, String sinPrefijoDeVe
     }
 
     boolean contiene(String[] keywords) {
-        return GarmentTaxonomy.anyMatch(normalizado, keywords);
+        int id = IndiceDePalabrasClave.idDe(keywords);
+        if (id < 0) return GarmentTaxonomy.anyMatch(normalizado, keywords);
+        return IndiceDePalabrasClave.marcado(arrays.contenidosEnNormalizado(), id);
     }
 
     boolean contiene(String fragmento) {
@@ -39,11 +43,11 @@ record TextoClasificable(String crudo, String normalizado, String sinPrefijoDeVe
     }
 
     boolean empiezaCon(String[] keywords) {
-        return empiezaConAlguna(normalizado, keywords);
+        return empiezaConAlguna(normalizado, arrays.prefijosDeNormalizado(), keywords);
     }
 
     boolean sinPrefijoDeVentaEmpiezaCon(String[] keywords) {
-        return empiezaConAlguna(sinPrefijoDeVenta, keywords);
+        return empiezaConAlguna(sinPrefijoDeVenta, arrays.prefijosDeSinPrefijoDeVenta(), keywords);
     }
 
     boolean lideraSinVeto(String[] lideres, String[] vetos) {
@@ -62,16 +66,20 @@ record TextoClasificable(String crudo, String normalizado, String sinPrefijoDeVe
     }
 
     boolean empiezaLiteralmenteCon(String[] keywords) {
+        return empiezaConAlgunaSinReintento(normalizado, arrays.prefijosDeNormalizado(), keywords);
+    }
+
+    private static boolean empiezaConAlgunaSinReintento(String texto, long[] prefijos, String[] keywords) {
+        int id = IndiceDePalabrasClave.idDe(keywords);
+        if (id >= 0) return IndiceDePalabrasClave.marcado(prefijos, id);
         for (String kw : keywords) {
-            if (normalizado.startsWith(kw)) return true;
+            if (texto.startsWith(kw)) return true;
         }
         return false;
     }
 
-    private static boolean empiezaConAlguna(String texto, String[] keywords) {
-        for (String kw : keywords) {
-            if (texto.startsWith(kw)) return true;
-        }
+    private static boolean empiezaConAlguna(String texto, long[] prefijos, String[] keywords) {
+        if (empiezaConAlgunaSinReintento(texto, prefijos, keywords)) return true;
         if (!texto.startsWith(LIDER_OUTLET)) return false;
         String sinOutlet = " " + texto.substring(LIDER_OUTLET.length()).replaceFirst("^[-\\s]+", "");
         for (String kw : keywords) {
