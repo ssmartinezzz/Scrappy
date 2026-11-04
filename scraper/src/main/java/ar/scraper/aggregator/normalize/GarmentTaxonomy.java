@@ -596,6 +596,124 @@ public final class GarmentTaxonomy {
         " mascota"," perr"," gat"," cama"," piscina"," pileta"," bebe"," juguete"," muneca"," casita"
     };
 
+    public static final String[] KW_TERMICA_LIDER = {
+        " interruptor termomagnetico"," interruptor diferencial"," interruptor automatico"," termomagnetica",
+        " termomagneticas"," termica "," termicas "," disyuntor"," llave termomagnetica"," llave termica",
+        " guardamotor"
+    };
+    public static final String[] KW_CAJA_ELECTRICA_LIDER = {
+        " caja de embutir"," caja de pase"," caja octogonal"," caja exterior"," caja estanca",
+        " caja rectangular"," caja cuadrada"," caja mignon"
+    };
+    public static final String[] KW_TAPA_CIEGA_LIDER = { " tapa ciega"," tapas ciegas"," tapon ciego" };
+    public static final String[] KW_CAJA_CALIFICADOR = { " caja " };
+    public static final String[] KW_TAPA_SANITARIA_CALIFICADOR = { " pvc "," polipropileno"," amanco" };
+    public static final String[] KW_LLAVE_DE_LUZ_LIDER = {
+        " linea armada"," lineas armadas"," llave armada"," llave combinada"," tomacorriente"," tomacorrientes",
+        " toma doble"," toma simple"," toma corriente"," tapa modulo"," placa civil"
+    };
+    public static final String[] KW_MODULO_LIDER = { " modulo "," modulos " };
+    public static final String[] KW_MODULO_CALIFICADOR = {
+        " bastidor"," toma"," interruptor"," tecla"," 10a"," 10 a"," civil"
+    };
+    public static final String[] KW_TECLA_LIDER = { " tecla "," teclas " };
+    public static final String[] KW_TECLA_CALIFICADOR = {
+        " monaco"," tomacorriente"," canal"," 250v"," modulo"," 10a"," 10 a"," interruptor"
+    };
+    public static final String[] KW_INTERRUPTOR_LIDER = { " interruptor "," interruptores " };
+    public static final String[] KW_INTERRUPTOR_CALIFICADOR = {
+        " modulo"," 10 a"," 10a"," tecla"," monaco"," 250v"," 220v"," de luz"," combinado"
+    };
+    public static final String[] KW_FICHA_LIDER = {
+        " ficha macho"," ficha hembra"," prolongador"," prolongadores"," alargue"," alargues"
+    };
+    public static final String[] KW_ZAPATILLA_ELECTRICA_LIDER = { " zapatilla "," zapatillas " };
+    public static final String[] KW_ZAPATILLA_ELECTRICA_CALIFICADOR = { " tomas"," toma " };
+    public static final String[] KW_CABLECANAL_LIDER = { " cablecanal"," cable canal"," cablecanales" };
+    public static final String[] KW_CABLE_ELECTRICO_LIDER = {
+        " cable unipolar"," cable bipolar"," cable tripolar"," cable tetrapolar"," cable taller",
+        " cable tipo taller"," cable subterraneo"," cable preensamblado"," cable paralelo"
+    };
+    public static final String[] KW_CANALETA = { " canaleta"," canaletas" };
+    public static final String[] KW_CANALETA_VETO = { " cable"," electric"," organiz" };
+    public static final String[] KW_FLEXIBLE_LIDER = { " flexible "," flexibles " };
+    public static final String[] KW_FLEXIBLE_CALIFICADOR = {
+        " agua"," gas "," mallado"," mallada"," inox"," 1/2"," 3/4"
+    };
+    public static final String[] KW_REGULADOR_GAS_LIDER = {
+        " regulador de gas"," regulador gas"," regulador para gas"," regulador de garrafa",
+        " regulador para garrafa"," regulador envasado"," regulador de presion gas"
+    };
+    public static final String[] KW_LLAVE_DE_PASO_LIDER = {
+        " llave de paso"," llave esferica"," valvula esferica"," valvula de paso"," valvula de retencion",
+        " llave de corte"
+    };
+    public static final String[] KW_TANQUE_LIDER = { " tanque "," tanques "," cisterna "," camara septica" };
+    public static final String[] KW_TANQUE_CALIFICADOR = {
+        " multicapa"," tricapa"," rotoplas"," agua"," cisterna"," lts"," litros"," septica"
+    };
+    public static final String[] KW_BOMBA_LIDER = { " bomba "," bombas "," electrobomba"," motobomba" };
+    public static final String[] KW_BOMBA_CALIFICADOR = {
+        " presuriz"," periferica"," centrifuga"," de agua"," sumergible"," hp "," cloacal"," elevadora",
+        " electrobomba"," motobomba"
+    };
+    public static final String[] KW_CANO_LIDER = { " cano "," canos " };
+    public static final String[] KW_CANO_VETO = { " escape"," silenciador"," pesca"," catalitico" };
+    public static final String[] KW_TUBO_LIDER = { " tubo "," tubos " };
+    public static final String[] KW_TUBO_CALIFICADOR = {
+        " pvc"," polipropileno"," ppr"," termofusion"," thermofusion"," fusion"," magnum"," pn20"," pn 20",
+        " epoxi"," bicapa"," corrugado"," cobre"," galvanizado"," acqua"," tubofusion"," sigas"
+    };
+    public static final String[] KW_ACCESORIO_CANO_LIDER = {
+        " codo "," codos "," union "," uniones "," te "," tee "," buje "," bujes "," cupla "," cuplas ",
+        " curva "," curvas "," conector "," conectores "," tapon "," tapones "," rosca "," tuerca ",
+        " niple "," reduccion "," insercion "
+    };
+    public static final String[] KW_ACCESORIO_CANO_CALIFICADOR = {
+        " polipropileno"," pvc"," ppr"," termofusion"," thermofusion"," fusion"," pulgada"," 1/2"," 3/4",
+        " hierro"," epox"," acqua"," duratop"," genrod"," sigas"," bicapa"," roscad"," tubohogar"," amanco",
+        " latyn"," pluvitubo"
+    };
+    public static final String[] KW_TAPA_LIDER = { " tapa "," tapas " };
+    public static final String[] KW_TAPA_CALIFICADOR = { " mm polipropileno"," mm ppr"," mm pvc"," pvc" };
+    public static final String[] KW_GRAMPA_LIDER = { " grampa ", " grampas " };
+    public static final String[] KW_GRAMPA_CALIFICADOR = { " omega"," clip"," c-clip" };
+    public static final String[] KW_SOPORTE_CANO_LIDER = { " soporte media cana"," teflon" };
+
+    public static final String[] KW_ILUMINACION_LIDER = {
+        " plafon"," plafones"," spot "," spots "," kit spot"," velador"," veladores"," farola"," farolas",
+        " portalampara"," lamparita"," lamparitas"," dicroica"," dicroicas"," led "," luz led"," estaca solar",
+        " estacas solares"," estaca ext"," estaca led"," proy solar"," tira led"," vela led"," tubo led",
+        " panel led"," reflector led"," reflector solar"," cinta led"
+    };
+    public static final String[] KW_ILUMINACION_VETO = {
+        " tv "," monitor"," televisor"," pantalla led"," notebook"," hdmi"," wifi"," bluetooth"," lumens"," 4k",
+        " cajon"," cajones"," mueble"," melamina"
+    };
+    public static final String[] KW_COLGANTE_LIDER = { " colgante "," colgantes " };
+    public static final String[] KW_COLGANTE_CALIFICADOR = { " luz"," luces"," led"," e27"," lampara" };
+    public static final String[] KW_APLIQUE_LIDER = { " aplique "," apliques " };
+    public static final String[] KW_APLIQUE_CALIFICADOR = {
+        " luz"," luces"," e27"," gu10"," solar"," interior"," exterior"," led"," pared"," sensor"
+    };
+    public static final String[] KW_DIFUSOR_LIDER = { " difusor "," difusores " };
+    public static final String[] KW_DIFUSOR_CALIFICADOR = { " bidireccional"," e27"," gu10"," luces" };
+    public static final String[] KW_FAROL_LIDER = { " farol "," faroles " };
+    public static final String[] KW_FAROL_CALIFICADOR = {
+        " colonial"," pared"," solar"," led"," exterior"," jardin"," decorativo"," hierro"
+    };
+    public static final String[] KW_ANTORCHA_LIDER = { " antorcha "," antorchas " };
+    public static final String[] KW_ANTORCHA_CALIFICADOR = { " solar"," led" };
+    public static final String[] KW_GUIRNALDA_LIDER = { " guirnalda "," guirnaldas " };
+    public static final String[] KW_GUIRNALDA_CALIFICADOR = {
+        " luces"," led"," solar"," luz"," bombillo"," portalampara"
+    };
+    public static final String[] KW_PROYECTOR_LIDER = { " proyector "," proyectores "," reflector "," reflectores " };
+    public static final String[] KW_PROYECTOR_CALIFICADOR = {
+        " ip65"," ip66"," ip44"," luz fria"," luz calida"," solar"," sensor"," exterior"," halogeno"
+    };
+    public static final String[] KW_ROSCA_DE_LAMPARA = { " e27 "," gu10 " };
+
     public static final String[] KW_FUNDA_LIDER = { " funda "," fundas " };
     public static final String[] KW_FUNDA_CONTEXTO = {
         " almohadon"," silla"," sillon"," respaldo"," sofa"," cama"," cuerpos"," pana "," tusor "

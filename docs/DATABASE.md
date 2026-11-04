@@ -139,6 +139,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V54` | Seed de Baesics (Shopify, gym, marca propia): fila en `sitio` con `monomarca` y su fila en `marca` |
 | `V63` | `sitio_categoria` (árbol de categorías del sitio, 3FN) + `productos.sitio_categoria_id` |
 | `V64` | 26 categorías de `construccion` (obra gruesa, maderas, techos, construcción en seco, pinturas, aberturas, pisos y revestimientos) |
+| `V65` | 14 categorías de `construccion` para instalaciones (plomería, gas, electricidad); la iluminación reutiliza `Iluminación` (`V27`) |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -3884,5 +3885,48 @@ DELETE FROM categoria WHERE nombre IN
 -- <<< rollback:V64
 ```
 
-Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V63`. Los productos
+Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V65` y antes que el de `V63`. Los productos
+reclasificados quedan con `categoria` NULL hasta el próximo scrape.
+
+---
+
+## `V65` — categorías de `construccion`: plomería, gas y electricidad
+
+Easy vende instalaciones sanitarias, de gas y eléctricas: sin estas categorías, sus caños, llaves de luz y
+térmicas caen en `Otros`. `V65` agrega 14 filas a `categoria` (sólo datos, sin cambio de esquema); el `rubro`
+sale de `CategoryGroups.CATEGORIAS_CONSTRUCCION`.
+
+| Familia | Categorías nuevas |
+|---|---|
+| Plomería | `Caño` (también el conduit eléctrico), `Accesorio de Caño`, `Llave de Paso` (incluye válvula esférica), `Flexible`, `Tanque de Agua` (incluye cisterna y cámara séptica), `Bomba de Agua`, `Canaleta` (pluvial) |
+| Gas | `Regulador de Gas` |
+| Electricidad | `Cable Eléctrico`, `Llave de Luz` (líneas armadas, tomacorrientes, interruptores, tapas), `Térmica`, `Caja Eléctrica`, `Cablecanal`, `Ficha y Prolongador` |
+
+La iluminación no suma una categoría: `Iluminación` ya existe desde `V27` (rubro `oficina` por sitio) y ahora
+también está en `CATEGORIAS_CONSTRUCCION`. `RubroResolver` evalúa `rubro_forzado = oficina` antes que la
+categoría, así que los sitios de oficina no cambian; un sitio sin `rubro_forzado` como Easy resuelve `construccion`.
+`InstalacionesClassifier` corre justo después de `ConstruccionClassifier` y antes de `OficinaClassifier`.
+Una categoría nueva son dos cambios (keyword + migración); sin la fila, el upsert viola `fk_productos_categoria` y el
+síntoma es `"0 nuevos"`.
+
+### Rollback
+
+```sql
+-- >>> rollback:V65
+UPDATE productos SET categoria = NULL WHERE categoria IN
+    ('Caño','Accesorio de Caño','Llave de Paso','Flexible','Tanque de Agua','Bomba de Agua','Canaleta',
+     'Regulador de Gas','Cable Eléctrico','Llave de Luz','Térmica','Caja Eléctrica','Cablecanal',
+     'Ficha y Prolongador');
+DELETE FROM categoria_stats WHERE categoria IN
+    ('Caño','Accesorio de Caño','Llave de Paso','Flexible','Tanque de Agua','Bomba de Agua','Canaleta',
+     'Regulador de Gas','Cable Eléctrico','Llave de Luz','Térmica','Caja Eléctrica','Cablecanal',
+     'Ficha y Prolongador');
+DELETE FROM categoria WHERE nombre IN
+    ('Caño','Accesorio de Caño','Llave de Paso','Flexible','Tanque de Agua','Bomba de Agua','Canaleta',
+     'Regulador de Gas','Cable Eléctrico','Llave de Luz','Térmica','Caja Eléctrica','Cablecanal',
+     'Ficha y Prolongador');
+-- <<< rollback:V65
+```
+
+Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V64`. Los productos
 reclasificados quedan con `categoria` NULL hasta el próximo scrape.

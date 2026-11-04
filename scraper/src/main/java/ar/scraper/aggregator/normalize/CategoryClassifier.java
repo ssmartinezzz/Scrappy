@@ -12,6 +12,7 @@ public class CategoryClassifier {
     private static final FamiliaClassifier[] FAMILIAS_EN_ORDEN = {
         new HogarClassifier(),
         new ConstruccionClassifier(),
+        new InstalacionesClassifier(),
         new NutricionTempranaClassifier(NUTRICION),
         new OficinaClassifier(),
         new TechClassifier(),
