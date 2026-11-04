@@ -1657,7 +1657,7 @@ regla sus sillas quedaban en `indumentaria`. `tecnologia` también sale de la ca
 `CATEGORIAS_TECH`): un monitor de Easy ya no cae en `indumentaria`, y el costo aceptado es que un reloj Garmin o un
 periférico gamer de una tienda deportiva sin rubro forzado pasa a `tecnologia`. `deporte` y `juguetes` siguen el mismo
 criterio (decisión D-6): equipamiento deportivo y juguetes por categoría, sólo sin rubro forzado, y un rubro forzado
-gana siempre. La ropa deportiva se queda en `indumentaria`; el `deporte` de `SportResolver` es una dimensión aparte.
+gana siempre. La ropa deportiva se queda en `indumentaria`; el `deporte` de `SportResolver` es una dimensión aparte, que etiqueta tanto `indumentaria` como el rubro `deporte`, así una pelota de fútbol sigue en el filtro de fútbol. `GymratTagger` no: gymrat es ropa.
 
 `sitioCategoriaOrigenId` es la hoja del árbol de categorías del propio sitio donde éste ubica al producto
 (`categoryId` en VTEX): `null` es "el sitio no la publica", nunca un sentinel. Sólo `VtexPage` la llena; el upsert la
