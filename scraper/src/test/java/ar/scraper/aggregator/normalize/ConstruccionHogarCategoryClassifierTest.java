@@ -112,7 +112,11 @@ class ConstruccionHogarCategoryClassifierTest {
                 "Toldo", "Cerámico", "Porcelanato", "Pastina", "Revestimiento", "Escalera",
                 "Caño", "Accesorio de Caño", "Llave de Paso", "Flexible", "Tanque de Agua", "Bomba de Agua",
                 "Canaleta", "Regulador de Gas", "Cable Eléctrico", "Llave de Luz", "Térmica", "Caja Eléctrica",
-                "Cablecanal", "Ficha y Prolongador", "Iluminación");
+                "Cablecanal", "Ficha y Prolongador", "Iluminación",
+                "Taladro", "Amoladora", "Sierra", "Soldadora", "Hidrolavadora", "Herramienta Eléctrica",
+                "Herramienta Manual", "Accesorio de Herramienta", "Lija", "Caja de Herramientas", "Tornillo",
+                "Tarugo", "Clavo", "Fijación", "Bisagra", "Cerradura", "Candado", "Herraje", "Cinta Adhesiva",
+                "Guante de Trabajo", "Protección Personal");
         assertThat(CategoryGroups.categoriasHogar()).containsExactlyInAnyOrder(
                 "Almohadón", "Funda", "Manta", "Mantel", "Alfombra", "Respaldo");
         assertThat(CategoryGroups.canonicalCategories())

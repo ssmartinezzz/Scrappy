@@ -522,7 +522,7 @@ public final class GarmentTaxonomy {
         " revoque "," hormigon "," plasticor"
     };
     public static final String[] KW_HIERRO_LIDER = {
-        " hierro redondo"," hierro nervado"," hierro aletado"," hierro adn"," hierros "," hierro del ",
+        " hierro redondo"," hierro nervado"," hierro aletado"," hierro adn"," hierros "," hierro del "," planchuela"," planchuelas",
         " malla sima"," malla electrosoldada"," barra de hierro"
     };
     public static final String[] KW_IMPERMEABILIZANTE_LIDER = {
@@ -713,6 +713,157 @@ public final class GarmentTaxonomy {
         " ip65"," ip66"," ip44"," luz fria"," luz calida"," solar"," sensor"," exterior"," halogeno"
     };
     public static final String[] KW_ROSCA_DE_LAMPARA = { " e27 "," gu10 " };
+
+    public static final String[] KW_TALADRO_LIDER = {
+        " taladro "," taladros "," rotomartillo"," atornillador"," atornilladora"," martillo perforador",
+        " martillo demoledor",
+        " destornillador electrico"," destornillador inalambrico"
+    };
+    public static final String[] KW_AMOLADORA_LIDER = {
+        " amoladora"," amoladoras"," pulidora"," pulidoras"," esmeril "," esmeriladora"
+    };
+    public static final String[] KW_SIERRA_LIDER = {
+        " sierra circular"," sierra caladora"," sierra ingletadora"," sierra sensitiva"," sierra sable",
+        " sierra de banco"," sierra de mesa"," sierra cinta"," sierra electrica"," sierra inalambrica",
+        " caladora"," caladoras"," ingletadora"," ingleteadora"," ingletadoras"," ingleteadoras"
+    };
+    public static final String[] KW_SOLDADORA_LIDER = {
+        " soldadora"," soldadoras"," equipo de soldar"," equipo de soldadura"," maquina de soldar"
+    };
+    public static final String[] KW_HIDROLAVADORA_LIDER = {
+        " hidrolavadora"," hidrolavadoras"," lavadora de alta presion"
+    };
+    public static final String[] KW_HERRAMIENTA_ELECTRICA_LIDER = {
+        " lijadora"," lijadoras"," compresor de aire"," compresor electrico"," motocompresor"," pistola de calor",
+        " hormigonera"," hormigoneras"," mezcladora de cemento"," grupo electrogeno"," grupos electrogenos",
+        " termofusora"," termofusoras"," clavadora"," clavadoras"," cepilladora"," fresadora"," pistola para pintar",
+        " pistola de pintar"," equipo de pintar"," equipo de pintura"," mezclador de pintura"," mezclador electrico",
+        " sopladora"," vibrador de hormigon"," minitorno"," multiherramienta"
+    };
+    public static final String[] KW_ACCESORIO_HERRAMIENTA_LIDER = {
+        " disco de corte"," disco de desbaste"," disco flap"," disco diamantado"," disco abrasivo",
+        " broca "," brocas "," juego de mechas"," set de mechas"," punta para atornillar"," puntas para atornillar",
+        " puntas de destornillador"," hoja de sierra"," hojas de sierra"," sierra copa"," sierra de copa"," electrodo ",
+        " electrodos"," alambre para soldadura"," alambre de soldadura"," mandril"," cincel"," cinceles",
+        " cargador para bateria"
+    };
+    public static final String[] KW_MECHA_LIDER = { " mecha "," mechas " };
+    public static final String[] KW_MECHA_CALIFICADOR = {
+        " cemento"," metal"," madera"," widia"," hormigon"," sds"," acero"," pared"," vidrio"
+    };
+    public static final String[] KW_BATERIA_HERRAMIENTA_LIDER = { " bateria "," baterias "," cargador "," cargadores " };
+    public static final String[] KW_BATERIA_HERRAMIENTA_CALIFICADOR = {
+        " 18v"," 20v"," 18 v"," 20 v"," pxc"," power x"," 4.0ah"," 2.0ah"
+    };
+    public static final String[] KW_LIJA_LIDER = {
+        " lija "," lijas "," hoja de lija"," hojas de lija"," banda de lija"," bandas de lija"," papel de lija",
+        " disco de lija"," discos de lija"," set discos lija"," set de discos de lija"," tela esmeril"," rollo de lija",
+        " esponja de lija"," taco de lija"," taco lijador"
+    };
+    public static final String[] KW_CAJA_HERRAMIENTAS_LIDER = {
+        " caja de herramientas"," caja para herramientas"," caja portaherramientas"," caja porta herramientas",
+        " cajas de herramientas"," gabinete para herramientas"," gabinete organizador de herramientas",
+        " gabinete de herramientas"," carro portaherramientas"," carro porta herramientas"," carro de herramientas",
+        " maletin de herramientas"," maletin portaherramientas"," bolso portaherramientas"," bolso para herramientas",
+        " organizador de herramientas"," banco de trabajo"," bancos de trabajo"
+    };
+    public static final String[] KW_HERRAMIENTA_MANUAL_LIDER = {
+        " destornillador"," destornilladores"," martillo "," martillos "," maza de "," mazas de "," alicate"," alicates",
+        " tenaza"," tenazas"," cortafrio"," pinza pelacable"," pinza amperometrica"," pinza de punta"," pinza universal",
+        " pinza cortante"," pinza para colocar"," pinza de presion"," pinza ajustable"," pinza de mecanico",
+        " pinza de electricista"," pinza multiple"," pinza crimp"," pelacable"," pelacables"," llana "," llanas ",
+        " fratacho"," fratachos"," cuchara de albanil"," cucharas de albanil"," cucharin"," serrucho"," serruchos",
+        " sierra de mano"," sierra manual"," arco de sierra"," cutter "," cutters "," repuesto para cutter",
+        " repuesto cutter"," tijera corta chapa"," tijera para chapa"," prensa sargento"," sargento "," morsa "," morsas ",
+        " tornillo de banco"," flexometro"," flexometros"," cinta metrica"," metro plegable"," llave inglesa",
+        " llave francesa"," llave tubo"," llave de tubo"," llave allen"," llaves allen"," llave torx"," llave combinada",
+        " llave stilson"," llave cruz"," llave de copa"," juego de llaves"," set de llaves"," juego de destornilladores",
+        " set de destornilladores"," set de puntas"," dado "," dados "," matraca"," crique"," barreta"," pata de cabra",
+        " formon"," formones"," escofina"," escofinas"," cepillo de acero"," cepillo de alambre"," cepillo de carpintero",
+        " piedra para afilar"," piedra de afilar"," machete"," machetes"," cuchilla metali"," cuchilla retractil"," balde para albanil"," balde albanil",
+        " balde de albanil"," pistola calafateadora"," pistola aplicadora"," cortadora de ceramicos",
+        " cortadora de azulejos"," cortavidrio"," cortador de vidrio"," cortatubos"," corta tubos"," cortacano",
+        " remachadora"," plomada"," set de herramientas"," juego de herramientas"," set herramientas"
+    };
+    public static final String[] KW_CARRETILLA_LIDER = { " carretilla "," carretillas " };
+    public static final String[] KW_CARRETILLA_CALIFICADOR = {
+        " lts"," litros"," rueda"," albanil"," reforzada"," obra"," 100l"," 90l"," 80l"
+    };
+    public static final String[] KW_ESPATULA_LIDER = { " espatula "," espatulas " };
+    public static final String[] KW_ESPATULA_CALIFICADOR = {
+        " flexible"," acero"," masilla"," enduido"," pintor"," albanil"
+    };
+    public static final String[] KW_ESPATULA_VETO = { " silicona"," cocina"," reposteria"," madera"," bambu"," nylon" };
+    public static final String[] KW_NIVEL_LIDER = { " nivel "," niveles " };
+    public static final String[] KW_NIVEL_CALIFICADOR = { " burbuja"," aluminio"," laser"," magnetico"," torpedo"," albanil" };
+
+    public static final String[] KW_TORNILLO_LIDER = {
+        " tornillo "," tornillos "," tirafondo"," tirafondos"," autoperforante"," autoperforantes"," bulon "," bulones",
+        " perno "," pernos "
+    };
+    public static final String[] KW_TARUGO_LIDER = {
+        " tarugo "," tarugos "," anclaje"," anclajes"," ancla de expansion"," ancla quimica"
+    };
+    public static final String[] KW_TARUGO_VETO = { " tubeless"," plug"," tappabuco"," effetto" };
+    public static final String[] KW_TACO_LIDER = { " taco "," tacos "," blister tacos"," blister de tacos" };
+    public static final String[] KW_TACO_CALIFICADOR = {
+        " fischer"," nylon"," mamposteria"," hormigon"," ladrillo"," tornillo"," expansivo"," duopower"
+    };
+    public static final String[] KW_CLAVO_LIDER = { " clavo "," clavos " };
+    public static final String[] KW_FIJACION_LIDER = {
+        " alambre "," alambres "," tuerca "," tuercas "," arandela "," arandelas "," remache "," remaches ",
+        " abrazadera "," abrazaderas "," caja de fijacion"," caja fijacion"," soporte l "," soporte angulo",
+        " angulo de fijacion"," grillete"," grilletes"," mosqueton"," mosquetones"," varilla roscada"," cable de acero"," cable acero"
+    };
+    public static final String[] KW_BISAGRA_LIDER = { " bisagra "," bisagras " };
+    public static final String[] KW_CERRADURA_LIDER = {
+        " cerradura"," cerraduras"," kit cerradura"," kit de cerradura"," picaporte"," picaportes"," manija doble",
+        " manijas doble"," manija simple"," manija para puerta"," cerrojo"," cerrojos"," falleba"," pestillo"
+    };
+    public static final String[] KW_CANDADO_LIDER = {
+        " candado "," candados "," caja porta llaves"," caja portallaves"," cofre porta"," cofre de seguridad"
+    };
+    public static final String[] KW_HERRAJE_LIDER = {
+        " corredera"," correderas"," tirador "," tiradores"," piston a gas"," pistones a gas"," pata regulable",
+        " patas regulables"," regaton"," regatones"," soporte para barral"," soporte para estante",
+        " soporte de estante"," mensula"," mensulas"," kit corredizo"," tapacanto"," fieltro autoadhesivo",
+        " fieltro circular"," tope adhesivo"," topes adhesivos"," tope para puerta"," cierrapuertas"
+    };
+    public static final String[] KW_PATA_LIDER = { " pata "," patas " };
+    public static final String[] KW_PATA_CALIFICADOR = {
+        " regulable"," para mesa"," para mueble"," mesa"," mueble"," plastica"
+    };
+    public static final String[] KW_RUEDA_LIDER = { " rueda "," ruedas " };
+    public static final String[] KW_RUEDA_CALIFICADOR = {
+        " polipropileno"," giratoria"," fija "," pivotante"," goma"," carro"," mueble"," freno"
+    };
+    public static final String[] KW_CINTA_ADHESIVA_LIDER = {
+        " cinta adhesiva"," cinta de embalar"," cinta embalaje"," cinta de papel"," cinta papel"," cinta de enmascarar",
+        " cinta enmascarar"," cinta de pintor"," cinta aisladora"," cinta de aluminio"," cinta aluminio",
+        " cinta doble faz"," cinta de espuma"," cinta espuma"," cinta polietileno"," cinta de peligro",
+        " cinta demarcatoria"," cinta de seguridad"," cinta antideslizante"," cinta de tela"," cinta de carrocero",
+        " cinta de empalme"," cinta autoadhesiva"," cinta butilica"," cinta asfaltica"," cinta de montaje",
+        " cinta de vinilo"," tira adhesiva"
+    };
+    public static final String[] KW_GUANTE_LIDER = { " guante "," guantes ", " par de guantes" };
+    public static final String[] KW_GUANTE_TRABAJO_CALIFICADOR = {
+        " vaqueta"," moteado"," latex"," nitrilo"," pvc"," trabajo"," soldador"," anticorte"," mecanico"," descarne",
+        " carnaza"," neoprene"," dielectrico"," rigger"," jardiner"," poliuretano"
+    };
+    public static final String[] KW_PROTECCION_LIDER = {
+        " casco de seguridad"," casco seguridad"," casco industrial"," casco de obra"," casco dielectrico",
+        " lentes de seguridad"," gafas de seguridad"," anteojos de seguridad"," protector facial"," mascara de soldar",
+        " careta de soldar"," careta para soldar"," careta protectora"," careta facial"," protector auditivo"," protectores auditivos"," tapones auditivos",
+        " tapon auditivo"," barbijo"," barbijos"," respirador"," respiradores"," mascara respirador"," mascara para polvo",
+        " arnes de seguridad"," arnes anticaidas"," chaleco refractario"," chaleco de seguridad"," chaleco reflectivo",
+        " chaleco de trabajo"," botines de seguridad"," zapatos de seguridad"," calzado de seguridad"," bota de seguridad",
+        " botas de seguridad"," botin de seguridad"," zapato de trabajo"," ropa de trabajo"," overol"," mameluco de trabajo",
+        " mamelucos de trabajo"," orejeras de proteccion"," orejera de proteccion"
+    };
+    public static final String[] KW_ANTIPARRA_LIDER = { " antiparra "," antiparras " };
+    public static final String[] KW_ANTIPARRA_PROTECCION_CALIFICADOR = {
+        " seguridad"," trabajo"," proteccion"," policarbonato"," industrial"," antiempanante"
+    };
 
     public static final String[] KW_FUNDA_LIDER = { " funda "," fundas " };
     public static final String[] KW_FUNDA_CONTEXTO = {

@@ -13,6 +13,8 @@ public class CategoryClassifier {
         new HogarClassifier(),
         new ConstruccionClassifier(),
         new InstalacionesClassifier(),
+        new HerramientasClassifier(),
+        new FerreteriaClassifier(),
         new NutricionTempranaClassifier(NUTRICION),
         new OficinaClassifier(),
         new TechClassifier(),

@@ -140,6 +140,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V63` | `sitio_categoria` (árbol de categorías del sitio, 3FN) + `productos.sitio_categoria_id` |
 | `V64` | 26 categorías de `construccion` (obra gruesa, maderas, techos, construcción en seco, pinturas, aberturas, pisos y revestimientos) |
 | `V65` | 14 categorías de `construccion` para instalaciones (plomería, gas, electricidad); la iluminación reutiliza `Iluminación` (`V27`) |
+| `V66` | 21 categorías de `construccion` para herramientas, fijaciones, herrajes, cintas y protección personal |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -3928,5 +3929,53 @@ DELETE FROM categoria WHERE nombre IN
 -- <<< rollback:V65
 ```
 
-Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V64`. Los productos
+Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V66` y antes que el de `V64`. Los productos
+reclasificados quedan con `categoria` NULL hasta el próximo scrape.
+
+---
+
+## `V66` — categorías de `construccion`: herramientas, ferretería y protección personal
+
+Easy vende herramientas eléctricas y manuales, fijaciones, herrajes y equipo de seguridad: sin estas categorías,
+sus taladros, tornillos y guantes de trabajo caen en `Otros` (o en una categoría de ropa). `V66` agrega 21 filas a
+`categoria` (sólo datos, sin cambio de esquema); el `rubro` sale de `CategoryGroups.CATEGORIAS_CONSTRUCCION`.
+
+| Familia | Categorías nuevas |
+|---|---|
+| Herramientas eléctricas | `Taladro` (también atornilladores y rotomartillos), `Amoladora` (también pulidoras), `Sierra` (eléctricas: circular, caladora, ingletadora), `Soldadora`, `Hidrolavadora`, `Herramienta Eléctrica` (lijadoras, compresores, hormigoneras, pistolas de calor y de pintar, grupos electrógenos) |
+| Herramientas manuales y accesorios | `Herramienta Manual` (destornilladores, martillos, pinzas, llaves, llanas, serruchos, niveles, cinta métrica), `Accesorio de Herramienta` (discos, mechas, brocas, baterías y cargadores de 18/20 V), `Lija`, `Caja de Herramientas` |
+| Fijaciones | `Tornillo` (también bulones y tirafondos), `Tarugo` (también tacos con tornillo y anclajes), `Clavo`, `Fijación` (alambre, tuercas, arandelas, remaches, abrazaderas, cable de acero) |
+| Herrajes | `Bisagra`, `Cerradura` (también picaportes y manijas), `Candado` (también cofres y cajas de llaves), `Herraje` (correderas, tiradores, patas, ruedas, ménsulas) |
+| Cintas y seguridad | `Cinta Adhesiva` (embalar, papel, aisladora, doble faz), `Guante de Trabajo`, `Protección Personal` (casco y antiparras de seguridad, protector auditivo, barbijo, calzado y ropa de trabajo) |
+
+`Guantes`, `Lentes` y los cascos deportivos conservan su clasificación: `Guante de Trabajo` exige un calificador de obra
+(vaqueta, látex, nitrilo, anticorte…), y `Protección Personal` exige `seguridad`, `trabajo` o `protección` junto al
+sustantivo. `HerramientasClassifier` y `FerreteriaClassifier` corren justo después de `InstalacionesClassifier` y antes
+de `NutricionTempranaClassifier`; sólo matchean el sustantivo líder, así que `Kit …` y `Set …` siguen siendo `Conjunto`.
+Una categoría nueva son dos cambios (keyword + migración); sin la fila, el upsert viola `fk_productos_categoria` y el
+síntoma es `"0 nuevos"`.
+
+### Rollback
+
+```sql
+-- >>> rollback:V66
+UPDATE productos SET categoria = NULL WHERE categoria IN
+    ('Taladro','Amoladora','Sierra','Soldadora','Hidrolavadora','Herramienta Eléctrica',
+     'Herramienta Manual','Accesorio de Herramienta','Lija','Caja de Herramientas','Tornillo','Tarugo','Clavo',
+     'Fijación','Bisagra','Cerradura','Candado','Herraje','Cinta Adhesiva','Guante de Trabajo',
+     'Protección Personal');
+DELETE FROM categoria_stats WHERE categoria IN
+    ('Taladro','Amoladora','Sierra','Soldadora','Hidrolavadora','Herramienta Eléctrica',
+     'Herramienta Manual','Accesorio de Herramienta','Lija','Caja de Herramientas','Tornillo','Tarugo','Clavo',
+     'Fijación','Bisagra','Cerradura','Candado','Herraje','Cinta Adhesiva','Guante de Trabajo',
+     'Protección Personal');
+DELETE FROM categoria WHERE nombre IN
+    ('Taladro','Amoladora','Sierra','Soldadora','Hidrolavadora','Herramienta Eléctrica',
+     'Herramienta Manual','Accesorio de Herramienta','Lija','Caja de Herramientas','Tornillo','Tarugo','Clavo',
+     'Fijación','Bisagra','Cerradura','Candado','Herraje','Cinta Adhesiva','Guante de Trabajo',
+     'Protección Personal');
+-- <<< rollback:V66
+```
+
+Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V65`. Los productos
 reclasificados quedan con `categoria` NULL hasta el próximo scrape.

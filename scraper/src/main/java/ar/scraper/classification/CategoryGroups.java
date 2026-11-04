@@ -71,7 +71,11 @@ public final class CategoryGroups {
         "Toldo", "Cerámico", "Porcelanato", "Pastina", "Revestimiento", "Escalera",
         "Caño", "Accesorio de Caño", "Llave de Paso", "Flexible", "Tanque de Agua", "Bomba de Agua",
         "Canaleta", "Regulador de Gas", "Cable Eléctrico", "Llave de Luz", "Térmica", "Caja Eléctrica",
-        "Cablecanal", "Ficha y Prolongador", "Iluminación"
+        "Cablecanal", "Ficha y Prolongador", "Iluminación",
+        "Taladro", "Amoladora", "Sierra", "Soldadora", "Hidrolavadora", "Herramienta Eléctrica",
+        "Herramienta Manual", "Accesorio de Herramienta", "Lija", "Caja de Herramientas", "Tornillo",
+        "Tarugo", "Clavo", "Fijación", "Bisagra", "Cerradura", "Candado", "Herraje", "Cinta Adhesiva",
+        "Guante de Trabajo", "Protección Personal"
     );
 
     private static final Set<String> CATEGORIAS_HOGAR = Set.of(
