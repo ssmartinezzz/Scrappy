@@ -141,6 +141,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V64` | 26 categorías de `construccion` (obra gruesa, maderas, techos, construcción en seco, pinturas, aberturas, pisos y revestimientos) |
 | `V65` | 14 categorías de `construccion` para instalaciones (plomería, gas, electricidad); la iluminación reutiliza `Iluminación` (`V27`) |
 | `V66` | 21 categorías de `construccion` para herramientas, fijaciones, herrajes, cintas y protección personal |
+| `V67` | 27 categorías de `hogar` para baños y cocinas, muebles, organización y limpieza, textil, decoración y bazar |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -3977,5 +3978,54 @@ DELETE FROM categoria WHERE nombre IN
 -- <<< rollback:V66
 ```
 
-Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V65`. Los productos
+Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V67` y antes que el de `V65`. Los productos
+reclasificados quedan con `categoria` NULL hasta el próximo scrape.
+
+---
+
+## `V67` — categorías de `hogar`: baños, cocinas, muebles, organización y textil
+
+Easy vende sanitarios, grifería, muebles, organizadores, textil de cama y decoración: sin estas categorías sus
+inodoros caen en `Otros` (o en `Malla`, `Mochila`), sus placares en `Otros` y sus plumones en `Puffer`. `V67` agrega 27 filas a
+`categoria` (sólo datos, sin cambio de esquema); el `rubro` sale de `CategoryGroups.CATEGORIAS_HOGAR`, que a diferencia de
+`CATEGORIAS_CONSTRUCCION` gana sobre `rubro_forzado` en todos los sitios salvo `tecnologia` y `oficina`.
+
+| Familia | Categorías nuevas |
+|---|---|
+| Baños y cocinas | `Sanitario` (inodoro, bidet, depósito, lavatorio, columna de baño, asiento y tapa), `Grifería`, `Ducha`, `Bañera`, `Mampara`, `Vanitory`, `Bacha` (también piletas de cocina), `Accesorio de Baño` (toallero, jabonera, portacepillos, escobilla, set de baño) |
+| Muebles | `Mueble` (cómoda, rack de TV, biblioteca, mesa de luz, zapatero, despensero), `Placard` (también clóset y ropero), `Cama` (también sommier y cucheta), `Colchón`, `Mesa` (también comedor y juegos de comedor), `Sillón` (también futón, puff, sitial, sofá) |
+| Organización y limpieza | `Estantería` (estante, repisa, rack metálico), `Caja y Canasto` (canasto, cesto, baúl, caja organizadora), `Basurero`, `Tendedero`, `Colgador` (percha, perchero, gancho), `Artículo de Limpieza` (mopa, escoba, esponja, bolsas de residuos), `Sistema Modular` (rieles, barras, escuadras y tableros de los sistemas modulares) |
+| Textil y decoración | `Espejo`, `Cortina` (también roller, persiana y barral), `Ropa de Cama` (sábana, plumón, almohada, acolchado), `Toalla`, `Decoración` (cuadro, florero, farol, vela, adornos navideños), `Bazar` (frasco, copa, jarra, vajilla) |
+
+`Silla`, `Escritorio` y `Organización` ya existían como categorías de `oficina` y siguen ganando donde ganaban: un `Silla Comedor` de
+Easy sigue siendo `Silla`, y su rubro no sale de `hogar`. Los cuatro clasificadores nuevos (`BanoCocinaClassifier`,
+`MueblesClassifier`, `OrganizacionHogarClassifier`, `TextilDecoClassifier`) corren justo después de `FerreteriaClassifier` y antes de
+`NutricionTempranaClassifier`; sólo matchean el sustantivo líder, y los nombres ambiguos (`toalla` deportiva, `cama` de mascota,
+`mesa` de ping pong, `baúl` de moto, `cuadro` de bicicleta, `roller` de patines) tienen un veto. `caja` es prefijo de venta, así que las
+reglas de caja usan el texto sin recortar. Una categoría nueva son dos cambios (keyword + migración); sin la fila, el upsert viola
+`fk_productos_categoria` y el síntoma es `"0 nuevos"`.
+
+### Rollback
+
+```sql
+-- >>> rollback:V67
+UPDATE productos SET categoria = NULL WHERE categoria IN
+    ('Sanitario','Grifería','Ducha','Bañera','Mampara','Vanitory','Bacha','Accesorio de Baño',
+     'Mueble','Placard','Cama','Colchón','Mesa','Sillón','Estantería','Caja y Canasto','Basurero',
+     'Tendedero','Colgador','Artículo de Limpieza','Sistema Modular','Espejo','Cortina','Ropa de Cama',
+     'Toalla','Decoración','Bazar');
+DELETE FROM categoria_stats WHERE categoria IN
+    ('Sanitario','Grifería','Ducha','Bañera','Mampara','Vanitory','Bacha','Accesorio de Baño',
+     'Mueble','Placard','Cama','Colchón','Mesa','Sillón','Estantería','Caja y Canasto','Basurero',
+     'Tendedero','Colgador','Artículo de Limpieza','Sistema Modular','Espejo','Cortina','Ropa de Cama',
+     'Toalla','Decoración','Bazar');
+DELETE FROM categoria WHERE nombre IN
+    ('Sanitario','Grifería','Ducha','Bañera','Mampara','Vanitory','Bacha','Accesorio de Baño',
+     'Mueble','Placard','Cama','Colchón','Mesa','Sillón','Estantería','Caja y Canasto','Basurero',
+     'Tendedero','Colgador','Artículo de Limpieza','Sistema Modular','Espejo','Cortina','Ropa de Cama',
+     'Toalla','Decoración','Bazar');
+-- <<< rollback:V67
+```
+
+Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V66`. Los productos
 reclasificados quedan con `categoria` NULL hasta el próximo scrape.

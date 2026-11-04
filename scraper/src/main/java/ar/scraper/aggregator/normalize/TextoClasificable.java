@@ -46,6 +46,14 @@ record TextoClasificable(String crudo, String normalizado, String sinPrefijoDeVe
         return empiezaConAlguna(sinPrefijoDeVenta, keywords);
     }
 
+    boolean lideraSinVeto(String[] lideres, String[] vetos) {
+        return sinPrefijoDeVentaEmpiezaCon(lideres) && !contiene(vetos);
+    }
+
+    boolean lideraConCalificador(String[] lideres, String[] calificadores) {
+        return sinPrefijoDeVentaEmpiezaCon(lideres) && contiene(calificadores);
+    }
+
     boolean empiezaLiteralmenteCon(String[] keywords) {
         for (String kw : keywords) {
             if (normalizado.startsWith(kw)) return true;

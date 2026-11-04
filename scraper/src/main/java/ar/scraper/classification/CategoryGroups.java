@@ -79,7 +79,11 @@ public final class CategoryGroups {
     );
 
     private static final Set<String> CATEGORIAS_HOGAR = Set.of(
-        "Almohadón", "Funda", "Manta", "Mantel", "Alfombra", "Respaldo"
+        "Almohadón", "Funda", "Manta", "Mantel", "Alfombra", "Respaldo",
+        "Sanitario", "Grifería", "Ducha", "Bañera", "Mampara", "Vanitory", "Bacha", "Accesorio de Baño",
+        "Mueble", "Placard", "Cama", "Colchón", "Mesa", "Sillón", "Estantería", "Caja y Canasto", "Basurero",
+        "Tendedero", "Colgador", "Artículo de Limpieza", "Sistema Modular", "Espejo", "Cortina", "Ropa de Cama",
+        "Toalla", "Decoración", "Bazar"
     );
 
     /** Standalone canonical categories not covered by the sets above. */

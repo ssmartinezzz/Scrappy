@@ -865,19 +865,202 @@ public final class GarmentTaxonomy {
         " seguridad"," trabajo"," proteccion"," policarbonato"," industrial"," antiempanante"
     };
 
+    public static final String[] KW_SANITARIO_LIDER = {
+        " inodoro"," inodoros"," bidet "," bidets "," deposito de colgar"," deposito para inodoro",
+        " deposito de inodoro"," deposito doble descarga"," lavatorio "," lavatorios "," pedestal ",
+        " columna de bano"," asiento de inodoro"," tapa de inodoro"," tapa inodoro"," asiento inodoro",
+        " mingitorio"," piedra de lavatorio"
+    };
+    public static final String[] KW_GRIFERIA_LIDER = {
+        " griferia"," griferias"," canilla "," canillas "," combo griferia"," monocomando "," mezcladora de cocina",
+        " mezclador de cocina"," mezclador monocomando"
+    };
+    public static final String[] KW_DUCHA_LIDER = {
+        " ducha "," duchas "," columna de ducha"," flor de ducha"," set de ducha"," duchador"," telefono de ducha",
+        " telefono ducha"," ducha de pared"
+    };
+    public static final String[] KW_DUCHA_VETO = { " solar"," portatil"," jardin"," camping" };
+    public static final String[] KW_BANERA_LIDER = { " banera "," baneras "," hidromasaje"," jacuzzi" };
+    public static final String[] KW_BANERA_VETO = {
+        " bebe"," baby"," infantil"," ninos"," plegable"," inflable"," mascota"," perro"," gato"," pileta"
+    };
+    public static final String[] KW_MAMPARA_LIDER = {
+        " mampara"," mamparas"," cabina de ducha"," cabina de bano"," box de ducha"," cabina ducha"
+    };
+    public static final String[] KW_VANITORY_LIDER = {
+        " vanitory"," vanitorys"," vanitories"," mueble de bano"," mueble para bano"," mueble vanitory"
+    };
+    public static final String[] KW_BACHA_VETO = { " perro"," gato"," mascota"," pet "," comedero" };
+    public static final String[] KW_BACHA_LIDER = {
+        " bacha "," bachas "," pileta de cocina"," pileta de apoyar"," pileta de acero"," pileta simple",
+        " pileta doble"," pileta de embutir"," pileta para cocina"
+    };
+    public static final String[] KW_ACCESORIO_BANO_LIDER = {
+        " toallero"," toalleros"," jabonera"," jaboneras"," portacepillo"," portacepillos"," porta cepillo",
+        " porta cepillos"," portarrollo"," portarrollos"," porta rollo"," porta rollos"," dispenser de jabon",
+        " dispenser doble jabon"," dispenser jabon"," dispenser de papel higienico"," escobilla"," escobillas",
+        " set de accesorios bano"," set accesorios bano"," set de bano"," accesorios de bano"," accesorio de bano",
+        " percha de bano"," perchero de bano"," gancho de bano"," repisa de bano"," estante de bano"
+    };
+
+    public static final String[] KW_ESTANTERIA_VETO = { " monitor"," notebook"," laptop"," tv "," televisor"," pc " };
+    public static final String[] KW_PLACARD_LIDER = {
+        " placard"," placares"," closet"," closets"," ropero"," roperos"," armario"," armarios"," guardarropa"
+    };
+    public static final String[] KW_CAMA_LIDER = {
+        " cama "," camas "," sommier"," sommiers"," cucheta"," cuchetas"," camarote"," cama box"
+    };
+    public static final String[] KW_CAMA_VETO = {
+        " perro"," gato"," mascota"," canil"," pet "," elastica"," solar"," inflable"," plegable de camping",
+        " camping"," bebe"," cuna"," masaje"," maquina"," pack "
+    };
+    public static final String[] KW_COLCHON_LIDER = { " colchon "," colchones "," colchon de " };
+    public static final String[] KW_COLCHON_VETO = { " inflable"," camping"," aire "," perro"," mascota"," bebe"," yoga" };
+    public static final String[] KW_MUEBLE_LIDER = {
+        " comoda "," comodas "," rack para tv"," rack tv"," rack de tv"," centro de entretenimiento"," biblioteca ",
+        " bibliotecas "," librero "," libreros "," despensero"," bajo mesada"," alacena "," mesa de luz"," mesas de luz",
+        " mesita de luz"," mesita de noche"," zapatero "," zapateros "," mueble "," muebles "," arrimo ",
+        " aparador"," vitrina "," rinconero"," esquinero "," tocador "," cristalero"," repisero"," centro de trabajo",
+        " centro trabajo"
+    };
+    public static final String[] KW_MUEBLE_VETO = { " gamer"," camping"," pc gamer"," exhibidor"," vestuario" };
+    public static final String[] KW_MESA_LIDER = {
+        " mesa "," mesas "," mesa ratona"," mesa de comedor"," comedor "," comedores "," juego de comedor",
+        " set mesa"," set de mesa"," set 2 mesas"," set de 2 mesas"," set de mesas"," mesada de"
+    };
+    public static final String[] KW_MESA_VETO = {
+        " ping"," pong"," billar"," pool"," camping"," masaje"," camilla"," tenis de mesa"," pesca"," picnic"," pic nic",
+        " corte"," soldar"," dibujo"," mezcla"," mezclar"," dj "," cocina de"," pesas"," perro"," gato"," mascota",
+        " tablero"," trabajo"," herramienta"," pack "," gamer"," gaming"
+    };
+    public static final String[] KW_SILLON_LIDER = {
+        " sillon "," sillones "," futon "," futones "," puff "," puffs "," pouf "," poufs "," sitial "," sitiales ",
+        " sofa "," sofas "," sofa cama"," love seat"," butaca "," butacas "
+    };
+    public static final String[] KW_SILLON_VETO = {
+        " gamer"," gaming"," masaje"," ergonomico"," oficina"," ejecutivo"," dental"," peluqueria"," inflable"," camping",
+        " playa"," perro"," gato"," mascota"," bebe"," lactancia"," odontolog"," dentista"
+    };
+
+    public static final String[] KW_ESTANTERIA_LIDER = {
+        " estanteria"," estanterias"," estante "," estantes "," repisa "," repisas "," mega rack"," metal rack",
+        " rack metalico"," rack de estantes"," estante flotante"," biblioteca flotante"
+    };
+    public static final String[] KW_CAJA_CANASTO_LIDER = {
+        " canasto "," canastos "," cesto "," cestos "," hamper "," hampers "," baul "," baules "," cajas plasticas",
+        " cajas rigidas"," cajas organizadoras"," bolsa organizadora"," bolsas organizadoras",
+        " carro organizador"," carro org "," canasto org"," bolsa lavado"," bolsa de lavado"," tapa canasto"
+    };
+    public static final String[] KW_CAJA_LIDER = {
+        " caja plastica"," caja rigida"," caja alta"," caja baja"," caja promocional"," caja apilable",
+        " caja organizadora"," caja org "," caja de almacenamiento"," caja contenedora"," caja tela"
+    };
+    public static final String[] KW_CAJA_CANASTO_VETO = {
+        " moto "," auto "," camioneta"," pick up"," pickup"," bici"," bicicleta"," herramienta"," pesca"," gamer"," cooler"," manubrio"," bontrager"
+    };
+    public static final String[] KW_BASURERO_LIDER = {
+        " basurero"," basureros"," tacho de basura"," tacho para basura"," cesto de basura"," cesto basura",
+        " papelero"," papeleros"," set basurero"," tacho de residuos"," cesto de residuos"
+    };
+    public static final String[] KW_TENDEDERO_LIDER = {
+        " tendedero"," tendederos"," tender "," tendal "," tendales "," secarropas de pared"
+    };
+    public static final String[] KW_COLGADOR_LIDER = {
+        " colgador "," colgadores "," percha "," perchas "," perchero"," percheros"," perchera"," gancho "," ganchos ",
+        " funda ropa"," funda abrigo"," funda de ropa"," set 20 perchas"," set de perchas"
+    };
+    public static final String[] KW_COLGADOR_VETO = {
+        " pesca"," bici"," bicicleta"," camping"," moto"," auto "," camioneta"," pared de gimnasio"," arnes"," anclaje"
+    };
+    public static final String[] KW_LIMPIEZA_LIDER = {
+        " mopa "," mopas "," repuesto mopa"," repuesto de mopa"," escoba "," escobas "," secador de piso",
+        " esponja "," esponjas "," trapo "," trapos "," trapo de piso"," limpia inodoro"," limpia inodoros"," limpia vidrios",
+        " limpia pisos"," sacapelusas"," bolsas para escombros"," bolsas de residuos"," bolsa de residuos",
+        " bolsas para residuos"," bolsas de consorcio"," bolsas de basura"," bolsa de basura"," bloque adhesivo",
+        " pala de residuos"," cepillo de limpieza"," lampazo"," lampazos"," pano de limpieza"," panos de limpieza",
+        " rejilla de piso"," desinfectante"," lavandina"," detergente"
+    };
+    public static final String[] KW_LIMPIEZA_VETO = {
+        " maquillaje"," corporal"," bano "," ducha"," facial"," exfoliante"," pelo"," cabello"," beauty"," cosmetic"
+    };
+    public static final String[] KW_SISTEMA_MODULAR_LIDER = {
+        " riel ensamble"," riel metalico ensamble"," barra superior ensamble"," barra superior"," escuadra ensamble",
+        " estructura sistema"," marco decorativo retractil"," bandeja retractil"," magneto tablero"," magneto tableros",
+        " gancho para tablero"," tablero riel"," bandeja tablero"," bandeja malla para tablero",
+        " organizador malla tablero"," canasto para tablero"," canasto tablero"," repisa ensamble"," repisa ventilada",
+        " divisor repisas"," kit sistema modular"," canasto marco malla"," canasto malla"," canasto modular",
+        " tapa canasto modular"," cajonera modular"," canasto metal malla"," canasto metal alambre"," canasto alambre",
+        " repisa canasto"," canasto apilable metalico"," caja organizadora modular"," caja rigida modular",
+        " sistema modular"," sistema retractil"," riel ensamble"
+    };
+
+    public static final String[] KW_ESPEJO_LIDER = { " espejo "," espejos " };
+    public static final String[] KW_ESPEJO_VETO = {
+        " retrovisor"," auto "," moto "," bicicleta"," bici "," telescopio"," dental"," luz led"," camara"
+    };
+    public static final String[] KW_CORTINA_LIDER = {
+        " cortina "," cortinas "," persiana "," persianas "," barral "," barrales "," kit barral",
+        " barra metal extendible"," protector cortina"," riel para cortina"," riel cortina"
+    };
+    public static final String[] KW_CORTINA_VETO = {
+        " ducha solar"," metalica de seguridad"," garage"," kit de ducha"
+    };
+    public static final String[] KW_ROLLER_LIDER = { " roller "," rollers " };
+    public static final String[] KW_ROLLER_CALIFICADOR = { " blackout"," sunscreen"," screen"," translucido"," cm " };
+    public static final String[] KW_ROLLER_VETO = {
+        " patin"," skate"," ruedas"," inline"," masaje"," espuma"," muscular"," pelo"," maquillaje"," pintura"," rodillo"
+    };
+    public static final String[] KW_ROPA_DE_CAMA_LIDER = {
+        " sabana "," sabanas "," juego de sabanas"," plumon "," plumones "," almohada "," almohadas ",
+        " acolchado "," acolchados "," edredon"," cubrecama"," cubre cama"," cobertor"," frazada"," colcha "," colchas ",
+        " cubrecolchon"," cubre colchon"," protector de colchon"," protector colchon"," sobrecama"," duvet "
+    };
+    public static final String[] KW_ROPA_DE_CAMA_VETO = {
+        " hombre"," mujer"," campera"," chaleco"," buzo"," nino"," nina"," cervical"," viaje"," masaje"," deportiv",
+        " running"," sleeping"," camping"," bebe"," lactancia"," mascota"," perro"," gato"," talle"
+    };
+    public static final String[] KW_TOALLA_LIDER = {
+        " toalla "," toallas "," toallon"," toallones "," toalla de playa"," toalla de bano"
+    };
+    public static final String[] KW_TOALLA_VETO = {
+        " gym"," training"," entrenamiento"," fitness"," nike"," adidas"," puma"," deportiv"," microfiber "
+    };
+    public static final String[] KW_DECORACION_LIDER = {
+        " cuadro "," cuadros "," canvas simil"," florero"," floreros"," farol "," faroles "," vela "," velas ",
+        " portarretrato"," portarretratos"," marco de fotos"," marco para fotos"," esfera "," esferas "," adorno ",
+        " adornos "," adorno navideno"," arbol de navidad"," arbol navidad"," cascanuez"," cascanueces"," guirnalda",
+        " punta de arbol"," muneco navideno"," bota de navidad"," pick decorativo"," plato base"," carrusel musical",
+        " centro de mesa"," difusor de ambiente"," figura decorativa"," objeto decorativo"," macetero decorativo"
+    };
+    public static final String[] KW_ARBOL_CALIFICADOR = { "ramas"," navidad"," navideno"," nav2"," nav1" };
+    public static final String[] KW_ARBOL_LIDER = { " arbol " };
+    public static final String[] KW_DECORACION_VETO = {
+        " bici"," bicicleta"," rodado"," luz "," electrico"," termico"," ignicion"," encendido"," bujia"," motor"," delantero",
+        " trasero"," auto "," moto "," pelo"," cabello"," torta"," reloj"," watch"," gimnasio"," proteina"," yoga",
+        " ejercicio"," camping"," recargable"," linterna"
+    };
+    public static final String[] KW_BAZAR_LIDER = {
+        " frasco "," frascos "," copa de "," copas de "," copa "," copas "," juego de copas"," jarra "," jarras ",
+        " vajilla"," juego de vasos"," vasos de vidrio"," juego de platos"," juego de tazas"
+    };
+    public static final String[] KW_BAZAR_VETO = {
+        " shaker"," proteina"," medidora"," gimnasio"," suplemento"," perfume"," mundial"," trofeo"," copa del mundo",
+        " copa libertadores"," pelota"
+    };
+
     public static final String[] KW_FUNDA_LIDER = { " funda "," fundas " };
     public static final String[] KW_FUNDA_CONTEXTO = {
         " almohadon"," silla"," sillon"," respaldo"," sofa"," cama"," cuerpos"," pana "," tusor "
     };
     public static final String[] KW_RESPALDO_LIDER = { " respaldo " };
     public static final String[] KW_RESPALDO_CONTEXTO = { " cama "," modular "," cabecera " };
-    public static final String[] KW_ALMOHADON_LIDER = { " almohadon "," almohadones "," pillow " };
+    public static final String[] KW_ALMOHADON_LIDER = { " almohadon "," almohadones "," pillow "," cojin "," cojines " };
     public static final String[] KW_MANTA_LIDER = { " manta "," mantas " };
     public static final String[] KW_MANTEL_LIDER = {
         " mantel "," manteles "," servilleta "," servilletas "
     };
     public static final String[] KW_ALFOMBRA_LIDER = {
-        " alfombra "," alfombras "," protector bajo escritorio "
+        " alfombra "," alfombras "," protector bajo escritorio "," felpudo "," felpudos "," limpiapies "
     };
     public static final String[] KW_ALFOMBRA_VETO = {
         " gamer "," floor mat "," para silla "," simulador"," cockpit"

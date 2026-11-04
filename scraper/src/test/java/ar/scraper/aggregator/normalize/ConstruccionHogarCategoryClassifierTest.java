@@ -118,7 +118,11 @@ class ConstruccionHogarCategoryClassifierTest {
                 "Tarugo", "Clavo", "Fijación", "Bisagra", "Cerradura", "Candado", "Herraje", "Cinta Adhesiva",
                 "Guante de Trabajo", "Protección Personal");
         assertThat(CategoryGroups.categoriasHogar()).containsExactlyInAnyOrder(
-                "Almohadón", "Funda", "Manta", "Mantel", "Alfombra", "Respaldo");
+                "Almohadón", "Funda", "Manta", "Mantel", "Alfombra", "Respaldo",
+                "Sanitario", "Grifería", "Ducha", "Bañera", "Mampara", "Vanitory", "Bacha", "Accesorio de Baño",
+                "Mueble", "Placard", "Cama", "Colchón", "Mesa", "Sillón", "Estantería", "Caja y Canasto", "Basurero",
+                "Tendedero", "Colgador", "Artículo de Limpieza", "Sistema Modular", "Espejo", "Cortina", "Ropa de Cama",
+                "Toalla", "Decoración", "Bazar");
         assertThat(CategoryGroups.canonicalCategories())
                 .containsAll(CategoryGroups.categoriasConstruccion())
                 .containsAll(CategoryGroups.categoriasHogar());
