@@ -49,8 +49,10 @@ public final class CategoryGroups {
         "Almacenamiento",
         "Cooler","Fuente","Motherboard","Red","Cable","Impresión","Mousepad",
         "Joystick","Micrófono","UPS","Tablet","Cámara","Reloj",
-        "Mini PC"
+        "Mini PC", "TV y Audio"
     );
+
+    private static final String CATEGORIA_TV_Y_AUDIO = "TV y Audio";
 
     /** Aparte de {@code INDUMENTARIA_O_CALZADO_EXTRA} a propósito: una pelota no es ropa. */
     private static final Set<String> CATEGORIAS_DEPORTE = Set.of(
@@ -83,7 +85,14 @@ public final class CategoryGroups {
         "Sanitario", "Grifería", "Ducha", "Bañera", "Mampara", "Vanitory", "Bacha", "Accesorio de Baño",
         "Mueble", "Placard", "Cama", "Colchón", "Mesa", "Sillón", "Estantería", "Caja y Canasto", "Basurero",
         "Tendedero", "Colgador", "Artículo de Limpieza", "Sistema Modular", "Espejo", "Cortina", "Ropa de Cama",
-        "Toalla", "Decoración", "Bazar"
+        "Toalla", "Decoración", "Bazar",
+        "Planta", "Semilla", "Tierra y Fertilizante", "Maceta", "Riego", "Pulverizador", "Cerco y Media Sombra",
+        "Decoración de Jardín", "Herramienta de Jardín", "Máquina de Jardín", "Gazebo y Sombrilla", "Reposera y Hamaca", "Mueble de Exterior", "Depósito de Jardín",
+        "Parrilla", "Accesorio de Parrilla", "Carbón y Leña", "Pileta", "Inflable", "Químico de Pileta", "Accesorio de Pileta",
+        "Carpa", "Bolsa de Dormir", "Conservadora", "Termo y Botella", "Artículo de Camping", "Alimento para Mascota", "Cama para Mascota",
+        "Higiene de Mascota", "Accesorio para Mascota", "Lubricante", "Líquido Automotor", "Batería de Auto", "Escobilla de Auto", "Limpieza de Auto",
+        "Accesorio de Auto", "Herramienta de Auto", "Seguridad Vial", "Termotanque", "Calefón", "Calefactor", "Ventilador",
+        "Aire Acondicionado", "Heladera", "Lavarropas", "Cocina y Horno", "Campana y Extractor", "Aspiradora", "Pequeño Electrodoméstico"
     );
 
     /** Standalone canonical categories not covered by the sets above. */
@@ -126,6 +135,10 @@ public final class CategoryGroups {
 
     public static boolean esCategoriaConstruccion(String cat) {
         return cat != null && CATEGORIAS_CONSTRUCCION.contains(cat);
+    }
+
+    public static boolean esCategoriaTvYAudio(String cat) {
+        return CATEGORIA_TV_Y_AUDIO.equals(cat);
     }
 
     public static boolean esCategoriaHogar(String cat) {

@@ -142,6 +142,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V65` | 14 categorías de `construccion` para instalaciones (plomería, gas, electricidad); la iluminación reutiliza `Iluminación` (`V27`) |
 | `V66` | 21 categorías de `construccion` para herramientas, fijaciones, herrajes, cintas y protección personal |
 | `V67` | 27 categorías de `hogar` para baños y cocinas, muebles, organización y limpieza, textil, decoración y bazar |
+| `V68` | 49 categorías de `hogar` (jardín, parrillas, piletas, camping, mascotas, automotor, electrodomésticos) y `TV y Audio` en `tecnologia` |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -4027,5 +4028,63 @@ DELETE FROM categoria WHERE nombre IN
 -- <<< rollback:V67
 ```
 
-Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V66`. Los productos
+Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V68` y antes que el de `V66`. Los productos
+reclasificados quedan con `categoria` NULL hasta el próximo scrape.
+
+---
+
+## `V68` — categorías de jardín, automotor y electrodomésticos
+
+Easy vende parrillas, piletas, carpas, productos para mascotas, repuestos y línea blanca: sin estas categorías sus heladeras caen en `Otros`, sus piletas en `Malla`, sus fuentes de jardín en `Fuente` (la de PC) y sus plantas en `Alimentos`. `V68` agrega 50 filas a `categoria` (sólo datos, sin cambio de esquema ni del `CHECK` de `rubro`, decisión D-1 de `easy-com-ar-site`). 49 van a `CategoryGroups.CATEGORIAS_HOGAR` y `TV y Audio` a `CATEGORIAS_TECH`, así que su rubro es `tecnologia`: `RubroResolver` tiene una rama propia para ella en los sitios sin `rubro_forzado`, porque si no heredaría el `indumentaria` que el builder deja por defecto. Es sólo para esa categoría; el resto de `CATEGORIAS_TECH` sigue sin esa rama.
+
+| Familia | Categorías nuevas |
+|---|---|
+| Jardín | `Planta`, `Semilla`, `Tierra y Fertilizante`, `Maceta`, `Riego`, `Pulverizador`, `Cerco y Media Sombra`, `Decoración de Jardín`, `Herramienta de Jardín`, `Máquina de Jardín`, `Gazebo y Sombrilla`, `Reposera y Hamaca`, `Mueble de Exterior`, `Depósito de Jardín` |
+| Parrillas | `Parrilla`, `Accesorio de Parrilla`, `Carbón y Leña` |
+| Piletas | `Pileta`, `Inflable`, `Químico de Pileta`, `Accesorio de Pileta` |
+| Camping | `Carpa`, `Bolsa de Dormir`, `Conservadora`, `Termo y Botella`, `Artículo de Camping` |
+| Mascotas | `Alimento para Mascota`, `Cama para Mascota`, `Higiene de Mascota`, `Accesorio para Mascota` |
+| Automotor | `Lubricante`, `Líquido Automotor`, `Batería de Auto`, `Escobilla de Auto`, `Limpieza de Auto`, `Accesorio de Auto`, `Herramienta de Auto`, `Seguridad Vial` |
+| Electrodomésticos | `Termotanque`, `Calefón`, `Calefactor`, `Ventilador`, `Aire Acondicionado`, `Heladera`, `Lavarropas`, `Cocina y Horno`, `Campana y Extractor`, `Aspiradora`, `Pequeño Electrodoméstico` |
+| TV y audio | `TV y Audio` (`tecnologia`) |
+
+Los siete clasificadores nuevos (`PiletaClassifier`, `AutomotorClassifier`, `ParrillaClassifier`, `CampingClassifier`, `MascotasClassifier`, `JardinClassifier`, `ElectrodomesticosClassifier`) corren **antes** que `HogarClassifier`, porque una `Alfombra para Auto` o una `Fuente de Agua` necesitan ganarle a la familia que hoy las captura. Sólo matchean el sustantivo líder, y los ambiguos exigen un calificador o tienen un veto (`aceite` de oliva, `cera` depilatoria, `fuente` de PC, `tensor` de fitness, `filtro` de gabinete). `Tiempo libre` de Easy (bicicletas, fitness, juguetes) no tiene categoría propia y sigue en `Otros`.
+
+Como `CATEGORIAS_HOGAR` gana sobre `rubro_forzado` salvo en `tecnologia` y `oficina`, una carpa o una botella de un sitio deportivo pasan a rubro `hogar` en su próximo scrape.
+
+### Rollback
+
+```sql
+-- >>> rollback:V68
+UPDATE productos SET categoria = NULL WHERE categoria IN
+    ('Planta','Semilla','Tierra y Fertilizante','Maceta','Riego','Pulverizador','Cerco y Media Sombra',
+     'Decoración de Jardín','Herramienta de Jardín','Máquina de Jardín','Gazebo y Sombrilla','Reposera y Hamaca','Mueble de Exterior','Depósito de Jardín',
+     'Parrilla','Accesorio de Parrilla','Carbón y Leña','Pileta','Inflable','Químico de Pileta','Accesorio de Pileta',
+     'Carpa','Bolsa de Dormir','Conservadora','Termo y Botella','Artículo de Camping','Alimento para Mascota','Cama para Mascota',
+     'Higiene de Mascota','Accesorio para Mascota','Lubricante','Líquido Automotor','Batería de Auto','Escobilla de Auto','Limpieza de Auto',
+     'Accesorio de Auto','Herramienta de Auto','Seguridad Vial','Termotanque','Calefón','Calefactor','Ventilador',
+     'Aire Acondicionado','Heladera','Lavarropas','Cocina y Horno','Campana y Extractor','Aspiradora','Pequeño Electrodoméstico',
+     'TV y Audio');
+DELETE FROM categoria_stats WHERE categoria IN
+    ('Planta','Semilla','Tierra y Fertilizante','Maceta','Riego','Pulverizador','Cerco y Media Sombra',
+     'Decoración de Jardín','Herramienta de Jardín','Máquina de Jardín','Gazebo y Sombrilla','Reposera y Hamaca','Mueble de Exterior','Depósito de Jardín',
+     'Parrilla','Accesorio de Parrilla','Carbón y Leña','Pileta','Inflable','Químico de Pileta','Accesorio de Pileta',
+     'Carpa','Bolsa de Dormir','Conservadora','Termo y Botella','Artículo de Camping','Alimento para Mascota','Cama para Mascota',
+     'Higiene de Mascota','Accesorio para Mascota','Lubricante','Líquido Automotor','Batería de Auto','Escobilla de Auto','Limpieza de Auto',
+     'Accesorio de Auto','Herramienta de Auto','Seguridad Vial','Termotanque','Calefón','Calefactor','Ventilador',
+     'Aire Acondicionado','Heladera','Lavarropas','Cocina y Horno','Campana y Extractor','Aspiradora','Pequeño Electrodoméstico',
+     'TV y Audio');
+DELETE FROM categoria WHERE nombre IN
+    ('Planta','Semilla','Tierra y Fertilizante','Maceta','Riego','Pulverizador','Cerco y Media Sombra',
+     'Decoración de Jardín','Herramienta de Jardín','Máquina de Jardín','Gazebo y Sombrilla','Reposera y Hamaca','Mueble de Exterior','Depósito de Jardín',
+     'Parrilla','Accesorio de Parrilla','Carbón y Leña','Pileta','Inflable','Químico de Pileta','Accesorio de Pileta',
+     'Carpa','Bolsa de Dormir','Conservadora','Termo y Botella','Artículo de Camping','Alimento para Mascota','Cama para Mascota',
+     'Higiene de Mascota','Accesorio para Mascota','Lubricante','Líquido Automotor','Batería de Auto','Escobilla de Auto','Limpieza de Auto',
+     'Accesorio de Auto','Herramienta de Auto','Seguridad Vial','Termotanque','Calefón','Calefactor','Ventilador',
+     'Aire Acondicionado','Heladera','Lavarropas','Cocina y Horno','Campana y Extractor','Aspiradora','Pequeño Electrodoméstico',
+     'TV y Audio');
+-- <<< rollback:V68
+```
+
+Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V67`. Los productos
 reclasificados quedan con `categoria` NULL hasta el próximo scrape.

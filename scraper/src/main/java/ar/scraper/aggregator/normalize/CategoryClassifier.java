@@ -10,6 +10,13 @@ public class CategoryClassifier {
     private static final NutricionClassifier NUTRICION = new NutricionClassifier();
 
     private static final FamiliaClassifier[] FAMILIAS_EN_ORDEN = {
+        new PiletaClassifier(),
+        new AutomotorClassifier(),
+        new ParrillaClassifier(),
+        new CampingClassifier(),
+        new MascotasClassifier(),
+        new JardinClassifier(),
+        new ElectrodomesticosClassifier(),
         new HogarClassifier(),
         new ConstruccionClassifier(),
         new InstalacionesClassifier(),

@@ -1049,6 +1049,354 @@ public final class GarmentTaxonomy {
         " copa libertadores"," pelota"
     };
 
+    public static final String[] KW_MASCOTA_CONTEXTO = {
+        " mascota"," para perro"," para gato"," p/perro"," p/gato"," perros "," gatos "," de perro"," de gato"," canino"," felino",
+        " pet's "," pets "
+    };
+    public static final String[] KW_MASCOTA_VETO = {
+        " figura"," adorno"," hidraulico"," remera"," pijama"," buzo"," campera"," zapatilla"," peluche de"
+    };
+    public static final String[] KW_MASCOTA_ALIMENTO_LIDER = {
+        " alimento "," alimentos "," snack "," snacks "," galleta "," galletas "," hueso "," huesos "
+    };
+    public static final String[] KW_MASCOTA_CAMA_LIDER = {
+        " cama "," camas "," colchoneta "," casa "," cojin "," cucha "," cuchas "," hamaca "," transportadora ",
+        " transportadoras "," bolso "," jaula "," canil "
+    };
+    public static final String[] KW_MASCOTA_HIGIENE_LIDER = {
+        " dispensador "," pala "," bandeja "," bolsas "," cepillo "," piedras "," sanitario "," limpiador "," shampoo ",
+        " arena "," acondicionador "," kit sanitario"," contenedor "," carpeta "," pañal"," panal"
+    };
+    public static final String[] KW_MASCOTA_ACCESORIO_LIDER = {
+        " collar "," collares "," correa "," correas "," arnes "," juguete "," juguetes "," plato "," platos ",
+        " comedero "," bebedero "," frisbee "," chaleco "," chaqueta "," conjunto "," mat "," lick "," peluche ",
+        " polar "," cobertor "," estaca "," accesorios de mascotas"," accesorios para mascotas",
+        " collares y arneses"
+    };
+
+    public static final String[] KW_AUTO_CONTEXTO = {
+        " auto "," autos "," automotor"," vehiculo"," camioneta"," coche "," auto,"," para moto"
+    };
+    public static final String[] KW_LUBRICANTE_LIDER = {
+        " lubricante "," lubricantes "," aceite "," aceites "," grasa "," grafito "," desoxidante "," anticorrosivo "
+    };
+    public static final String[] KW_LUBRICANTE_CALIFICADOR = {
+        " lubricante"," motor"," sintetico"," 2t"," 4t"," w40"," w30"," w50"," 10w"," 15w"," 20w"," 5w"," transmision",
+        " cadena"," cortadora"," motosierra"," hidraulico"," multiuso"," grasa "," grafito "," desoxidante "," anticorrosivo "
+    };
+    public static final String[] KW_LUBRICANTE_VETO = {
+        " intimo"," esencial"," oliva"," girasol"," siliconada"," cbd"," masaje"," coco"," aromatico"," termica"," termico"
+    };
+    public static final String[] KW_LIQUIDO_AUTO_LIDER = {
+        " refrigerante "," refrigerantes "," liquido de freno"," liquido para freno"," liquido refrigerante",
+        " agua destilada"," agua desmineralizada"," agua para bateria"," aditivo "," aditivos "," lavaparabrisas ",
+        " lava parabrisas"," limpia inyectores"," limpia radiador"," arranca motor"
+    };
+    public static final String[] KW_LIQUIDO_AUTO_VETO = { " sram"," shimano"," finish line"," bici"," mtb"," fibra"," vitamin"," proteina" };
+    public static final String[] KW_BATERIA_AUTO_LIDER = {
+        " bateria "," baterias "," cargador de bateria"," cargador bateria"," cargador para bateria",
+        " cargador inteligente"," cargador de auto"," arrancador "," cable puente"," cables puente",
+        " cable para bateria"," cables para bateria"," cable de bateria"," cables de bateria"
+    };
+    public static final String[] KW_BATERIA_AUTO_CALIFICADOR = {
+        " 12v"," 12 v"," 6v"," 24v"," amp"," arrancador "," cargador"," puente"," automotor"," auto "," para bateria",
+        " de bateria"," moto "
+    };
+    public static final String[] KW_BATERIA_AUTO_VETO = {
+        " notebook"," celular"," bicicleta"," sram"," herramienta"," taladro"," kit bateria"," cortadora"," iphone",
+        " magsafe"," usb"," cocina"," tablet"
+    };
+    public static final String[] KW_ESCOBILLA_AUTO_LIDER = { " escobilla "," escobillas "," limpiaparabrisas " };
+    public static final String[] KW_ESCOBILLA_AUTO_VETO = { " inodoro"," bano"," wc"," pileta"," piscina"," piso"," ducha"," mango"," manual" };
+    public static final String[] KW_LIMPIEZA_AUTO_LIDER = {
+        " aromatizante "," aromatizantes "," autopolish "," polish "," revividor "," renovador "," abrillantador ",
+        " lavacoche "," lavacoches "," cera para auto"," cera liquida"," cera "," silicona para auto"," silicona automotor",
+        " shampoo para auto"," shampoo con cera"," shampoo auto"," manopla "," limpia tablero"," limpia tapizados",
+        " limpiadores y lava parabrisas"," brillo y lustre"," accesorios de limpieza automotor"," limpia llantas"," limpiador de llantas"," removedor de"," plumero para auto"," pano microfibra"," panos microfibra",
+        " pano de microfibra"," panos de microfibra"," pano para auto"," kit de limpieza para auto"," aspiradora de auto",
+        " aspiradora para auto"," aspiradora auto"," aspiradoras de auto"
+    };
+    public static final String[] KW_LIMPIEZA_AUTO_VETO = {
+        " cartucho"," selladora"," selladores"," neutra"," acetica"," hogar"," depilar"," vela"," madera"," bano"," sanitario",
+        " piso"," pisos"," uso general"," transparente"," blanca"," negra"," pistola"," aplicador"," caulk"," termo"," depila"," modeladora"," de abeja"," para pelo"," capilar"," unas"," esmalte"
+    };
+    public static final String[] KW_ACCESORIO_AUTO_LIDER = {
+        " cubre auto"," cubreauto"," cubre volante"," cubre asiento"," cubre asientos"," funda cubre"," parasol "," parasoles ",
+        " portabicicleta "," porta equipaje"," portaequipaje"," realce "," apoyabrazos "," tuerca antirrobo"," tuercas antirrobo",
+        " accesorios para autos"," soporte para celular de auto"," fundas y cobertores"
+    };
+    public static final String[] KW_ACCESORIO_AUTO_EN_CONTEXTO_LIDER = {
+        " funda "," fundas "," alfombra "," alfombras "," almohada "," almohadon "," amohadon "," cubre "," organizador ",
+        " cortina "," cortinas "," espejo "," embudo "," soporte "," tuerca "," tuercas "," asiento "," mat "," lampara "," lamparas "," juego de "
+    };
+    public static final String[] KW_HERRAMIENTA_AUTO_LIDER = {
+        " crique "," criquet "," criquets "," cinta crique"," caballete con"," caballete para auto"," caballete de auto"," caballete automotor"," camilla mecanico",
+        " camilla para mecanico"," compresor para auto"," minicompresor "," inflador de neumatico"," inflador para auto"," inflador de auto"," inflador auto"," tensor "," tensores ",
+        " cincha "," cinchas "," linga "," lingas "," cinta de remolque"," cable de remolque"," calibrador de neumatico",
+        " medidor de presion"," kit parche"," kit de parche"," cadena para nieve"," cadenas para nieve"," cadena de nieve",
+        " compresor de aire para auto"," gata "," gato hidraulico"," gato carpintero"
+    };
+    public static final String[] KW_HERRAMIENTA_AUTO_VETO = { " elastico"," fitness"," ejercicio"," gym"," bici"," mtb"," ruta"," entrenamiento" };
+    public static final String[] KW_SEGURIDAD_VIAL_LIDER = {
+        " matafuego "," matafuegos "," extintor "," kit reglamentario"," kit de seguridad vial"," kit vial"," baliza "," balizas ",
+        " botiquin "," botiquines "," trabavolante "," traba volante"," chaleco reflectivo"," bandolera reflectiva"
+    };
+
+    public static final String[] KW_TV_AUDIO_LIDER = {
+        " smart tv"," televisor "," televisores "," tv led"," tv 4k"," soundbar "," barra de sonido"," parlante "," parlantes ",
+        " antena tv"," antena para tv"," antena de tv"," antena digital"," antena "," home theater"
+    };
+    public static final String[] KW_TV_AUDIO_VETO = {
+        " notebook"," auricular"," para bicicleta"," wifi"," router"," repuesto"," celular"
+    };
+    public static final String[] KW_TERMOTANQUE_LIDER = { " termotanque "," termotanques "," termo tanque" };
+    public static final String[] KW_CALEFON_LIDER = { " calefon "," calefones " };
+    public static final String[] KW_CALEFACTOR_LIDER = {
+        " calefactor "," calefactores "," estufa "," estufas "," caloventor "," caloventores "," panel calefactor",
+        " panel electrico"," panel ceramico"," panel radiante"," panel vitroceramico"," panel de calefaccion"," convector ",
+        " convectores "," radiador electrico"," hogar a lena"," hogar a gas"," hogar electrico"," hogar de lena"," hogar lena",
+        " hogar a"," hogar tiraje"," estufas, caloventores"," toallero electrico"," toallero calefactor"
+    };
+    public static final String[] KW_VENTILADOR_LIDER = {
+        " ventilador "," ventiladores "," turboventilador "," enfriador de aire"," enfriadores de aire"
+    };
+    public static final String[] KW_VENTILADOR_VETO = {
+        " pc "," gamer"," rgb"," cpu"," gabinete"," notebook"," fan "," 120mm"," 140mm"," usb"," cooler"
+    };
+    public static final String[] KW_AIRE_ACONDICIONADO_LIDER = {
+        " aire acondicionado"," aires acondicionados"," aire split"," aire portatil"," aire frio"," split inverter"
+    };
+    public static final String[] KW_HELADERA_LIDER = {
+        " heladera "," heladeras "," freezer "," freezers "," exhibidora "," cava de vino"," cava "
+    };
+    public static final String[] KW_LAVARROPAS_LIDER = {
+        " lavarropas "," lavarropa "," secarropas "," secarropa "," lavavajillas "," lavasecarropas "
+    };
+    public static final String[] KW_COCINA_LIDER = {
+        " cocina "," cocinas "," anafe "," anafes "," horno "," hornos "," microondas "
+    };
+    public static final String[] KW_COCINA_CALIFICADOR = {
+        " gas"," electric"," electrica"," induccion"," vitro"," hornallas"," hornalla"," empotrar"," horno "," hornos ",
+        " anafe "," anafes "," microondas "," litros"," lts"," lt "," cm "," cocinas "," whirlpool"," longvie"," orbis"," domec",
+        " escorial"," drean"," philips"
+    };
+    public static final String[] KW_COCINA_VETO = {
+        " pizza "," de barro"," juguete"," infantil"," nina"," juego "," utensilio"," mueble"," repisa"," organizador",
+        " pan "," panadera"," camping"," portatil de camping"," cartucho"
+    };
+    public static final String[] KW_CAMPANA_LIDER = {
+        " campana "," campanas "," extractor de aire"," extractor para"," extractor "," extractores "," purificador de cocina",
+        " purificador de aire"," purificador "," campanas y extractores"
+    };
+    public static final String[] KW_CAMPANA_VETO = {
+        " extractor de jugo"," jugo"," agua "," navidad"," de vidrio decorativa"," maleza"," yuyo"," clavos"," tornillo"
+    };
+    public static final String[] KW_ASPIRADORA_LIDER = {
+        " aspiradora "," aspiradoras "," asp "," lavadora de alfombra"," bolsas para aspiradora"," bolsa para aspiradora",
+        " bolsa de aspiradora"," bolsas de aspiradora"," filtro para aspiradora"," filtro de aspiradora"," robot aspirador"
+    };
+    public static final String[] KW_PEQUENO_ELECTRO_LIDER = {
+        " freidora "," freidoras "," tostadora "," tostadoras "," sandwichera "," sandwicheras "," pava electrica",
+        " cafetera "," cafeteras "," licuadora "," licuadoras "," batidora "," batidoras "," procesadora "," procesadoras ",
+        " molinillo "," picadora "," fondue "," deshidratador "," deshidratadora "," maquina de pan"," fabrica de pastas",
+        " plancha de ropa"," plancha a vapor"," exprimidor electrico"," yogurtera "," pequenos electrodomesticos"
+    };
+
+    public static final String[] KW_PILETA_VETO = {
+        " de cocina"," de apoyar"," de acero"," simple"," doble"," de embutir"," para cocina"," lavadero"," de lavar",
+        " desagote"," desague"," sifon"," griferia"," canilla"," de patio"," zapato"," ojota"," malla"," lona de "
+    };
+    public static final String[] KW_PILETA_LIDER = {
+        " pileta "," piletas "," piscina "," piscinas "," pisc "," jacuzzi "," spa "
+    };
+    public static final String[] KW_QUIMICO_PILETA_LIDER = {
+        " cloro "," alguicida "," alguicidas "," clarificador "," clarificadores "," reductor de ph"," elevador de ph",
+        " regulador de ph"," reductor ph"," elevador ph"," regulador ph"," pastillas de cloro"," pastillas cloro",
+        " pastilla de cloro"," pastillas multiaccion"," pastillas triple"," pastillas para pileta",
+        " pastillas de 200"," pastillas 200"," floculante "," clorador "," limpieza y mantenimiento"
+    };
+    public static final String[] KW_ACCESORIO_PILETA_LIDER = {
+        " sacahojas "," saca hojas"," limpiafondo "," limpiafondos "," limpia fondo"," pertiga "," pertigas ",
+        " cubre pileta"," cubre piscina"," accesorios para piletas"," filtros y bombas para piletas"," boya "," boyas "," expendedor "
+    };
+    public static final String[] KW_ACCESORIO_PILETA_CALIFICADOR = {
+        " pileta"," piscina"," pelopincho"," filtrante"
+    };
+    public static final String[] KW_ACCESORIO_PILETA_EN_CONTEXTO_LIDER = {
+        " bomba "," filtro "," cartucho "," manguera "," cepillo "," escobilla "," escobillon "," kit "," red "," cubre ",
+        " mango "," inflador "," terminal "," dispensador "," manga "," tope "," equipo "," set "
+    };
+    public static final String[] KW_PILETA_CONTEXTO = { " para pileta"," para piletas"," para piscina"," bajo pileta"," barredor " };
+    public static final String[] KW_PILETA_CONTEXTO_VETO = {
+        " ojota"," gorra"," gorro"," anteojo"," antiparra"," toalla"," bolso"," sandalia"," zapatilla"," campera"," bata "," short"," bikini"," malla "," de cocina"
+    };
+    public static final String[] KW_INFLABLE_LIDER = {
+        " flotador "," flotadores "," colchoneta inflable"," colchoneta para pileta"," colchoneta de agua"," colchoneta pileta",
+        " deslizador "," alitas "," inflables "," inflable "," bombitas "," bote inflable"," salvavidas "," aro inflable"
+    };
+    public static final String[] KW_INFLABLE_VETO = { " arena friends"," arena "," bicicleta"," ruta"," mtb"," cisterna"," inodoro"," deposito"," tanque" };
+
+    public static final String[] KW_PARRILLA_LIDER = {
+        " parrilla "," parrillas "," parilla "," kamado "," fogonero "," fogoneros "," fogon "," fogones "," brasero "," braseros ",
+        " asador "," parrillas a carbon"," fogones y braseros"," disco de arado"," disco arado"," disco de parrilla"
+    };
+    public static final String[] KW_PARRILLA_VETO = {
+        " auto"," rack"," techo"," portaequipaje"," moto"," bici"," horno de"," para horno"
+    };
+    public static final String[] KW_ACCESORIO_PARRILLA_LIDER = {
+        " set parrillero"," set de parrilla"," set para parrilla"," set para asado"," set de asado"," set asado"," provoletera ",
+        " provoletero "," atizador "," atizadores "," pinche "," pinches "," plancheta "," planchetas "," accesorios para parrillas",
+        " tablas y cuchillas"," tabla para asado"," tabla de asado"," tabla asado"," tabla parrillera"," tabla de picada",
+        " tabla para picada"," tabla picada"," garras "," kit parrillero"," cepillo para parrilla"," cepillo de parrilla",
+        " cepillo limpia parrilla"," pala para parrilla"," pala parrillera"," rejilla para parrilla"," rejilla parrilla",
+        " funda para parrilla"," funda parrilla"," guante parrillero"," guantes parrilleros"," guante para parrilla",
+        " guantes para parrilla"," cuchillo parrillero"," cuchillo asador"," cuchillo de asado"," cuchillo para asado",
+        " set cuchillo"," set cuchillos"," set de cuchillo"," set de cuchillos"," tenedor parrillero"," tenedor asador",
+        " tenedor para asado"," pinza parrillera"," pinza para asado"," pinza parrilla"," pinza de asado"," espatula parrillera",
+        " espatula para parrilla"," espatula para asado"," plancha para parrilla"," plancha parrillera"," plancha de hierro"
+    };
+    public static final String[] KW_ACCESORIO_PARRILLA_EN_CONTEXTO_LIDER = {
+        " cepillo "," pala "," rejilla "," funda "," guante "," guantes "," cuchillo "," cuchillos "," tenedor "," pinza ",
+        " espatula "," plancha "," tabla "," tablas "," cobertor "
+    };
+    public static final String[] KW_ACCESORIO_PARRILLA_CONTEXTO = {
+        " parrilla"," parrillero"," parrillera"," asado"," asador"," carne"," grill"," picada"," parrilleros"," bbq"," cenizas"
+    };
+    public static final String[] KW_CARBON_LIDER = {
+        " carbon "," bolsa de carbon"," bolsa carbon"," astillas "," lena "," pastillas de encendido"," pastillas encendido",
+        " pastillas para encender"," encendedor de carbon"," iniciador de fuego"," briquetas "
+    };
+    public static final String[] KW_CARBON_VETO = {
+        " pasta "," mascarilla"," jabon"," filtro"," fibra de"," zapatilla"," cuadro"," cuadros"," mtb"," ruta"
+    };
+
+    public static final String[] KW_CARPA_LIDER = { " carpa "," carpas "," carpa4p "," iglu " };
+    public static final String[] KW_CARPA_VETO = { " juguete"," infantil"," ninos"," gimnasio"," indio"," castillo"," princesa"," gamer"," bebe"," techo de" };
+    public static final String[] KW_BOLSA_DORMIR_LIDER = {
+        " bolsa de dormir"," bolsas de dormir"," bolsa dormir"," bolsa/saco"," saco de dormir"," sacos de dormir"," aislante de camping",
+        " aislante camping"," aislante para camping"," aislante termico para carpa"," aislante individual"," aislante aluminizado",
+        " aislante plegable"," aislante enrollable"," aislante para bolsa"," bolsas de dormir y aislantes"
+    };
+    public static final String[] KW_CONSERVADORA_LIDER = {
+        " conservadora "," conservadoras "," bolsa cooler"," bolso cooler"," cooler para botella"," lunchera cooler"," bolsa termica",
+        " gel refrigerante"," gel frio"," gel para conservadora"," conservadoras y luncheras"
+    };
+    public static final String[] KW_TERMO_BOTELLA_LIDER = {
+        " termo "," termos "," botella "," botellas "," vaso termico"," vaso termo"," vaso outdoor"," vaso de acero"," vaso acero"," vaso de plastico",
+        " vasos termicos"," mug "," vasos y botellas"
+    };
+    public static final String[] KW_TERMO_BOTELLA_VETO = {
+        " tinta"," toner"," shaker"," proteina"," whey"," vino"," vinos"," ink"," impresora"," suplemento"," creatina"," pintura"," aceite"," agua mineral"," cerveza",
+        " tanque"," epson"," brother"," hp "," lacteo"," deportiva"," termica deportiva"," reebok"," de combustible"," nafta"," combustible"
+    };
+    public static final String[] KW_CAMPING_LIDER = {
+        " anafe camping"," anafe portatil"," anafe a gas portatil"," linterna "," linternas "," farol de camping"," farol camping",
+        " mosqueton "," mosquetones "," set mosquetones"," multiherramienta "," garrafa camping"," garrafa de camping"," utensilio de camping",
+        " hamaca paraguaya"," cartucho de gas"," silla camping"," articulos para camping"," cuchillo camping",
+        " utensilio "," manta picnic"," anafe a cartucho"," cartucho gas"," soplete cartucho"," pala plegable"," canasta picnic"," canasta de picnic"," kit de camping"," set de camping"
+    };
+    public static final String[] KW_CAMPING_CALIFICADOR = {
+        " camping"," outdoor"," acampar"," supervivencia"," trekking"," trek "
+    };
+    public static final String[] KW_CAMPING_EN_CONTEXTO_LIDER = {
+        " anafe "," farol "," lampara "," garrafa "," manta "," soga "," pala "," toalla "," hamaca "
+    };
+    public static final String[] KW_CAMPING_VETO = { " perro"," gato"," mascota"," bano "," bicicleta"," bici"," led para bici"," ciclismo"," pesca"," hogar"," nafta"};
+
+    public static final String[] KW_PLANTA_LIDER = {
+        " planta "," plantas "," plantin "," plantines "," ramo "," ramos "," arbol "," arbusto "," cactus "," suculenta "
+    };
+    public static final String[] KW_PLANTA_VETO = { " artificial"," de pie para"," del pie"," plantilla"," navidad"," navideno"," navidena"," sintetica"," decorativa",
+        " alta presion"," tratamiento"," electrica"};
+    public static final String[] KW_SEMILLA_LIDER = { " semilla "," semillas "," bulbo "," bulbos " };
+    public static final String[] KW_SEMILLA_VETO = { " chia"," lino "," sesamo"," girasol pelada"," calabaza pelada"," alimento"," cereal"," barra de"," quinoa"," mix de"," proteina"," de lino"," organic"};
+    public static final String[] KW_TIERRA_LIDER = {
+        " sustrato "," sustratos "," tierra "," tierras "," compost "," humus "," perlita "," vermiculita "," fertilizante "," fertilizantes ",
+        " abono "," sulfato de"," pometina "," acondicionador de suelo"," acondicionador para suelo"," turba "," mantillo "," insecticida ",
+        " fungicida "," herbicida "," hormiguicida "," plantas, tierra y semillas"
+    };
+    public static final String[] KW_TIERRA_VETO = { " diatomea"," del fuego"," santa"," pantalon"," remera"," media ","rara"," batalla"," juego"," libro"," sulfato de magnesio"};
+    public static final String[] KW_MACETA_LIDER = {
+        " maceta "," macetas "," macetero "," maceteros "," porta maceta"," portamaceta",
+        " base para maceta"," soporte para maceta"," soporte de maceta"
+    };
+    public static final String[] KW_MACETA_VETO = { " pantalon"," overol"," pack jean"," jean"," babucha"," remera"," cargo"," mom"," denim"," tiro "};
+    public static final String[] KW_RIEGO_LIDER = {
+        " manguera "," mangueras "," aspersor "," aspersores "," regadera "," regaderas "," regador "," rociador "," rociadores ",
+        " pistola de riego"," pistola riego"," pistola para riego"," pistola regadora"," pistola de agua para riego"," pistola para manguera",
+        " set pistola"," set manguera"," set de manguera"," set de riego"," set accesorios riego"," set 2 aspersores"," set regador"," set lanza"," adaptador bronce"," adaptador plastico"," adaptador hembra"," adaptador macho"," adaptador de riego"," adaptador para canilla"," acople rapido"," acople para manguera"," acople manguera"," acople "," enrollador ",
+        " riego "," conector para manguera"," conector rapido"," conector manguera"," union para manguera"," union manguera"," gotero ",
+        " goteros "," kit riego"," kit de riego"," programador de riego"," timer de riego"
+    };
+    public static final String[] KW_RIEGO_VETO = {
+        " hidrolavadora"," lavarropas"," gas "," de gas"," jeep"," ducha"," inodoro"," aire comprimido"," agua fria"," inflador"," aire "," compresor",
+        " pileta"," piscina"," radiador"," auto "," moto "," usb"," hdmi"," vga"," rj45"," displayport"," ethernet"," audio"," notebook"," celular"
+    };
+    public static final String[] KW_PULVERIZADOR_LIDER = { " pulverizador "," pulverizadores "," fumigador "," mochila pulverizadora"," mochila fumigadora" };
+    public static final String[] KW_CERCO_LIDER = {
+        " media sombra"," medias sombras"," cerco "," cercos "," rafia "," limitador de cesped"," limitador para cesped"," limitador "," malla de sombra"," malla sombra",
+        " malla cerco"," malla plastica"," malla de jardin"," malla para jardin"," malla para cerco"," polietileno negro"," polietileno cristal",
+        " polietileno "," broche para media"," broches para media"," broches "," tela antimaleza"," tela anti maleza"," tela para sombra"," tela media"," tela "," cobertor para plantas"," cobertor invernal"," cobertor de plantas",
+        " cobertor "," cercos, mallas y medias sombras"," grampas para media"," grampas para malla"," grampas "
+    };
+    public static final String[] KW_CERCO_CALIFICADOR = {
+        " media sombra"," cerco"," jardin"," cesped"," antimaleza"," anti maleza"," agricola"," plantas"," sombra"," invernadero"," limitador",
+        " rafia "," polietileno"," invernal"," plantas"," huerta"
+    };
+    public static final String[] KW_DECO_JARDIN_LIDER = {
+        " fuente de agua"," fuente de jardin"," fuente piedras"," fuente con"," fuente led"," fuente solar "," fuente de pared"," fuente de piso"," fuente poliresina",
+        " figura decorativa"," figura de jardin"," figura arcilla"," figura "," figuras "," antorcha "," antorchas "," piedra decorativa"," piedras decorativas",
+        " bolson de piedra"," bolson piedra"," deco jardin"," sahumerio "," sahumerios "," estatua "," enano de jardin"," cesped decorativo"," pasto decorativo"," cerco decorativo"
+    };
+    public static final String[] KW_DECO_JARDIN_VETO = { " de poder"," atx"," gamer"," de alimentacion"," watts"," pc "," fuente 12"," fuente de luz"," de accion"," accion "," coleccion"," funko"," batman"," anime"};
+    public static final String[] KW_MAQUINA_JARDIN_LIDER = {
+        " bordeadora "," bordeadoras "," desmalezadora "," desmalezadoras "," desmalezador "," motoguadana "," ahoyador "," ahoyadora "," orilladora "," orilladoras ",
+        " desbrozadora "," desbrozadoras "," motosierra "," motosierras "," electrosierra "," electrosierras "," podadora "," podadoras "," cortacerco "," cortacercos ",
+        " cortacesped "," cortadora de cesped"," cortadoras de cesped"," cortadora cesped"," cortadora a nafta"," cortadora electrica de cesped",
+        " cortadora de pasto"," cortadora bateria"," cortadora 18v"," cortadora inalambrica"," tractor cortacesped"," tractor de jardin"," robot cortacesped"," robot cortador"," soplador "," sopladores ",
+        " sopladora "," soplaspirador "," aspirador de hojas"," tanza "," tanzas "," carretel para bordeadora"," carretel de bordeadora"," multiherramienta ",
+        " cuchilla para cortadora"," cuchilla de cortadora"," cuchilla de bordeadora"," cuchilla para bordeadora"," rueda para cortadora"," rueda de cortadora"," rueda cortadora"
+    };
+    public static final String[] KW_MAQUINA_JARDIN_VETO = {
+        " de cocina"," cocina"," juguete"," aspirador de polvo"," limpiafondo"," de piso"," robot aspirador"," aspiradora"," transformer"," educativo"," lego",
+        " de ceramica"," de pizza"," cocinar"," de carne"," parrillero"," patin"," bicicleta"," de pesca"," de bicicleta"," bici"," trek"," banda"
+    };
+    public static final String[] KW_HERRAMIENTA_JARDIN_LIDER = {
+        " rastrillo "," rastrillos "," azada "," azadas "," azadon "," barrehojas "," barre hojas"," hacha "," hachas "," picota "," picotas "," carretilla "," carretillas ",
+        " tijeron "," tijerones "," tijera de podar"," tijera podar"," tijera para podar"," tijera de poda"," tijera poda"," tijera de jardin"," tijera jardin"," tijera para cesped"," tijera de cesped",
+        " tijera cortacesped"," serrucho de poda"," serrucho poda"," serrucho para poda"," serrucho podador"," pala de jardin"," pala jardin"," pala punta"," pala ancha"," pala corazon"," pala cuadrada"," pala de punta",
+        " pala "," palas "," palita "," plantador "," escardillo "," transplantador "," set de jardineria"," set jardineria"," set herramientas de jardin"," set herramientas jardin",
+        " set de herramientas de jardin"," set de herramientas para jardin"," kit jardineria"," kit de jardineria"," extractor de maleza"," extractor de yuyo"," extractor de malezas",
+        " guantes de jardin"," guante de jardin"," guantes de jardineria"," guante de jardineria"," guantes para jardin"," guante para jardin"," herramientas manuales de jardin"," desmalezador manual"
+    };
+    public static final String[] KW_HERRAMIENTA_JARDIN_VETO = {
+        " playa"," juguete"," mascota"," perro"," gato"," de nieve"," pizza"," parrilla"," pala de padel"," padel"," tenis"," beach"," ping"," tortas"," cocina"," horno"," ninos",
+        " bebe"," carne"," parrillera"," bicicleta"," carbon"," frisbee"," zapatilla"," stihl de nieve"," bebes"," infantil"
+    };
+    public static final String[] KW_GAZEBO_LIDER = {
+        " gazebo "," gazebos "," pergola "," pergolas "," sombrilla "," sombrillas "," quitasol "," quitasoles "," base para sombrilla"," base de sombrilla",
+        " base sombrilla"," estaca sombrilla"," estaca para sombrilla"," gazebos y pergolas"," sombrillas y reposeras"
+    };
+    public static final String[] KW_REPOSERA_LIDER = {
+        " reposera "," reposeras "," hamaca "," hamacas "," columpio "," columpios "," set reposeras"," set de reposeras"," silla playera"
+    };
+    public static final String[] KW_REPOSERA_VETO = { " perro"," gato"," mascota"," de camping"," paraguaya camping"," bebe"," para bebe"," plaza"," infantil"," ninos"," discovery" };
+    public static final String[] KW_MUEBLE_EXTERIOR_LIDER = {
+        " set living"," set de living"," juego de living"," juego living"," set conversacion"," set de conversacion"," set bistro"," set de bistro"," set bar "," set de bar ",
+        " juego de jardin"," set de jardin"," set ratan"," set rattan"," banqueta "," banquetas "," banco de jardin"," banco de plaza"," banco jardin"," banco "," bancos "," set comedor"," set de comedor"," juego de comedor exterior",
+        " muebles de exterior"," cobertor para mesa"," funda para living"," frapera "," set de muebles"," sillas, sillones y bancos"," set sillas"
+    };
+    public static final String[] KW_MUEBLE_EXTERIOR_VETO = {
+        " de trabajo"," de carpintero"," de sangre"," ejercicio"," pesas"," gimnasio"," plano"," musculacion"," abdominales"," press"," sentadilla"," multifuncional"," gym"," camiseta"," de datos"," de energia",
+        " carga"," de baterias"," prueba"," power"," inclinable"," ajustable"," banco de pesas"," de pesas"," fitness"," de banquetas"," mecanico"," tornillo"," herramienta"," morsa"," whisky"," vino"," coctel"," cocteleria"
+    };
+    public static final String[] KW_DEPOSITO_JARDIN_LIDER = {
+        " bodega "," bodegas "," deposito de jardin"," deposito para jardin"," deposito jardin"," deposito exterior"," deposito "," depositos "," invernadero "," invernaderos "," depositos de jardin"
+    };
+    public static final String[] KW_DEPOSITO_JARDIN_VETO = {
+        " inodoro"," agua "," mochila"," dual"," bano"," sanitario"," descarga"," ferrum"," externo"," tanque"," bari"," pared"," ideal"," colgar"," para mochila"," cisterna"," loza"
+    };
+
     public static final String[] KW_FUNDA_LIDER = { " funda "," fundas " };
     public static final String[] KW_FUNDA_CONTEXTO = {
         " almohadon"," silla"," sillon"," respaldo"," sofa"," cama"," cuerpos"," pana "," tusor "
