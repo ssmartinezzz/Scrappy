@@ -1,5 +1,6 @@
 package ar.scraper.aggregator.normalize;
 
+import ar.scraper.aggregator.text.AccentStripper;
 import java.util.regex.Pattern;
 import org.apache.commons.lang3.StringUtils;
 
@@ -14,10 +15,7 @@ record TextoClasificable(String crudo, String normalizado, String sinPrefijoDeVe
     private static final String LIDER_OUTLET = " outlet ";
 
     static TextoClasificable de(String crudo) {
-        String normalizado = " " + crudo.toLowerCase()
-                .replaceAll("[áàä]", "a").replaceAll("[éèë]", "e")
-                .replaceAll("[íìï]", "i").replaceAll("[óòö]", "o")
-                .replaceAll("[úùü]", "u").replaceAll("[ñ]", "n") + " ";
+        String normalizado = " " + AccentStripper.strip(crudo.toLowerCase()) + " ";
         String sinPrefijoDeVenta = PREFIJO_DE_VENTA.matcher(normalizado).replaceFirst(" ");
         return new TextoClasificable(crudo, normalizado, sinPrefijoDeVenta,
             ArraysEncontrados.de(normalizado, sinPrefijoDeVenta));

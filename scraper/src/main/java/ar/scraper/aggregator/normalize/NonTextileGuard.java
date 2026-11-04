@@ -1,5 +1,6 @@
 package ar.scraper.aggregator.normalize;
 
+import ar.scraper.aggregator.text.AccentStripper;
 import org.apache.commons.lang3.StringUtils;
 
 /** Early-exit "clearly not textile" predicate. */
@@ -26,10 +27,7 @@ public final class NonTextileGuard {
     /** Solo revisa las primeras 3 palabras para no sobrebloquear. */
     public static boolean esClaramenteNoTextil(String texto) {
         if (StringUtils.isBlank(texto)) return false;
-        String lower = texto.toLowerCase()
-            .replaceAll("[áàä]","a").replaceAll("[éèë]","e")
-            .replaceAll("[íìï]","i").replaceAll("[óòö]","o")
-            .replaceAll("[úùü]","u").replaceAll("[ñ]","n");
+        String lower = AccentStripper.strip(texto.toLowerCase());
         // Solo mirar inicio (primeras 3 palabras = ~25 chars)
         String inicio = lower.length() > 35 ? lower.substring(0, 35) : lower;
         for (String kw : NO_TEXTIL_INICIO) {
