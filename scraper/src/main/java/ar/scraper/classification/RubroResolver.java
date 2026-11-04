@@ -39,6 +39,10 @@ public class RubroResolver {
             return "indumentaria";
         } else if (StringUtils.isBlank(rubroForzado) && CategoryGroups.categoriasOficina().contains(cat)) {
             return "oficina";
+        } else if (StringUtils.isBlank(rubroForzado) && CategoryGroups.esCategoriaDeporte(cat)) {
+            return "deporte";
+        } else if (StringUtils.isBlank(rubroForzado) && CategoryGroups.esCategoriaJuguetes(cat)) {
+            return "juguetes";
         } else if (StringUtils.isBlank(rubroForzado) && CategoryGroups.esCategoriaTvYAudio(cat)) {
             return "tecnologia";
         } else if (StringUtils.isNotBlank(rubroExistente)) {

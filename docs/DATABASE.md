@@ -143,6 +143,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V66` | 21 categorías de `construccion` para herramientas, fijaciones, herrajes, cintas y protección personal |
 | `V67` | 27 categorías de `hogar` para baños y cocinas, muebles, organización y limpieza, textil, decoración y bazar |
 | `V68` | 49 categorías de `hogar` (jardín, parrillas, piletas, camping, mascotas, automotor, electrodomésticos) y `TV y Audio` en `tecnologia` |
+| `V69` | Rubros `deporte` y `juguetes` (`chk_productos_rubro_domain` pasa de 6 a 8 valores) y 9 categorías de tiempo libre |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -4048,7 +4049,7 @@ Easy vende parrillas, piletas, carpas, productos para mascotas, repuestos y lín
 | Electrodomésticos | `Termotanque`, `Calefón`, `Calefactor`, `Ventilador`, `Aire Acondicionado`, `Heladera`, `Lavarropas`, `Cocina y Horno`, `Campana y Extractor`, `Aspiradora`, `Pequeño Electrodoméstico` |
 | TV y audio | `TV y Audio` (`tecnologia`) |
 
-Los siete clasificadores nuevos (`PiletaClassifier`, `AutomotorClassifier`, `ParrillaClassifier`, `CampingClassifier`, `MascotasClassifier`, `JardinClassifier`, `ElectrodomesticosClassifier`) corren **antes** que `HogarClassifier`, porque una `Alfombra para Auto` o una `Fuente de Agua` necesitan ganarle a la familia que hoy las captura. Sólo matchean el sustantivo líder, y los ambiguos exigen un calificador o tienen un veto (`aceite` de oliva, `cera` depilatoria, `fuente` de PC, `tensor` de fitness, `filtro` de gabinete). `Tiempo libre` de Easy (bicicletas, fitness, juguetes) no tiene categoría propia y sigue en `Otros`.
+Los siete clasificadores nuevos (`PiletaClassifier`, `AutomotorClassifier`, `ParrillaClassifier`, `CampingClassifier`, `MascotasClassifier`, `JardinClassifier`, `ElectrodomesticosClassifier`) corren **antes** que `HogarClassifier`, porque una `Alfombra para Auto` o una `Fuente de Agua` necesitan ganarle a la familia que hoy las captura. Sólo matchean el sustantivo líder, y los ambiguos exigen un calificador o tienen un veto (`aceite` de oliva, `cera` depilatoria, `fuente` de PC, `tensor` de fitness, `filtro` de gabinete). `Tiempo libre` de Easy (bicicletas, fitness, juguetes) quedó para `V69`.
 
 Como `CATEGORIAS_HOGAR` gana sobre `rubro_forzado` salvo en `tecnologia` y `oficina`, una carpa o una botella de un sitio deportivo pasan a rubro `hogar` en su próximo scrape.
 
@@ -4086,5 +4087,60 @@ DELETE FROM categoria WHERE nombre IN
 -- <<< rollback:V68
 ```
 
-Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V67`. Los productos
+Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V69` y antes que el de `V67`. Los productos
 reclasificados quedan con `categoria` NULL hasta el próximo scrape.
+
+---
+
+## `V69` — rubros `deporte` y `juguetes`, y las categorías de tiempo libre
+
+El equipamiento deportivo (bicicletas, fitness, kayaks) y los juguetes no son de ninguno de los seis rubros, y
+`Pelota` y `Paleta` ya eran equipamiento que `RubroResolver` dejaba en el `indumentaria` por defecto del builder
+(decisión D-6 de `easy-com-ar-site`). `chk_productos_rubro_domain` pasa de 6 a 8 valores re-listando el dominio
+**completo** (sin eso se pierden `oficina`, `construccion` y `hogar`). `sitio_rubro_forzado_check` **no se toca**:
+ningún sitio fuerza todavía `deporte` ni `juguetes`; el día que uno lo haga, esa ampliación es de su migración.
+Entran 9 filas a `categoria`:
+
+| Rubro | Categorías nuevas | Ya existentes que se suman al rubro |
+|---|---|---|
+| `deporte` | `Bicicleta`, `Monopatín`, `Repuesto de Bicicleta`, `Pesas`, `Accesorio de Fitness`, `Kayak y Bote`, `Equipamiento Deportivo` | `Pelota`, `Paleta` |
+| `juguetes` | `Juguete`, `Cama Elástica` | |
+
+El rubro sale de la categoría **sólo en los sitios sin `rubro_forzado`**, como `oficina` y `TV y Audio`: un rubro
+forzado gana siempre, y `suplementos`, `construccion` y `hogar` por categoría siguen ganando antes. La ropa deportiva
+(remeras, botines, medias de ciclismo) sigue en `indumentaria`. El `deporte` **dimensión** (`SportResolver`, `V59`) es
+otra cosa y no cambia: la camiseta de Boca es `Remera` + `deporte='futbol'`.
+
+Las cinco familias nuevas (`BicicletasClassifier`, `FitnessClassifier`, `CanchaClassifier`, `KayakClassifier`,
+`JuguetesClassifier`) corren **antes** de `NonTextileGuard` y de las demás: el guard veta por primera palabra
+(`cadena`, `aro`, `arco`, `red de`, `casco bici`) justo los nombres que ahora tienen dónde ir, y una `Caja Pedalera Sram`
+no puede seguir siendo `Joystick`. Sólo matchean el sustantivo líder; los genéricos (`cadena`, `cable`, `asiento`,
+`casco`, `luz`) exigen contexto de bicicleta (`shimano`, `sram`, `trek`, `ciclismo`, `mtb`…), y los ambiguos tienen veto
+(`disco` SSD o de freno de auto, `barra` proteica o de sonido, `pistola de agua` de riego, `juguete para perro`).
+
+### Rollback
+
+```sql
+-- >>> rollback:V69
+UPDATE productos SET rubro = NULL WHERE rubro IN ('deporte','juguetes');
+UPDATE productos SET categoria = NULL WHERE categoria IN
+    ('Bicicleta','Monopatín','Repuesto de Bicicleta','Pesas','Accesorio de Fitness',
+     'Kayak y Bote','Equipamiento Deportivo','Juguete','Cama Elástica');
+DELETE FROM categoria_stats WHERE categoria IN
+    ('Bicicleta','Monopatín','Repuesto de Bicicleta','Pesas','Accesorio de Fitness',
+     'Kayak y Bote','Equipamiento Deportivo','Juguete','Cama Elástica');
+DELETE FROM categoria WHERE nombre IN
+    ('Bicicleta','Monopatín','Repuesto de Bicicleta','Pesas','Accesorio de Fitness',
+     'Kayak y Bote','Equipamiento Deportivo','Juguete','Cama Elástica');
+ALTER TABLE productos DROP CONSTRAINT chk_productos_rubro_domain;
+ALTER TABLE productos
+    ADD CONSTRAINT chk_productos_rubro_domain
+        CHECK (rubro IS NULL OR rubro IN ('indumentaria', 'tecnologia', 'suplementos',
+                                          'oficina', 'construccion', 'hogar'));
+-- <<< rollback:V69
+```
+
+Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V68`, y en cualquier caso **antes que
+el de `V45`**: ése angosta el dominio a 4 valores y fallaría contra una fila `deporte` o `juguetes`; y si `V69` corriera
+después, volvería a ensanchar el dominio a 6. Los productos reclasificados quedan con `categoria` y `rubro` NULL hasta el
+próximo scrape (NULL se lee como `indumentaria`).

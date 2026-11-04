@@ -56,7 +56,12 @@ public final class CategoryGroups {
 
     /** Aparte de {@code INDUMENTARIA_O_CALZADO_EXTRA} a propósito: una pelota no es ropa. */
     private static final Set<String> CATEGORIAS_DEPORTE = Set.of(
-        "Pelota","Paleta"
+        "Pelota","Paleta","Bicicleta","Monopatín","Repuesto de Bicicleta","Pesas","Accesorio de Fitness",
+        "Kayak y Bote","Equipamiento Deportivo"
+    );
+
+    private static final Set<String> CATEGORIAS_JUGUETES = Set.of(
+        "Juguete","Cama Elástica"
     );
 
     private static final Set<String> CATEGORIAS_OFICINA = Set.of(
@@ -109,6 +114,7 @@ public final class CategoryGroups {
         all.addAll(CATEGORIAS_CALZADO);
         all.addAll(CATEGORIAS_TECH);
         all.addAll(CATEGORIAS_DEPORTE);
+        all.addAll(CATEGORIAS_JUGUETES);
         all.addAll(CATEGORIAS_OFICINA);
         all.addAll(CATEGORIAS_CONSTRUCCION);
         all.addAll(CATEGORIAS_HOGAR);
@@ -135,6 +141,14 @@ public final class CategoryGroups {
 
     public static boolean esCategoriaConstruccion(String cat) {
         return cat != null && CATEGORIAS_CONSTRUCCION.contains(cat);
+    }
+
+    public static boolean esCategoriaDeporte(String cat) {
+        return cat != null && CATEGORIAS_DEPORTE.contains(cat);
+    }
+
+    public static boolean esCategoriaJuguetes(String cat) {
+        return cat != null && CATEGORIAS_JUGUETES.contains(cat);
     }
 
     public static boolean esCategoriaTvYAudio(String cat) {

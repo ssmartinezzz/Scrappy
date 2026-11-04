@@ -36,7 +36,7 @@ final class IndumentariaClassifier implements FamiliaClassifier {
         if (texto.contiene(GarmentTaxonomy.KW_JOGGING))  return "Jogging";
         if (texto.contiene(GarmentTaxonomy.KW_BERMUDA))  return "Bermuda";
         if (texto.contiene(GarmentTaxonomy.KW_SHORT))    return "Short";
-        if (texto.contiene(GarmentTaxonomy.KW_VESTIDO))  return "Vestido";
+        if (texto.contiene(GarmentTaxonomy.KW_VESTIDO) && !texto.empiezaCon(GarmentTaxonomy.KW_VESTIDO_VETO_LIDER)) return "Vestido";
         if (texto.contiene(GarmentTaxonomy.KW_ENTERITO)) return "Enterito";
         if (texto.contiene(GarmentTaxonomy.KW_POLLERA))  return "Pollera";
         if (texto.contiene(GarmentTaxonomy.KW_PANTALON)) return "Pantalón";

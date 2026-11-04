@@ -200,6 +200,10 @@ El esquema, las tres ampliaciones de `CHECK` y su rollback están en
 decoración) entran por la misma razón en `V45`. `hogar` existe para que un
 almohadón o una funda no caigan en la taxonomía de indumentaria.
 
+`deporte` (bicicletas, fitness, kayaks, `Pelota`, `Paleta`) y `juguetes` entran en `V69`: son equipamiento y no
+prendas, y una tienda de juguetes es un sitio posible. `sitio_rubro_forzado_check` queda en 5 valores hasta que un
+sitio necesite forzar alguno de los dos.
+
 ---
 
 ### Bloqueo conocido: Logg queda fuera de `fix-zero-yield-tech-sites`
@@ -497,9 +501,9 @@ cable, mientras que 130 de los 136 cables reales lo tienen como primera palabra.
 (`CATEGORIAS_DEPORTE`), **fuera** de `INDUMENTARIA_O_CALZADO_EXTRA`. Meterlas
 ahí habría sido lo natural —las vende una tienda de deportes— y habría hecho que
 `GymratTagger` las taggeara y que los tres armadores consideraran una pelota una
-prenda vestible. Es el mismo criterio por el que `RubroResolver` no deriva el
-rubro de la categoría: qué **es** un producto y en qué **slot** entra son dos
-preguntas distintas.
+prenda vestible. Qué **es** un producto y en qué **slot** entra son dos preguntas
+distintas. Desde `V69` `RubroResolver` las manda al rubro `deporte` en los sitios sin
+rubro forzado, pero siguen fuera de `INDUMENTARIA_O_CALZADO_EXTRA`.
 
 #### Las subcategorías nuevas se abstienen; sólo `Gorro` adivina
 
@@ -881,7 +885,7 @@ barra de rubros existía para acotarlas, pero es chrome de dashboard: dice qué
 filtros hay, no qué hay adentro de cada uno. Un rubro con 12 categorías y otro
 con 3 se veían exactamente igual antes de entrar.
 
-El carrusel de entrada muestra los **seis rubros reales** —el vocabulario de
+El carrusel de entrada muestra los **ocho rubros reales** —el vocabulario de
 `lib/rubros.js` menos su neutro `''`, que es "Todos" y sigue estando en la barra
 de la galería— más una card **Gymrat**, cada una con su portada, su cantidad de categorías y su cantidad
 de productos. Elegir uno recién entonces abre la galería. `RubroCard`
@@ -904,8 +908,8 @@ el `imgCat` del primer pick de su propio rubro. Una URL de stock hardcodeada
 sería una dependencia de red externa para decorar datos que ya tenemos, y
 mostraría lo mismo con el catálogo lleno que con el catálogo vacío.
 
-**El costo es siete requests en el montaje donde antes había una**, porque la
-pantalla de entrada necesita los seis rubros y Gymrat a la vez para poder dibujar sus
+**El costo es nueve requests en el montaje donde antes había una**, porque la
+pantalla de entrada necesita los ocho rubros y Gymrat a la vez para poder dibujar sus
 contadores. Se paga una sola vez: los `cats` quedan cacheados por rubro, así que
 ir y volver entre el carrusel y una galería —y cambiar de solapa dentro de la
 galería— no emite ninguna request más. `/api/mejores` lee el snapshot en memoria,
@@ -1641,15 +1645,17 @@ sitioCategoriaOrigenId (Integer)
 Un único parser, `ar.scraper.aggregator.text.PrecioParser`, lo resuelve al
 momento del scrape — ver `V17` más abajo.
 
-`rubro` tiene **seis** valores desde `V45`: `indumentaria` · `tecnologia` ·
-`suplementos` · `oficina` · `construccion` · `hogar`. Lo resuelve `RubroResolver` por
+`rubro` tiene **ocho** valores desde `V69`: `indumentaria` · `tecnologia` ·
+`suplementos` · `oficina` · `construccion` · `hogar` · `deporte` · `juguetes`. Lo resuelve `RubroResolver` por
 `sitio.rubro_forzado`, salvo donde decide la categoría. `suplementos`: un
 suplemento es un suplemento lo venda quien lo venda, y por eso gana sobre el
 rubro forzado del sitio. `construccion` y `hogar` también deciden por categoría
 (después de los forzados `tecnologia` y `oficina`): `ambiancedeco` vende
 revestimientos y textiles de hogar bajo un solo rubro forzado. `oficina` decide
 por categoría sólo en los sitios sin rubro forzado: Easy es mixto, y sin esa
-regla sus sillas quedaban en `indumentaria`.
+regla sus sillas quedaban en `indumentaria`. `deporte` y `juguetes` siguen el mismo
+criterio (decisión D-6): equipamiento deportivo y juguetes por categoría, sólo sin rubro forzado, y un rubro forzado
+gana siempre. La ropa deportiva se queda en `indumentaria`; el `deporte` de `SportResolver` es una dimensión aparte.
 
 `sitioCategoriaOrigenId` es la hoja del árbol de categorías del propio sitio donde éste ubica al producto
 (`categoryId` en VTEX): `null` es "el sitio no la publica", nunca un sentinel. Sólo `VtexPage` la llena; el upsert la

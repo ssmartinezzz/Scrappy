@@ -9,6 +9,14 @@ public class CategoryClassifier {
 
     private static final NutricionClassifier NUTRICION = new NutricionClassifier();
 
+    private static final FamiliaClassifier[] FAMILIAS_DE_TIEMPO_LIBRE = {
+        new BicicletasClassifier(),
+        new FitnessClassifier(),
+        new CanchaClassifier(),
+        new KayakClassifier(),
+        new JuguetesClassifier()
+    };
+
     private static final FamiliaClassifier[] FAMILIAS_EN_ORDEN = {
         new PiletaClassifier(),
         new AutomotorClassifier(),
@@ -61,9 +69,15 @@ public class CategoryClassifier {
 
     private String clasificar(String texto) {
         if (StringUtils.isBlank(texto)) return "";
-        if (NonTextileGuard.esClaramenteNoTextil(texto)) return "";
         TextoClasificable clasificable = TextoClasificable.de(texto);
-        for (FamiliaClassifier familia : FAMILIAS_EN_ORDEN) {
+        String tiempoLibre = primeraCategoria(FAMILIAS_DE_TIEMPO_LIBRE, clasificable);
+        if (!tiempoLibre.isEmpty()) return tiempoLibre;
+        if (NonTextileGuard.esClaramenteNoTextil(texto)) return "";
+        return primeraCategoria(FAMILIAS_EN_ORDEN, clasificable);
+    }
+
+    private static String primeraCategoria(FamiliaClassifier[] familias, TextoClasificable clasificable) {
+        for (FamiliaClassifier familia : familias) {
             String categoria = familia.clasificar(clasificable);
             if (!categoria.isEmpty()) return categoria;
         }

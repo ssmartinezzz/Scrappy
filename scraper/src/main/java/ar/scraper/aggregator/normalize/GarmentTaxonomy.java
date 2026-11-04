@@ -325,6 +325,8 @@ public final class GarmentTaxonomy {
         "vestido largo","vestido corto","vestido de noche"
     };
 
+    public static final String[] KW_VESTIDO_VETO_LIDER = { " bolso "," bolsos "," bolsa "," mochila " };
+
     public static final String[] KW_ENTERITO = {
         "enterito","mono ","jumpsuit","overol","romper","mameluco",
         "enterito largo","catsuit"
@@ -1823,7 +1825,129 @@ public final class GarmentTaxonomy {
 
     public static final String[] KW_PALETA = {
         " paleta ","paletas ","paleta de padel","paleta de ping pong",
-        "paleta de tenis de mesa"
+        "paleta de tenis de mesa"," pala de padel"
+    };
+
+    public static final String[] KW_BICICLETA_LIDER = {
+        " bicicleta "," bici "," mountain bike "," triciclo "
+    };
+    public static final String[] KW_BICICLETA_VETO = {
+        " soporte "," funda "," candado "," cubre "," kit "," guante"," remera "," zapatill "," casco "
+    };
+    public static final String[] KW_MONOPATIN_LIDER = {
+        " monopatin "," monopatines "," scooter "," scooters "," triscooter "," waveboard "," skateboard ",
+        " skate board "," skate penny "," skate retro "," patineta "," longboard "," hoverboard "
+    };
+    public static final String[] KW_MONOPATIN_VETO = {
+        " zapatill"," gorra"," mochila"," bermuda"," bolso"," remera"," vespa"," nafta"," cc "," repuesto"
+    };
+    public static final String[] KW_REPUESTO_BICI_PROPIO_LIDER = {
+        " cassette "," casete "," pinon "," pinones "," descarrilador "," cambio trasero "," cambio delantero ",
+        " caja pedalera "," cajas pedaleras "," pastilla de freno "," pastillas de freno "," pastilla de cambio ",
+        " pedalier "," biela "," bielas "," porta eje "," cinta de manubrio "," canasto para manubrio ",
+        " porta caramanola "," caramanola "," ciclocomputador "," pin conector de cadena ",
+        " funda de cambio "," cinta para tubelizar "," set de freno "
+    };
+    public static final String[] KW_REPUESTO_BICI_GENERICO_LIDER = {
+        " cadena "," cable "," pedal "," pedales "," asiento "," sillin "," casco "," luz "," luces "," timbre ",
+        " bocina "," inflador "," bomba "," horquilla "," stem "," manubrio "," maza "," eje "," freno ",
+        " frenos "," liquido de freno "," disco de freno "," discos de freno "," puños "," punos "," grip ",
+        " palanca "," shifter "," bateria "," rueda "," ruedas "," rotor "," herramienta "," multiherramienta ",
+        " estuche "," funda para asiento "," kit reparacion "," kit de reparacion "," set de herramientas "," plato "," platos "
+    };
+    public static final String[] KW_REPUESTO_BICI_CONTEXTO = {
+        " bicicleta"," bici "," bicis "," mtb "," ciclismo"," ciclista"," shimano "," sram "," trek "," bontrager ",
+        " rockshox "," suntour "," zefal "," m wave "," m-wave "," presta "," eslabones "," sigma ",
+        " deore "," roadtube"," sportube"," tubeless"," dual lock "
+    };
+    public static final String[] KW_NEUMATICO_BICI_LIDER = { " cubierta "," cubiertas "," camara "," camaras " };
+    public static final String[] KW_NEUMATICO_BICI_CONTEXTO = {
+        " bicicleta"," bici "," mtb ","-622"," 700x"," presta "," roadtube"," sportube"," smartube"," tubeless",
+        " scorpion "," p zero "," prowall "," cinturato "
+    };
+    public static final String[] KW_REPUESTO_BICI_VETO = {
+        " impresora "," notebook "," gabinete "," auto "," moto "," camioneta "," pc "
+    };
+
+    public static final String[] KW_PESAS_LIDER = {
+        " mancuerna "," mancuernas "," pesa rusa "," pesas rusas "," kettlebell "," kettlebells "," pesas "," pesa ",
+        " barra z "," barra ez "," barra olimpica"," barra romana"," disco olimpico "," discos olimpicos "," disco martillado "," topes para disco "
+    };
+    public static final String[] KW_PESAS_VETO = {
+        " digital "," balanza "," bascula "," cocina "," bebe "," bano "," joya "," persona "," corporal "
+    };
+    public static final String[] KW_DISCO_PESA_LIDER = { " disco "," discos " };
+    public static final String[] KW_DISCO_PESA_CALIFICADOR = {
+        " kg"," olimpic"," martillad"," bumper"," engomad"," fitness"," atletic"," libras"
+    };
+    public static final String[] KW_DISCO_PESA_VETO = {
+        " corte "," flap "," diamant"," lija"," abras"," freno"," sierra"," ssd "," hdd "," duro "," solido "," rigido ",
+        " sata "," nvme "," externo "," interno "," vinilo "," volador "," pulid"," desbaste "," amoladora "," tct "
+    };
+    public static final String[] KW_TOBILLERA_LIDER = { " tobillera "," tobilleras " };
+    public static final String[] KW_TOBILLERA_PESO = { "kg "," kgs"," lastrad"," peso " };
+    public static final String[] KW_BARRA_LIDER = { " barra "," barras " };
+    public static final String[] KW_BARRA_PESAS_CALIFICADOR = {
+        " olimpica"," ez "," romana"," atletic"," con rosca"," con tope"," mir fitness"," w con"
+    };
+    public static final String[] KW_BARRA_ACCESORIO_CALIFICADOR = {
+        " ejercicio"," entrenamiento"," dominadas"," amurable"," proyec "
+    };
+    public static final String[] KW_ACCESORIO_FITNESS_LIDER = {
+        " banda elastica "," bandas elasticas "," banda con manija "," set bandas elasticas "," set de bandas elasticas ",
+        " soga de salto "," soga para saltar "," soga salto "," cuerda de salto "," cuerda para saltar ",
+        " rueda abdominal "," rueda yoga "," rueda de yoga "," mat yoga "," mat de yoga "," mat pilates ",
+        " mat de pilates "," set mat yoga "," bosu "," mini bosu "," ejercitador "," cono de entrenamiento ",
+        " conos de entrenamiento "," valla plastica "," escalera de agilidad "," octagonos de coordinacion ",
+        " rodillo de masaje "," foam roller "," rodillo foam "
+    };
+    public static final String[] KW_COLCHONETA_LIDER = { " colchoneta "," colchonetas " };
+    public static final String[] KW_COLCHONETA_FITNESS_CALIFICADOR = {
+        " gym "," fit "," fitness"," yoga"," pilates"," ejercicio"," proyec "," entrenamiento"
+    };
+    public static final String[] KW_COLCHONETA_FITNESS_VETO = {
+        " camping"," inflable"," mascota"," pileta"," bestway"," cuna"," bebe"
+    };
+    public static final String[] KW_LADRILLO_YOGA_LIDER = { " ladrillo " };
+    public static final String[] KW_LADRILLO_YOGA_CALIFICADOR = { " silicona "," yoga " };
+
+    public static final String[] KW_EQUIPAMIENTO_DEPORTIVO_LIDER = {
+        " arco de futbol"," arcos de futbol"," arco futbol"," arco de handball"," arco de hockey"," arco de pelota",
+        " aro de basquet"," aro basquet"," aro de basket"," tablero de basquet"," tablero con aro",
+        " red de basquet"," red basquet"," red de ping pong"," red ping pong"," red de ping-pong"," red de voley",
+        " red de tenis"," red de futbol"," red de padel"," red de handball"," red de badminton"," red de hockey",
+        " mesa de ping pong"," mesa ping pong"," mesa de pingpong"," mesa de tenis de mesa"," mesa de pool",
+        " mesa pool"," tablero de dardos"," tablero dardos"," dardos "," set de dardos",
+        " set ping pong"," set de ping pong"," set de ping-pong"," set tenis de mesa"," set de tenis de mesa",
+        " set spikeball"," spikeball "," juego de tenis"," bodyboard"," tabla de surf"," tabla de bodyboard"
+    };
+
+    public static final String[] KW_EQUIPAMIENTO_DEPORTIVO_VETO = { " inflable" };
+
+    public static final String[] KW_KAYAK_LIDER = { " kayak "," kayaks "," canoa "," canoas " };
+    public static final String[] KW_BOTE_LIDER = { " bote "," botes " };
+    public static final String[] KW_BOTE_CALIFICADOR = { " remo"," pesca"," semirigido"," goma "," kayak" };
+
+    public static final String[] KW_CAMA_ELASTICA_LIDER = { " cama elastica "," camas elasticas "," trampolin " };
+    public static final String[] KW_JUGUETE_LIDER = {
+        " juguete "," juguetes "," set de juguetes"," set juguetes"," muneco "," muneca "," munecos "," munecas ",
+        " peluche "," peluches "," rompecabezas "," puzzle "," puzles "," pistola de agua"," pistolas de agua",
+        " lanza agua"," lanzador de agua"," balde castillo"," balde de playa"," balde playa"," baldes de playa",
+        " set de playa"," set playa"," juego de playa"," set paletas playa"," set de paletas playa",
+        " set de tennis playa"," set de tenis playa"," frisbee"," frisbi"," disco volador"," mini golf",
+        " torre apilable"," juego de peces"," juego de lanzamiento"," peces de juguete"," casita juguete",
+        " casita infantil"," guante excavador"," carpa infantil"," carpa carruaje"," carpa princesa"," camion volcador",
+        " camion de juguete"
+    };
+    public static final String[] KW_JUGUETE_VETO = {
+        " mascota"," para perro"," para gato"," p/perro"," p/gato"," perros "," gatos "," de perro"," de gato",
+        " pet's "," pets "," gato "," perro "," catnip "," riego"," manguera"," presion"," hidrolavadora"," para jardin"," navid"," decorativ"," deco "
+    };
+    public static final String[] KW_JUGUETE_CON_MARCA_LIDER = {
+        " camion "," carro de arrastre "," pala y rastrillo "," pala "," balde "," baldes "," set de jardin "
+    };
+    public static final String[] KW_JUGUETE_MARCA_CALIFICADOR = {
+        " luni "," chichess "," juguete"," infantil"," bestway fun"
     };
 
     public static final String[] TORSO_KEYWORDS_FLAT = concatKeywords(
