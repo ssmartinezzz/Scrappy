@@ -418,17 +418,17 @@ def tfidf_simple(docs):
             'zapatillas','remera','campera','pantalon','short','buzo','calza',
             'pollera','mochila','gorra','medias','bota','ojota'}
     tf = []
-    all_terms = set()
+    documentos_por_termino = defaultdict(int)
     for doc in docs:
         terms = [w for w in re.findall(r'[a-zA-ZáéíóúñÁÉÍÓÚÑ]+', doc.lower())
                  if w not in stop and len(w) > 2]
         freq = defaultdict(int)
         for t in terms: freq[t] += 1
         tf.append(freq)
-        all_terms.update(freq.keys())
+        for t in freq: documentos_por_termino[t] += 1
 
     n = len(docs)
-    idf = {t: math.log((n+1) / (sum(1 for f in tf if t in f) + 1)) + 1 for t in all_terms}
+    idf = {t: math.log((n+1) / (df + 1)) + 1 for t, df in documentos_por_termino.items()}
     tfidf = []
     for freq in tf:
         total = max(sum(freq.values()), 1)
