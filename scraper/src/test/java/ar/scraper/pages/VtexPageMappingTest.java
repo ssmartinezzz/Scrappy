@@ -103,7 +103,7 @@ class VtexPageMappingTest {
     }
 
     @Test
-    @DisplayName("categories win over categoryTree, and only the last non-blank segment of the last entry counts")
+    @DisplayName("categories win over categoryTree, and the deepest path decides through its last non-blank segment")
     void categoriesTakePrecedence() throws Exception {
         String json = product("\"productName\":\"Buzo\",\"categories\":[\"/A/\",\"/Ropa//Buzos/ \"]",
                 ONE_OFFER, ",\"categoryTree\":[{\"name\":\"Otra\"}]");
