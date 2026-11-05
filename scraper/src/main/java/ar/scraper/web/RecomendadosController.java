@@ -105,18 +105,16 @@ public class RecomendadosController {
         }
         candidatos = broadenGenero(candidatos, genero);
 
-        List<Product> ranked = recommendationService.rank(candidatos, feedback);
-
-        int total = ranked.size();
-
-        // Clamp instead of rejecting: a negative page or size <= 0 would reach subList with a
+        // Clamp instead of rejecting: a negative page or size <= 0 would reach the rank with a
         // negative index and surface as a 500.
         int paginaPedida = Math.max(0, page);
         int tamanio      = Math.max(1, size);
+        int desde = (int) Math.min((long) paginaPedida * tamanio, candidatos.size());
 
-        int desde = Math.min(paginaPedida * tamanio, total);
-        int hasta = Math.min(desde + tamanio, total);
-        List<Product> pagina = ranked.subList(desde, hasta);
+        RecommendationService.PaginaRankeada ranked =
+                recommendationService.rankPagina(candidatos, feedback, desde, tamanio);
+        List<Product> pagina = ranked.productos();
+        int total = ranked.total();
 
         List<ObjectNode> items = new ArrayList<>();
         for (Product p : pagina) {
