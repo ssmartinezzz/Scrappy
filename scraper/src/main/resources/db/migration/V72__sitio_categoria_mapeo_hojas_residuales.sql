@@ -1,0 +1,21 @@
+INSERT INTO sitio_categoria (sitio_key, origen_id, nombre, categoria) VALUES
+    ('easy', 179, 'Banquetas y Banquitos Auxiliares', 'Mueble'),
+    ('easy', 201, 'Carros organizadores', 'Organización'),
+    ('easy', 218, 'Aromatizantes y Antihumedad', 'Artículo de Limpieza'),
+    ('easy', 219, 'Bolsas de basura', 'Artículo de Limpieza'),
+    ('easy', 259, 'Sillas, sillones y bancos', 'Mueble de Exterior'),
+    ('easy', 267, 'Accesorios para Parrillas', 'Accesorio de Parrilla'),
+    ('easy', 270, 'Limpieza y mantenimiento', 'Químico de Pileta'),
+    ('easy', 323, 'Aditivos', 'Líquido Automotor'),
+    ('easy', 394, 'Piletas y accesorios', 'Accesorio de Caño'),
+    ('easy', 396, 'Abrazaderas y grampas', 'Fijación'),
+    ('easy', 400, 'Depósitos y repuestos de estanque', 'Sanitario'),
+    ('easy', 414, 'Precintos y grampas', 'Fijación'),
+    ('easy', 421, 'Portalámparas', 'Iluminación'),
+    ('easy', 430, 'Ingletadoras y Sierras', 'Sierra'),
+    ('easy', 461, 'Organizadores', 'Organización'),
+    ('easy', 462, 'Bolsos y mochilas', 'Caja de Herramientas'),
+    ('easy', 478, 'Topes Adhesivos y Felpas Protectoras', 'Herraje'),
+    ('easy', 515, 'Baterías y Cargadores', 'Accesorio de Herramienta'),
+    ('easy', 532, 'Regatones', 'Herraje')
+ON CONFLICT (sitio_key, origen_id) DO UPDATE SET categoria = EXCLUDED.categoria;

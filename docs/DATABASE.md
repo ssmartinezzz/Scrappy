@@ -146,6 +146,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V69` | Rubros `deporte` y `juguetes` (`chk_productos_rubro_domain` pasa de 6 a 8 valores) y 9 categorías de tiempo libre |
 | `V70` | `sitio_categoria.categoria` (FK nullable a `categoria`): el mapeo curado de las hojas de Easy, sembrado |
 | `V71` | `sitio.rubro_por_defecto` (nullable, mismo dominio que `rubro_forzado`): el rubro de las filas que llegan a la cola de `RubroResolver`; sembrado `construccion` para Easy |
+| `V72` | 19 hojas más en el mapeo curado de Easy (`sitio_categoria.categoria`): las que daban una categoría equivocada por `raw` o la perdían al renormalizar |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -4220,5 +4221,27 @@ ALTER TABLE sitio DROP COLUMN rubro_por_defecto;
 -- <<< rollback:V71
 ```
 
-Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V70`. No toca datos de `productos`: las
+Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V72`, antes que el de `V70`. No toca datos de `productos`: las
 filas ya clasificadas conservan su `rubro` hasta la próxima corrida, que vuelve a resolver la cola con `indumentaria`.
+
+## `V72` — `sitio_categoria.categoria`: las hojas que `raw` resolvía mal
+
+Sólo datos: mapea 19 hojas de Easy más, con el mismo criterio curado de `V70` y sin categorías nuevas. Hacen falta desde que `VtexPage` toma como `raw` la hoja y no el departamento: esa categoría cruda rescata filas, pero a veces por coincidencia de palabras y, además, se pierde.
+
+- **Coincidencia de palabras:** `raw` "Depósitos y repuestos de estanque" daba `Depósito de Jardín` para repuestos de cisterna, y "Piletas y accesorios" de Desagües daba `Pileta`.
+- **Pérdida al renormalizar:** `renormalizarCatalogo` usa la categoría guardada como `raw`, y un nombre de categoría suelto no siempre se reclasifica (`Fijación` volvía a `Otros`). El árbol sí se vuelve a consultar, así que una hoja mapeada es estable.
+
+Una hoja que se resuelve mal por `raw` se arregla acá, con una migración nueva: las aplicadas son byte-frozen.
+
+### Rollback
+
+```sql
+-- >>> rollback:V72
+DELETE FROM sitio_categoria WHERE sitio_key = 'easy' AND padre_id IS NULL
+    AND origen_id IN (179, 201, 218, 219, 259, 267, 270, 323, 394, 396, 400, 414, 421, 430, 461, 462, 478, 515, 532);
+UPDATE sitio_categoria SET categoria = NULL WHERE sitio_key = 'easy'
+    AND origen_id IN (179, 201, 218, 219, 259, 267, 270, 323, 394, 396, 400, 414, 421, 430, 461, 462, 478, 515, 532);
+-- <<< rollback:V72
+```
+
+Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V71`. El `DELETE` quita sólo las hojas sembradas que ningún scrape tocó (`padre_id` NULL); ninguna fila de `productos` puede apuntarles. Las filas ya clasificadas conservan su `categoria` hasta el próximo scrape.
