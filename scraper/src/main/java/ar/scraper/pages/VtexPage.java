@@ -401,7 +401,7 @@ public class VtexPage extends StorePage implements CatalogPage, ArbolDeCategoria
             double p = oferta.get().precio();
             if (fueraDeRango(p)) return Optional.empty();
 
-            String categoria = ultimoSegmento(prod.path("categories"));
+            String categoria = segmentoDeLaRutaMasProfunda(prod.path("categories"));
             if (io && categoria.isBlank()) {
                 JsonNode catTree = prod.path("categoryTree");
                 if (catTree.isArray() && !catTree.isEmpty()) {
@@ -460,13 +460,25 @@ public class VtexPage extends StorePage implements CatalogPage, ArbolDeCategoria
         return Optional.empty();
     }
 
-    private static String ultimoSegmento(JsonNode cats) {
-        if (!cats.isArray() || cats.isEmpty()) return "";
-        String[] parts = cats.get(cats.size() - 1).asText("").trim().split("/");
-        for (int i = parts.length - 1; i >= 0; i--) {
-            if (!parts[i].isBlank()) return parts[i];
+    private static String segmentoDeLaRutaMasProfunda(JsonNode cats) {
+        if (!cats.isArray()) return "";
+        String hoja = "";
+        int profundidadMaxima = 0;
+        for (JsonNode ruta : cats) {
+            String[] segmentos = StringUtils.split(ruta.asText(""), '/');
+            int profundidad = 0;
+            String ultimo = "";
+            for (String segmento : segmentos) {
+                if (StringUtils.isBlank(segmento)) continue;
+                profundidad++;
+                ultimo = segmento;
+            }
+            if (profundidad > profundidadMaxima) {
+                profundidadMaxima = profundidad;
+                hoja = ultimo;
+            }
         }
-        return "";
+        return hoja;
     }
 
     private List<String> extraerTallesVtex(JsonNode prod) {
