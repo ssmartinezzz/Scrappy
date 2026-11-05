@@ -396,7 +396,7 @@ export default function SplashPanel({
                 </div>
                 <div className="mb-2 text-[.7rem] leading-relaxed text-t4">
                   Entrenás un clasificador con los productos del DB.
-                  <br/>• <strong>Fase 1</strong> — TF-IDF + LogReg (texto): ~1 min
+                  <br/>• <strong>Fase 1</strong> — TF-IDF + SGD (texto): ~1 min
                   <br/>• <strong>Fase 2</strong> — EfficientNet-B3 (GPU) / MobileNetV3 (CPU): ~10min con 3080
                 </div>
                 <MlStatusPanel/>

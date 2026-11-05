@@ -375,8 +375,10 @@ cache-first. Override de categoría gateado por incompatibilidad de tipos +
 no-downgrade + confianza ≥0.82/0.92. Los atributos visuales se agregan de forma
 **aditiva** — el texto gana.
 
-**`ml_train.py`:** entrena SOLO el clasificador de texto (TF-IDF + LogisticRegression,
-~30s) → `_models/text_classifier.pkl`. `--images` es no-op: la clasificación
+**`ml_train.py`:** entrena SOLO el clasificador de texto (TF-IDF + `SGDClassifier` log loss;
+con 60.9k filas y 260 clases, 50 s y 555 MB) → `_models/text_classifier.pkl`. `coef_` se guarda
+en orden Fortran: en orden C, scipy lo copia entero en cada `predict_proba` de una fila (63 ms vs
+0,68 ms sobre el mismo resultado). `--images` es no-op: la clasificación
 visual es zero-shot, sin entrenamiento.
 
 **`ml_embeddings.py`:** `hf-hub:Marqo/marqo-fashionSigLIP` vía `open_clip`,

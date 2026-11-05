@@ -59,7 +59,7 @@ def load_trained_models():
     models_dir = Path(models_root) if models_root else Path("_models")
     text_model = le = None
 
-    # ── Modelo de texto (TF-IDF + LogReg) ──────────────────────────────────
+    # ── Modelo de texto (TF-IDF + SGD) ─────────────────────────────────────
     try:
         import pickle
         tp = models_dir / "text_classifier.pkl"
