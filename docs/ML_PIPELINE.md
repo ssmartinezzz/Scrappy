@@ -415,7 +415,7 @@ que ya existen, nunca inserta un producto; el trigger de versión del catálogo 
 dispara con el cambio de badges, que es lo que invalida las caches.
 
 **Ojo con la taxonomía de `categoria`:** el vocabulario canónico pasó de 88 a
-103 valores en `richer-category-taxonomy`, a **105** en `V32` y a **106** en `V38` (`Mini PC`), y vive en DOS
+103 valores en `richer-category-taxonomy`, a **105** en `V32`, a **106** en `V38` (`Mini PC`) y a **266** con `V64`..`V69` (Easy), y vive en DOS
 lugares que no pueden divergir — `CategoryGroups.canonicalCategories()` y la
 tabla `categoria`. Dar de alta una categoría son **dos** cambios: el keyword que
 la produce y la migración que la inserta. Si falta la migración, la FK rechaza
@@ -423,6 +423,11 @@ cada producto, pero `ProductRepository` se traga los errores SQL: el síntoma es
 `"0 nuevos"` en una corrida sana, no un error. Detalle y porqué en
 [`docs/DATABASE.md`](./DATABASE.md) (`V31`, `V32`) y
 [`docs/ARCHITECTURE.md`](./ARCHITECTURE.md).
+
+**El orden de `normalizarCategoria`:** nombre, hoja mapeada del árbol del sitio
+(`sitio_categoria.categoria`, `V70`), `raw`, alias, peso, `Otros`. La hoja va antes que
+`raw` porque es curada e idempotente: `raw` acierta o erra por coincidencia de palabras,
+y al renormalizar es la categoría guardada, no el texto del sitio.
 
 **`deporte` es una dimensión, no una categoría.** Una camiseta de Boca sigue siendo
 `Remera` y además lleva `deporte='futbol'` (`V59`). `SportResolver` decide con el
