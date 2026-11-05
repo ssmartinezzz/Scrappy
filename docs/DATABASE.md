@@ -147,6 +147,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V70` | `sitio_categoria.categoria` (FK nullable a `categoria`): el mapeo curado de las hojas de Easy, sembrado |
 | `V71` | `sitio.rubro_por_defecto` (nullable, mismo dominio que `rubro_forzado`): el rubro de las filas que llegan a la cola de `RubroResolver`; sembrado `construccion` para Easy |
 | `V72` | 19 hojas más en el mapeo curado de Easy (`sitio_categoria.categoria`): las que daban una categoría equivocada por `raw` o la perdían al renormalizar |
+| `V73` | Índice parcial `idx_productos_rubro_precio` para `/api/data?rubro=…`: evita los dos seq scans por request sobre un catálogo de 60 mil filas |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -4244,4 +4245,27 @@ UPDATE sitio_categoria SET categoria = NULL WHERE sitio_key = 'easy'
 -- <<< rollback:V72
 ```
 
-Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V71`. El `DELETE` quita sólo las hojas sembradas que ningún scrape tocó (`padre_id` NULL); ninguna fila de `productos` puede apuntarles. Las filas ya clasificadas conservan su `categoria` hasta el próximo scrape.
+Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V73`, antes que el de `V71`. El `DELETE` quita sólo las hojas sembradas que ningún scrape tocó (`padre_id` NULL); ninguna fila de `productos` puede apuntarles. Las filas ya clasificadas conservan su `categoria` hasta el próximo scrape.
+
+---
+
+## `V73` — `idx_productos_rubro_precio`: el filtro por rubro sin seq scan
+
+`/api/data` con `rubro` cuenta y después pagina; sin índice, cada una recorría la tabla entera. La expresión del índice es **exactamente** la de `CatalogQueryRepository.construirWhere`: si una cambia, Postgres deja de usarlo sin avisar y vuelven los seq scans.
+
+| Medido en la copia con Easy (60.931 activas) | Sin índice | Con índice |
+|---|---|---|
+| `COUNT` + página de 24 por `precio_asc`, 500 pasadas intercaladas por config | 72 ms | 4,4 ms |
+| `UPDATE` de precio en 5.000 filas, 40 pasadas intercaladas por config | ~560 ms | ~725 ms |
+
+El costo es de escritura: pesa 7,6 MB y `precio` pasa a estar indexado, así que un cambio de precio deja de ser un `UPDATE` HOT y toca todos los índices de `productos`. Sólo acelera la página de `precio_asc`, que es el orden por defecto; los otros órdenes ganan el `COUNT` y siguen ordenando en memoria.
+
+### Rollback
+
+```sql
+-- >>> rollback:V73
+DROP INDEX IF EXISTS idx_productos_rubro_precio;
+-- <<< rollback:V73
+```
+
+Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V72`. No toca datos.
