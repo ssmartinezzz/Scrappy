@@ -245,6 +245,11 @@ public class DatabaseService {
         return productPort.upsertParcial(productos);
     }
 
+    public UpsertStats upsertParcial(String sitio, List<Product> productos,
+                                     List<ar.scraper.model.SitioCategoriaNodo> arbolDeCategorias) {
+        return productPort.upsertParcial(sitio, productos, arbolDeCategorias);
+    }
+
     public List<Product> cargarProductos() {
         return productPort.cargarProductos();
     }

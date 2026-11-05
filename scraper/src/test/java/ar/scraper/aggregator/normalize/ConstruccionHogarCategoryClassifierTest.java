@@ -105,9 +105,33 @@ class ConstruccionHogarCategoryClassifierTest {
     void newCategoriesAreCanonical() {
         assertThat(CategoryGroups.categoriasConstruccion()).containsExactlyInAnyOrder(
                 "Placa Decorativa", "Vinilo Decorativo", "Piso", "Césped Sintético",
-                "Adhesivo", "Moldura", "Planta Artificial");
+                "Adhesivo", "Moldura", "Planta Artificial",
+                "Cemento", "Ladrillo", "Árido", "Hierro", "Impermeabilizante", "Madera", "Tablero",
+                "Chapa", "Aislante", "Placa de Yeso", "Perfilería", "Pintura", "Enduido", "Diluyente",
+                "Accesorio de Pintura", "Empapelado", "Puerta", "Ventana", "Portón", "Mosquitero",
+                "Toldo", "Cerámico", "Porcelanato", "Pastina", "Revestimiento", "Escalera",
+                "Caño", "Accesorio de Caño", "Llave de Paso", "Flexible", "Tanque de Agua", "Bomba de Agua",
+                "Canaleta", "Regulador de Gas", "Cable Eléctrico", "Llave de Luz", "Térmica", "Caja Eléctrica",
+                "Cablecanal", "Ficha y Prolongador", "Iluminación",
+                "Taladro", "Amoladora", "Sierra", "Soldadora", "Hidrolavadora", "Herramienta Eléctrica",
+                "Herramienta Manual", "Accesorio de Herramienta", "Lija", "Caja de Herramientas", "Tornillo",
+                "Tarugo", "Clavo", "Fijación", "Bisagra", "Cerradura", "Candado", "Herraje", "Cinta Adhesiva",
+                "Guante de Trabajo", "Protección Personal");
         assertThat(CategoryGroups.categoriasHogar()).containsExactlyInAnyOrder(
-                "Almohadón", "Funda", "Manta", "Mantel", "Alfombra", "Respaldo");
+                "Almohadón", "Funda", "Manta", "Mantel", "Alfombra", "Respaldo",
+                "Sanitario", "Grifería", "Ducha", "Bañera", "Mampara", "Vanitory", "Bacha", "Accesorio de Baño",
+                "Mueble", "Placard", "Cama", "Colchón", "Mesa", "Sillón", "Estantería", "Caja y Canasto", "Basurero",
+                "Tendedero", "Colgador", "Artículo de Limpieza", "Sistema Modular", "Espejo", "Cortina", "Ropa de Cama",
+                "Toalla", "Decoración", "Bazar",
+                "Planta", "Semilla", "Tierra y Fertilizante", "Maceta", "Riego", "Pulverizador",
+                "Cerco y Media Sombra", "Decoración de Jardín", "Herramienta de Jardín", "Máquina de Jardín", "Gazebo y Sombrilla", "Reposera y Hamaca",
+                "Mueble de Exterior", "Depósito de Jardín", "Parrilla", "Accesorio de Parrilla", "Carbón y Leña", "Pileta",
+                "Inflable", "Químico de Pileta", "Accesorio de Pileta", "Carpa", "Bolsa de Dormir", "Conservadora",
+                "Termo y Botella", "Artículo de Camping", "Alimento para Mascota", "Cama para Mascota", "Higiene de Mascota", "Accesorio para Mascota",
+                "Lubricante", "Líquido Automotor", "Batería de Auto", "Escobilla de Auto", "Limpieza de Auto", "Accesorio de Auto",
+                "Herramienta de Auto", "Seguridad Vial", "Termotanque", "Calefón", "Calefactor", "Ventilador",
+                "Aire Acondicionado", "Heladera", "Lavarropas", "Cocina y Horno", "Campana y Extractor", "Aspiradora",
+                "Pequeño Electrodoméstico");
         assertThat(CategoryGroups.canonicalCategories())
                 .containsAll(CategoryGroups.categoriasConstruccion())
                 .containsAll(CategoryGroups.categoriasHogar());

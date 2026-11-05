@@ -41,7 +41,7 @@ class KeywordBoundaryContaminationTest {
     @CsvSource({
         // "ram " se comía Dram / Sram / Ingram / Monogram — 8 filas reales en RAM
         "'Camisa Manga Larga Lino Dram Militar',                Camisa",
-        "'Pastillas De Freno Sram Orgánica Alum',               Otros",
+        "'Pastillas De Freno Sram Orgánica Alum',               Repuesto de Bicicleta",
         "'Calza [ Ingram ] Negro',                              Calza",
         "'Bikini Monogram',                                     Malla",
         // ...y la RAM de verdad sigue siendo RAM

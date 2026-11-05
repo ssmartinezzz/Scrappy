@@ -3,6 +3,8 @@ package ar.scraper.scrapers;
 import ar.scraper.config.ScraperConfig;
 import ar.scraper.model.Product;
 import ar.scraper.model.ScrapeResult;
+import ar.scraper.model.SitioCategoriaNodo;
+import ar.scraper.pages.ArbolDeCategorias;
 import ar.scraper.pages.CatalogPage;
 import ar.scraper.pages.CloudflareBlockedException;
 import ar.scraper.pages.CloudflareSolver;
@@ -267,6 +269,8 @@ public final class BaseScraper {
     ScrapeResult resultado(Page page, long inicioMs) {
         CatalogPage catalogo = pageFactory.crear(page, pageContext);
         List<Product> prods = catalogo.scrapeAll();
-        return new ScrapeResult(sitio, prods, catalogo.truncamiento(), System.currentTimeMillis() - inicioMs);
+        List<SitioCategoriaNodo> arbol = catalogo instanceof ArbolDeCategorias conArbol
+                ? conArbol.arbolDeCategorias() : List.of();
+        return new ScrapeResult(sitio, prods, catalogo.truncamiento(), System.currentTimeMillis() - inicioMs, arbol);
     }
 }

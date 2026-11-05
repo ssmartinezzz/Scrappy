@@ -32,7 +32,8 @@ class MarcasPicksViewMonomarcaTest {
                 "monkyforce", new Sitio("Monkyforce", "monkyforce", "monkyforce", false, null, "config", true)));
         var normalizer = new NormalizerService(new PackQuantityDetector(), new CategoryClassifier(),
                 new BrandExtractor(), new GenderResolver(), new SizeNormalizer(), new SubcategoryResolver(),
-                new RubroResolver(registry), new GymratTagger(), new SportResolver(), registry);
+                new RubroResolver(registry), new GymratTagger(), new SportResolver(), registry,
+                org.mockito.Mockito.mock(ar.scraper.catalog.SitioCategoriaPort.class));
         List<Product> crudos = List.of(
                 Product.builder().sitio("Monkyforce").nombre("Buzo Oversize").precio(100).url("http://m/1")
                         .categoria("Buzo").build(),

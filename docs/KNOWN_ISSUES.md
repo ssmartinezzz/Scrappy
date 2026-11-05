@@ -21,6 +21,8 @@
 | El test con browser real del guard de SSRF se saltea en CI | `BaseScraperEgressTest` lanza Chromium y `backend-tests.yml` no instala browsers, así que en CI queda en skip y sólo corre local. Lo que sí corre en CI es la cobertura a nivel socket (`EgressProxyTest`) y el wiring (`BaseScraperLaunchOptionsTest`). Arreglo: `playwright install chromium` en ese workflow |
 | Un sitio cortado se loguea como si estuviera sano | `ScraperService.logSitioResult` escribe `[SITIO] N productos` en INFO también cuando el sitio terminó con productos **y** error. El WARN de `registrarTruncamiento` lo dice antes, pero la línea de resumen no. En Grafana sí se ve como "Cortado" |
 | Vtex Legacy corta en silencio con "body is not a JSON array" | Esa salida del loop no pasa por `registrarTruncamiento`, así que no marca al sitio como parcial y el barrido lo trata como completo. Los otros cortes de Vtex (IO y Legacy después de los reintentos) sí lo marcan |
+| Renormalizar no es idempotente en una hoja VTEX sin mapear | `renormalizarCatalogo` usa la categoría guardada como `raw`, y un nombre de categoría suelto no siempre se reclasifica igual. En Easy lo resolvió `V72` (216 filas → 0, medido sobre la base real). En Sporting afecta a 2 filas de 4.532; una hoja nueva de Easy puede reabrirlo hasta que se mapee |
+| Cobertura de Easy: 94,93 % no es 94,93 % de aciertos | Es `categoria != Otros`. Sin corregir: unas 28 filas `Volante` y `Cabezal` de la hoja 400 que irían mejor en `Grifería`, 6 `Alimentos` por el fallback de peso (4 adhesivos, 1 pintura, 1 dispenser), y `Tierra y Fertilizante` en plantas artificiales de la hoja mixta 252 |
 | `Ejecutar_instalar.sh` asume java/mvn/node del sistema en vez de vendorizar como el `.bat` | Gap preexistente. La parte de `uv`/`cli-venv` sí vendoriza igual en ambos SO y se validó end-to-end en Linux; `INSTALAR_Y_CORRER.bat` nunca se corrió end-to-end (sandbox de dev = Linux) |
 | El tope por minuto no cuenta los envíos que fallaron | `NOTIFICACIONES_MAX_POR_MINUTO` cuenta destinatarios `ENVIADA` en los últimos 60 s más los leases vivos. Un rechazo 550 que el proveedor sí contabiliza contra su cuota no gasta cupo acá |
 | La clasificación 5xx/4xx lee el código SMTP, no el texto | Un proveedor que devuelva un 5xx para un problema pasajero (greylisting mal configurado) archiva el aviso como `FALLIDA` en el primer intento; 530/534/535 y los rechazos a `MAIL FROM` se tratan como transitorios a propósito |
@@ -34,6 +36,7 @@ el catálogo real primero.
 
 | Pendiente | Qué falta |
 |---------|--------|
+| Sporting aparece con 4.532 filas en la API y ~7150 en `SITES.md` | Lo vio el snapshot de 2026-11-05, sin investigar. Puede ser catálogo real o partición incompleta; hace falta una corrida de Sporting con el log de `VtexPage` |
 | Pack/unit pricing: posible drift de distribución ML en categorías con alta densidad de packs | Monitorear badges en vivo. **No** recalibrar thresholds todavía |
 | Un suplemento en cápsulas que declara su dosis en gramos ("Colágeno 10 g en cápsulas") parsea como envase de 10 g | Un umbral de tamaño calibrado con datos reales |
 | El veto de formato y `FORMATO_ALIMENTO` de `SupplementCombo` se escribieron sin un catálogo para muestrear | Contrastarlos contra el catálogo real |

@@ -518,7 +518,7 @@ public class ScraperService implements CatalogSnapshotPort {
                     if (!r.productos().isEmpty()) {
                         try {
                             var normalizados = aggregator.normalizarSolo(r.productos());
-                            upsertPorSitio.accumulateAndGet(productos.upsertParcial(normalizados),
+                            upsertPorSitio.accumulateAndGet(productos.upsertParcial(r.sitio(), normalizados, r.arbolDeCategorias()),
                                     UpsertStats::sumar);
                             var todosActuales = productos.cargarProductos();
                             if (!todosActuales.isEmpty()) {

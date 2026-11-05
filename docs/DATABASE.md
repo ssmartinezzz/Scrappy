@@ -61,7 +61,7 @@ ml_output            -- Último output JSON del pipeline
 image_embeddings     -- Cache de embeddings Marqo (url PK, bytea, model_version)
 categoria_stats      -- Stats de precio por categoría, 12 columnas tipadas + FK a categoria (V16)
 sitios_dinamicos     -- Sitios agregados desde el dashboard
-sitio                -- Identidad de sitio: plataforma, es_premium, rubro_forzado (V18, leída por SiteRegistry desde V20)
+sitio                -- Identidad de sitio: plataforma, es_premium, rubro_forzado (V18), rubro_por_defecto (V71); leída por SiteRegistry desde V20
 favoritos            -- Productos guardados
 precios_externos     -- Comparativas MercadoLibre
 outfit_feedback_item -- Likes/dislikes por ítem (la tabla legacy por-outfit se borró en V15)
@@ -137,10 +137,22 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V52` | `sitio.monomarca`: en una tienda de marca propia la marca ES el sitio; seed, filas en `marca` y backfill |
 | `V53` | Índices GIN `gin_trgm_ops` sobre `productos(nombre)` y `productos(marca)` (extensión `pg_trgm`): el `q` del catálogo es un `ILIKE '%q%'` |
 | `V54` | Seed de Baesics (Shopify, gym, marca propia): fila en `sitio` con `monomarca` y su fila en `marca` |
+| `V63` | `sitio_categoria` (árbol de categorías del sitio, 3FN) + `productos.sitio_categoria_id` |
+| `V64` | 26 categorías de `construccion` (obra gruesa, maderas, techos, construcción en seco, pinturas, aberturas, pisos y revestimientos) |
+| `V65` | 14 categorías de `construccion` para instalaciones (plomería, gas, electricidad); la iluminación reutiliza `Iluminación` (`V27`) |
+| `V66` | 21 categorías de `construccion` para herramientas, fijaciones, herrajes, cintas y protección personal |
+| `V67` | 27 categorías de `hogar` para baños y cocinas, muebles, organización y limpieza, textil, decoración y bazar |
+| `V68` | 49 categorías de `hogar` (jardín, parrillas, piletas, camping, mascotas, automotor, electrodomésticos) y `TV y Audio` en `tecnologia` |
+| `V69` | Rubros `deporte` y `juguetes` (`chk_productos_rubro_domain` pasa de 6 a 8 valores) y 9 categorías de tiempo libre |
+| `V70` | `sitio_categoria.categoria` (FK nullable a `categoria`): el mapeo curado de las hojas de Easy, sembrado |
+| `V71` | `sitio.rubro_por_defecto` (nullable, mismo dominio que `rubro_forzado`): el rubro de las filas que llegan a la cola de `RubroResolver`; sembrado `construccion` para Easy |
+| `V72` | 19 hojas más en el mapeo curado de Easy (`sitio_categoria.categoria`): las que daban una categoría equivocada por `raw` o la perdían al renormalizar |
+| `V73` | Índice parcial `idx_productos_rubro_precio` para `/api/data?rubro=…`: evita los dos seq scans por request sobre un catálogo de 60 mil filas |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
+| `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
 
-> ⚠️ **Las dos funciones plpgsql se editan en su archivo `R__`, y en ningún
+> ⚠️ **Las funciones plpgsql se editan en su archivo `R__`, y en ningún
 > otro lado.** No agregues una migración versionada para tocarlas. Flyway
 > re-aplica una repetible cuando cambia su checksum, y las corre después de
 > todas las versionadas. Las copias históricas en `V1`/`V3`/`V5`/`V7`/`V17`/
@@ -1203,6 +1215,7 @@ como una optimización aparte.
 -- >>> rollback:V18
 ALTER TABLE productos       DROP CONSTRAINT IF EXISTS fk_productos_sitio;
 ALTER TABLE scrape_run_site DROP CONSTRAINT IF EXISTS fk_scrape_run_site_sitio;
+ALTER TABLE IF EXISTS sitio_categoria DROP CONSTRAINT IF EXISTS fk_sitio_categoria_sitio;
 DROP TABLE sitio;
 -- <<< rollback:V18
 ```
@@ -1226,6 +1239,9 @@ justo donde nadie lo está buscando. Por eso `V29` bautiza su restricción en ve
 de dejar que Postgres la nombre: este bloque la suelta por nombre, y un nombre
 autogenerado metería un detalle de implementación del motor adentro de un
 documento que un test ejecuta.
+
+`V63` es la tercera FK entrante (`fk_sitio_categoria_sitio`, desde `sitio_categoria`) y también está bautizada; el
+`ALTER TABLE IF EXISTS` es porque en una cadena de rollbacks el de `V63` corre antes y la tabla ya no está.
 
 Que esto se haya detectado es mérito de `V18RollbackRoundTripTest`, que
 **ejecuta** el bloque en vez de sólo mostrarlo: un rollback documentado que ya
@@ -3753,6 +3769,503 @@ DELETE FROM sitio s WHERE s.sitio_key = 'notebookspro'
 -- <<< rollback:V61
 ```
 
-Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V60`. Con productos ya
-scrapeados no borra nada: esas filas referencian el sitio.
+Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V62` y antes que el de `V60`. Con
+productos ya scrapeados no borra nada: esas filas referencian el sitio.
 
+---
+
+## `V62` — seed de Easy
+
+Easy (easy.com.ar) es una tienda VTEX de mejoramiento del hogar: herramientas, plomería, electricidad, pinturas,
+aberturas, jardín, muebles y electrodomésticos. Sólo seed: `'vtex'` ya era una `plataforma` válida. Es un sitio
+mixto, así que `rubro_forzado` queda en NULL y el rubro lo resuelve cada producto por su categoría. Revende marcas
+de terceros, así que no lleva `monomarca` ni fila en `marca`.
+
+### Rollback
+
+```sql
+-- >>> rollback:V62
+DELETE FROM sitio s WHERE s.sitio_key = 'easy'
+  AND NOT EXISTS (SELECT 1 FROM productos p WHERE p.sitio_key = s.sitio_key);
+-- <<< rollback:V62
+```
+
+Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V63` y antes que el de `V61`. Con
+productos ya scrapeados no borra nada: esas filas referencian el sitio.
+
+---
+
+## `V63` — `sitio_categoria`: el árbol de categorías del sitio
+
+Un sitio VTEX publica su propio árbol de categorías (`/api/catalog_system/pub/category/tree/N`). Hasta acá el
+scraper lo usaba sólo para partir el crawl y lo tiraba; ahora se guarda, para usarlo como verdad de referencia al
+medir el clasificador y para excluir los servicios (`es_servicio`).
+
+| Columna | Qué guarda |
+|---|---|
+| `id` | Identidad propia (`GENERATED ALWAYS AS IDENTITY`) |
+| `sitio_key` | FK a `sitio(sitio_key)`, `ON DELETE CASCADE`: el árbol no sobrevive a su sitio. Misma clave que usan `productos` y `scrape_run_site` |
+| `origen_id` | El id de la categoría en el sitio de origen. `UNIQUE (sitio_key, origen_id)`: es la clave natural por la que se hace el upsert |
+| `padre_id` | FK a `sitio_categoria(id)`, `ON DELETE SET NULL`. NULL = categoría raíz; no hay centinela |
+| `nombre` | Nombre de la categoría tal como lo publica el sitio |
+| `es_servicio` | `NOT NULL DEFAULT false`. `true` = la categoría vende un servicio (instalación, armado), no un producto. Lo decide el scraper, ver abajo |
+
+`productos.sitio_categoria_id` es una FK nullable a `sitio_categoria(id)` con `ON DELETE SET NULL`: la hoja del
+árbol donde el sitio ubica al producto. NULL es "sin hoja conocida" (un sitio que no publica árbol, o un producto
+cuyo `categoryId` no está en el árbol), no un valor. Los dos índices son parciales (`padre_id IS NOT NULL`,
+`sitio_categoria_id IS NOT NULL`): casi todo el catálogo no tiene hoja, y el índice sólo existe para el
+`ON DELETE SET NULL` y los joins.
+
+**Atomicidad.** El árbol y los productos de un sitio se escriben en UNA transacción, la de
+`ProductRepository.upsertParcial(sitio, productos, arbol)`: primero `sp_upsert_sitio_categoria(sitio, nodos)`
+(upsert por `(sitio_key, origen_id)` que actualiza `nombre`, y después un `UPDATE` que resuelve `padre_id`, así
+que el orden de los nodos no importa), después `sp_upsert_run`, después `sp_vincular_sitio_categoria(filas)`, que
+resuelve el `sitioCategoriaOrigenId` de cada fila a `productos.sitio_categoria_id` por `(sitio_key, origen_id)`
+(sin match, NULL). Si cualquiera falla, `status.setRollbackOnly()` se lleva árbol y productos juntos. La pasada
+final del agregador (`upsertProductos`) no lleva el árbol: reusa el que la pasada por sitio ya dejó y sólo
+re-vincula.
+
+`sp_upsert_run` **no cambió**: el vínculo es una función aparte en `R__sp_upsert_sitio_categoria.sql`, una
+responsabilidad por función. Por eso `StoredProcedureDriftTest` no gana ningún salto.
+
+**Servicios.** `VtexPage` marca un nodo como servicio con un `CriterioDeServicio` inyectado (por defecto
+`ServicioPorNombreDeCategoria`: el nombre empieza con Instalación/Instalaciones/Armado/Armados/Servicio/Colocación,
+anclado al inicio para que "Accesorios de instalación" siga siendo producto). El flag se hereda a los hijos. Los
+productos cuya hoja es un servicio no se emiten, así que nunca llegan a `productos`; el nodo sí se guarda, con
+`es_servicio = true`, y el upsert lo actualiza en cada corrida (`ON CONFLICT ... SET es_servicio`). En Easy
+(2026-11-03) son 12 nodos y 377 SKUs.
+
+### Rollback
+
+```sql
+-- >>> rollback:V63
+DROP FUNCTION sp_vincular_sitio_categoria(jsonb);
+DROP FUNCTION sp_upsert_sitio_categoria(text, jsonb);
+DROP INDEX idx_productos_sitio_categoria;
+ALTER TABLE productos DROP COLUMN sitio_categoria_id;
+DROP TABLE sitio_categoria;
+-- <<< rollback:V63
+```
+
+Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V64` y antes que el de `V62`. Además de correr el
+bloque hay que borrar `R__sp_upsert_sitio_categoria.sql`: Flyway lo re-aplicaría y las funciones volverían a
+nacer apuntando a tablas que ya no existen. Se pierde el árbol y los vínculos; el catálogo no pierde filas.
+
+---
+
+## `V64` — categorías de `construccion`: obra, maderas, pinturas, aberturas, pisos
+
+Easy mezcla ferretería y corralón: sin estas categorías, sus ladrillos, pinturas, puertas y cerámicos caen en
+`Otros`. `V64` agrega 26 filas a `categoria` (sólo datos, sin cambio de esquema); el `rubro` sale de
+`CategoryGroups.CATEGORIAS_CONSTRUCCION`, que `RubroResolver` consulta, así que no hay un `rubro` que sembrar.
+
+| Familia | Categorías nuevas |
+|---|---|
+| Obra gruesa | `Cemento` (cementos, cales, morteros, revoques), `Ladrillo` (ladrillos, bloques, adoquines), `Árido`, `Hierro`, `Impermeabilizante` |
+| Maderas y techos | `Madera`, `Tablero`, `Chapa`, `Aislante` |
+| Construcción en seco | `Placa de Yeso`, `Perfilería` |
+| Pinturas | `Pintura`, `Enduido`, `Diluyente`, `Accesorio de Pintura`, `Empapelado` |
+| Aberturas | `Puerta`, `Ventana`, `Portón`, `Mosquitero`, `Toldo`, `Escalera` |
+| Pisos y revestimientos | `Cerámico`, `Porcelanato`, `Pastina`, `Revestimiento` |
+
+`Piso`, `Moldura` y `Adhesivo` (de `V45`) no se tocan en la base: sólo amplían sus keywords. Una categoría nueva son
+dos cambios (keyword + migración); sin la fila, el upsert viola `fk_productos_categoria` y el síntoma es `"0 nuevos"`.
+
+### Rollback
+
+```sql
+-- >>> rollback:V64
+UPDATE productos SET categoria = NULL WHERE categoria IN
+    ('Cemento','Ladrillo','Árido','Hierro','Impermeabilizante','Madera','Tablero','Chapa',
+     'Aislante','Placa de Yeso','Perfilería','Pintura','Enduido','Diluyente',
+     'Accesorio de Pintura','Empapelado','Puerta','Ventana','Portón','Mosquitero','Toldo',
+     'Cerámico','Porcelanato','Pastina','Revestimiento','Escalera');
+DELETE FROM categoria_stats WHERE categoria IN
+    ('Cemento','Ladrillo','Árido','Hierro','Impermeabilizante','Madera','Tablero','Chapa',
+     'Aislante','Placa de Yeso','Perfilería','Pintura','Enduido','Diluyente',
+     'Accesorio de Pintura','Empapelado','Puerta','Ventana','Portón','Mosquitero','Toldo',
+     'Cerámico','Porcelanato','Pastina','Revestimiento','Escalera');
+DELETE FROM categoria WHERE nombre IN
+    ('Cemento','Ladrillo','Árido','Hierro','Impermeabilizante','Madera','Tablero','Chapa',
+     'Aislante','Placa de Yeso','Perfilería','Pintura','Enduido','Diluyente',
+     'Accesorio de Pintura','Empapelado','Puerta','Ventana','Portón','Mosquitero','Toldo',
+     'Cerámico','Porcelanato','Pastina','Revestimiento','Escalera');
+-- <<< rollback:V64
+```
+
+Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V65` y antes que el de `V63`. Los productos
+reclasificados quedan con `categoria` NULL hasta el próximo scrape.
+
+---
+
+## `V65` — categorías de `construccion`: plomería, gas y electricidad
+
+Easy vende instalaciones sanitarias, de gas y eléctricas: sin estas categorías, sus caños, llaves de luz y
+térmicas caen en `Otros`. `V65` agrega 14 filas a `categoria` (sólo datos, sin cambio de esquema); el `rubro`
+sale de `CategoryGroups.CATEGORIAS_CONSTRUCCION`.
+
+| Familia | Categorías nuevas |
+|---|---|
+| Plomería | `Caño` (también el conduit eléctrico), `Accesorio de Caño`, `Llave de Paso` (incluye válvula esférica), `Flexible`, `Tanque de Agua` (incluye cisterna y cámara séptica), `Bomba de Agua`, `Canaleta` (pluvial) |
+| Gas | `Regulador de Gas` |
+| Electricidad | `Cable Eléctrico`, `Llave de Luz` (líneas armadas, tomacorrientes, interruptores, tapas), `Térmica`, `Caja Eléctrica`, `Cablecanal`, `Ficha y Prolongador` |
+
+La iluminación no suma una categoría: `Iluminación` ya existe desde `V27` (rubro `oficina` por sitio) y ahora
+también está en `CATEGORIAS_CONSTRUCCION`. `RubroResolver` evalúa `rubro_forzado = oficina` antes que la
+categoría, así que los sitios de oficina no cambian; un sitio sin `rubro_forzado` como Easy resuelve `construccion`.
+`InstalacionesClassifier` corre justo después de `ConstruccionClassifier` y antes de `OficinaClassifier`.
+Una categoría nueva son dos cambios (keyword + migración); sin la fila, el upsert viola `fk_productos_categoria` y el
+síntoma es `"0 nuevos"`.
+
+### Rollback
+
+```sql
+-- >>> rollback:V65
+UPDATE productos SET categoria = NULL WHERE categoria IN
+    ('Caño','Accesorio de Caño','Llave de Paso','Flexible','Tanque de Agua','Bomba de Agua','Canaleta',
+     'Regulador de Gas','Cable Eléctrico','Llave de Luz','Térmica','Caja Eléctrica','Cablecanal',
+     'Ficha y Prolongador');
+DELETE FROM categoria_stats WHERE categoria IN
+    ('Caño','Accesorio de Caño','Llave de Paso','Flexible','Tanque de Agua','Bomba de Agua','Canaleta',
+     'Regulador de Gas','Cable Eléctrico','Llave de Luz','Térmica','Caja Eléctrica','Cablecanal',
+     'Ficha y Prolongador');
+DELETE FROM categoria WHERE nombre IN
+    ('Caño','Accesorio de Caño','Llave de Paso','Flexible','Tanque de Agua','Bomba de Agua','Canaleta',
+     'Regulador de Gas','Cable Eléctrico','Llave de Luz','Térmica','Caja Eléctrica','Cablecanal',
+     'Ficha y Prolongador');
+-- <<< rollback:V65
+```
+
+Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V66` y antes que el de `V64`. Los productos
+reclasificados quedan con `categoria` NULL hasta el próximo scrape.
+
+---
+
+## `V66` — categorías de `construccion`: herramientas, ferretería y protección personal
+
+Easy vende herramientas eléctricas y manuales, fijaciones, herrajes y equipo de seguridad: sin estas categorías,
+sus taladros, tornillos y guantes de trabajo caen en `Otros` (o en una categoría de ropa). `V66` agrega 21 filas a
+`categoria` (sólo datos, sin cambio de esquema); el `rubro` sale de `CategoryGroups.CATEGORIAS_CONSTRUCCION`.
+
+| Familia | Categorías nuevas |
+|---|---|
+| Herramientas eléctricas | `Taladro` (también atornilladores y rotomartillos), `Amoladora` (también pulidoras), `Sierra` (eléctricas: circular, caladora, ingletadora), `Soldadora`, `Hidrolavadora`, `Herramienta Eléctrica` (lijadoras, compresores, hormigoneras, pistolas de calor y de pintar, grupos electrógenos) |
+| Herramientas manuales y accesorios | `Herramienta Manual` (destornilladores, martillos, pinzas, llaves, llanas, serruchos, niveles, cinta métrica), `Accesorio de Herramienta` (discos, mechas, brocas, baterías y cargadores de 18/20 V), `Lija`, `Caja de Herramientas` |
+| Fijaciones | `Tornillo` (también bulones y tirafondos), `Tarugo` (también tacos con tornillo y anclajes), `Clavo`, `Fijación` (alambre, tuercas, arandelas, remaches, abrazaderas, cable de acero) |
+| Herrajes | `Bisagra`, `Cerradura` (también picaportes y manijas), `Candado` (también cofres y cajas de llaves), `Herraje` (correderas, tiradores, patas, ruedas, ménsulas) |
+| Cintas y seguridad | `Cinta Adhesiva` (embalar, papel, aisladora, doble faz), `Guante de Trabajo`, `Protección Personal` (casco y antiparras de seguridad, protector auditivo, barbijo, calzado y ropa de trabajo) |
+
+`Guantes`, `Lentes` y los cascos deportivos conservan su clasificación: `Guante de Trabajo` exige un calificador de obra
+(vaqueta, látex, nitrilo, anticorte…), y `Protección Personal` exige `seguridad`, `trabajo` o `protección` junto al
+sustantivo. `HerramientasClassifier` y `FerreteriaClassifier` corren justo después de `InstalacionesClassifier` y antes
+de `NutricionTempranaClassifier`; sólo matchean el sustantivo líder, así que `Kit …` y `Set …` siguen siendo `Conjunto`.
+Una categoría nueva son dos cambios (keyword + migración); sin la fila, el upsert viola `fk_productos_categoria` y el
+síntoma es `"0 nuevos"`.
+
+### Rollback
+
+```sql
+-- >>> rollback:V66
+UPDATE productos SET categoria = NULL WHERE categoria IN
+    ('Taladro','Amoladora','Sierra','Soldadora','Hidrolavadora','Herramienta Eléctrica',
+     'Herramienta Manual','Accesorio de Herramienta','Lija','Caja de Herramientas','Tornillo','Tarugo','Clavo',
+     'Fijación','Bisagra','Cerradura','Candado','Herraje','Cinta Adhesiva','Guante de Trabajo',
+     'Protección Personal');
+DELETE FROM categoria_stats WHERE categoria IN
+    ('Taladro','Amoladora','Sierra','Soldadora','Hidrolavadora','Herramienta Eléctrica',
+     'Herramienta Manual','Accesorio de Herramienta','Lija','Caja de Herramientas','Tornillo','Tarugo','Clavo',
+     'Fijación','Bisagra','Cerradura','Candado','Herraje','Cinta Adhesiva','Guante de Trabajo',
+     'Protección Personal');
+DELETE FROM categoria WHERE nombre IN
+    ('Taladro','Amoladora','Sierra','Soldadora','Hidrolavadora','Herramienta Eléctrica',
+     'Herramienta Manual','Accesorio de Herramienta','Lija','Caja de Herramientas','Tornillo','Tarugo','Clavo',
+     'Fijación','Bisagra','Cerradura','Candado','Herraje','Cinta Adhesiva','Guante de Trabajo',
+     'Protección Personal');
+-- <<< rollback:V66
+```
+
+Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V67` y antes que el de `V65`. Los productos
+reclasificados quedan con `categoria` NULL hasta el próximo scrape.
+
+---
+
+## `V67` — categorías de `hogar`: baños, cocinas, muebles, organización y textil
+
+Easy vende sanitarios, grifería, muebles, organizadores, textil de cama y decoración: sin estas categorías sus
+inodoros caen en `Otros` (o en `Malla`, `Mochila`), sus placares en `Otros` y sus plumones en `Puffer`. `V67` agrega 27 filas a
+`categoria` (sólo datos, sin cambio de esquema); el `rubro` sale de `CategoryGroups.CATEGORIAS_HOGAR`, que a diferencia de
+`CATEGORIAS_CONSTRUCCION` gana sobre `rubro_forzado` en todos los sitios salvo `tecnologia` y `oficina`.
+
+| Familia | Categorías nuevas |
+|---|---|
+| Baños y cocinas | `Sanitario` (inodoro, bidet, depósito, lavatorio, columna de baño, asiento y tapa), `Grifería`, `Ducha`, `Bañera`, `Mampara`, `Vanitory`, `Bacha` (también piletas de cocina), `Accesorio de Baño` (toallero, jabonera, portacepillos, escobilla, set de baño) |
+| Muebles | `Mueble` (cómoda, rack de TV, biblioteca, mesa de luz, zapatero, despensero), `Placard` (también clóset y ropero), `Cama` (también sommier y cucheta), `Colchón`, `Mesa` (también comedor y juegos de comedor), `Sillón` (también futón, puff, sitial, sofá) |
+| Organización y limpieza | `Estantería` (estante, repisa, rack metálico), `Caja y Canasto` (canasto, cesto, baúl, caja organizadora), `Basurero`, `Tendedero`, `Colgador` (percha, perchero, gancho), `Artículo de Limpieza` (mopa, escoba, esponja, bolsas de residuos), `Sistema Modular` (rieles, barras, escuadras y tableros de los sistemas modulares) |
+| Textil y decoración | `Espejo`, `Cortina` (también roller, persiana y barral), `Ropa de Cama` (sábana, plumón, almohada, acolchado), `Toalla`, `Decoración` (cuadro, florero, farol, vela, adornos navideños), `Bazar` (frasco, copa, jarra, vajilla) |
+
+`Silla`, `Escritorio` y `Organización` ya existían como categorías de `oficina` y siguen ganando donde ganaban: un `Silla Comedor` de
+Easy sigue siendo `Silla`, y su rubro no sale de `hogar`. Los cuatro clasificadores nuevos (`BanoCocinaClassifier`,
+`MueblesClassifier`, `OrganizacionHogarClassifier`, `TextilDecoClassifier`) corren justo después de `FerreteriaClassifier` y antes de
+`NutricionTempranaClassifier`; sólo matchean el sustantivo líder, y los nombres ambiguos (`toalla` deportiva, `cama` de mascota,
+`mesa` de ping pong, `baúl` de moto, `cuadro` de bicicleta, `roller` de patines) tienen un veto. `caja` es prefijo de venta, así que las
+reglas de caja usan el texto sin recortar. Una categoría nueva son dos cambios (keyword + migración); sin la fila, el upsert viola
+`fk_productos_categoria` y el síntoma es `"0 nuevos"`.
+
+### Rollback
+
+```sql
+-- >>> rollback:V67
+UPDATE productos SET categoria = NULL WHERE categoria IN
+    ('Sanitario','Grifería','Ducha','Bañera','Mampara','Vanitory','Bacha','Accesorio de Baño',
+     'Mueble','Placard','Cama','Colchón','Mesa','Sillón','Estantería','Caja y Canasto','Basurero',
+     'Tendedero','Colgador','Artículo de Limpieza','Sistema Modular','Espejo','Cortina','Ropa de Cama',
+     'Toalla','Decoración','Bazar');
+DELETE FROM categoria_stats WHERE categoria IN
+    ('Sanitario','Grifería','Ducha','Bañera','Mampara','Vanitory','Bacha','Accesorio de Baño',
+     'Mueble','Placard','Cama','Colchón','Mesa','Sillón','Estantería','Caja y Canasto','Basurero',
+     'Tendedero','Colgador','Artículo de Limpieza','Sistema Modular','Espejo','Cortina','Ropa de Cama',
+     'Toalla','Decoración','Bazar');
+DELETE FROM categoria WHERE nombre IN
+    ('Sanitario','Grifería','Ducha','Bañera','Mampara','Vanitory','Bacha','Accesorio de Baño',
+     'Mueble','Placard','Cama','Colchón','Mesa','Sillón','Estantería','Caja y Canasto','Basurero',
+     'Tendedero','Colgador','Artículo de Limpieza','Sistema Modular','Espejo','Cortina','Ropa de Cama',
+     'Toalla','Decoración','Bazar');
+-- <<< rollback:V67
+```
+
+Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V68` y antes que el de `V66`. Los productos
+reclasificados quedan con `categoria` NULL hasta el próximo scrape.
+
+---
+
+## `V68` — categorías de jardín, automotor y electrodomésticos
+
+Easy vende parrillas, piletas, carpas, productos para mascotas, repuestos y línea blanca: sin estas categorías sus heladeras caen en `Otros`, sus piletas en `Malla`, sus fuentes de jardín en `Fuente` (la de PC) y sus plantas en `Alimentos`. `V68` agrega 50 filas a `categoria` (sólo datos, sin cambio de esquema ni del `CHECK` de `rubro`, decisión D-1 de `easy-com-ar-site`). 49 van a `CategoryGroups.CATEGORIAS_HOGAR` y `TV y Audio` a `CATEGORIAS_TECH`, así que su rubro es `tecnologia`: `RubroResolver` resuelve `tecnologia` por categoría en los sitios sin `rubro_forzado`, porque si no heredaría el `indumentaria` que el builder deja por defecto. Desde la decisión D-5 la rama cubre todo `CATEGORIAS_TECH` y no sólo esta categoría: un monitor o un reloj de un sitio mixto también es `tecnologia`.
+
+| Familia | Categorías nuevas |
+|---|---|
+| Jardín | `Planta`, `Semilla`, `Tierra y Fertilizante`, `Maceta`, `Riego`, `Pulverizador`, `Cerco y Media Sombra`, `Decoración de Jardín`, `Herramienta de Jardín`, `Máquina de Jardín`, `Gazebo y Sombrilla`, `Reposera y Hamaca`, `Mueble de Exterior`, `Depósito de Jardín` |
+| Parrillas | `Parrilla`, `Accesorio de Parrilla`, `Carbón y Leña` |
+| Piletas | `Pileta`, `Inflable`, `Químico de Pileta`, `Accesorio de Pileta` |
+| Camping | `Carpa`, `Bolsa de Dormir`, `Conservadora`, `Termo y Botella`, `Artículo de Camping` |
+| Mascotas | `Alimento para Mascota`, `Cama para Mascota`, `Higiene de Mascota`, `Accesorio para Mascota` |
+| Automotor | `Lubricante`, `Líquido Automotor`, `Batería de Auto`, `Escobilla de Auto`, `Limpieza de Auto`, `Accesorio de Auto`, `Herramienta de Auto`, `Seguridad Vial` |
+| Electrodomésticos | `Termotanque`, `Calefón`, `Calefactor`, `Ventilador`, `Aire Acondicionado`, `Heladera`, `Lavarropas`, `Cocina y Horno`, `Campana y Extractor`, `Aspiradora`, `Pequeño Electrodoméstico` |
+| TV y audio | `TV y Audio` (`tecnologia`) |
+
+Los siete clasificadores nuevos (`PiletaClassifier`, `AutomotorClassifier`, `ParrillaClassifier`, `CampingClassifier`, `MascotasClassifier`, `JardinClassifier`, `ElectrodomesticosClassifier`) corren **antes** que `HogarClassifier`, porque una `Alfombra para Auto` o una `Fuente de Agua` necesitan ganarle a la familia que hoy las captura. Sólo matchean el sustantivo líder, y los ambiguos exigen un calificador o tienen un veto (`aceite` de oliva, `cera` depilatoria, `fuente` de PC, `tensor` de fitness, `filtro` de gabinete). `Tiempo libre` de Easy (bicicletas, fitness, juguetes) quedó para `V69`.
+
+Como `CATEGORIAS_HOGAR` gana sobre `rubro_forzado` salvo en `tecnologia` y `oficina`, una carpa o una botella de un sitio deportivo pasan a rubro `hogar` en su próximo scrape.
+
+### Rollback
+
+```sql
+-- >>> rollback:V68
+UPDATE productos SET categoria = NULL WHERE categoria IN
+    ('Planta','Semilla','Tierra y Fertilizante','Maceta','Riego','Pulverizador','Cerco y Media Sombra',
+     'Decoración de Jardín','Herramienta de Jardín','Máquina de Jardín','Gazebo y Sombrilla','Reposera y Hamaca','Mueble de Exterior','Depósito de Jardín',
+     'Parrilla','Accesorio de Parrilla','Carbón y Leña','Pileta','Inflable','Químico de Pileta','Accesorio de Pileta',
+     'Carpa','Bolsa de Dormir','Conservadora','Termo y Botella','Artículo de Camping','Alimento para Mascota','Cama para Mascota',
+     'Higiene de Mascota','Accesorio para Mascota','Lubricante','Líquido Automotor','Batería de Auto','Escobilla de Auto','Limpieza de Auto',
+     'Accesorio de Auto','Herramienta de Auto','Seguridad Vial','Termotanque','Calefón','Calefactor','Ventilador',
+     'Aire Acondicionado','Heladera','Lavarropas','Cocina y Horno','Campana y Extractor','Aspiradora','Pequeño Electrodoméstico',
+     'TV y Audio');
+DELETE FROM categoria_stats WHERE categoria IN
+    ('Planta','Semilla','Tierra y Fertilizante','Maceta','Riego','Pulverizador','Cerco y Media Sombra',
+     'Decoración de Jardín','Herramienta de Jardín','Máquina de Jardín','Gazebo y Sombrilla','Reposera y Hamaca','Mueble de Exterior','Depósito de Jardín',
+     'Parrilla','Accesorio de Parrilla','Carbón y Leña','Pileta','Inflable','Químico de Pileta','Accesorio de Pileta',
+     'Carpa','Bolsa de Dormir','Conservadora','Termo y Botella','Artículo de Camping','Alimento para Mascota','Cama para Mascota',
+     'Higiene de Mascota','Accesorio para Mascota','Lubricante','Líquido Automotor','Batería de Auto','Escobilla de Auto','Limpieza de Auto',
+     'Accesorio de Auto','Herramienta de Auto','Seguridad Vial','Termotanque','Calefón','Calefactor','Ventilador',
+     'Aire Acondicionado','Heladera','Lavarropas','Cocina y Horno','Campana y Extractor','Aspiradora','Pequeño Electrodoméstico',
+     'TV y Audio');
+DELETE FROM categoria WHERE nombre IN
+    ('Planta','Semilla','Tierra y Fertilizante','Maceta','Riego','Pulverizador','Cerco y Media Sombra',
+     'Decoración de Jardín','Herramienta de Jardín','Máquina de Jardín','Gazebo y Sombrilla','Reposera y Hamaca','Mueble de Exterior','Depósito de Jardín',
+     'Parrilla','Accesorio de Parrilla','Carbón y Leña','Pileta','Inflable','Químico de Pileta','Accesorio de Pileta',
+     'Carpa','Bolsa de Dormir','Conservadora','Termo y Botella','Artículo de Camping','Alimento para Mascota','Cama para Mascota',
+     'Higiene de Mascota','Accesorio para Mascota','Lubricante','Líquido Automotor','Batería de Auto','Escobilla de Auto','Limpieza de Auto',
+     'Accesorio de Auto','Herramienta de Auto','Seguridad Vial','Termotanque','Calefón','Calefactor','Ventilador',
+     'Aire Acondicionado','Heladera','Lavarropas','Cocina y Horno','Campana y Extractor','Aspiradora','Pequeño Electrodoméstico',
+     'TV y Audio');
+-- <<< rollback:V68
+```
+
+Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V69` y antes que el de `V67`. Los productos
+reclasificados quedan con `categoria` NULL hasta el próximo scrape.
+
+---
+
+## `V69` — rubros `deporte` y `juguetes`, y las categorías de tiempo libre
+
+El equipamiento deportivo (bicicletas, fitness, kayaks) y los juguetes no son de ninguno de los seis rubros, y
+`Pelota` y `Paleta` ya eran equipamiento que `RubroResolver` dejaba en el `indumentaria` por defecto del builder
+(decisión D-6 de `easy-com-ar-site`). `chk_productos_rubro_domain` pasa de 6 a 8 valores re-listando el dominio
+**completo** (sin eso se pierden `oficina`, `construccion` y `hogar`). `sitio_rubro_forzado_check` **no se toca**:
+ningún sitio fuerza todavía `deporte` ni `juguetes`; el día que uno lo haga, esa ampliación es de su migración.
+Entran 9 filas a `categoria`:
+
+| Rubro | Categorías nuevas | Ya existentes que se suman al rubro |
+|---|---|---|
+| `deporte` | `Bicicleta`, `Monopatín`, `Repuesto de Bicicleta`, `Pesas`, `Accesorio de Fitness`, `Kayak y Bote`, `Equipamiento Deportivo` | `Pelota`, `Paleta` |
+| `juguetes` | `Juguete`, `Cama Elástica` | |
+
+El rubro sale de la categoría **sólo en los sitios sin `rubro_forzado`**, como `oficina` y `TV y Audio`: un rubro
+forzado gana siempre, y `suplementos`, `construccion` y `hogar` por categoría siguen ganando antes. La ropa deportiva
+(remeras, botines, medias de ciclismo) sigue en `indumentaria`. El `deporte` **dimensión** (`SportResolver`, `V59`) es
+otra cosa y no cambia: la camiseta de Boca es `Remera` + `deporte='futbol'`.
+
+Las cinco familias nuevas (`BicicletasClassifier`, `FitnessClassifier`, `CanchaClassifier`, `KayakClassifier`,
+`JuguetesClassifier`) corren **antes** de `NonTextileGuard` y de las demás: el guard veta por primera palabra
+(`cadena`, `aro`, `arco`, `red de`, `casco bici`) justo los nombres que ahora tienen dónde ir, y una `Caja Pedalera Sram`
+no puede seguir siendo `Joystick`. Sólo matchean el sustantivo líder; los genéricos (`cadena`, `cable`, `asiento`,
+`casco`, `luz`) exigen contexto de bicicleta (`shimano`, `sram`, `trek`, `ciclismo`, `mtb`…), y los ambiguos tienen veto
+(`disco` SSD o de freno de auto, `barra` proteica o de sonido, `pistola de agua` de riego, `juguete para perro`).
+
+### Rollback
+
+```sql
+-- >>> rollback:V69
+UPDATE productos SET rubro = NULL WHERE rubro IN ('deporte','juguetes');
+UPDATE productos SET categoria = NULL WHERE categoria IN
+    ('Bicicleta','Monopatín','Repuesto de Bicicleta','Pesas','Accesorio de Fitness',
+     'Kayak y Bote','Equipamiento Deportivo','Juguete','Cama Elástica');
+DELETE FROM categoria_stats WHERE categoria IN
+    ('Bicicleta','Monopatín','Repuesto de Bicicleta','Pesas','Accesorio de Fitness',
+     'Kayak y Bote','Equipamiento Deportivo','Juguete','Cama Elástica');
+DELETE FROM categoria WHERE nombre IN
+    ('Bicicleta','Monopatín','Repuesto de Bicicleta','Pesas','Accesorio de Fitness',
+     'Kayak y Bote','Equipamiento Deportivo','Juguete','Cama Elástica');
+ALTER TABLE productos DROP CONSTRAINT chk_productos_rubro_domain;
+ALTER TABLE productos
+    ADD CONSTRAINT chk_productos_rubro_domain
+        CHECK (rubro IS NULL OR rubro IN ('indumentaria', 'tecnologia', 'suplementos',
+                                          'oficina', 'construccion', 'hogar'));
+-- <<< rollback:V69
+```
+
+Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V70`, antes que el de `V68`, y en cualquier
+caso **antes que el de `V45`**: ése angosta el dominio a 4 valores y fallaría contra una fila `deporte` o `juguetes`; y si `V69` corriera
+después, volvería a ensanchar el dominio a 6. Los productos reclasificados quedan con `categoria` y `rubro` NULL hasta el
+próximo scrape (NULL se lee como `indumentaria`).
+
+---
+
+## `V70` — `sitio_categoria.categoria`: el mapeo curado de las hojas del sitio
+
+`sitio_categoria.categoria` es una FK **nullable** a `categoria(nombre)` (`fk_sitio_categoria_categoria`). La clave de
+`categoria` es su `nombre` TEXT, igual que en `productos.categoria` y `categoria_stats.categoria`, así que la columna se
+llama `categoria` y no `categoria_id`. NULL es "esta hoja se abstiene", nunca un centinela: una hoja mezclada o sin
+categoría canónica verdadera queda NULL.
+
+El clasificador la consulta **sólo cuando el nombre se abstiene** (`CategoryClassifier.normalizarCategoria(raw, nombre,
+categoriaDelArbol)`): nombre, mapeo del árbol, `raw`, alias, peso, `Otros`. El nombre siempre gana (`CODE-6`: el
+clasificador sigue siendo el único dueño de la decisión), y el rubro sigue a la categoría resultante por `RubroResolver`
+sin cambios. Un sitio sin mapeo (todos menos Easy) pasa `null` y se comporta exactamente igual que antes.
+
+El mapeo es **curado a mano** a partir de la ruta de la hoja y de una muestra de nombres, sin mirar qué categoría
+devolvía el clasificador: si se derivara de la moda del clasificador por hoja, el reporte de acuerdo sería circular y
+los errores del clasificador se propagarían al árbol (decisión D-7 de `easy-com-ar-site`). Una hoja entra sólo si casi
+todos sus productos son de esa categoría. La migración **siembra** las 304 hojas mapeadas de Easy con `INSERT ... ON
+CONFLICT (sitio_key, origen_id) DO UPDATE SET categoria`, porque la tabla está vacía hasta el primer scrape; `padre_id`
+queda NULL y lo completa el primer `sp_upsert_sitio_categoria`.
+
+`sp_upsert_sitio_categoria` **no cambió**: su `ON CONFLICT` actualiza sólo `nombre` y `es_servicio`, por lo que un
+re-scrape (o un renombre del nodo en VTEX) preserva `categoria`. Una hoja nueva del sitio entra con `categoria` NULL y
+se abstiene hasta que alguien la mapee en una migración nueva.
+
+La lectura va por `SitioCategoriaPort.categoriaPorOrigen(sitio)`: un `SELECT` por sitio y por lote. `NormalizerService`
+sólo lo pide para los sitios que traen al menos un producto con `sitioCategoriaOrigenId`, nunca por producto. Si la
+lectura falla se loguea y el sitio normaliza sin mapeo (abstiene). `renormalizarCatalogo` carga las filas de la base sin
+`sitioCategoriaOrigenId`, así que le agrega la hoja con `ProductPort.origenDeCategoriaDelSitioPorUrl()`; sin eso
+volvería a `Otros` todo lo que el árbol había rescatado.
+
+### Rollback
+
+```sql
+-- >>> rollback:V70
+DELETE FROM sitio_categoria WHERE sitio_key = 'easy' AND categoria IS NOT NULL AND padre_id IS NULL;
+ALTER TABLE sitio_categoria DROP CONSTRAINT fk_sitio_categoria_categoria;
+ALTER TABLE sitio_categoria DROP COLUMN categoria;
+-- <<< rollback:V70
+```
+
+Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V71` y antes que el de `V69`. Tiene que correr antes que los de
+`V64`..`V69`, que borran filas de `categoria`: con la FK puesta, esos `DELETE` fallarían contra las hojas sembradas. El
+`DELETE` de la primera línea quita sólo las hojas sembradas que ningún scrape tocó (`padre_id` NULL y con categoría;
+las hojas de Easy tienen siempre un padre, así que tras el primer scrape ya no matchea nada); las filas del árbol que
+un scrape sí cargó se conservan, con `categoria` perdida.
+
+---
+
+## `V71` — `sitio.rubro_por_defecto`: el rubro de la cola del resolver
+
+`sitio.rubro_por_defecto` es **nullable** y tiene el mismo dominio que `rubro_forzado`
+(`sitio_rubro_por_defecto_check`: `tecnologia`, `suplementos`, `oficina`, `construccion`, `hogar`). NULL es "este sitio no
+declara default" y se comporta exactamente como antes. `RubroResolver` lo usa **sólo en la cola**: después de las ramas de
+`oficina`, `deporte`, `juguetes` y `tecnologia` por categoría y **antes** de `rubroExistente`, porque el default del
+builder (`indumentaria`) llena siempre ese argumento (mismo motivo que `D-3`). Una categoría textil, de suplementos, de
+construcción o de hogar y un `rubro_forzado` ganan siempre sobre el default; no hay un `if` por sitio.
+
+Sólo Easy lo lleva sembrado (`construccion`): de sus 1.733 filas en `Otros` y `Conjunto`, 1.221 (70 %) cuelgan de
+Ferretería, Plomería, Electricidad, Construcción, Herramientas y Pinturas. El costo es aceptado: el otro ~30 % (Textil,
+Organización, Jardín) recibe un rubro equivocado en vez del `indumentaria` equivocado de hoy. Un sitio nuevo con
+catálogo mixto lo declara en su migración de seed. `SiteRegistry.rubroPorDefecto(sitioKey)` lo expone y `JdbcSiteSource`
+lo lee con el resto de la fila; `SitiosRepository` y `ScrapeRunRepository` insertan filas de `sitio` sin la columna (NULL).
+
+### Rollback
+
+```sql
+-- >>> rollback:V71
+ALTER TABLE sitio DROP CONSTRAINT sitio_rubro_por_defecto_check;
+ALTER TABLE sitio DROP COLUMN rubro_por_defecto;
+-- <<< rollback:V71
+```
+
+Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V72`, antes que el de `V70`. No toca datos de `productos`: las
+filas ya clasificadas conservan su `rubro` hasta la próxima corrida, que vuelve a resolver la cola con `indumentaria`.
+
+## `V72` — `sitio_categoria.categoria`: las hojas que `raw` resolvía mal
+
+Sólo datos: mapea 19 hojas de Easy más, con el mismo criterio curado de `V70` y sin categorías nuevas. Hacen falta desde que `VtexPage` toma como `raw` la hoja y no el departamento: esa categoría cruda rescata filas, pero a veces por coincidencia de palabras y, además, se pierde.
+
+- **Coincidencia de palabras:** `raw` "Depósitos y repuestos de estanque" daba `Depósito de Jardín` para repuestos de cisterna, y "Piletas y accesorios" de Desagües daba `Pileta`.
+- **Pérdida al renormalizar:** `renormalizarCatalogo` usa la categoría guardada como `raw`, y un nombre de categoría suelto no siempre se reclasifica (`Fijación` volvía a `Otros`). El árbol sí se vuelve a consultar, así que una hoja mapeada es estable.
+
+Una hoja que se resuelve mal por `raw` se arregla acá, con una migración nueva: las aplicadas son byte-frozen.
+
+### Rollback
+
+```sql
+-- >>> rollback:V72
+DELETE FROM sitio_categoria WHERE sitio_key = 'easy' AND padre_id IS NULL
+    AND origen_id IN (179, 201, 218, 219, 259, 267, 270, 323, 394, 396, 400, 414, 421, 430, 461, 462, 478, 515, 532);
+UPDATE sitio_categoria SET categoria = NULL WHERE sitio_key = 'easy'
+    AND origen_id IN (179, 201, 218, 219, 259, 267, 270, 323, 394, 396, 400, 414, 421, 430, 461, 462, 478, 515, 532);
+-- <<< rollback:V72
+```
+
+Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V73`, antes que el de `V71`. El `DELETE` quita sólo las hojas sembradas que ningún scrape tocó (`padre_id` NULL); ninguna fila de `productos` puede apuntarles. Las filas ya clasificadas conservan su `categoria` hasta el próximo scrape.
+
+---
+
+## `V73` — `idx_productos_rubro_precio`: el filtro por rubro sin seq scan
+
+`/api/data` con `rubro` cuenta y después pagina; sin índice, cada una recorría la tabla entera. La expresión del índice es **exactamente** la de `CatalogQueryRepository.construirWhere`: si una cambia, Postgres deja de usarlo sin avisar y vuelven los seq scans.
+
+| Medido en la copia con Easy (60.931 activas) | Sin índice | Con índice |
+|---|---|---|
+| `COUNT` + página de 24 por `precio_asc`, 500 pasadas intercaladas por config | 72 ms | 4,4 ms |
+| `UPDATE` de precio en 5.000 filas, 40 pasadas intercaladas por config | ~560 ms | ~725 ms |
+
+El costo es de escritura: pesa 7,6 MB y `precio` pasa a estar indexado, así que un cambio de precio deja de ser un `UPDATE` HOT y toca todos los índices de `productos`. Sólo acelera la página de `precio_asc`, que es el orden por defecto; los otros órdenes ganan el `COUNT` y siguen ordenando en memoria.
+
+### Rollback
+
+```sql
+-- >>> rollback:V73
+DROP INDEX IF EXISTS idx_productos_rubro_precio;
+-- <<< rollback:V73
+```
+
+Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V72`. No toca datos.

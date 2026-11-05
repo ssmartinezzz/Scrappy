@@ -95,7 +95,7 @@ class VtexPagePaginationTest {
     // ── particionar: la API legacy da HTTP 400 pasando _from=2549 ───────
 
     private static VtexPage.CategoriaVtex cat(int id, VtexPage.CategoriaVtex... hijos) {
-        return new VtexPage.CategoriaVtex(id, List.of(hijos));
+        return new VtexPage.CategoriaVtex(id, "", List.of(hijos));
     }
 
     /** Árbol real de Sporting (2026-09-28), con INDUMENTARIA partida en dos hijos. */
@@ -127,6 +127,8 @@ class VtexPagePaginationTest {
         var json = new ObjectMapper().readTree("""
                 [{"id":106,"name":"SPORTING","children":[{"id":107,"name":"CALZADO","children":[]}]}]""");
 
-        assertThat(VtexPage.parseArbol(json)).containsExactly(cat(106, cat(107)));
+        assertThat(VtexPage.parseArbol(json)).containsExactly(
+                new VtexPage.CategoriaVtex(106, "SPORTING",
+                        List.of(new VtexPage.CategoriaVtex(107, "CALZADO", List.of()))));
     }
 }

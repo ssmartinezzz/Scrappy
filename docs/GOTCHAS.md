@@ -456,6 +456,12 @@ no sirve. Un `precio_historico.json` junto al jar es el JSON viejo del ML: la pr
 corrida lo importa a la tabla (queda como `.legacy` hasta que la importación pasa,
 después `.imported`). Detalle en [`ML_PIPELINE.md`](./ML_PIPELINE.md) → Historial de precios.
 
+**Un boot sin salida a internet necesita proxy en la JVM _y_ en el entorno.** El stage
+1b de `ml_pipeline.py` baja imágenes con `urllib`, que lee `http(s)_proxy` e ignora
+`-Dhttp.proxyHost`: unas 400 descargas a tiendas de terceros por corrida de ML. Para
+scrapear un solo sitio sin eso, `http(s)_proxy=http://127.0.0.1:9` más `no_proxy` con
+el dominio del sitio; la prueba es `Connection refused` en el log.
+
 ### Leer un sitio
 
 **Chromium sale por `EgressProxy`: un sitio en loopback o en la LAN no se
@@ -493,6 +499,12 @@ parámetro se ve de otra forma: la página es **idéntica** a la anterior
 header `resources` dice el total real (7151 en Sporting), pero una sola consulta
 nunca pasa de ~2550. `VtexPage` parte por el árbol de categorías (`fq=C:`).
 Medido: 250 → 2540 → 7134.
+
+**VTEX lista `categories` de la hoja hacia la raíz, y nuestros fixtures al revés.**
+Tomar la última entrada daba el departamento como `raw` en todos los sitios VTEX, con
+la suite verde desde el commit inicial. Se notó por la cobertura de Easy: 91,53 % en la
+base real contra 95,0 % en un arnés offline que armaba `raw` desde la hoja. Una
+discrepancia así entre arnés y corrida real se diagnostica, no se promedia.
 
 **Una página vacía a mitad de catálogo no es el fin:** Fullh4rd cortó en 623 de
 1918 por una página sin cards. Si el listado declara un total, sólo se termina
@@ -546,6 +558,11 @@ texto de la card; en Monkyforce cada card lleva un JSON de variantes con
 `[^a-záéíóúñü]` (el `\b` de JS es ASCII).
 
 ### Taxonomía y clasificación
+
+**Un array de keywords va como campo público de `GarmentTaxonomy`.** `IndiceDePalabrasClave`
+los registra por reflexión en el autómata de una pasada. Uno declarado en otra clase sigue
+andando, porque `TextoClasificable.contiene` cae al barrido lineal: mismo resultado, sin
+ningún aviso, a otro costo.
 
 **`AccentStripper` es hot path:** lo usan 10 clases, en el path de normalización
 por scrape Y en el de `/api/grupos` por request. `/api/grupos` re-agrupa todo el

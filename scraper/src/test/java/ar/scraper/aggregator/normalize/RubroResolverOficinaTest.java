@@ -65,18 +65,15 @@ class RubroResolverOficinaTest {
     }
 
     @Test
-    @DisplayName("Sin rubro forzado, una categoría de oficina no arrastra el rubro por sí sola")
-    void categoriaDeOficinaSinSitioForzadoNoInventaElRubro() {
-        assertThat(resolver().resolver("freres", "Silla", null))
-                .as("el rubro lo declara el sitio; la categoria sola no alcanza")
-                .isEqualTo("indumentaria");
-        assertThat(resolver().resolver("freres", "Silla", "indumentaria"))
-                .isEqualTo("indumentaria");
+    @DisplayName("Sin rubro forzado, una categoría de oficina decide el rubro y le gana al default del builder")
+    void categoriaDeOficinaSinSitioForzadoEsOficina() {
+        assertThat(resolver().resolver("freres", "Silla", null)).isEqualTo("oficina");
+        assertThat(resolver().resolver("freres", "Silla", "indumentaria")).isEqualTo("oficina");
     }
 
     @Test
-    @DisplayName("Un sitio desconocido no se contagia de oficina")
-    void sitioDesconocidoNoEsOficina() {
-        assertThat(resolver().resolver("noexiste", "Silla", null)).isNotEqualTo("oficina");
+    @DisplayName("Un sitio desconocido no tiene rubro forzado: decide la categoría")
+    void sitioDesconocidoSeResuelvePorCategoria() {
+        assertThat(resolver().resolver("noexiste", "Silla", null)).isEqualTo("oficina");
     }
 }

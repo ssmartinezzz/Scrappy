@@ -41,6 +41,7 @@ public final class NormalizerServiceTestFactory {
                 new RubroResolver(siteRegistry),
                 new GymratTagger(),
                 new SportResolver(),
-                siteRegistry);
+                siteRegistry,
+                org.mockito.Mockito.mock(ar.scraper.catalog.SitioCategoriaPort.class));
     }
 }

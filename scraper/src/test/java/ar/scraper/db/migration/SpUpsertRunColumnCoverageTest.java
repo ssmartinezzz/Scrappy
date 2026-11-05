@@ -54,7 +54,7 @@ class SpUpsertRunColumnCoverageTest extends PostgresTestBase {
             "bloqueado_por", "bloqueado_at");
 
     private static final Set<String> NEVER_IN_UPSERT = Set.of(
-            "url", "created_at");
+            "url", "created_at", "sitio_categoria_id");
 
     /**
      * Columnas {@code GENERATED ALWAYS AS ... STORED}: Postgres prohíbe

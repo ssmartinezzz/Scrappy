@@ -14,6 +14,8 @@ public interface ProductPort {
 
     List<Product> cargarProductos();
 
+    Map<String, Integer> origenDeCategoriaDelSitioPorUrl();
+
     Map<String, ClasificacionBloqueada> cargarClasificacionBloqueada();
 
     boolean estaBloqueado(String url);
@@ -34,6 +36,9 @@ public interface ProductPort {
                                 java.util.Set<String> sitiosParciales);
 
     UpsertStats upsertParcial(List<Product> productos);
+
+    UpsertStats upsertParcial(String sitio, List<Product> productos,
+                              List<ar.scraper.model.SitioCategoriaNodo> arbolDeCategorias);
 
     void actualizarCategoria(String url, String nuevaCategoria);
 

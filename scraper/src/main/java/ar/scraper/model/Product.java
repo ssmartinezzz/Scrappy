@@ -26,11 +26,12 @@ public record Product(
         int cantidadUnidades,  // unit count detected from nombre (pack/combo); 1 = single unit
         String subCategoria,
         String deporte,        // sport code of sport-specific merch (futbol, natacion…); "" = none
-        VisualAttrs visual     // image-derived attributes (fit/estampado/escote/color); fill-only,
+        VisualAttrs visual,    // image-derived attributes (fit/estampado/escote/color); fill-only,
                                // additive PER FIELD — MlEnricher/DatabaseService only overwrite a
                                // field when the ML score/upsert value is non-blank, else the prior
                                // value is preserved (RELY-001; never wipe to "" on a run/backfill
                                // that didn't gate this product into image classification)
+        Integer sitioCategoriaOrigenId
 ) implements Comparable<Product> {
 
     public Product {

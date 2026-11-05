@@ -1,0 +1,170 @@
+[
+ {
+  "productId": "9009429",
+  "productName": "Inodoro con Depósito 3003 Vessanti",
+  "linkText": "inodoro-con-deposito-y-asiento-vessanti-9009429",
+  "categoryId": "133",
+  "categories": [
+   "/Baños y Cocinas/Sanitarios/Inodoros/",
+   "/Baños y Cocinas/Sanitarios/",
+   "/Baños y Cocinas/"
+  ],
+  "categoriesIds": [
+   "/2/18/133/",
+   "/2/18/",
+   "/2/"
+  ],
+  "items": [
+   {
+    "itemId": "9009429",
+    "images": [
+     {
+      "imageUrl": "https://arcencohogar.vteximg.com.br/arquivos/ids/325325/9009429-1.jpg?v=637928028976170000"
+     }
+    ],
+    "sellers": [
+     {
+      "commertialOffer": {
+       "Price": 210320.0,
+       "ListPrice": 262900.0
+      }
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "productId": "1304327",
+  "productName": "Canasto Organizador Rectangular M+Design",
+  "linkText": "canasto-org-rect-succion-bco-bamboo-1304327",
+  "categoryId": "206",
+  "categories": [
+   "/Organización y Limpieza/Organizadores de baño/Organizadores de metal y plásticos/",
+   "/Organización y Limpieza/Organizadores de baño/",
+   "/Organización y Limpieza/",
+   "/Baños y Cocinas/",
+   "/Baños y Cocinas/Accesorios/",
+   "/Baños y Cocinas/Accesorios/Accesorios de Baños/"
+  ],
+  "categoriesIds": [
+   "/5/39/206/",
+   "/5/39/",
+   "/5/",
+   "/2/",
+   "/2/20/",
+   "/2/20/146/"
+  ],
+  "items": [
+   {
+    "itemId": "1304327",
+    "images": [
+     {
+      "imageUrl": "https://arcencohogar.vteximg.com.br/arquivos/ids/407255/1304327-1.jpg?v=638972816736670000"
+     }
+    ],
+    "sellers": [
+     {
+      "commertialOffer": {
+       "Price": 17997.0,
+       "ListPrice": 29995.0
+      }
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "productId": "1710",
+  "productName": "Instalación Aa Básica Con Materiales Hasta 3500 Frg Easy Caba-Gba",
+  "linkText": "inst-aa-hasta-3500-frg-",
+  "categoryId": "29",
+  "categories": [
+   "/Electrodomésticos/Instalaciones de electrodomésticos/",
+   "/Electrodomésticos/"
+  ],
+  "categoriesIds": [
+   "/3/29/",
+   "/3/"
+  ],
+  "items": [
+   {
+    "itemId": "1710",
+    "images": [
+     {
+      "imageUrl": "https://arcencohogar.vteximg.com.br/arquivos/ids/338645/1710.jpg?v=638993264740970000"
+     }
+    ],
+    "sellers": [
+     {
+      "commertialOffer": {
+       "Price": 289000.0,
+       "ListPrice": 340000.0
+      }
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "productId": "1388823",
+  "productName": "Bomba Periférica 1/2 Hp 33 Mts Nero Fluvial",
+  "linkText": "bomba-periferica-nero-1-2-hp",
+  "categoryId": "101",
+  "categories": [
+   "/Plomería/Bombas y riego/",
+   "/Plomería/"
+  ],
+  "categoriesIds": [
+   "/14/101/",
+   "/14/"
+  ],
+  "items": [
+   {
+    "itemId": "1388823",
+    "images": [
+     {
+      "imageUrl": "https://arcencohogar.vteximg.com.br/arquivos/ids/416943/7798025631172-1.jpg?v=639064177083100000"
+     }
+    ],
+    "sellers": [
+     {
+      "commertialOffer": {
+       "Price": 51600.0,
+       "ListPrice": 64500.0
+      }
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "productId": "1450185",
+  "productName": "Clavadora Inalámbrica 18V 18 g Robust",
+  "linkText": "clavadora-inalambrica-18v-18-g-robust-1450185",
+  "categoryId": "16",
+  "categories": [
+   "/Herramientas/"
+  ],
+  "categoriesIds": [
+   "/16/"
+  ],
+  "items": [
+   {
+    "itemId": "1450185",
+    "images": [
+     {
+      "imageUrl": "https://arcencohogar.vteximg.com.br/arquivos/ids/421229/1450185-2.jpg?v=639142204513270000"
+     }
+    ],
+    "sellers": [
+     {
+      "commertialOffer": {
+       "Price": 167580.0,
+       "ListPrice": 239400.0
+      }
+     }
+    ]
+   }
+  ]
+ }
+]

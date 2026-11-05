@@ -185,11 +185,16 @@ como `tecnologia` no es un compromiso: es el dato roto que el `CHECK` existe
 para impedir, y además contamina las estadísticas por categoría de las que come
 el pipeline ML.
 
-El rubro se resuelve por `sitio.rubro_forzado` y **nunca** por la categoría —
-una silla la vende una tienda de oficina, pero una silla suelta en una tienda
-de ropa no convierte a esa tienda en otra cosa. `suplementos` es la excepción
-deliberada y ya existente: ahí la categoría gana sobre el sitio, porque un
-suplemento es un suplemento lo venda quien lo venda.
+El rubro `oficina` se resuelve por `sitio.rubro_forzado` y, en los sitios sin
+rubro forzado, por la categoría: un sitio mixto como Easy no tiene un rubro que
+forzar, y sin esa regla sus sillas quedaban en `indumentaria`, el default del
+builder. El costo es aceptado: una silla suelta en una tienda de ropa sin rubro
+forzado también cae en `oficina`. `suplementos` es la otra excepción: ahí la
+categoría gana sobre el sitio, porque un suplemento es un suplemento lo venda
+quien lo venda.
+
+`sitio.rubro_por_defecto` (`V71`) es el rubro de lo que llega a la cola del resolver sin categoría que lo decida: va después de
+las ramas por categoría y antes del default del builder, que llena siempre `rubroExistente`. Easy lo lleva en `construccion`.
 
 El esquema, las tres ampliaciones de `CHECK` y su rollback están en
 [`DATABASE.md`, `V27`](./DATABASE.md).
@@ -197,6 +202,10 @@ El esquema, las tres ampliaciones de `CHECK` y su rollback están en
 `construccion` (revestimientos autoadhesivos) y `hogar` (textiles de
 decoración) entran por la misma razón en `V45`. `hogar` existe para que un
 almohadón o una funda no caigan en la taxonomía de indumentaria.
+
+`deporte` (bicicletas, fitness, kayaks, `Pelota`, `Paleta`) y `juguetes` entran en `V69`: son equipamiento y no
+prendas, y una tienda de juguetes es un sitio posible. `sitio_rubro_forzado_check` queda en 5 valores hasta que un
+sitio necesite forzar alguno de los dos.
 
 ---
 
@@ -495,9 +504,9 @@ cable, mientras que 130 de los 136 cables reales lo tienen como primera palabra.
 (`CATEGORIAS_DEPORTE`), **fuera** de `INDUMENTARIA_O_CALZADO_EXTRA`. Meterlas
 ahí habría sido lo natural —las vende una tienda de deportes— y habría hecho que
 `GymratTagger` las taggeara y que los tres armadores consideraran una pelota una
-prenda vestible. Es el mismo criterio por el que `RubroResolver` no deriva el
-rubro de la categoría: qué **es** un producto y en qué **slot** entra son dos
-preguntas distintas.
+prenda vestible. Qué **es** un producto y en qué **slot** entra son dos preguntas
+distintas. Desde `V69` `RubroResolver` las manda al rubro `deporte` en los sitios sin
+rubro forzado, pero siguen fuera de `INDUMENTARIA_O_CALZADO_EXTRA`.
 
 #### Las subcategorías nuevas se abstienen; sólo `Gorro` adivina
 
@@ -879,7 +888,7 @@ barra de rubros existía para acotarlas, pero es chrome de dashboard: dice qué
 filtros hay, no qué hay adentro de cada uno. Un rubro con 12 categorías y otro
 con 3 se veían exactamente igual antes de entrar.
 
-El carrusel de entrada muestra los **seis rubros reales** —el vocabulario de
+El carrusel de entrada muestra los **ocho rubros reales** —el vocabulario de
 `lib/rubros.js` menos su neutro `''`, que es "Todos" y sigue estando en la barra
 de la galería— más una card **Gymrat**, cada una con su portada, su cantidad de categorías y su cantidad
 de productos. Elegir uno recién entonces abre la galería. `RubroCard`
@@ -902,8 +911,8 @@ el `imgCat` del primer pick de su propio rubro. Una URL de stock hardcodeada
 sería una dependencia de red externa para decorar datos que ya tenemos, y
 mostraría lo mismo con el catálogo lleno que con el catálogo vacío.
 
-**El costo es siete requests en el montaje donde antes había una**, porque la
-pantalla de entrada necesita los seis rubros y Gymrat a la vez para poder dibujar sus
+**El costo es nueve requests en el montaje donde antes había una**, porque la
+pantalla de entrada necesita los ocho rubros y Gymrat a la vez para poder dibujar sus
 contadores. Se paga una sola vez: los `cats` quedan cacheados por rubro, así que
 ir y volver entre el carrusel y una galería —y cambiar de solapa dentro de la
 galería— no emite ninguna request más. `/api/mejores` lee el snapshot en memoria,
@@ -1624,13 +1633,14 @@ Spring 6.1 no agrega un viaje por `null`: con el driver de PostgreSQL,
 ---
 
 <!-- Movido desde CLAUDE.md (2026-09-28) -->
-## Model `Product` (record, 19 campos)
+## Model `Product` (record, 21 campos)
 
 ```java
 sitio, nombre, precio, precioOriginal (Double), url, imagenUrl, categoria, genero,
 talles, ml (MlScore), marca, rubro, gymrat, marcaPremium,
 senal (SenalCompra), finan (SenalFinanciacion),
-cantidadUnidades, subCategoria, visual (VisualAttrs)
+cantidadUnidades, subCategoria, deporte, visual (VisualAttrs),
+sitioCategoriaOrigenId (Integer)
 ```
 
 `precioOriginal` es `Double` desde `close-1nf-and-3nf-foundation` (antes
@@ -1638,15 +1648,31 @@ cantidadUnidades, subCategoria, visual (VisualAttrs)
 Un único parser, `ar.scraper.aggregator.text.PrecioParser`, lo resuelve al
 momento del scrape — ver `V17` más abajo.
 
-`rubro` tiene **seis** valores desde `V45`: `indumentaria` · `tecnologia` ·
-`suplementos` · `oficina` · `construccion` · `hogar`. Lo resuelve `RubroResolver` por
-`sitio.rubro_forzado`, **nunca** por la categoría: una silla la vende una
-tienda de oficina, pero una silla suelta en una tienda de ropa no convierte a
-esa tienda en otra cosa. La excepción es `suplementos`, donde la categoría sí
-manda —un suplemento es un suplemento lo venda quien lo venda— y por eso gana
-sobre el rubro forzado del sitio. `construccion` y `hogar` también deciden por
-categoría (después de los forzados `tecnologia` y `oficina`): `ambiancedeco`
-vende revestimientos y textiles de hogar bajo un solo rubro forzado.
+`rubro` tiene **ocho** valores desde `V69`: `indumentaria` · `tecnologia` ·
+`suplementos` · `oficina` · `construccion` · `hogar` · `deporte` · `juguetes`. Lo resuelve `RubroResolver` por
+`sitio.rubro_forzado`, salvo donde decide la categoría. `suplementos`: un
+suplemento es un suplemento lo venda quien lo venda, y por eso gana sobre el
+rubro forzado del sitio. `construccion` y `hogar` también deciden por categoría
+(después de los forzados `tecnologia` y `oficina`): `ambiancedeco` vende
+revestimientos y textiles de hogar bajo un solo rubro forzado. `oficina` decide
+por categoría sólo en los sitios sin rubro forzado: Easy es mixto, y sin esa
+regla sus sillas quedaban en `indumentaria`. `tecnologia` también sale de la categoría en los sitios sin rubro forzado (decisión D-5, todo
+`CATEGORIAS_TECH`): un monitor de Easy ya no cae en `indumentaria`, y el costo aceptado es que un reloj Garmin o un
+periférico gamer de una tienda deportiva sin rubro forzado pasa a `tecnologia`. `deporte` y `juguetes` siguen el mismo
+criterio (decisión D-6): equipamiento deportivo y juguetes por categoría, sólo sin rubro forzado, y un rubro forzado
+gana siempre. La ropa deportiva se queda en `indumentaria`; el `deporte` de `SportResolver` es una dimensión aparte, que etiqueta tanto `indumentaria` como el rubro `deporte`, así una pelota de fútbol sigue en el filtro de fútbol. `GymratTagger` no: gymrat es ropa.
+
+`sitioCategoriaOrigenId` es la hoja del árbol de categorías del propio sitio donde éste ubica al producto
+(`categoryId` en VTEX): `null` es "el sitio no la publica", nunca un sentinel. Sólo `VtexPage` la llena; el upsert la
+resuelve a `productos.sitio_categoria_id` (FK a `sitio_categoria`, `V63`) en la misma transacción que el árbol.
+La capacidad de exponer el árbol es la interfaz `ar.scraper.pages.ArbolDeCategorias`, que implementa sólo
+`VtexPage`; `BaseScraper` la lee con un `instanceof` y la deja en `ScrapeResult.arbolDeCategorias`.
+Los servicios del sitio (hojas cuyo nombre es "Instalación…", "Armado…") los decide un `CriterioDeServicio`
+inyectado en `VtexPage`, no un `if` por sitio: sus productos no se emiten y el nodo se guarda con `es_servicio`.
+Cada hoja puede llevar además una `categoria` canónica curada (`sitio_categoria.categoria`, `V70`, sólo Easy): si el
+nombre del producto se abstiene, `CategoryClassifier` usa la de su hoja antes de mirar el `raw` del sitio. El nombre gana
+siempre y el rubro sigue a la categoría resultante; un sitio sin mapeo no cambia. `NormalizerService` carga el mapeo una
+vez por sitio y por lote vía `SitioCategoriaPort.categoriaPorOrigen`.
 
 Helpers: `esPack()`, `esTech()`, `esGymrat()`, `esMarcaPremium()`.
 `MlScore` incluye scoreP/badges/ofertaReal/tendencia/pctilCategoria/zScore/segment;

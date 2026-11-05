@@ -4,7 +4,7 @@ Fashion Scraper ML Trainer
 --------------------------
 Entrena modelos de clasificación usando los productos del DB como dataset.
 
-Fase 1 — Text classifier (TF-IDF + LogisticRegression): ~30 seg
+Fase 1 — Text classifier (TF-IDF + SGDClassifier log_loss): ~40 seg
 
 Fase 2 — Image classifier: REMOVIDA (PR4, spec "ml-training-removal").
 `--images` es ahora un no-op que avisa y sigue sin entrenar nada — la
@@ -264,11 +264,14 @@ def clean_labels(rows):
         f"{len(set(l for _,l,_ in cleaned))} categorías")
     return cleaned
 
-# ─── Fase 1: Text Classifier (TF-IDF + LogReg) ───────────────────────────────
+# ─── Fase 1: Text Classifier (TF-IDF + SGD) ──────────────────────────────────
+
+def guardar_coeficientes_por_columna(clf):
+    clf.coef_ = np.asfortranarray(clf.coef_)
 
 def train_text_model(cleaned, models_dir):
     from sklearn.feature_extraction.text import TfidfVectorizer
-    from sklearn.linear_model import LogisticRegression
+    from sklearn.linear_model import SGDClassifier
     from sklearn.preprocessing import LabelEncoder
     from sklearn.model_selection import StratifiedShuffleSplit
     from sklearn.pipeline import Pipeline
@@ -311,7 +314,7 @@ def train_text_model(cleaned, models_dir):
     log(f"Train: {len(X_train)}, Test: {len(X_test)}")
     progress("text", 25, f"Split: {len(X_train)} train / {len(X_test)} test")
 
-    # Pipeline TF-IDF (character n-grams) + LogisticRegression
+    # Pipeline TF-IDF (character n-grams) + SGDClassifier
     # Character n-grams capturan morfología española mejor que word-level
     # Rango (2,5): "zapati", "apatil", "patill", "atilla" → reconoce "zapatilla" incluso con typos
     pipe = Pipeline([
@@ -323,15 +326,17 @@ def train_text_model(cleaned, models_dir):
             sublinear_tf= True,        # log(1+tf) reduce dominancia de palabras muy frecuentes
             strip_accents='unicode',
         )),
-        ('clf', LogisticRegression(
-            C            = 8.0,
-            max_iter     = 2000,
-            solver       = 'lbfgs',
+        ('clf', SGDClassifier(
+            loss         = 'log_loss',
+            alpha        = 2.5e-6,
+            max_iter     = 20,
+            tol          = 1e-3,
             random_state = 42,
         )),
     ])
-    progress("text", 40, f"Entrenando TF-IDF (80k features) + LogisticRegression ({num_classes} clases)...")
+    progress("text", 40, f"Entrenando TF-IDF (80k features) + SGDClassifier ({num_classes} clases)...")
     pipe.fit(X_train, y_train)
+    guardar_coeficientes_por_columna(pipe.named_steps['clf'])
     progress("text", 75, f"Evaluando en {len(X_test)} muestras de prueba...")
 
     y_pred   = pipe.predict(X_test)

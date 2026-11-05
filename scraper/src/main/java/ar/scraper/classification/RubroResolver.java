@@ -17,7 +17,9 @@ public class RubroResolver {
         boolean catEsSuppl  = CategoryGroups.esCategoriaSuplemento(cat);
         boolean catEsConstr = CategoryGroups.esCategoriaConstruccion(cat);
         boolean catEsHogar  = CategoryGroups.esCategoriaHogar(cat);
-        String rubroForzado = siteRegistry.rubroForzado(sitioKey);
+        SiteRegistry.Sitio sitio = siteRegistry.porKey(sitioKey);
+        String rubroForzado = sitio.rubroForzado();
+        String rubroPorDefecto = sitio.rubroPorDefecto();
 
         if ("tecnologia".equals(rubroForzado) && !catEsTextil) {
             return "tecnologia";
@@ -37,6 +39,16 @@ public class RubroResolver {
             return "hogar";
         } else if (catEsTextil) {
             return "indumentaria";
+        } else if (StringUtils.isBlank(rubroForzado) && CategoryGroups.categoriasOficina().contains(cat)) {
+            return "oficina";
+        } else if (StringUtils.isBlank(rubroForzado) && CategoryGroups.esCategoriaDeporte(cat)) {
+            return "deporte";
+        } else if (StringUtils.isBlank(rubroForzado) && CategoryGroups.esCategoriaJuguetes(cat)) {
+            return "juguetes";
+        } else if (StringUtils.isBlank(rubroForzado) && CategoryGroups.esCategoriaTech(cat)) {
+            return "tecnologia";
+        } else if (StringUtils.isNotBlank(rubroPorDefecto)) {
+            return rubroPorDefecto;
         } else if (StringUtils.isNotBlank(rubroExistente)) {
             return rubroExistente;
         } else {

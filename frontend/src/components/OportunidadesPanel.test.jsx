@@ -102,7 +102,7 @@ describe('OportunidadesPanel', () => {
 
     const chips = screen.getByRole('group', { name: 'Rubro' });
     expect(within(chips).getAllByRole('button').map(b => b.textContent.replace(/^\S+\s/, '')))
-      .toEqual(['Todos', 'Indumentaria', 'Tecnología', 'Suplementos', 'Oficina', 'Construcción', 'Hogar']);
+      .toEqual(['Todos', 'Indumentaria', 'Tecnología', 'Suplementos', 'Oficina', 'Construcción', 'Hogar', 'Deporte', 'Juguetes']);
     expect(within(chips).getByRole('button', { name: /Todos/ }).getAttribute('aria-pressed')).toBe('true');
   });
 

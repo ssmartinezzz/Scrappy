@@ -35,7 +35,8 @@ Scrappy/
 ├── tests/e2e/                   ← e2e capa API (pytest) + `run-e2e.sh`, el runner de las dos capas
 │                                  Levanta backend + preview y los apaga. NUNCA contra `vite dev` (ver Gotchas)
 ├── frontend/e2e/                ← e2e capa browser (Playwright): sesión, pestañas, roles, reseteo
-├── tests/perf/                  ← performance: DOS suites independientes sobre los mismos endpoints
+├── tests/perf/                  ← performance: DOS suites de carga sobre los mismos endpoints + un harness JMH
+│   ├── micro/                   ←   JMH sobre clases del scraper con un payload Easy capturado: `run.sh all` (sin backend)
 │   ├── jmeter/                  ←   jmeter-java-dsl (Java, pom propio; `*IT` ⇒ `mvn verify`, nunca `mvn test`)
 │   ├── locust/                  ←   locust como motor + pytest como runner, sobre uv: `uv run pytest`
 │   │                                Lo lento (carga/stress/spike) está marcado `lento` y sale del default

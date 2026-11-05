@@ -1,6 +1,7 @@
 package ar.scraper.pages;
 
 import ar.scraper.model.Product;
+import ar.scraper.model.SitioCategoriaNodo;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.microsoft.playwright.APIResponse;
@@ -11,7 +12,7 @@ import java.util.*;
 import org.apache.commons.lang3.StringUtils;
 
 /** Si no está, se hace heurística sobre nombre + categorías. */
-public class VtexPage extends StorePage implements CatalogPage {
+public class VtexPage extends StorePage implements CatalogPage, ArbolDeCategorias {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final int PAGE_SIZE = 50;
@@ -25,6 +26,10 @@ public class VtexPage extends StorePage implements CatalogPage {
     private static final long ESPERA_REINTENTO_MS = 2_000;
     private static final int PROFUNDIDAD_ARBOL = 3;
 
+    private final CriterioDeServicio criterioDeServicio;
+    private List<CategoriaVtex> arbolObservado = List.of();
+    private Set<Integer> hojasDeServicio = Set.of();
+
     private static final Set<String> PALABRAS_HOMBRE = Set.of(
             "hombre","hombres","masculino","masculinos","men","man","male","caballero","caballeros");
     private static final Set<String> PALABRAS_MUJER = Set.of(
@@ -35,7 +40,15 @@ public class VtexPage extends StorePage implements CatalogPage {
     public VtexPage(Page page, int timeoutMs,
                     String sitio, String baseUrl,
                     double precioMin, double precioMax) {
+        this(page, timeoutMs, sitio, baseUrl, precioMin, precioMax, new ServicioPorNombreDeCategoria());
+    }
+
+    public VtexPage(Page page, int timeoutMs,
+                    String sitio, String baseUrl,
+                    double precioMin, double precioMax,
+                    CriterioDeServicio criterioDeServicio) {
         super(page, timeoutMs, sitio, baseUrl, precioMin, precioMax);
+        this.criterioDeServicio = criterioDeServicio;
     }
 
     public List<Product> scrapeAll() {
@@ -108,6 +121,8 @@ public class VtexPage extends StorePage implements CatalogPage {
         try {
             List<CategoriaVtex> arbol = parseArbol(MAPPER.readTree(
                     getText(dom + "/api/catalog_system/pub/category/tree/" + PROFUNDIDAD_ARBOL)));
+            arbolObservado = arbol;
+            hojasDeServicio = idsDeServicio(arbol, criterioDeServicio);
             if (!arbol.isEmpty()) {
                 partes = particionar(arbol, path -> totalLegacy(dom, path).orElse(0), VENTANA_LEGACY)
                         .stream().map(path -> "&fq=C:" + path).toList();
@@ -203,7 +218,32 @@ public class VtexPage extends StorePage implements CatalogPage {
         return result;
     }
 
-    record CategoriaVtex(int id, List<CategoriaVtex> hijos) { }
+    record CategoriaVtex(int id, String nombre, List<CategoriaVtex> hijos) { }
+
+    @Override
+    public List<SitioCategoriaNodo> arbolDeCategorias() {
+        List<SitioCategoriaNodo> nodos = new ArrayList<>();
+        for (CategoriaVtex c : arbolObservado) aplanar(c, null, nodos);
+        return nodos;
+    }
+
+    private void aplanar(CategoriaVtex c, Integer padre, List<SitioCategoriaNodo> nodos) {
+        nodos.add(new SitioCategoriaNodo(c.id(), padre, c.nombre(), hojasDeServicio.contains(c.id())));
+        for (CategoriaVtex h : c.hijos()) aplanar(h, c.id(), nodos);
+    }
+
+    static Set<Integer> idsDeServicio(List<CategoriaVtex> arbol, CriterioDeServicio criterio) {
+        Set<Integer> ids = new HashSet<>();
+        for (CategoriaVtex c : arbol) marcarServicios(c, false, criterio, ids);
+        return Set.copyOf(ids);
+    }
+
+    private static void marcarServicios(CategoriaVtex c, boolean heredado, CriterioDeServicio criterio,
+                                        Set<Integer> ids) {
+        boolean servicio = heredado || criterio.esServicio(c.nombre());
+        if (servicio) ids.add(c.id());
+        for (CategoriaVtex h : c.hijos()) marcarServicios(h, servicio, criterio, ids);
+    }
 
     static List<String> particionar(List<CategoriaVtex> arbol, ToIntFunction<String> totalDe, int ventana) {
         List<String> partes = new ArrayList<>();
@@ -227,7 +267,8 @@ public class VtexPage extends StorePage implements CatalogPage {
         List<CategoriaVtex> out = new ArrayList<>();
         if (arbol == null || !arbol.isArray()) return out;
         for (JsonNode n : arbol) {
-            if (n.hasNonNull("id")) out.add(new CategoriaVtex(n.get("id").asInt(), parseArbol(n.path("children"))));
+            if (n.hasNonNull("id")) out.add(new CategoriaVtex(n.get("id").asInt(), n.path("name").asText("").trim(),
+                    parseArbol(n.path("children"))));
         }
         return out;
     }
@@ -345,6 +386,8 @@ public class VtexPage extends StorePage implements CatalogPage {
     private Optional<Product> toProduct(JsonNode prod, String dom, String nombre, boolean io) {
         try {
             if (nombre.isBlank()) return Optional.empty();
+            Integer hoja = categoriaHoja(prod);
+            if (hoja != null && hojasDeServicio.contains(hoja)) return Optional.empty();
 
             String linkText = prod.path("linkText").asText("");
             String url = linkText.isBlank() ? "" : dom + "/" + linkText + "/p";
@@ -358,7 +401,7 @@ public class VtexPage extends StorePage implements CatalogPage {
             double p = oferta.get().precio();
             if (fueraDeRango(p)) return Optional.empty();
 
-            String categoria = ultimoSegmento(prod.path("categories"));
+            String categoria = segmentoDeLaRutaMasProfunda(prod.path("categories"));
             if (io && categoria.isBlank()) {
                 JsonNode catTree = prod.path("categoryTree");
                 if (catTree.isArray() && !catTree.isEmpty()) {
@@ -367,9 +410,29 @@ public class VtexPage extends StorePage implements CatalogPage {
             }
 
             return Optional.of(producto(nombre, p, oferta.get().original(), url, img, categoria,
-                    extraerGeneroVtex(prod, nombre), extraerTallesVtex(prod)));
+                    extraerGeneroVtex(prod, nombre), extraerTallesVtex(prod), hoja));
         } catch (Exception e) {
             return Optional.empty();
+        }
+    }
+
+    private static Integer categoriaHoja(JsonNode prod) {
+        String id = prod.path("categoryId").asText("");
+        if (!id.isBlank()) return parseIdEntero(id);
+        JsonNode ids = prod.path("categoriesIds");
+        if (!ids.isArray() || ids.isEmpty()) return null;
+        String[] partes = ids.get(0).asText("").split("/");
+        for (int i = partes.length - 1; i >= 0; i--) {
+            if (!partes[i].isBlank()) return parseIdEntero(partes[i]);
+        }
+        return null;
+    }
+
+    private static Integer parseIdEntero(String id) {
+        try {
+            return Integer.valueOf(id.trim());
+        } catch (NumberFormatException e) {
+            return null;
         }
     }
 
@@ -397,13 +460,25 @@ public class VtexPage extends StorePage implements CatalogPage {
         return Optional.empty();
     }
 
-    private static String ultimoSegmento(JsonNode cats) {
-        if (!cats.isArray() || cats.isEmpty()) return "";
-        String[] parts = cats.get(cats.size() - 1).asText("").trim().split("/");
-        for (int i = parts.length - 1; i >= 0; i--) {
-            if (!parts[i].isBlank()) return parts[i];
+    private static String segmentoDeLaRutaMasProfunda(JsonNode cats) {
+        if (!cats.isArray()) return "";
+        String hoja = "";
+        int profundidadMaxima = 0;
+        for (JsonNode ruta : cats) {
+            String[] segmentos = StringUtils.split(ruta.asText(""), '/');
+            int profundidad = 0;
+            String ultimo = "";
+            for (String segmento : segmentos) {
+                if (StringUtils.isBlank(segmento)) continue;
+                profundidad++;
+                ultimo = segmento;
+            }
+            if (profundidad > profundidadMaxima) {
+                profundidadMaxima = profundidad;
+                hoja = ultimo;
+            }
         }
-        return "";
+        return hoja;
     }
 
     private List<String> extraerTallesVtex(JsonNode prod) {

@@ -49,12 +49,17 @@ public final class CategoryGroups {
         "Almacenamiento",
         "Cooler","Fuente","Motherboard","Red","Cable","Impresión","Mousepad",
         "Joystick","Micrófono","UPS","Tablet","Cámara","Reloj",
-        "Mini PC"
+        "Mini PC", "TV y Audio"
     );
 
     /** Aparte de {@code INDUMENTARIA_O_CALZADO_EXTRA} a propósito: una pelota no es ropa. */
     private static final Set<String> CATEGORIAS_DEPORTE = Set.of(
-        "Pelota","Paleta"
+        "Pelota","Paleta","Bicicleta","Monopatín","Repuesto de Bicicleta","Pesas","Accesorio de Fitness",
+        "Kayak y Bote","Equipamiento Deportivo"
+    );
+
+    private static final Set<String> CATEGORIAS_JUGUETES = Set.of(
+        "Juguete","Cama Elástica"
     );
 
     private static final Set<String> CATEGORIAS_OFICINA = Set.of(
@@ -64,11 +69,33 @@ public final class CategoryGroups {
 
     private static final Set<String> CATEGORIAS_CONSTRUCCION = Set.of(
         "Placa Decorativa", "Vinilo Decorativo", "Piso", "Césped Sintético",
-        "Adhesivo", "Moldura", "Planta Artificial"
+        "Adhesivo", "Moldura", "Planta Artificial",
+        "Cemento", "Ladrillo", "Árido", "Hierro", "Impermeabilizante", "Madera", "Tablero",
+        "Chapa", "Aislante", "Placa de Yeso", "Perfilería", "Pintura", "Enduido", "Diluyente",
+        "Accesorio de Pintura", "Empapelado", "Puerta", "Ventana", "Portón", "Mosquitero",
+        "Toldo", "Cerámico", "Porcelanato", "Pastina", "Revestimiento", "Escalera",
+        "Caño", "Accesorio de Caño", "Llave de Paso", "Flexible", "Tanque de Agua", "Bomba de Agua",
+        "Canaleta", "Regulador de Gas", "Cable Eléctrico", "Llave de Luz", "Térmica", "Caja Eléctrica",
+        "Cablecanal", "Ficha y Prolongador", "Iluminación",
+        "Taladro", "Amoladora", "Sierra", "Soldadora", "Hidrolavadora", "Herramienta Eléctrica",
+        "Herramienta Manual", "Accesorio de Herramienta", "Lija", "Caja de Herramientas", "Tornillo",
+        "Tarugo", "Clavo", "Fijación", "Bisagra", "Cerradura", "Candado", "Herraje", "Cinta Adhesiva",
+        "Guante de Trabajo", "Protección Personal"
     );
 
     private static final Set<String> CATEGORIAS_HOGAR = Set.of(
-        "Almohadón", "Funda", "Manta", "Mantel", "Alfombra", "Respaldo"
+        "Almohadón", "Funda", "Manta", "Mantel", "Alfombra", "Respaldo",
+        "Sanitario", "Grifería", "Ducha", "Bañera", "Mampara", "Vanitory", "Bacha", "Accesorio de Baño",
+        "Mueble", "Placard", "Cama", "Colchón", "Mesa", "Sillón", "Estantería", "Caja y Canasto", "Basurero",
+        "Tendedero", "Colgador", "Artículo de Limpieza", "Sistema Modular", "Espejo", "Cortina", "Ropa de Cama",
+        "Toalla", "Decoración", "Bazar",
+        "Planta", "Semilla", "Tierra y Fertilizante", "Maceta", "Riego", "Pulverizador", "Cerco y Media Sombra",
+        "Decoración de Jardín", "Herramienta de Jardín", "Máquina de Jardín", "Gazebo y Sombrilla", "Reposera y Hamaca", "Mueble de Exterior", "Depósito de Jardín",
+        "Parrilla", "Accesorio de Parrilla", "Carbón y Leña", "Pileta", "Inflable", "Químico de Pileta", "Accesorio de Pileta",
+        "Carpa", "Bolsa de Dormir", "Conservadora", "Termo y Botella", "Artículo de Camping", "Alimento para Mascota", "Cama para Mascota",
+        "Higiene de Mascota", "Accesorio para Mascota", "Lubricante", "Líquido Automotor", "Batería de Auto", "Escobilla de Auto", "Limpieza de Auto",
+        "Accesorio de Auto", "Herramienta de Auto", "Seguridad Vial", "Termotanque", "Calefón", "Calefactor", "Ventilador",
+        "Aire Acondicionado", "Heladera", "Lavarropas", "Cocina y Horno", "Campana y Extractor", "Aspiradora", "Pequeño Electrodoméstico"
     );
 
     /** Standalone canonical categories not covered by the sets above. */
@@ -85,6 +112,7 @@ public final class CategoryGroups {
         all.addAll(CATEGORIAS_CALZADO);
         all.addAll(CATEGORIAS_TECH);
         all.addAll(CATEGORIAS_DEPORTE);
+        all.addAll(CATEGORIAS_JUGUETES);
         all.addAll(CATEGORIAS_OFICINA);
         all.addAll(CATEGORIAS_CONSTRUCCION);
         all.addAll(CATEGORIAS_HOGAR);
@@ -113,6 +141,18 @@ public final class CategoryGroups {
         return cat != null && CATEGORIAS_CONSTRUCCION.contains(cat);
     }
 
+    public static boolean esCategoriaDeporte(String cat) {
+        return cat != null && CATEGORIAS_DEPORTE.contains(cat);
+    }
+
+    public static boolean esCategoriaJuguetes(String cat) {
+        return cat != null && CATEGORIAS_JUGUETES.contains(cat);
+    }
+
+    public static boolean esCategoriaTech(String cat) {
+        return cat != null && CATEGORIAS_TECH.contains(cat);
+    }
+
     public static boolean esCategoriaHogar(String cat) {
         return cat != null && CATEGORIAS_HOGAR.contains(cat);
     }
@@ -126,8 +166,8 @@ public final class CategoryGroups {
     }
 
     /**
-     * {@link RubroResolver} resuelve {@code oficina} por {@code sitio.rubro_forzado}, nunca por la
-     * categoría.
+     * {@link RubroResolver} resuelve {@code oficina} por {@code sitio.rubro_forzado} y, en los sitios
+     * sin rubro forzado, por estas categorías.
      */
     public static Set<String> categoriasOficina() {
         return CATEGORIAS_OFICINA;

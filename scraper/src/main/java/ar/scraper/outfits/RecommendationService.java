@@ -2,11 +2,13 @@ package ar.scraper.outfits;
 
 import ar.scraper.model.Product;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.PriorityQueue;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.StringUtils;
 
@@ -32,34 +34,57 @@ public class RecommendationService {
      * "the call does not error" requirement.
      */
     public List<Product> rank(List<Product> productos, OutfitService.FeedbackModel feedback) {
-        if (productos == null) return List.of();
-        if (feedback == null) feedback = OutfitService.FeedbackModel.empty();
-
-        Set<String> exclude          = feedback.exclude();
-        Set<String> excludeCategoria = feedback.excludeCategoria();
-        Map<String, Integer> boostLikeCount = feedback.boostLikeCount();
-
-        // Score once per product, not once per comparison: the comparator used to rebuild the
-        // marca|categoria key and rescan the badges ~n·log n times over a 30k+ catalog.
-        return productos.stream()
-                // Hard veto (infantil, sport-specific) — runs FIRST, before pair/categoria exclude,
-                // regardless of caller, query params or relaxation fallback.
-                .filter(EligibilityPolicy::elegible)
-                .filter(p -> !exclude.contains(OutfitService.FeedbackModel.keyOf(p)))
-                .filter(p -> p.categoria() == null || !excludeCategoria.contains(p.categoria()))
-                .map(p -> new Puntuado(p, -finalScore(p, boostLikeCount),
-                        p.ml() != null ? p.ml().scoreP() : 50, StringUtils.defaultString(p.url())))
-                .sorted(ORDEN)
-                .map(Puntuado::producto)
-                .collect(Collectors.toList());
+        return rankPagina(productos, feedback, 0, Integer.MAX_VALUE).productos();
     }
 
-    private record Puntuado(Product producto, double scoreNegado, int scoreP, String url) {}
+    public PaginaRankeada rankPagina(List<Product> productos, OutfitService.FeedbackModel feedback,
+            int desde, int tamanio) {
+        if (productos == null) return new PaginaRankeada(List.of(), 0);
+        OutfitService.FeedbackModel modelo = feedback != null ? feedback : OutfitService.FeedbackModel.empty();
+
+        Set<String> exclude          = modelo.exclude();
+        Set<String> excludeCategoria = modelo.excludeCategoria();
+        Map<String, Integer> boostLikeCount = modelo.boostLikeCount();
+
+        long necesarios = Math.max(1L, (long) desde + tamanio);
+        PriorityQueue<Puntuado> mejores = new PriorityQueue<>(
+                (int) Math.min(necesarios, productos.size() + 1L), ORDEN.reversed());
+        int total = 0;
+        for (Product p : productos) {
+            // Hard veto (infantil, sport-specific) — runs FIRST, before pair/categoria exclude,
+            // regardless of caller, query params or relaxation fallback.
+            if (!EligibilityPolicy.elegible(p)) continue;
+            if (exclude.contains(OutfitService.FeedbackModel.keyOf(p))) continue;
+            if (p.categoria() != null && excludeCategoria.contains(p.categoria())) continue;
+
+            Puntuado candidato = new Puntuado(p, -finalScore(p, boostLikeCount),
+                    p.ml() != null ? p.ml().scoreP() : 50, StringUtils.defaultString(p.url()), total++);
+            if (mejores.size() < necesarios) {
+                mejores.add(candidato);
+            } else if (ORDEN.compare(candidato, mejores.peek()) < 0) {
+                mejores.poll();
+                mejores.add(candidato);
+            }
+        }
+
+        Puntuado[] ordenados = mejores.toArray(new Puntuado[0]);
+        Arrays.sort(ordenados, ORDEN);
+        List<Product> pagina = new ArrayList<>();
+        for (int i = desde; i < ordenados.length; i++) {
+            pagina.add(ordenados[i].producto());
+        }
+        return new PaginaRankeada(pagina, total);
+    }
+
+    public record PaginaRankeada(List<Product> productos, int total) {}
+
+    private record Puntuado(Product producto, double scoreNegado, int scoreP, String url, int posicion) {}
 
     private static final Comparator<Puntuado> ORDEN = Comparator
             .comparingDouble(Puntuado::scoreNegado)
             .thenComparingInt(Puntuado::scoreP)
-            .thenComparing(Puntuado::url);
+            .thenComparing(Puntuado::url)
+            .thenComparingInt(Puntuado::posicion);
 
     private double finalScore(Product p, Map<String, Integer> boostLikeCount) {
         double base = baseMlScore(p);

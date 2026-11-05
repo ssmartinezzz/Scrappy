@@ -7,7 +7,12 @@ public record ScrapeResult(
         String sitio,
         List<Product> productos,
         String error,
-        long duracionMs
+        long duracionMs,
+        List<SitioCategoriaNodo> arbolDeCategorias
 ) {
+    public ScrapeResult(String sitio, List<Product> productos, String error, long duracionMs) {
+        this(sitio, productos, error, duracionMs, List.of());
+    }
+
     public boolean exitoso() { return StringUtils.isBlank(error); }
 }

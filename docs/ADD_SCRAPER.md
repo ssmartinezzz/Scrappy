@@ -77,6 +77,9 @@ ON CONFLICT (nombre) DO NOTHING;
 `rubro_forzado` va con el mismo valor que `sitio.NOMBRE.rubro` en
 `config.properties`, o `NULL` si no lo declarás.
 
+Un sitio mixto sin `rubro_forzado` puede declarar además `rubro_por_defecto` (`V71`, mismo dominio): es el rubro de las filas
+que ninguna categoría decide. Va en un `UPDATE` de la misma migración de seed, no en el `INSERT`.
+
 ### 3. Agregar esa migración a `SitioSeedSyncTest`
 
 ```java
@@ -187,6 +190,10 @@ Las tres piezas de arriba con `plataforma = 'vtex'`.
 `VtexPage` intenta primero la API Legacy (`/api/catalog_system/pub/products/search`), y si devuelve vacío, prueba la API IO (`/api/io/_v/api/intelligent-search/product_search/trade-policy/1`).
 
 La API Legacy responde HTTP 400 pasado `_from` ≈ 2550, así que `VtexPage` parte el catálogo por el árbol de `/api/catalog_system/pub/category/tree/3` (`fq=C:/106/108/`) hasta que cada parte entra en `VENTANA_LEGACY`, usando el total del header `resources`. Una hoja más grande que la ventana se crawlea hasta donde llega, con un WARN.
+
+La API lista `categories` **de la hoja hacia la raíz**, y el resto del sitio depende de leerla bien: `raw` sale del camino más profundo. Los fixtures escritos a mano suelen traer el orden inverso; copiá una respuesta real.
+
+`VtexPage` también persiste el árbol en `sitio_categoria`, en la misma transacción que los productos, y no scrapea los nodos de servicios (`CriterioDeServicio`: "Instalación…", "Armado…"). Un sitio grande y mixto puede sumar una migración que mapee hojas a `categoria`: se consulta cuando el nombre abstiene, antes que `raw`. Hoja nueva sin mapear = abstención. Ver `V70` y `V72` en [`DATABASE.md`](./DATABASE.md).
 
 ---
 

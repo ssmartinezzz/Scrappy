@@ -4,7 +4,7 @@ Tests for ml_train.py's image-training decommission (PR4, T4.5/T4.6).
 
 Design decision #7 / spec "ml-training-removal": the bespoke image
 classifier (MobileNetV3/EfficientNet, PyTorch) is removed entirely — text
-classification (TF-IDF + LogisticRegression) is unaffected and stays the
+classification (TF-IDF + SGDClassifier) is unaffected and stays the
 only thing `ml_train.py` actually trains. `--images` becomes a no-op that
 warns and exits cleanly instead of running `train_image_model()`.
 
