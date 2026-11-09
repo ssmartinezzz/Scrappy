@@ -1,11 +1,13 @@
 package ar.scraper.web;
 
+import ar.scraper.classification.SiteRegistry;
 import ar.scraper.config.ScraperConfig;
 import ar.scraper.api.ApiException;
 import ar.scraper.api.ApiResponse;
 import ar.scraper.security.OutboundUrl;
 import ar.scraper.web.dto.OpResult;
 import ar.scraper.web.dto.ScrapeDtos;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -15,6 +17,8 @@ import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 
+import static ar.scraper.classification.SiteClassification.sitioKey;
+
 @RestController
 @RequestMapping("/api")
 @RequiredArgsConstructor
@@ -22,12 +26,14 @@ public class SitiosController {
 
     private final ScraperService service;
     private final ScraperConfig config;
+    private final SiteRegistry siteRegistry;
 
     @GetMapping("/sitios")
     public ResponseEntity<ApiResponse<ScrapeDtos.Sitios>> getSitios() {
         List<ScrapeDtos.SitioBase> base = new ArrayList<>();
         for (var s : config.getSitiosActivos()) {
-            base.add(new ScrapeDtos.SitioBase(s.nombre(), s.url(), "config", s.rubro()));
+            String rubro = StringUtils.defaultIfBlank(siteRegistry.rubroPorDefecto(sitioKey(s.nombre())), s.rubro());
+            base.add(new ScrapeDtos.SitioBase(s.nombre(), s.url(), "config", rubro));
         }
         List<ScrapeDtos.SitioExtra> extras = new ArrayList<>();
         for (var s : service.getSitiosExtras()) {
