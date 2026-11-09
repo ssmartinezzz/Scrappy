@@ -150,6 +150,9 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V73` | Índice parcial `idx_productos_rubro_precio` para `/api/data?rubro=…`: evita los dos seq scans por request sobre un catálogo de 60 mil filas |
 | `V74` | 6 categorías (`Videojuego`, `Consola`, `Figura Coleccionable`, `Peluche`, `Juego de Mesa`, `Libro`), rubro `libros` en `chk_productos_rubro_domain` (9 valores), `sitio_rubro_por_defecto_check` + `juguetes` y seed de Hadriatica (Tiendanube, `rubro_por_defecto` = juguetes) |
 | `V75` | Seed de Dellorean (Tiendanube, sitio mixto con `rubro_por_defecto = 'tecnologia'`) |
+| `V76` | Plataforma `hadriatica`: `sitio_plataforma_check` pasa a 17 valores y la fila de Hadriatica deja `tiendanube` |
+| `V77` | Seed de El Mundo del Juguete (VTEX, sitio de juguetes con cola no juguete, `rubro_por_defecto = 'juguetes'`) |
+| `V78` | 66 hojas de El Mundo del Juguete en el mapeo curado (`sitio_categoria.categoria`), sin categorías nuevas |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -4367,3 +4370,54 @@ ALTER TABLE sitio ADD CONSTRAINT sitio_plataforma_check
                           'gamerfactory','ambiancedeco'));
 -- <<< rollback:V76
 ```
+
+Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V77`, antes que el de `V75`.
+
+---
+
+## `V77` — seed de El Mundo del Juguete
+
+El Mundo del Juguete (elmundodeljuguete.com.ar) es una tienda VTEX de juguetes (~8.300 productos con stock) con una cola
+que no es juguete: blanquería, calzado, marroquinería y bazar. Sólo seed: `'vtex'` ya era una `plataforma` válida y
+`'juguetes'` ya es un `rubro_por_defecto` válido (`V74`). `rubro_forzado` queda en NULL y `RubroResolver` decide por
+categoría; la cola que ninguna categoría resuelve cae en `rubro_por_defecto = 'juguetes'`. El `nombre` es
+`Elmundodeljuguete`, el que arma `ScraperFactory` desde la clave de `config.properties`: `sp_upsert_sitio_categoria` y el
+upsert de productos buscan el sitio por ese `nombre`.
+
+### Rollback
+
+```sql
+-- >>> rollback:V77
+DELETE FROM sitio s WHERE s.sitio_key = 'elmundodeljuguete'
+  AND NOT EXISTS (SELECT 1 FROM productos p WHERE p.sitio_key = s.sitio_key);
+-- <<< rollback:V77
+```
+
+Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V78`, antes que el de `V76` (plataforma `hadriatica`). Con productos ya
+scrapeados no borra nada: esas filas referencian el sitio. Si borra, el `ON DELETE CASCADE` de `sitio_categoria` se lleva el árbol.
+
+---
+
+## `V78` — `sitio_categoria.categoria`: las hojas de El Mundo del Juguete
+
+Sólo datos, con el criterio curado de `V70`: 66 de las 99 hojas del árbol (`/api/catalog_system/pub/category/tree/3`), cada
+una a una fila **existente** de `categoria`, sin categorías nuevas (`Juguete` 40, `Juego de Mesa` 6, `Monopatín` 3,
+`Bicicleta` 2 y una cada una `Peluche`, `Libro`, `Pelota`, `Mochila`, `Bolso`, `Zapatilla`, `Pantufla`, `Ropa de Cama`,
+`Equipamiento Deportivo`, `Consola`, `Auricular`, `Mouse`, `Teclado`, `Joystick`, `Silla`). Los rompecabezas son `Juguete`, no
+`Juego de Mesa`, porque así los clasifica el nombre. Las 30 hojas mixtas o sin categoría canónica quedan sin mapear (se
+abstienen) y las de gift card y `Bolsas` no se mapean porque `VtexPage` las excluye del scrape
+(`ServicioPorNombreDeCategoria`).
+
+### Rollback
+
+```sql
+-- >>> rollback:V78
+DELETE FROM sitio_categoria WHERE sitio_key = 'elmundodeljuguete' AND padre_id IS NULL AND categoria IS NOT NULL;
+UPDATE sitio_categoria SET categoria = NULL WHERE sitio_key = 'elmundodeljuguete';
+-- <<< rollback:V78
+```
+
+Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V77`. El `DELETE` quita sólo las hojas
+sembradas que ningún scrape tocó (`padre_id` NULL y con categoría); las que un scrape ya cargó conservan el nodo y pierden
+`categoria`. Ninguna fila de `productos` puede apuntarles por esa vía antes del primer scrape, y las ya clasificadas
+conservan su `categoria` hasta el próximo.
