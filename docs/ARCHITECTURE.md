@@ -888,7 +888,7 @@ barra de rubros existía para acotarlas, pero es chrome de dashboard: dice qué
 filtros hay, no qué hay adentro de cada uno. Un rubro con 12 categorías y otro
 con 3 se veían exactamente igual antes de entrar.
 
-El carrusel de entrada muestra los **ocho rubros reales** —el vocabulario de
+El carrusel de entrada muestra los **nueve rubros reales** —el vocabulario de
 `lib/rubros.js` menos su neutro `''`, que es "Todos" y sigue estando en la barra
 de la galería— más una card **Gymrat**, cada una con su portada, su cantidad de categorías y su cantidad
 de productos. Elegir uno recién entonces abre la galería. `RubroCard`
@@ -911,8 +911,8 @@ el `imgCat` del primer pick de su propio rubro. Una URL de stock hardcodeada
 sería una dependencia de red externa para decorar datos que ya tenemos, y
 mostraría lo mismo con el catálogo lleno que con el catálogo vacío.
 
-**El costo es nueve requests en el montaje donde antes había una**, porque la
-pantalla de entrada necesita los ocho rubros y Gymrat a la vez para poder dibujar sus
+**El costo es diez requests en el montaje donde antes había una**, porque la
+pantalla de entrada necesita los nueve rubros y Gymrat a la vez para poder dibujar sus
 contadores. Se paga una sola vez: los `cats` quedan cacheados por rubro, así que
 ir y volver entre el carrusel y una galería —y cambiar de solapa dentro de la
 galería— no emite ninguna request más. `/api/mejores` lee el snapshot en memoria,
@@ -1648,8 +1648,8 @@ sitioCategoriaOrigenId (Integer)
 Un único parser, `ar.scraper.aggregator.text.PrecioParser`, lo resuelve al
 momento del scrape — ver `V17` más abajo.
 
-`rubro` tiene **ocho** valores desde `V69`: `indumentaria` · `tecnologia` ·
-`suplementos` · `oficina` · `construccion` · `hogar` · `deporte` · `juguetes`. Lo resuelve `RubroResolver` por
+`rubro` tiene **nueve** valores desde `V74` (ocho desde `V69`): `indumentaria` · `tecnologia` ·
+`suplementos` · `oficina` · `construccion` · `hogar` · `deporte` · `juguetes` · `libros`. Lo resuelve `RubroResolver` por
 `sitio.rubro_forzado`, salvo donde decide la categoría. `suplementos`: un
 suplemento es un suplemento lo venda quien lo venda, y por eso gana sobre el
 rubro forzado del sitio. `construccion` y `hogar` también deciden por categoría

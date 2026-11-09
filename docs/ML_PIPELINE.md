@@ -415,7 +415,7 @@ que ya existen, nunca inserta un producto; el trigger de versión del catálogo 
 dispara con el cambio de badges, que es lo que invalida las caches.
 
 **Ojo con la taxonomía de `categoria`:** el vocabulario canónico pasó de 88 a
-103 valores en `richer-category-taxonomy`, a **105** en `V32`, a **106** en `V38` (`Mini PC`) y a **266** con `V64`..`V69` (Easy), y vive en DOS
+103 valores en `richer-category-taxonomy`, a **105** en `V32`, a **106** en `V38` (`Mini PC`) a **266** con `V64`..`V69` (Easy) y a **272** con `V74` (`Videojuego`, `Consola`, `Figura Coleccionable`, `Peluche`, `Juego de Mesa`, `Libro`), y vive en DOS
 lugares que no pueden divergir — `CategoryGroups.canonicalCategories()` y la
 tabla `categoria`. Dar de alta una categoría son **dos** cambios: el keyword que
 la produce y la migración que la inserta. Si falta la migración, la FK rechaza

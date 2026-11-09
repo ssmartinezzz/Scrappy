@@ -9,7 +9,7 @@ import { RUBROS, RUBRO_KEYS, rubroLabel } from './rubros';
 
 describe('RUBROS', () => {
   it('incluye el rubro vacío como "todos" y los rubros reales', () => {
-    expect(RUBRO_KEYS).toEqual(['', 'indumentaria', 'tecnologia', 'suplementos', 'oficina', 'construccion', 'hogar', 'deporte', 'juguetes']);
+    expect(RUBRO_KEYS).toEqual(['', 'indumentaria', 'tecnologia', 'suplementos', 'oficina', 'construccion', 'hogar', 'deporte', 'juguetes', 'libros']);
   });
 
   it('el primero es el neutro: sin clave, para no filtrar nada', () => {
@@ -29,7 +29,7 @@ describe('RUBROS', () => {
     // frontend manda otra cosa a /api/data?rubro=, filtra por un valor que
     // ninguna fila tiene y la vista sale vacía.
     const conValor = RUBRO_KEYS.filter(Boolean);
-    expect(conValor).toEqual(['indumentaria', 'tecnologia', 'suplementos', 'oficina', 'construccion', 'hogar', 'deporte', 'juguetes']);
+    expect(conValor).toEqual(['indumentaria', 'tecnologia', 'suplementos', 'oficina', 'construccion', 'hogar', 'deporte', 'juguetes', 'libros']);
   });
 
   it('rubroLabel devuelve la etiqueta, y la clave cruda si no la conoce', () => {

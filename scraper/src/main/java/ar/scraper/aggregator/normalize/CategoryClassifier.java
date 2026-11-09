@@ -14,6 +14,9 @@ public class CategoryClassifier {
         new FitnessClassifier(),
         new CanchaClassifier(),
         new KayakClassifier(),
+        new ColeccionablesClassifier(),
+        new LibrosClassifier(),
+        new GamingClassifier(),
         new JuguetesClassifier()
     };
 
