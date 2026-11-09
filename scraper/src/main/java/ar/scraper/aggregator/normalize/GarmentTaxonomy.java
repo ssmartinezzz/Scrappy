@@ -22,7 +22,7 @@ public final class GarmentTaxonomy {
         "glycerin","beast","ghost","adrenaline","levitate",
         "triumph","endorphin","kinvara","ride",
         "clifton","bondi","speedgoat","hoka mach"," mach 4"," mach 5"," mach 6",
-        "fresh foam","1080","990","880","860",
+        "fresh foam"," 1080 "," 1080v","990","880","860",
         "wave rider","wave inspire","wave horizon",
         "speedcross"," sense ","x-ultra"
     };
@@ -125,7 +125,7 @@ public final class GarmentTaxonomy {
         "birkenstock","crocs","havaianas","ipanema","kenner",
         "zueco","clogs","clog","slide sandal","pool slide",
         "rasteira","chinelo","badeleta","babuchas","suela plana",
-        "sandalia"," sandal ","sandals","diapositiva","slide"
+        "sandalia"," sandal ","sandals","diapositiva"," slide "," slides "
     };
 
     // Tier B — "Reef" es marca de indumentaria/accesorios de playa que también vende mochilas,
@@ -1688,6 +1688,9 @@ public final class GarmentTaxonomy {
         " bracket ", " filtro ", " soporte ", " kit "
     };
 
+    /** Líder ⇒ no Notebook: "Cargador Pared 140W … Macbook Notebook" nombra la notebook que alimenta. */
+    public static final String[] KW_CARGADOR_LIDER = { " cargador "," cargadores " };
+
     /** Líder ⇒ accesorio, sin necesidad de que el título nombre su destino. */
     public static final String[] KW_ACCESORIO_LIDER = { " bracket ", " controladora "," videoportero "," caja fuerte "," reja protectora "," gabinete protector "," base eleva "," base para notebook " };
 
@@ -1819,6 +1822,19 @@ public final class GarmentTaxonomy {
         "camara exterior","camara interior","camara de vigilancia",
         "camara domo","camara bullet"
     };
+
+    /**
+     * Cámaras de acción/digitales/de auto: el dispositivo se nombra a sí mismo. {@link CamarasClassifier}
+     * corre antes de {@code NonTextileGuard}, que si no vetaba "Colgante Magnético Para Cámara Insta360".
+     */
+    public static final String[] KW_CAMARA_DISPOSITIVO = {
+        " camara de accion"," camaras de accion"," camara deportiva"," camara digital"," camara de fotos"," camara fotografica",
+        " camara corporal"," camara para auto"," camara para moto"," dashcam"," dash cam"," body cam"
+    };
+    /** Marcas que sólo venden cámaras: un accesorio que las nombra es un accesorio de cámara. */
+    public static final String[] KW_CAMARA_MARCA = { " sjcam"," insta360"," gopro "," go pro " };
+    /** Una tarjeta de memoria con la marca de la cámara sigue siendo Almacenamiento. */
+    public static final String[] KW_CAMARA_VETO_LIDER = { " memoria "," tarjeta "," micro sd " };
 
     public static final String[] KW_RELOJ = {
         "smartwatch","smart watch","reloj inteligente","smart band","smartband",
@@ -1986,11 +2002,12 @@ public final class GarmentTaxonomy {
     public static final String[] KW_FIGURA_CALIFICADOR = {
         " q posket"," qposket"," banpresto"," ichibansho"," nendoroid"," figma "," prize figure"," funko "," world of nintendo",
         " action figure"," figura articulada"," figuras articuladas"," vinyl figure"," figure model"," blind box"," soft vinyl",
-        " gashapon"
+        " gashapon",
+        " iron studios"," art scale"," demi art"," minico "
     };
     public static final String[] KW_FIGURA_VETO = {
         " llavero"," keychain"," keyring"," dangler"," medias "," remera"," camiseta"," taza "," mug "," vaso"," mantel",
-        " mochila"," gorra "," cuaderno"," sticker"," pin "," decorativ"," jardin"," arcilla"," ceramic"," yeso"," estatua",
+        " mochila"," gorra "," cuaderno"," sticker"," pin "," decorativ"," jardin"," arcilla"," ceramic"," yeso",
         " pop it"," popit"
     };
 
