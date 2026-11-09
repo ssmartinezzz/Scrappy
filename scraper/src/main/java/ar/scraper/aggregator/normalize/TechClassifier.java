@@ -27,7 +27,8 @@ final class TechClassifier implements FamiliaClassifier {
         if (texto.empiezaLiteralmenteCon(GarmentTaxonomy.KW_CABLE_LIDER)
                 && !texto.contiene(GarmentTaxonomy.KW_CABLE_VETO))
             return "Cable";
-        if (texto.contiene(GarmentTaxonomy.KW_NOTEBOOK) || esFormaDeNotebook(texto))
+        if (!texto.sinPrefijoDeVentaEmpiezaCon(GarmentTaxonomy.KW_CARGADOR_LIDER)
+                && (texto.contiene(GarmentTaxonomy.KW_NOTEBOOK) || esFormaDeNotebook(texto)))
             return "Notebook";
         if (texto.contiene(GarmentTaxonomy.KW_TABLET))                       return "Tablet";
         if (texto.contiene(GarmentTaxonomy.KW_CAMARA))                       return "Cámara";

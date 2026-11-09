@@ -585,7 +585,9 @@ cualquier palabra terminada en ram: *D*ram, *S*ram, In*gram*, Mono*gram*. Lo
 mismo `"malla"` con "Mallado", `"bra "` con "Hem*bra*" (adaptadores HDMI
 archivados como corpiños), `"bano "` con "Urb*ano*", `"hat "` con "T*hat*"
 (zapatillas de básquet como Gorra), `"rx "` con "Me*rx*"/"Hype*rX*", y
-`"set "`/`"kit "`/`"pack "` con Sun*set*/Wind*kit*/Doy*pack*. Nada falla, nada se
+`"set "`/`"kit "`/`"pack "` con Sun*set*/Wind*kit*/Doy*pack*. Sin ningún espacio es peor: `"1080"` (modelo New Balance) mandaba
+dashcams y TVs "1080p" a `Zapatilla Running`, y `"slide"` mandaba una billetera
+"Slider" a `Ojotas`. Nada falla, nada se
 loguea: el producto entra al catálogo con otra categoría **y con la distribución
 de precios de otra categoría**, que es de lo que se alimenta el pipeline ML.
 
@@ -624,7 +626,10 @@ Segotep 500W ATX *Cables* Largos" nombra los suyos y no es un cable.
 categoría tech propia y el bloque TECH corre antes que el de ropa, así que no los
 protegía de nada: les bloqueaba la clasificación correcta. El guard existe para
 que un producto no-textil no entre como **ropa**, no para dejarlo sin clasificar.
-Antes de agregar algo ahí, preguntarse si el producto tiene dónde ir.
+Antes de agregar algo ahí, preguntarse si el producto tiene dónde ir. Si la familia que lo clasifica corre después del guard, el arreglo es
+moverla antes, no tocar el guard: `CamarasClassifier` va primero en
+`FAMILIAS_DE_TIEMPO_LIBRE` porque el guard vetaba "Colgante Magnético Para Cámara
+Insta360" y "Baston Selfie SJCAM".
 
 **El sustantivo líder que ya usaba `Cable` se generalizó a Cooler/CPU/PC y a
 Gabinete, y las tres veces encontró plata (`pc-builder-deep-taxonomy`, fase

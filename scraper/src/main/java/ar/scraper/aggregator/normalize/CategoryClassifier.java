@@ -10,6 +10,7 @@ public class CategoryClassifier {
     private static final NutricionClassifier NUTRICION = new NutricionClassifier();
 
     private static final FamiliaClassifier[] FAMILIAS_DE_TIEMPO_LIBRE = {
+        new CamarasClassifier(),
         new BicicletasClassifier(),
         new FitnessClassifier(),
         new CanchaClassifier(),
