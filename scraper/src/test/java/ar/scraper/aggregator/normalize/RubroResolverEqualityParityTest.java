@@ -35,10 +35,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  * {@code CODE-6} — never in {@code main}) across every {@code sitio_key}
  * parsed out of {@code V18__sitio_lookup_table.sql} (the same "read the
  * artifact, don't paraphrase it" mechanism {@code SitioSeedSyncTest} uses) ×
- * every {@link CategoryGroups#canonicalCategories()} category (266 desde easy-com-ar-site; eran 257, 207, 180, 159, 145, 119 desde rubros-construccion-hogar; 106 desde
+ * every {@link CategoryGroups#canonicalCategories()} category (272 desde hadriatica-gaming-juguetes; era 266 desde easy-com-ar-site; eran 257, 207, 180, 159, 145, 119 desde rubros-construccion-hogar; 106 desde
  * pc-builder-homelab; eran 105 desde V32, 103 desde richer-category-taxonomy,
  * 88, y 81 antes de eso) × every {@code rubroExistente} in {@code {null, "",
- * "tecnologia", "suplementos", "indumentaria"}} — 23 × 266 × 5 = 30,590 triples.
+ * "tecnologia", "suplementos", "indumentaria"}} — 23 × 272 × 5 = 31,280 triples.
  *
  * <p>Any disagreement fails with the exact {@code (sitio, categoria,
  * rubroPrevio)} triple — the "set of affected products" made enumerable
@@ -83,7 +83,7 @@ class RubroResolverEqualityParityTest {
     }
 
     @Test
-    @DisplayName("equality agrees with the old substring oracle over 23 sitios x 266 categorías x 5 rubros previos")
+    @DisplayName("equality agrees with the old substring oracle over 23 sitios x 272 categorías x 5 rubros previos")
     void equalityAgreesWithOldSubstringOracleAcrossTheFullMatrix() {
         List<SeedRow> rows = seedRows();
         Map<String, SiteRegistry.Sitio> cache = new HashMap<>();
@@ -125,7 +125,7 @@ class RubroResolverEqualityParityTest {
         // mismo argumento que las quince de richer-category-taxonomy: ninguno
         // de los 23 sitios de V18 la nombra en su rubro_forzado, así que el
         // resultado por sitio x categoría no cambia.
-        assertThat(cats).as("CategoryGroups.canonicalCategories()").hasSize(266);
+        assertThat(cats).as("CategoryGroups.canonicalCategories()").hasSize(272);
 
         List<String> rubrosExistentes = Arrays.asList(null, "", "tecnologia", "suplementos", "indumentaria");
 
@@ -139,7 +139,8 @@ class RubroResolverEqualityParityTest {
                             || CategoryGroups.categoriasOficina().contains(cat)
                             || (CategoryGroups.esCategoriaTech(cat) && sinRubroForzado(rubroForzadoPorSitio, sitioKey))
                             || CategoryGroups.esCategoriaDeporte(cat)
-                            || CategoryGroups.esCategoriaJuguetes(cat)) {
+                            || CategoryGroups.esCategoriaJuguetes(cat)
+                            || CategoryGroups.esCategoriaLibros(cat)) {
                         continue;
                     }
                     String oldResult = oldSubstringResolver(sitioKey, cat, rubroExistente);
@@ -152,7 +153,7 @@ class RubroResolverEqualityParityTest {
             }
         }
 
-        assertThat(total).isEqualTo(23L * 266 * 5);
+        assertThat(total).isEqualTo(23L * 272 * 5);
         assertThat(mismatches)
                 .as("old substring oracle vs new equality — mismatched (sitio, categoria, rubroPrevio) triples")
                 .isEmpty();

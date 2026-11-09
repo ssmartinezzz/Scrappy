@@ -43,6 +43,8 @@ public class RubroResolver {
             return "oficina";
         } else if (StringUtils.isBlank(rubroForzado) && CategoryGroups.esCategoriaDeporte(cat)) {
             return "deporte";
+        } else if (StringUtils.isBlank(rubroForzado) && CategoryGroups.esCategoriaLibros(cat)) {
+            return "libros";
         } else if (StringUtils.isBlank(rubroForzado) && CategoryGroups.esCategoriaJuguetes(cat)) {
             return "juguetes";
         } else if (StringUtils.isBlank(rubroForzado) && CategoryGroups.esCategoriaTech(cat)) {

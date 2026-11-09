@@ -49,7 +49,8 @@ public final class CategoryGroups {
         "Almacenamiento",
         "Cooler","Fuente","Motherboard","Red","Cable","Impresión","Mousepad",
         "Joystick","Micrófono","UPS","Tablet","Cámara","Reloj",
-        "Mini PC", "TV y Audio"
+        "Mini PC", "TV y Audio",
+        "Consola", "Videojuego"
     );
 
     /** Aparte de {@code INDUMENTARIA_O_CALZADO_EXTRA} a propósito: una pelota no es ropa. */
@@ -59,8 +60,11 @@ public final class CategoryGroups {
     );
 
     private static final Set<String> CATEGORIAS_JUGUETES = Set.of(
-        "Juguete","Cama Elástica"
+        "Juguete","Cama Elástica",
+        "Figura Coleccionable","Peluche","Juego de Mesa"
     );
+
+    private static final Set<String> CATEGORIAS_LIBROS = Set.of("Libro");
 
     private static final Set<String> CATEGORIAS_OFICINA = Set.of(
         "Silla", "Escritorio", "Soporte Monitor", "Soporte Laptop",
@@ -113,6 +117,7 @@ public final class CategoryGroups {
         all.addAll(CATEGORIAS_TECH);
         all.addAll(CATEGORIAS_DEPORTE);
         all.addAll(CATEGORIAS_JUGUETES);
+        all.addAll(CATEGORIAS_LIBROS);
         all.addAll(CATEGORIAS_OFICINA);
         all.addAll(CATEGORIAS_CONSTRUCCION);
         all.addAll(CATEGORIAS_HOGAR);
@@ -147,6 +152,10 @@ public final class CategoryGroups {
 
     public static boolean esCategoriaJuguetes(String cat) {
         return cat != null && CATEGORIAS_JUGUETES.contains(cat);
+    }
+
+    public static boolean esCategoriaLibros(String cat) {
+        return cat != null && CATEGORIAS_LIBROS.contains(cat);
     }
 
     public static boolean esCategoriaTech(String cat) {

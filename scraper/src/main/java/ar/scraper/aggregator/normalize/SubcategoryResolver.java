@@ -194,6 +194,12 @@ public class SubcategoryResolver {
             new String[]{"corto",  "corto", "mini"},
             new String[]{"fiesta", "fiesta", "noche"}
         ));
+        SUBCATEG_TIER1.put("Libro", Arrays.<String[]>asList(
+            new String[]{"Manga", "manga", "mangas", "ivrea", "kanzenban", "databook", "tomo", "ovni", "kemuri",
+                                  "dandadan", "one piece", "blue lock", "captain tsubasa", "cardcaptor sakura",
+                                  "frieren", "fullmetal alchemist", "demon slayer", "yu yu hakusho", "inio asano",
+                                  "the legend of zelda 03:"}
+        ));
         SUBCATEG_TIER1.put("Botines", Arrays.<String[]>asList(
             new String[]{"futsal",  "futsal", "papi", "salon", "ic"},
             new String[]{"campo",   "campo", "fg", "cesped"}

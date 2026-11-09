@@ -23,6 +23,7 @@ const RUBRO_THEME = {
   hogar:        '340 35% 42%',
   deporte:      '203 62% 34%',
   juguetes:     '45 78% 38%',
+  libros:       '262 38% 40%',
   gymrat:       '0 68% 38%',
 };
 const RUBROS_ENTRADA = RUBROS.filter(r => r.key);

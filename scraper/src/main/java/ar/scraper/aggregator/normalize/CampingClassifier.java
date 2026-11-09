@@ -8,6 +8,8 @@ final class CampingClassifier implements FamiliaClassifier {
         if (texto.sinPrefijoDeVentaEmpiezaCon(GarmentTaxonomy.KW_BOLSA_DORMIR_LIDER)) return "Bolsa de Dormir";
         if (texto.sinPrefijoDeVentaEmpiezaCon(GarmentTaxonomy.KW_CONSERVADORA_LIDER)) return "Conservadora";
         if (texto.lideraSinVeto(GarmentTaxonomy.KW_TERMO_BOTELLA_LIDER, GarmentTaxonomy.KW_TERMO_BOTELLA_VETO)) return "Termo y Botella";
+        if (texto.lideraConCalificador(GarmentTaxonomy.KW_VASO_TERMICO_LIDER, GarmentTaxonomy.KW_VASO_TERMICO_CALIFICADOR)
+                && !texto.contiene(GarmentTaxonomy.KW_TERMO_BOTELLA_VETO)) return "Termo y Botella";
         if (esArticuloDeCamping(texto)) return "Artículo de Camping";
         return "";
     }

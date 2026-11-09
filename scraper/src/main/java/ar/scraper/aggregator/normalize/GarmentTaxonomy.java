@@ -1044,7 +1044,7 @@ public final class GarmentTaxonomy {
     };
     public static final String[] KW_BAZAR_LIDER = {
         " frasco "," frascos "," copa de "," copas de "," copa "," copas "," juego de copas"," jarra "," jarras ",
-        " vajilla"," juego de vasos"," vasos de vidrio"," juego de platos"," juego de tazas"
+        " vajilla"," juego de vasos"," vasos de vidrio"," juego de platos"," juego de tazas"," vaso "," vasos "
     };
     public static final String[] KW_BAZAR_VETO = {
         " shaker"," proteina"," medidora"," gimnasio"," suplemento"," perfume"," mundial"," trofeo"," copa del mundo",
@@ -1290,6 +1290,11 @@ public final class GarmentTaxonomy {
     public static final String[] KW_TERMO_BOTELLA_VETO = {
         " tinta"," toner"," shaker"," proteina"," whey"," vino"," vinos"," ink"," impresora"," suplemento"," creatina"," pintura"," aceite"," agua mineral"," cerveza",
         " tanque"," epson"," brother"," hp "," lacteo"," deportiva"," termica deportiva"," reebok"," de combustible"," nafta"," combustible"
+    };
+    /** A cup is Bazar unless a thermal-tumbler signal comes with it (Termo y Botella). */
+    public static final String[] KW_VASO_TERMICO_LIDER = { " vaso "," vasos "," tumbler "," quencher " };
+    public static final String[] KW_VASO_TERMICO_CALIFICADOR = {
+        " tumbler"," quencher"," termic"," stanley"," camelbak"," hydrate"," contigo"," yeti"," flip straw"
     };
     public static final String[] KW_CAMPING_LIDER = {
         " anafe camping"," anafe portatil"," anafe a gas portatil"," linterna "," linternas "," farol de camping"," farol camping",
@@ -1935,7 +1940,7 @@ public final class GarmentTaxonomy {
     public static final String[] KW_CAMA_ELASTICA_LIDER = { " cama elastica "," camas elasticas "," trampolin " };
     public static final String[] KW_JUGUETE_LIDER = {
         " juguete "," juguetes "," set de juguetes"," set juguetes"," muneco "," muneca "," munecos "," munecas ",
-        " peluche "," peluches "," rompecabezas "," puzzle "," puzles "," pistola de agua"," pistolas de agua",
+        " lego "," hot wheels "," rompecabezas "," puzzle "," puzles "," pistola de agua"," pistolas de agua",
         " lanza agua"," lanzador de agua"," balde castillo"," balde de playa"," balde playa"," baldes de playa",
         " set de playa"," set playa"," juego de playa"," set paletas playa"," set de paletas playa",
         " set de tennis playa"," set de tenis playa"," frisbee"," frisbi"," disco volador"," mini golf",
@@ -1952,6 +1957,132 @@ public final class GarmentTaxonomy {
     };
     public static final String[] KW_JUGUETE_MARCA_CALIFICADOR = {
         " luni "," chichess "," juguete"," infantil"," bestway fun"
+    };
+
+    // Coleccionables. Bare " figura " is NOT a leader: in a home-center it is a garden ornament (Jardin).
+    public static final String[] KW_JUEGO_DE_MESA_LIDER = {
+        " juego de mesa"," juegos de mesa"," board game"," boardgame"," juego de cartas"," juegos de cartas",
+        " juego de tablero"," juegos de tablero"," card game"
+    };
+    /** " tcg:" / " tcg," are separate entries because the space is the word boundary. */
+    public static final String[] KW_JUEGO_DE_MESA_CALIFICADOR = {
+        " tcg "," tcg:"," tcg,"," tcg-"," trading card"," card game"," booster pack"," booster box"," booster bundle",
+        " booster display"," board game"," booster)"," elite trainer box"," etb)"," cartas coleccionables"
+    };
+    public static final String[] KW_PELUCHE_LIDER = {
+        " peluche "," peluches "," peluchito"," plush "," plush,"," plushie"," plushies "
+    };
+    public static final String[] KW_PELUCHE_CALIFICADOR = { " plush "," plush,"," plushie"," plushies " };
+    public static final String[] KW_PELUCHE_VETO = {
+        " llavero"," keychain"," keyring"," dangler"," colgante"," medias "," remera"," funda"," taza "," mochila",
+        " cartera"," gorra "," pijama"," estuche"," hanger"," clip "," pin ",
+        " colchon"," inflable"," frazada"," manta "," sabana"," jibbitz"
+    };
+    public static final String[] KW_FIGURA_LIDER = {
+        " funko "," pop! "," pop "," amiibo "," amiibos "," world of nintendo"," nendoroid"," figma ",
+        " figure "," figures "," figurine"," figurines"," action figure"," gashapon"," q posket"," qposket"
+    };
+    /** Brand tokens that name a collectible figure wherever they appear in the title. */
+    public static final String[] KW_FIGURA_CALIFICADOR = {
+        " q posket"," qposket"," banpresto"," ichibansho"," nendoroid"," figma "," prize figure"," funko "," world of nintendo",
+        " action figure"," figura articulada"," figuras articuladas"," vinyl figure"," figure model"," blind box"," soft vinyl",
+        " gashapon"
+    };
+    public static final String[] KW_FIGURA_VETO = {
+        " llavero"," keychain"," keyring"," dangler"," medias "," remera"," camiseta"," taza "," mug "," vaso"," mantel",
+        " mochila"," gorra "," cuaderno"," sticker"," pin "," decorativ"," jardin"," arcilla"," ceramic"," yeso"," estatua",
+        " pop it"," popit"
+    };
+
+    // Gaming. The platform is the only signal a game title carries.
+    public static final String[] KW_PLATAFORMA = {
+        " nintendo switch"," switch 2"," - switch"," switch limited run"," nintendo ds"," 3ds"," 2ds"," wii"," (wii)",
+        " ps vita"," psvita"," playstation"," ps1"," ps2"," ps3"," ps4"," ps5"," xbox"," gamecube"," game cube"," n64",
+        " game boy"," gameboy"," nes "," snes"," sega genesis"," sega saturn"," sega mega drive"," dreamcast"," atari "
+    };
+    /** Anything that is the object of a platform mention rather than a game. */
+    public static final String[] KW_ACCESORIO_GAMING = {
+        " cable"," cargador"," charger"," adapter"," adaptador"," funda"," estuche"," case "," case)"," cases "," carrying",
+        " protector"," grip"," soporte"," stand "," dock"," carcasa"," skin "," converter"," conversor"," camera"," camara",
+        " headset"," auricular"," headphone"," volante"," wheel"," pedalera"," bateria"," battery"," bolso"," mochila",
+        " llavero"," keychain"," hanger"," sticker"," pouch"," sleeve"," paladone"," mantel"," vaso"," taza "," mug ",
+        " fanatec"," motor base"," cockpit"," pedal "," pedales"," sensor"," reader"," nfc "," action replay"," power stick"," memoria"," memory card"," microsd"," sd card",
+        " teclado"," keyboard"," mouse "," monitor"," hdmi"," ssd "," disco "," hdd "," pantalla"," silla"," capturadora",
+        " capture card"," parlante"," lampara"," lamp "," membership"," membresia"," gift card"," tarjeta"
+    };
+    /** Narrower: a console's own spec line legitimately says HDMI, microSD, SSD or screen size. */
+    public static final String[] KW_ACCESORIO_CONSOLA = {
+        " cable"," cargador"," charger"," adapter"," adaptador"," funda"," estuche"," case "," case)"," cases "," carrying",
+        " protector"," grip"," soporte"," stand "," dock"," carcasa"," skin "," converter"," conversor"," camera"," camara",
+        " headset"," auricular"," hanger"," sticker"," llavero"," keychain"," bolso"," mochila"," reader"," bateria"," battery"
+    };
+    public static final String[] KW_CONTROL_GAMING = {
+        " joystick"," joypad"," joy-con"," joycon"," gamepad"," controller"," controllers"," controles "," horipad"," dualsense",
+        " dualshock"," arcade stick"," mando "," mandos "," control n64"," control gamecube"," control game cube",
+        " control snes"," control nes "," control wii"," control switch"," control ps"," control xbox"," control inalambrico",
+        " control wireless"," control usb"," control arcade"," control bluetooth"," arcade control"," wireless"," inalambric"
+    };
+    public static final String[] KW_MARCA_GAMING = {
+        " power a","(power a)"," hori"," 8bitdo"," retro-bit"," retrobit"," hyperkin"," nyxi"," retrolink"," retro link"," teknogame",
+        " nintendo"," sony"," dualsense"," dualshock"
+    };
+    public static final String[] KW_CONSOLA_LIDER = {
+        " steam deck"," rog ally"," legion go"," anbernic"," powkiddy"," miyoo"," retroid"," nes mini"," nes classic"," snes mini",
+        " snes classic edition"," neo geo mini"," genesis mini"," sega genesis mini"," new 3ds"," new nintendo 3ds"," 2ds "," nintendo 2ds",
+        " nintendo switch lite"," nintendo switch oled"," nintendo switch -"," switch lite"," switch oled"
+    };
+    /** Platform models that are consoles unless a controller token says otherwise. */
+    public static final String[] KW_CONSOLA_MODELO_LIDER = {
+        " xbox series x"," xbox series s"," xbox one "," playstation 5"," playstation 4"," ps5 slim"," ps5 digital"
+    };
+    /** " consola " alone is also a console TABLE, so it needs a gaming qualifier. */
+    public static final String[] KW_CONSOLA_NOMBRE_LIDER = {
+        " consola "," consolas "," console "," game console"," handheld "
+    };
+    public static final String[] KW_CONSOLA_CALIFICADOR = {
+        " retro"," juegos"," gaming"," gamer"," portatil"," handheld"," arcade"," emulador"," ps4"," ps5"," playstation"," xbox",
+        " nintendo"," switch"," sega"," atari"," game boy"," steam"
+    };
+    public static final String[] KW_CONSOLA_PALABRA = { " console"," consola" };
+    /** A trailing bare " switch " is a game, unless the text is about a network switch. */
+    public static final String[] KW_SWITCH_DE_RED = {
+        " kvm"," gigabit"," poe "," puertos"," ports"," ethernet"," rj45"," administrable"," tp-link"," tplink"," tenda",
+        " mercusys"," d-link"," red "
+    };
+    public static final String[] KW_VIDEOJUEGO_LIDER = { " videojuego "," videojuegos " };
+    /** A case or bag for a console: not a game, and must not reach the garment families ("hard shell" -> Campera). */
+    public static final String[] KW_ESTUCHE_GAMING = {
+        " case "," case)"," cases "," carrying"," travel bag"," travel case"," hard shell"
+    };
+
+    // Libros. Manga titles have no leading noun; the signal is a publisher, a format word or a known series + volume.
+    public static final String[] KW_LIBRO_LIDER = {
+        " libro "," libros "," comic "," comics "," artbook "," novela ligera "," light novel"," tomo "
+    };
+    public static final String[] KW_LIBRO_CALIFICADOR = {
+        " ivrea"," ovni press"," kemuri"," distrito manga"," planeta comic"," norma editorial"," milky way ediciones",
+        " panini manga"," kanzenban"," databook"," data book"," artbook"," art book"," light novel"," novela ligera",
+        " activity book"," sticker book"," companion guide"," tapa dura"," tapa blanda"," hardcover"," paperback",
+        " paginas"," tomo "," vol. "," inio asano"," junji ito"," urasawa",
+        " the legend of zelda 01:"," the legend of zelda 02:"," the legend of zelda 03:"," the legend of zelda 04:",
+        " the legend of zelda 05:"," the legend of zelda 06:"," the legend of zelda 07:"," the legend of zelda 08:",
+        " the legend of zelda 09:"," the legend of zelda 10:"
+    };
+    /** "Manga" alone is not a signal: in Spanish it is a sleeve or a hose. */
+    public static final String[] KW_LIBRO_VETO = { " decorativ" };
+    /** Series that only count as a book when the title ends in a volume number. */
+    public static final String[] KW_MANGA_SERIE = {
+        " one piece"," dandadan"," death note"," evangelion"," frieren"," fullmetal alchemist"," demon slayer"," kimetsu",
+        " jujutsu"," naruto"," bleach"," berserk"," chainsaw man"," spy x family"," spyxfamily"," hunter x hunter",
+        " yu yu hakusho"," dragon ball"," attack on titan"," my hero academia"," one punch"," sailor moon"," tokyo ghoul",
+        " vagabond"," slam dunk"," uzumaki"," fire force"," haikyu"," blue lock"," captain tsubasa"," cardcaptor sakura",
+        " card captor"," dr stone"," vinland saga"
+    };
+    /** A garment, furniture or household noun that leads the name wins over a book word further on. */
+    public static final String[] KW_LIBRO_VETO_LIDER = {
+        " remera"," camiseta"," buzo"," campera"," malla"," short "," medias"," mochila"," gorra"," zapatilla"," estanteria",
+        " biblioteca"," mueble"," funda"," shampoo"," taza"," llavero"," keychain"," poster"," lampara"," vaso"," mousepad",
+        " funko"," peluche"," plush"
     };
 
     public static final String[] TORSO_KEYWORDS_FLAT = concatKeywords(

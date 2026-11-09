@@ -148,6 +148,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V71` | `sitio.rubro_por_defecto` (nullable, mismo dominio que `rubro_forzado`): el rubro de las filas que llegan a la cola de `RubroResolver`; sembrado `construccion` para Easy |
 | `V72` | 19 hojas más en el mapeo curado de Easy (`sitio_categoria.categoria`): las que daban una categoría equivocada por `raw` o la perdían al renormalizar |
 | `V73` | Índice parcial `idx_productos_rubro_precio` para `/api/data?rubro=…`: evita los dos seq scans por request sobre un catálogo de 60 mil filas |
+| `V74` | 6 categorías (`Videojuego`, `Consola`, `Figura Coleccionable`, `Peluche`, `Juego de Mesa`, `Libro`), rubro `libros` en `chk_productos_rubro_domain` (9 valores), `sitio_rubro_por_defecto_check` + `juguetes` y seed de Hadriatica (Tiendanube, `rubro_por_defecto` = juguetes) |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -4268,4 +4269,53 @@ DROP INDEX IF EXISTS idx_productos_rubro_precio;
 -- <<< rollback:V73
 ```
 
-Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V72`. No toca datos.
+Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V74`, antes que el de `V72`. No toca datos.
+
+---
+
+## `V74` — categorías de gaming y coleccionables, y el seed de Hadriatica
+
+Hadriatica (hadriatica.com) vende videojuegos, consolas, figuras, peluches y TCG sobre Tiendanube. Una sola migración, porque
+las tres piezas son una unidad: sin las categorías la FK rechaza cada producto (`"0 nuevos"`), y sin el default el catálogo
+sin keyword (manga, merch) caería en `indumentaria`.
+
+- **6 filas en `categoria`**: `Videojuego` y `Consola` son de `tecnologia`; `Figura Coleccionable`, `Peluche` y `Juego de Mesa`, de `juguetes`;
+  `Libro` (sub-categoría `Manga` por `SubcategoryResolver`), del rubro nuevo `libros` (`CategoryGroups`). Un libro no es un juguete: por eso rubro propio.
+- **`chk_productos_rubro_domain`** pasa de 8 a 9 valores (`libros`), re-listando el dominio **completo**. `Peluche` sale de `Juguete`: los peluches de otros sitios cambian de categoría en el próximo scrape o renormalización.
+- **`sitio_rubro_por_defecto_check`** pasa a aceptar `juguetes`, re-listando el dominio **completo** (`tecnologia`, `suplementos`, `oficina`,
+  `construccion`, `hogar`, `juguetes`); `sitio_rubro_forzado_check` **no se toca** (Hadriatica es mixto: no fuerza rubro).
+- **Seed** `('Hadriatica', 'hadriatica', 'tiendanube', false, NULL, 'config')` con `rubro_por_defecto = 'juguetes'`. Revende marcas de
+  terceros: sin `monomarca` ni fila en `marca`. La URL y `max_paginas=520` viven en `config.properties`.
+
+### Rollback
+
+```sql
+-- >>> rollback:V74
+UPDATE productos SET rubro = NULL WHERE rubro = 'libros';
+ALTER TABLE productos DROP CONSTRAINT chk_productos_rubro_domain;
+ALTER TABLE productos
+    ADD CONSTRAINT chk_productos_rubro_domain
+        CHECK (rubro IS NULL OR rubro IN ('indumentaria', 'tecnologia', 'suplementos',
+                                          'oficina', 'construccion', 'hogar',
+                                          'deporte', 'juguetes'));
+DELETE FROM sitio s WHERE s.sitio_key = 'hadriatica'
+  AND NOT EXISTS (SELECT 1 FROM productos p WHERE p.sitio_key = s.sitio_key);
+UPDATE sitio SET rubro_por_defecto = NULL WHERE rubro_por_defecto = 'juguetes';
+ALTER TABLE sitio DROP CONSTRAINT sitio_rubro_por_defecto_check;
+ALTER TABLE sitio ADD CONSTRAINT sitio_rubro_por_defecto_check
+    CHECK (rubro_por_defecto IS NULL
+           OR rubro_por_defecto IN ('tecnologia','suplementos','oficina','construccion','hogar'));
+UPDATE productos SET categoria = NULL WHERE categoria IN
+    ('Videojuego','Consola','Figura Coleccionable','Peluche','Juego de Mesa','Libro');
+UPDATE sitio_categoria SET categoria = NULL WHERE categoria IN
+    ('Videojuego','Consola','Figura Coleccionable','Peluche','Juego de Mesa','Libro');
+DELETE FROM categoria_stats WHERE categoria IN
+    ('Videojuego','Consola','Figura Coleccionable','Peluche','Juego de Mesa','Libro');
+DELETE FROM categoria WHERE nombre IN
+    ('Videojuego','Consola','Figura Coleccionable','Peluche','Juego de Mesa','Libro');
+-- <<< rollback:V74
+```
+
+Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V73`. Con productos ya scrapeados no borra el
+sitio (esas filas lo referencian), pero sí le quita el default `juguetes` para poder angostar el dominio; los productos reclasificados
+quedan con `categoria` NULL hasta el próximo scrape.
