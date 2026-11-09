@@ -1,4 +1,5 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
+import { Area, AreaChart, XAxis, YAxis } from 'recharts';
 import { Link } from 'react-router-dom';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { fetchHistorial, fetchProductoDetalle, fmt, BADGE_LABELS, buscarExterno, EXTERNAL_SEARCH } from '../api';
@@ -6,6 +7,7 @@ import BuySignal from './BuySignal';
 import { Dialog, DialogOverlay, DialogTitle } from './ui/dialog';
 import { SEG_COLORS, SEMANTIC, gaugeColor } from '../lib/colors';
 import { highlightPrices } from '../lib/richText';
+import { dominioPrecio, etiquetaDia, serieDiaria, serieEnRango } from '../lib/serieHistorial';
 
 // MercadoLibre's official brand yellow — third-party partner color, not one
 // of the 7 canonical semantic roles in lib/colors.js. Kept as a local named
@@ -73,34 +75,41 @@ function BoxPlot({ precio, st }) {
 }
 
 // ─── Sparkline ────────────────────────────────────────────────────────────────
+// Eje de tiempo real, un punto por día: los días sin cambio también ocupan su
+// lugar, y un precio que nunca cambió es una recta desde su registro hasta hoy.
+// A diferencia de la página, arranca en el primer registro: en 280px, un año
+// mayormente vacío no deja ver nada.
 function Sparkline({ hist }) {
-  const pts = hist?.puntos || [];
-  if (pts.length < 2) return <div className="text-[.72rem] text-t4">Sin historial aún</div>;
-  const W = 280, H = 60, PAD = 8;
-  const prices = pts.map(p => p.precio);
-  const minP = Math.min(...prices), maxP = Math.max(...prices), rangeP = maxP - minP || 1;
-  const sx = i => PAD + i * (W-PAD*2) / (pts.length-1);
-  const sy = v => H - PAD - (v-minP) / rangeP * (H-PAD*2);
-  const d    = pts.map((p,i) => `${i===0?'M':'L'}${sx(i).toFixed(1)},${sy(p.precio).toFixed(1)}`).join(' ');
-  const fill = `${d} L${sx(pts.length-1).toFixed(1)},${H} L${sx(0).toFixed(1)},${H} Z`;
-  const delta = hist?.deltaPct;
+  const puntos = hist?.puntos;
+  const serie = useMemo(() => {
+    if (!puntos?.length) return null;
+    const s = serieEnRango(puntos, 'Todo');
+    return s.hasta > s.desdeDatos ? { ...s, desde: s.desdeDatos } : null;
+  }, [puntos]);
+  if (!serie) return <div className="text-[.72rem] text-t4">Sin historial aún</div>;
+
+  const filas = serieDiaria(serie);
+  const { domain } = dominioPrecio(serie.stats.min, serie.stats.max);
+  const delta = serie.stats.deltaPct;
   let dc = 'var(--t4)';
-  if (delta !== undefined) dc = delta < 0 ? 'var(--g)' : 'var(--r)';
+  if (delta !== 0) dc = delta < 0 ? 'var(--g)' : 'var(--r)';
   return (
-    <div>
-      <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`}>
+    <div className="w-[280px]">
+      <AreaChart width={280} height={60} data={filas} margin={{ top: 4, right: 4, bottom: 0, left: 4 }}>
         <defs><linearGradient id="sg" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="var(--p)" stopOpacity=".3"/>
           <stop offset="100%" stopColor="var(--p)" stopOpacity="0"/>
         </linearGradient></defs>
-        <path d={fill} fill="url(#sg)"/>
-        <path d={d} fill="none" stroke="var(--p)" strokeWidth="2" strokeLinecap="round"/>
-        <text x={sx(0)} y={H-1} fontSize="8" fill="var(--t4)">${fmt(prices[0])}</text>
-        <text x={sx(pts.length-1)} y={H-1} fontSize="8" fill={dc} textAnchor="end">
-          ${fmt(prices[prices.length-1])}
-        </text>
-      </svg>
-      {delta !== undefined && (
+        <XAxis dataKey="t" type="number" domain={[serie.desde, serie.hasta]} hide/>
+        <YAxis domain={domain} hide/>
+        <Area type="monotone" dataKey="precio" connectNulls stroke="var(--p)" strokeWidth={2}
+              fill="url(#sg)" dot={false} isAnimationActive={false}/>
+      </AreaChart>
+      <div className="flex justify-between text-[.6rem]">
+        <span className="text-t4">${fmt(filas[0].vigente)} · {etiquetaDia(serie.desde)}</span>
+        <span style={{ color: dc }}>${fmt(filas.at(-1).vigente)} · hoy</span>
+      </div>
+      {delta !== 0 && (
         // dc is a runtime-computed color (depends on delta sign) — not a static
         // design token, kept inline per the Pill/chip precedent from PR2/PR3.
         <div style={{ color: dc }} className="text-[.65rem] text-right">

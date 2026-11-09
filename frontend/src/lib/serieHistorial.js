@@ -16,6 +16,10 @@ export const RANGOS = [
   { id: 'Todo' },
 ];
 
+// "Todo" never shows less than a year: a product first seen last week would
+// otherwise stretch one week across the whole chart.
+const MESES_MINIMOS_TODO = 12;
+
 function aInstante(iso) {
   const [y, m, d] = String(iso).split('-').map(Number);
   return Date.UTC(y, m - 1, d);
@@ -34,10 +38,10 @@ function restarMeses(t, n) {
   return Date.UTC(y, m, Math.min(f.getUTCDate(), ultimo));
 }
 
-function inicioDeRango(rango, hasta) {
+function inicioDeRango(rango, hasta, primero) {
   if (rango?.dias) return hasta - rango.dias * DIA;
   if (rango?.meses) return restarMeses(hasta, rango.meses);
-  return -Infinity;
+  return Math.min(primero, restarMeses(hasta, MESES_MINIMOS_TODO));
 }
 
 // A price that held for six months must outweigh one that held for two days.
@@ -54,13 +58,16 @@ export function serieEnRango(puntos, rangoId, hoyIso) {
   const todos = puntos.map(p => ({ t: aInstante(p.fecha), precio: p.precio, real: true }));
   const ultimo = todos.at(-1);
   const hasta = Math.max(hoyIso ? aInstante(hoyIso) : hoyLocal(), ultimo.t);
-  const desde = Math.max(inicioDeRango(RANGOS.find(r => r.id === rangoId), hasta), todos[0].t);
+  // The view keeps the whole window; the data (and its stats) start no
+  // earlier than the first record.
+  const desde = inicioDeRango(RANGOS.find(r => r.id === rangoId), hasta, todos[0].t);
+  const desdeDatos = Math.max(desde, todos[0].t);
 
   const previo = todos.findLast(p => p.t < desde);
   const enVentana = todos.filter(p => p.t >= desde && p.t <= hasta);
   const serie = [...enVentana];
-  if (previo && (!serie.length || serie[0].t > desde)) {
-    serie.unshift({ t: desde, precio: previo.precio, real: false });
+  if (previo && (!serie.length || serie[0].t > desdeDatos)) {
+    serie.unshift({ t: desdeDatos, precio: previo.precio, real: false });
   }
 
   const valores = serie.map(p => p.precio);
@@ -70,6 +77,7 @@ export function serieEnRango(puntos, rangoId, hoyIso) {
   const final = valores.at(-1);
   return {
     desde,
+    desdeDatos,
     hasta,
     puntos: serie,
     stats: {
@@ -80,6 +88,25 @@ export function serieEnRango(puntos, rangoId, hoyIso) {
       registros: enVentana.length,
     },
   };
+}
+
+/**
+ * One row per day of the window. `vigente` is the price in force that day, for
+ * the tooltip, and null before the first record; `precio` is set only on the
+ * series' anchors (changes and data edges) and null elsewhere, so a smooth
+ * curve drawn with connectNulls bends at the changes instead of stepping at
+ * every day.
+ */
+export function serieDiaria({ desde, hasta, puntos }) {
+  const anclas = new Map(puntos.map(p => [p.t, p]));
+  const filas = [];
+  let vigente = null;
+  for (let t = desde; t <= hasta; t += DIA) {
+    const ancla = anclas.get(t);
+    if (ancla) vigente = ancla.precio;
+    filas.push({ t, vigente, precio: ancla ? ancla.precio : null, real: Boolean(ancla?.real) });
+  }
+  return filas;
 }
 
 function pasoRedondo(crudo) {

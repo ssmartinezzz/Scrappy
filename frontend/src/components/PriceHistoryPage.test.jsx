@@ -80,14 +80,16 @@ describe('PriceHistoryPage', () => {
     expect(screen.queryByText('Mínimo')).not.toBeInTheDocument();
   });
 
-  it('un solo punto tampoco dibuja una serie', async () => {
+  it('un precio que nunca cambió igual se dibuja, plano hasta hoy', async () => {
     fetchProductoDetalle.mockResolvedValue({
       producto, historial: { puntos: [{ fecha: '2026-05-20', precio: 20000 }] },
     });
 
-    renderPage();
+    const { container } = renderPage();
 
-    expect(await screen.findByText(/Sin historial suficiente/)).toBeInTheDocument();
+    expect(await screen.findByText('Mínimo')).toBeInTheDocument();
+    expect(screen.queryByText(/Sin historial suficiente/)).not.toBeInTheDocument();
+    await waitFor(() => expect(container.querySelector('.recharts-wrapper')).toBeInTheDocument());
   });
 
   it('404 del backend: mensaje y vuelta al catálogo, sin romper', async () => {

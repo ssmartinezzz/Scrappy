@@ -58,13 +58,23 @@ armadores y nada más (`/outfits` · `/suplementos` · `/pcs`); el menú
 un menú, porque hay un solo destino. `Marcas` salió a primer nivel: es una
 vista de exploración del catálogo, no un armador.
 
-**`/historial/:key` dibuja una función escalón, no una serie de muestras.**
+**`/historial/:key` dibuja una curva suave, pero el dato sigue siendo un escalón.**
 `precio_historico.fecha` es un `DATE` y el upsert escribe una fila sólo cuando
 el precio cambia: el precio rige hasta el próximo registro. Por eso el eje X es
-temporal (no un slot por registro), la línea es `stepAfter`, una ventana que
-empieza entre registros abre con el precio vigente, toda ventana cierra hoy, y
-el **promedio se pondera por tiempo**. Los rangos (`1D`…`1A`, `Todo`) acotan
-gráfico **y** stats; `1D` sobre datos diarios es casi siempre una recta.
+temporal (no un slot por registro), hay **una fila por día** (`serieDiaria`),
+una ventana que empieza entre registros abre con el precio vigente, toda
+ventana cierra hoy, y el **promedio se pondera por tiempo**. La curva
+(`monotone` + `connectNulls`) sólo se ancla en los cambios y en los extremos de
+los datos, así que entre dos cambios muestra precios que no existieron: el
+tooltip y el punto de hover leen `vigente`, el precio que rigió ese día. Un
+solo registro ya alcanza (es una recta hasta hoy); sólo una ventana de cero
+días no se dibuja. Los rangos (`1D`…`1A`, `Todo`) acotan gráfico **y** stats,
+pero **la vista no se recorta al primer registro**: `Todo` muestra como mínimo
+12 meses (la historia entera si es más larga), y los datos arrancan adentro en
+`desdeDatos`; las stats cuentan sólo desde ahí. Si no, un producto visto hace
+una semana estiraba esa semana a todo el ancho. El sparkline de `DetailPanel`
+usa la misma serie pero acotada a los datos: en 280px, un año vacío no deja
+ver nada.
 El eje Y es el del **producto**, nunca uno fijo por categoría: una escala de
 categoría aplasta un -20% a unos pocos píxeles. La categoría entra como
 contexto — mediana y banda q1–q3 de `distribucionCategorias` (`/api/tendencias`,
