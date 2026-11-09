@@ -193,7 +193,7 @@ La API Legacy responde HTTP 400 pasado `_from` ≈ 2550, así que `VtexPage` par
 
 La API lista `categories` **de la hoja hacia la raíz**, y el resto del sitio depende de leerla bien: `raw` sale del camino más profundo. Los fixtures escritos a mano suelen traer el orden inverso; copiá una respuesta real.
 
-`VtexPage` también persiste el árbol en `sitio_categoria`, en la misma transacción que los productos, y no scrapea los nodos de servicios (`CriterioDeServicio`: "Instalación…", "Armado…"). Un sitio grande y mixto puede sumar una migración que mapee hojas a `categoria`: se consulta cuando el nombre abstiene, antes que `raw`. Hoja nueva sin mapear = abstención. Ver `V70` y `V72` en [`DATABASE.md`](./DATABASE.md).
+`VtexPage` también persiste el árbol en `sitio_categoria`, en la misma transacción que los productos, y no scrapea los nodos de servicios (`CriterioDeServicio`: "Instalación…", "Armado…") ni las gift cards (en cualquier sitio). Un nodo que no es producto sólo en un sitio (`Bolsas` en `elmundodeljuguete`) se agrega al mapa por sitio de `ServicioPorNombreDeCategoria.para(sitio)`, no a la regla compartida. Un sitio grande y mixto puede sumar una migración que mapee hojas a `categoria`: se consulta cuando el nombre abstiene, antes que `raw`. Excepción: en `elmundodeljuguete` la hoja gana sobre el nombre cuando su categoría es de juguetes (`CategoryGroups.esCategoriaJuguetes`); la lista vive en `NormalizerService.SITIOS_DONDE_LA_HOJA_JUGUETE_GANA` y las hojas no-juguete o sin mapear siguen con el nombre primero. Hoja nueva sin mapear = abstención. Ver `V70` y `V72` en [`DATABASE.md`](./DATABASE.md).
 
 ---
 

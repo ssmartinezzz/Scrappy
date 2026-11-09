@@ -427,7 +427,9 @@ cada producto, pero `ProductRepository` se traga los errores SQL: el síntoma es
 **El orden de `normalizarCategoria`:** nombre, hoja mapeada del árbol del sitio
 (`sitio_categoria.categoria`, `V70`), `raw`, alias, peso, `Otros`. La hoja va antes que
 `raw` porque es curada e idempotente: `raw` acierta o erra por coincidencia de palabras,
-y al renormalizar es la categoría guardada, no el texto del sitio.
+y al renormalizar es la categoría guardada, no el texto del sitio. Excepción en
+`NormalizerService` (no en el clasificador): en `elmundodeljuguete` una hoja mapeada a
+categoría de juguetes va antes que el nombre.
 
 **`deporte` es una dimensión, no una categoría.** Una camiseta de Boca sigue siendo
 `Remera` y además lleva `deporte='futbol'` (`V59`). `SportResolver` decide con el

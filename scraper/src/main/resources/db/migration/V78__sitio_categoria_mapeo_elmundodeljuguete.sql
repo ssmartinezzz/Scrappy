@@ -1,0 +1,81 @@
+-- V78__sitio_categoria_mapeo_elmundodeljuguete.sql — mapeo curado de las hojas de El Mundo del Juguete.
+--
+-- Sólo datos, sin categorías nuevas: cada hoja apunta a una fila existente de `categoria`
+-- (fk_sitio_categoria_categoria). Curado a mano a partir de la ruta de la hoja y de una muestra de
+-- nombres (fq=C:/<ruta>/ sobre la API Legacy, 2026-11-09), no de lo que devuelve el clasificador.
+-- Mapeadas 66 de las 99 hojas del árbol (profundidad 3). Se abstienen (sin fila): Gift Card (71) y
+-- giftcards/ohgiftcard (158, 159) y Bolsas (151), que VtexPage excluye; y las hojas mezcladas o sin
+-- categoría canónica: 129, 136, 137, 138, 132, 133, 134, 135, 146, 109, 63, 116, 147, 160, 161, 79,
+-- 41, 42, 112, 74, 65, 119, 98, 99, 144, 145, 153, 156, 157, 166.
+--
+-- Los rompecabezas son 'Juguete' (así los trata el clasificador), no 'Juego de Mesa'. La tabla está
+-- vacía hasta el primer scrape, así que se siembra con ON CONFLICT: el upsert del árbol actualiza sólo
+-- nombre/es_servicio y preserva `categoria`.
+INSERT INTO sitio_categoria (sitio_key, origen_id, nombre, categoria) VALUES
+    ('elmundodeljuguete', 11, 'Animales y Ponys', 'Juguete'),
+    ('elmundodeljuguete', 15, 'Pistas', 'Juguete'),
+    ('elmundodeljuguete', 26, 'Peluches', 'Peluche'),
+    ('elmundodeljuguete', 29, 'Accesorios', 'Juguete'),
+    ('elmundodeljuguete', 34, 'Libros', 'Libro'),
+    ('elmundodeljuguete', 35, 'Masas, Slime y Arenas', 'Juguete'),
+    ('elmundodeljuguete', 36, 'Sets de Arte', 'Juguete'),
+    ('elmundodeljuguete', 38, 'A batería', 'Juguete'),
+    ('elmundodeljuguete', 39, 'Triciclos', 'Juguete'),
+    ('elmundodeljuguete', 43, 'Accesorios', 'Juguete'),
+    ('elmundodeljuguete', 44, 'Sets de Compras Y Cocina', 'Juguete'),
+    ('elmundodeljuguete', 45, 'Sets de Herramientas', 'Juguete'),
+    ('elmundodeljuguete', 46, 'Ciencias', 'Juguete'),
+    ('elmundodeljuguete', 48, 'Doctores Y Veterinarios', 'Juguete'),
+    ('elmundodeljuguete', 49, 'Rompecabezas', 'Juguete'),
+    ('elmundodeljuguete', 50, 'Trivias', 'Juego de Mesa'),
+    ('elmundodeljuguete', 51, 'Estrategia', 'Juego de Mesa'),
+    ('elmundodeljuguete', 52, 'Clásicos', 'Juego de Mesa'),
+    ('elmundodeljuguete', 53, 'Habilidad e Ingenio', 'Juego de Mesa'),
+    ('elmundodeljuguete', 55, 'Playa', 'Juguete'),
+    ('elmundodeljuguete', 59, 'Radio control', 'Juguete'),
+    ('elmundodeljuguete', 61, 'Sets y Coleccionables', 'Juguete'),
+    ('elmundodeljuguete', 67, 'Monopatines, Patinetas y Rollers', 'Monopatín'),
+    ('elmundodeljuguete', 70, 'Aviones, Helicópteros y Trenes', 'Juguete'),
+    ('elmundodeljuguete', 73, 'Estimulación y Desarrollo', 'Juguete'),
+    ('elmundodeljuguete', 75, 'Para hacer Pulseras', 'Juguete'),
+    ('elmundodeljuguete', 77, 'Coleccionables', 'Juguete'),
+    ('elmundodeljuguete', 80, 'Bicicletas', 'Bicicleta'),
+    ('elmundodeljuguete', 81, 'De Salón', 'Juego de Mesa'),
+    ('elmundodeljuguete', 83, 'Pizarras', 'Juguete'),
+    ('elmundodeljuguete', 84, 'Squishys', 'Juguete'),
+    ('elmundodeljuguete', 87, 'Pistolas de Agua', 'Juguete'),
+    ('elmundodeljuguete', 88, 'Juguetes y Entretenimientos', 'Juguete'),
+    ('elmundodeljuguete', 90, 'Sets de Ladrillos y Bloques', 'Juguete'),
+    ('elmundodeljuguete', 91, 'Sets Magneticos', 'Juguete'),
+    ('elmundodeljuguete', 92, 'Lego', 'Juguete'),
+    ('elmundodeljuguete', 93, 'Playmobil', 'Juguete'),
+    ('elmundodeljuguete', 97, 'Mochilas', 'Mochila'),
+    ('elmundodeljuguete', 100, 'Animales y Dinosaurios', 'Juguete'),
+    ('elmundodeljuguete', 101, 'Pistolas, Espadas y Lanzadores', 'Juguete'),
+    ('elmundodeljuguete', 102, 'Robots y Transformables', 'Juguete'),
+    ('elmundodeljuguete', 105, 'Andadores y Andarines', 'Juguete'),
+    ('elmundodeljuguete', 114, 'Robots e Interactivos', 'Juguete'),
+    ('elmundodeljuguete', 115, 'Accesorios Electrónicos', 'Juguete'),
+    ('elmundodeljuguete', 117, 'Monopatines', 'Monopatín'),
+    ('elmundodeljuguete', 118, 'Patinetas y Hoverboards', 'Monopatín'),
+    ('elmundodeljuguete', 121, 'Consolas', 'Consola'),
+    ('elmundodeljuguete', 122, 'Auriculares', 'Auricular'),
+    ('elmundodeljuguete', 123, 'Mouses', 'Mouse'),
+    ('elmundodeljuguete', 124, 'Teclados', 'Teclado'),
+    ('elmundodeljuguete', 125, 'Joysticks', 'Joystick'),
+    ('elmundodeljuguete', 126, 'Sillas Gamer', 'Silla'),
+    ('elmundodeljuguete', 128, 'Set De Protección', 'Equipamiento Deportivo'),
+    ('elmundodeljuguete', 130, 'Burbujeros', 'Juguete'),
+    ('elmundodeljuguete', 131, 'con Pelota', 'Pelota'),
+    ('elmundodeljuguete', 139, 'Maquillaje y Uñas', 'Juguete'),
+    ('elmundodeljuguete', 140, 'Para el Pelo', 'Juguete'),
+    ('elmundodeljuguete', 141, 'Bebotes Coleccionables', 'Juguete'),
+    ('elmundodeljuguete', 142, 'Muñecas Coleccionables', 'Juguete'),
+    ('elmundodeljuguete', 143, 'Casitas y Castillos', 'Juguete'),
+    ('elmundodeljuguete', 148, 'Camicletas', 'Bicicleta'),
+    ('elmundodeljuguete', 155, 'Mochilas y Bolsos', 'Bolso'),
+    ('elmundodeljuguete', 163, 'Zapatillas', 'Zapatilla'),
+    ('elmundodeljuguete', 164, 'Pantuflas', 'Pantufla'),
+    ('elmundodeljuguete', 165, 'Blanquería', 'Ropa de Cama'),
+    ('elmundodeljuguete', 167, 'Adolescentes y Adultos', 'Juego de Mesa')
+ON CONFLICT (sitio_key, origen_id) DO UPDATE SET categoria = EXCLUDED.categoria;

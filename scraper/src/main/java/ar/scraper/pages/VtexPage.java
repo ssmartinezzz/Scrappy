@@ -40,7 +40,7 @@ public class VtexPage extends StorePage implements CatalogPage, ArbolDeCategoria
     public VtexPage(Page page, int timeoutMs,
                     String sitio, String baseUrl,
                     double precioMin, double precioMax) {
-        this(page, timeoutMs, sitio, baseUrl, precioMin, precioMax, new ServicioPorNombreDeCategoria());
+        this(page, timeoutMs, sitio, baseUrl, precioMin, precioMax, ServicioPorNombreDeCategoria.para(sitio));
     }
 
     public VtexPage(Page page, int timeoutMs,

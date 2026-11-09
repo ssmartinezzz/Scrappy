@@ -7,6 +7,7 @@ import ar.scraper.aggregator.normalize.PackQuantityDetector;
 import ar.scraper.aggregator.normalize.SizeNormalizer;
 import ar.scraper.aggregator.normalize.SportResolver;
 import ar.scraper.classification.BrandExtractor;
+import ar.scraper.classification.CategoryGroups;
 import ar.scraper.classification.RubroResolver;
 import ar.scraper.catalog.SitioCategoriaPort;
 import ar.scraper.classification.SiteRegistry;
@@ -29,6 +30,12 @@ import static ar.scraper.classification.SiteClassification.sitioKey;
 @Component
 @RequiredArgsConstructor
 public class NormalizerService {
+
+    /**
+     * Sites whose curated toy leaf outranks the name classifier: their names read as clothing, garden
+     * or food ("Set de bloques" is a Conjunto, "con Vestido" a Vestido) while the leaf is exact.
+     */
+    private static final Set<String> SITIOS_DONDE_LA_HOJA_JUGUETE_GANA = Set.of("elmundodeljuguete");
 
     private final PackQuantityDetector packQuantityDetector;
     private final CategoryClassifier categoryClassifier;
@@ -67,6 +74,11 @@ public class NormalizerService {
         return categorias.get(p.sitioCategoriaOrigenId());
     }
 
+    private static boolean hojaJugueteGana(String sitioKey, String categoriaDelArbol) {
+        return SITIOS_DONDE_LA_HOJA_JUGUETE_GANA.contains(sitioKey)
+                && CategoryGroups.esCategoriaJuguetes(categoriaDelArbol);
+    }
+
     /** In an own-label store the brand is the store, even over a curated match in the name. */
     private String marcaDe(Product p, String nombre, String sitioKey) {
         if (siteRegistry.esMonomarca(sitioKey)) return siteRegistry.porKey(sitioKey).nombre();
@@ -75,9 +87,11 @@ public class NormalizerService {
 
     private Product normalizarProducto(Product p, Map<Integer, String> categoriasDelArbol) {
         String nombre = StringUtils.defaultString(p.nombre());
-        String cat    = categoryClassifier.normalizarCategoria(p.categoria(), nombre,
-                categoriaDelArbol(p, categoriasDelArbol));
         String sitioKey       = sitioKey(p.sitio());
+        String delArbol       = categoriaDelArbol(p, categoriasDelArbol);
+        String cat            = hojaJugueteGana(sitioKey, delArbol)
+                ? delArbol
+                : categoryClassifier.normalizarCategoria(p.categoria(), nombre, delArbol);
         String rubro          = rubroResolver.resolver(sitioKey, cat, p.rubro());
         String genero = genderResolver.resolver(p.genero(), nombre, cat, rubro);
         List<String> talles = sizeNormalizer.normalizar(p.talles());
