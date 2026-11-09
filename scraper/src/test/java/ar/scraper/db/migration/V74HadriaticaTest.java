@@ -32,7 +32,7 @@ class V74HadriaticaTest extends PostgresTestBase {
                      + "FROM sitio WHERE sitio_key = 'hadriatica'")) {
             assertThat(rs.next()).isTrue();
             assertThat(rs.getString("nombre")).isEqualTo("Hadriatica");
-            assertThat(rs.getString("plataforma")).isEqualTo("tiendanube");
+            assertThat(rs.getString("plataforma")).as("V76 moves it to its own page").isEqualTo("hadriatica");
             assertThat(rs.getString("rubro_forzado")).isNull();
             assertThat(rs.getString("rubro_por_defecto")).isEqualTo("juguetes");
             assertThat(rs.getBoolean("monomarca")).isFalse();
