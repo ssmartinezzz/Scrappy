@@ -61,8 +61,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 @Epic("Persistence")
 @Feature("Site registry")
-@Story("V18 ∪ V24 ∪ V27 ∪ V28 ∪ V30 ∪ V43 ∪ V44 ∪ V45 ∪ V54 ∪ V61 ∪ V62 ∪ V74 seed covers every config.properties site")
-@DisplayName("sitio seed sync (V18 ∪ V24 ∪ V27 ∪ V28 ∪ V30 ∪ V43 ∪ V44 ∪ V45 ∪ V54 ∪ V61 ∪ V62 ∪ V74, no DB)")
+@Story("V18 ∪ V24 ∪ V27 ∪ V28 ∪ V30 ∪ V43 ∪ V44 ∪ V45 ∪ V54 ∪ V61 ∪ V62 ∪ V74 ∪ V75 seed covers every config.properties site")
+@DisplayName("sitio seed sync (V18 ∪ V24 ∪ V27 ∪ V28 ∪ V30 ∪ V43 ∪ V44 ∪ V45 ∪ V54 ∪ V61 ∪ V62 ∪ V74 ∪ V75, no DB)")
 class SitioSeedSyncTest {
 
     private static final String V18 = "/db/migration/V18__sitio_lookup_table.sql";
@@ -77,6 +77,7 @@ class SitioSeedSyncTest {
     private static final String V61 = "/db/migration/V61__seed_notebookspro.sql";
     private static final String V62 = "/db/migration/V62__seed_easy.sql";
     private static final String V74 = "/db/migration/V74__categorias_gaming_y_seed_hadriatica.sql";
+    private static final String V75 = "/db/migration/V75__seed_dellorean.sql";
 
     private record SeedRow(String nombre, String sitioKey, String plataforma,
                             boolean esPremium, String rubroForzado, String origen) {
@@ -168,7 +169,7 @@ class SitioSeedSyncTest {
      */
     private static List<SeedRow> seedRows() {
         List<SeedRow> rows = new ArrayList<>();
-        for (String migration : List.of(V18, V24, V27, V28, V30, V43, V44, V45, V54, V61, V62, V74)) {
+        for (String migration : List.of(V18, V24, V27, V28, V30, V43, V44, V45, V54, V61, V62, V74, V75)) {
             rows.addAll(seedRowsFrom(migration));
         }
         assertThat(rows).as("at least one seed row parsed across V18 ∪ V24 ∪ V27 ∪ V28").isNotEmpty();
