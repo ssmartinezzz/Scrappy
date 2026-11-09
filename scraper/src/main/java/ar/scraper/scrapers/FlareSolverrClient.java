@@ -23,6 +23,7 @@ public final class FlareSolverrClient {
 
     private static final Logger log = LoggerFactory.getLogger(FlareSolverrClient.class);
     private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(10);
+    private static final String SIN_CHALLENGE = "Challenge not detected";
 
     public record CfCookie(String name, String value) { }
 
@@ -95,6 +96,11 @@ public final class FlareSolverrClient {
                 }
             }
             String userAgent = solution.path("userAgent").asText("");
+            // Cloudflare no siempre desafía: sin challenge no hay clearance que emitir, y eso no es un bloqueo.
+            if (root.path("message").asText().startsWith(SIN_CHALLENGE)) {
+                log.info("FlareSolverr no detectó challenge; se sigue sin cf_clearance");
+                return Optional.of(new Ticket(cookies, userAgent));
+            }
             if (cookies.stream().noneMatch(c -> c.name().equals("cf_clearance"))) {
                 log.warn("FlareSolverr respondió sin cf_clearance; no hay ticket que reutilizar");
                 return Optional.empty();

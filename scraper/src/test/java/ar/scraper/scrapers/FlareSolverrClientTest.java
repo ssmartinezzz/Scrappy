@@ -112,6 +112,21 @@ class FlareSolverrClientTest {
     }
 
     @Test
+    @DisplayName("Sin challenge detectado devuelve ticket sin clearance, con el UA")
+    void noChallengeDetectedReturnsTicketWithoutClearance() {
+        bodyToReturn.set("""
+                {"status":"ok","message":"Challenge not detected!","solution":{"url":"https://fullh4rd.com.ar/",
+                "status":200,"headers":{},"response":"<html></html>","cookies":[{"name":"_ga","value":"GA1.1.1"}],
+                "userAgent":"Mozilla/5.0 (X11; Linux x86_64) Chrome/152.0.0.0 Safari/537.36"}}
+                """);
+        Optional<FlareSolverrClient.Ticket> ticket = new FlareSolverrClient(baseUrl)
+                .resolver("https://fullh4rd.com.ar/", 5_000);
+        assertThat(ticket).isPresent();
+        assertThat(ticket.get().cookies()).isEmpty();
+        assertThat(ticket.get().userAgent()).contains("Chrome/152");
+    }
+
+    @Test
     @DisplayName("Solución sin cf_clearance devuelve vacío")
     void solutionWithoutClearanceReturnsEmpty() {
         returnSolution(200, """
