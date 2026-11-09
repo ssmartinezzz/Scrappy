@@ -272,8 +272,7 @@ public class TiendanubePage extends StorePage implements CatalogPage {
             log.debug("[{}] JS p{} -> {}", sitio, pagina, url);
             try {
                 navigateConReintentos(url);
-                scrollToBottom();
-                page.waitForTimeout(1000);
+                esperarListado();
 
                 String json = (String) page.evaluate(buildExtractorJs());
                 if (json == null || json.equals("[]") || json.equals("null")) {
@@ -357,6 +356,12 @@ public class TiendanubePage extends StorePage implements CatalogPage {
     /** Si se intenta la API REST de Tiendanube antes de caer al JS heurístico. */
     protected boolean usaApi() {
         return true;
+    }
+
+    /** Lo que se espera tras navegar cada página del listado, antes de extraer. */
+    protected void esperarListado() {
+        scrollToBottom();
+        page.waitForTimeout(1000);
     }
 
     protected String nombreSelectorJs() {

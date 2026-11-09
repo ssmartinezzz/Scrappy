@@ -4339,5 +4339,31 @@ DELETE FROM sitio s WHERE s.sitio_key = 'dellorean'
 -- <<< rollback:V75
 ```
 
-Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V74`. Con productos ya scrapeados
+En una cadena de rollbacks corre después del de `V76` y antes que el de `V74`. Con productos ya scrapeados
 no borra nada: esas filas referencian el sitio.
+
+---
+
+## `V76` — plataforma `hadriatica`
+
+Hadriatica sigue siendo Tiendanube, pero con page propia (`HadriaticaPage`): su
+listado llega renderizado del server, así que se saltea el scroll + 1 s de
+espera por página de la base (~2,8 s × ~450 páginas). El dominio de
+`sitio_plataforma_check` pasa de 16 a 17 valores re-listando el **completo** de
+`V46` más `hadriatica`, y la fila sembrada por `V74` pasa de `tiendanube` a
+`hadriatica`. Su rollback va antes que el de `V46` y el de `V44`: sin él, la
+fila de Hadriatica rechaza el CHECK angosto.
+
+### Rollback
+
+```sql
+-- >>> rollback:V76
+UPDATE sitio SET plataforma = 'tiendanube' WHERE sitio_key = 'hadriatica';
+ALTER TABLE sitio DROP CONSTRAINT sitio_plataforma_check;
+ALTER TABLE sitio ADD CONSTRAINT sitio_plataforma_check
+    CHECK (plataforma IN ('tiendanube','shopify','vtex','vaypol','woocommerce',
+                          'monkyforce','maximus','fullh4rd','compragamer',
+                          'qloud','oscommerce','inpro','morashop','prestashop',
+                          'gamerfactory','ambiancedeco'));
+-- <<< rollback:V76
+```
