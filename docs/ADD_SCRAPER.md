@@ -78,7 +78,7 @@ ON CONFLICT (nombre) DO NOTHING;
 `config.properties`, o `NULL` si no lo declarás.
 
 Un sitio mixto sin `rubro_forzado` puede declarar además `rubro_por_defecto` (`V71`, mismo dominio): es el rubro de las filas
-que ninguna categoría decide. Va en un `UPDATE` de la misma migración de seed, no en el `INSERT`.
+que ninguna categoría decide, y el rubro con el que `/api/sitios` agrupa al sitio en el splash. Va en un `UPDATE` de la misma migración de seed, no en el `INSERT`.
 
 ### 3. Agregar esa migración a `SitioSeedSyncTest`
 

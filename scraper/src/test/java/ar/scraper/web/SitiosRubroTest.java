@@ -3,6 +3,7 @@ package ar.scraper.web;
 import ar.scraper.web.support.Wire;
 
 
+import ar.scraper.classification.SiteRegistry;
 import ar.scraper.config.ScraperConfig;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.qameta.allure.Epic;
@@ -15,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.ResponseEntity;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -44,7 +46,8 @@ class SitiosRubroTest {
 
         when(config.getSitiosActivos()).thenReturn(List.of(
                 new ScraperConfig.SiteConfig("maximus", "https://www.maximus.com.ar", "tecnologia"),
-                new ScraperConfig.SiteConfig("barnes",  "https://barnesindustries.com.ar/productos/", "indumentaria")
+                new ScraperConfig.SiteConfig("barnes",  "https://barnesindustries.com.ar/productos/", "indumentaria"),
+                new ScraperConfig.SiteConfig("easy",    "https://www.easy.com.ar", "indumentaria")
         ));
         when(config.getPrecioMinimo()).thenReturn(0.0);
         when(config.getPrecioMaximo()).thenReturn(300000.0);
@@ -57,7 +60,8 @@ class SitiosRubroTest {
         service               = mock(ScraperService.class);
         config                = mock(ScraperConfig.class);
 
-        controller = new SitiosController(service, config);
+        controller = new SitiosController(service, config, SiteRegistry.forTesting(Map.of(
+                "easy", new SiteRegistry.Sitio("Easy", "easy", "vtex", false, null, "config", false, "construccion"))));
     }
 
     @Test
@@ -108,5 +112,21 @@ class SitiosRubroTest {
         }
         assertThat(barnes).isNotNull();
         assertThat(barnes.path("rubro").asText()).isEqualTo("indumentaria");
+    }
+
+    @Test
+    void mixedSiteShowsItsDefaultRubroInsteadOfTheConfigFallback() {
+        ResponseEntity<?> resp = controller.getSitios();
+        JsonNode base = Wire.data(resp).path("base");
+
+        JsonNode easy = null;
+        for (JsonNode site : base) {
+            if ("easy".equals(site.path("nombre").asText())) {
+                easy = site;
+                break;
+            }
+        }
+        assertThat(easy).isNotNull();
+        assertThat(easy.path("rubro").asText()).isEqualTo("construccion");
     }
 }

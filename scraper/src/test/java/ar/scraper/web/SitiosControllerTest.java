@@ -4,6 +4,7 @@ import ar.scraper.web.support.Wire;
 
 import ar.scraper.indices.IndiceService;
 
+import ar.scraper.classification.SiteRegistry;
 import ar.scraper.config.ScraperConfig;
 import ar.scraper.db.DatabaseService;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -47,7 +48,7 @@ class SitiosControllerTest {
         indiceService      = mock(IndiceService.class);
         config                = mock(ScraperConfig.class);
         db                    = mock(DatabaseService.class);
-        controller = new SitiosController(service, config);
+        controller = new SitiosController(service, config, SiteRegistry.forTesting(Map.of()));
         catalogo = new CatalogoController(service, db.presets(), db.historial(), db.catalogQuery(), db.productos(), config, indiceService);
     }
 
