@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
@@ -96,5 +96,29 @@ describe('DetailPanel — link a la vista de historial', () => {
     renderPanel({ ...base, key: undefined }, {});
 
     expect(screen.queryByRole('link', { name: /Ver historial completo/ })).not.toBeInTheDocument();
+  });
+});
+
+describe('DetailPanel — sparkline del historial', () => {
+  const product = {
+    url: 'https://tienda.test/p/9', nombre: 'Buzo', sitio: 'Freres',
+    precio: 30000, categoria: 'Buzo', talles: [], cantidadUnidades: 1,
+  };
+
+  it('un precio que nunca cambió igual dibuja la línea', async () => {
+    fetchHistorial.mockResolvedValue({ puntos: [{ fecha: '2026-05-20', precio: 30000 }] });
+
+    const { container } = renderPanel(product, {});
+
+    await waitFor(() => expect(container.querySelector('.recharts-area-curve')).toBeInTheDocument());
+    expect(screen.queryByText('Sin historial aún')).not.toBeInTheDocument();
+  });
+
+  it('sin registros sigue diciendo que no hay historial', async () => {
+    fetchHistorial.mockResolvedValue(null);
+
+    renderPanel(product, {});
+
+    expect(await screen.findByText('Sin historial aún')).toBeInTheDocument();
   });
 });

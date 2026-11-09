@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { RANGOS, contextoCategoria, dominioPrecio, serieEnRango, ticksTiempo } from './serieHistorial';
+import { RANGOS, contextoCategoria, dominioPrecio, serieDiaria, serieEnRango, ticksTiempo } from './serieHistorial';
 
 const dia = iso => Date.UTC(...iso.split('-').map((n, i) => (i === 1 ? Number(n) - 1 : Number(n))));
 
@@ -15,10 +15,11 @@ describe('serieEnRango', () => {
     expect(RANGOS.map(r => r.id)).toEqual(['1D', '1S', '1M', '3M', '6M', '1A', 'Todo']);
   });
 
-  it('Todo arranca en el primer registro y estira el último precio hasta hoy', () => {
+  it('Todo muestra al menos 12 meses: la vista arranca antes que los datos', () => {
     const s = serieEnRango(PUNTOS, 'Todo', HOY);
 
-    expect(s.desde).toBe(dia('2026-01-10'));
+    expect(s.desde).toBe(dia('2025-10-10'));
+    expect(s.desdeDatos).toBe(dia('2026-01-10'));
     expect(s.hasta).toBe(dia(HOY));
     expect(s.puntos.map(p => [p.t, p.precio, p.real])).toEqual([
       [dia('2026-01-10'), 20000, true],
@@ -56,8 +57,50 @@ describe('serieEnRango', () => {
     expect(serieEnRango(viejos, '1M', '2026-03-31').desde).toBe(dia('2026-02-28'));
   });
 
-  it('un rango más largo que la serie empieza en el primer registro', () => {
-    expect(serieEnRango(PUNTOS.slice(1), '1A', HOY).desde).toBe(dia('2026-08-01'));
+  it('un rango más largo que la serie no se recorta: los datos arrancan adentro', () => {
+    const s = serieEnRango(PUNTOS.slice(1), '1A', HOY);
+    expect(s.desde).toBe(dia('2025-10-10'));
+    expect(s.desdeDatos).toBe(dia('2026-08-01'));
+    expect(s.stats.registros).toBe(2);
+  });
+
+  it('Todo con más de 12 meses de historia arranca en el primer registro', () => {
+    const viejos = [{ fecha: '2024-03-01', precio: 1 }, ...PUNTOS];
+    const s = serieEnRango(viejos, 'Todo', HOY);
+    expect(s.desde).toBe(dia('2024-03-01'));
+    expect(s.desdeDatos).toBe(dia('2024-03-01'));
+  });
+});
+
+describe('serieEnRango con un solo registro', () => {
+  it('un precio que nunca cambió es una recta desde su registro hasta hoy', () => {
+    const s = serieEnRango([{ fecha: '2026-10-01', precio: 5000 }], 'Todo', HOY);
+
+    expect(s.puntos.map(p => [p.t, p.precio, p.real])).toEqual([
+      [dia('2026-10-01'), 5000, true],
+      [dia(HOY), 5000, false],
+    ]);
+    expect(s.stats).toEqual({ min: 5000, max: 5000, avg: 5000, deltaPct: 0, registros: 1 });
+  });
+});
+
+describe('serieDiaria', () => {
+  const s = serieEnRango(
+    [{ fecha: '2026-10-05', precio: 100 }, { fecha: '2026-10-08', precio: 120 }], '1S', HOY);
+  const filas = serieDiaria(s);
+
+  it('tiene una fila por día de la ventana, extremos incluidos', () => {
+    expect(filas.map(f => f.t)).toEqual(
+      ['03', '04', '05', '06', '07', '08', '09', '10'].map(d => dia(`2026-10-${d}`)));
+  });
+
+  it('cada día lleva el precio que rigió; antes del primer registro no hay precio', () => {
+    expect(filas.map(f => f.vigente)).toEqual([null, null, 100, 100, 100, 120, 120, 120]);
+  });
+
+  it('la curva sólo se ancla en los cambios y en los extremos de los datos', () => {
+    expect(filas.map(f => f.precio)).toEqual([null, null, 100, null, null, 120, null, 120]);
+    expect(filas.map(f => f.real)).toEqual([false, false, true, false, false, true, false, false]);
   });
 });
 

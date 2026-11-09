@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { Area, CartesianGrid, ComposedChart, ReferenceArea, ReferenceLine, XAxis, YAxis } from 'recharts';
+import { Area, CartesianGrid, ComposedChart, Line, ReferenceArea, ReferenceLine, XAxis, YAxis } from 'recharts';
 import { ChartContainer, ChartTooltip } from './ui/chart';
 import { ImageWithFallback } from './ui/image-with-fallback';
 import { fetchProductoDetalle, fetchTendencias, fmt } from '../api';
 import { cn } from '../lib/utils';
 import {
-  RANGOS, contextoCategoria, dominioPrecio, etiquetaDia, etiquetaTiempo, serieEnRango, ticksTiempo,
+  RANGOS, contextoCategoria, dominioPrecio, etiquetaDia, etiquetaTiempo, serieDiaria, serieEnRango, ticksTiempo,
 } from '../lib/serieHistorial';
 
 /**
@@ -31,7 +31,7 @@ function TooltipPrecio({ active, payload }) {
   return (
     <div className="bg-s2 border border-border rounded-card p-2 shadow-lg">
       <div className="text-[.7rem] text-t4 mb-1">{etiquetaDia(d.t)}</div>
-      <div className="text-sm font-semibold text-t1">ARS ${fmt(d.precio)}</div>
+      <div className="text-sm font-semibold text-t1">ARS ${fmt(d.vigente)}</div>
       {!d.real && <div className="text-[.65rem] text-t4">precio vigente, sin cambio ese día</div>}
     </div>
   );
@@ -82,12 +82,14 @@ export default function PriceHistoryPage() {
   const [rango, setRango]     = useState('Todo');
   const [distribucion, setDistribucion] = useState(null);
 
-  // Dos puntos es el mínimo para que una serie signifique algo.
+  // Un solo registro alcanza: un precio que nunca cambió es una recta hasta
+  // hoy. Lo único que no se dibuja es una ventana de cero días.
   const puntosApi = data?.historial?.puntos;
-  const serie = useMemo(
-    () => (puntosApi?.length >= 2 ? serieEnRango(puntosApi, rango) : null),
-    [puntosApi, rango]
-  );
+  const serie = useMemo(() => {
+    if (!puntosApi?.length) return null;
+    const s = serieEnRango(puntosApi, rango);
+    return s.hasta > s.desdeDatos ? s : null;
+  }, [puntosApi, rango]);
 
   useEffect(() => {
     if (!key) { setLoading(false); return; }
@@ -144,8 +146,8 @@ export default function PriceHistoryPage() {
 
       {!serie ? (
         <p className="text-t4 text-[.8rem]">
-          📉 Sin historial suficiente todavía — la serie aparece cuando el
-          producto se scrapea más de una vez y su precio cambia.
+          📉 Sin historial suficiente todavía — la serie aparece a partir del
+          día siguiente al primer scrapeo del producto.
         </p>
       ) : (
         <GraficoHistorial serie={serie} rango={rango} onRango={setRango}
@@ -171,6 +173,7 @@ function GraficoHistorial({ serie, rango, onRango, precioActual, categoria }) {
     : null;
   const delta = stats.deltaPct;
   const color = TONOS[Math.sign(delta)].trazo;
+  const filas = useMemo(() => serieDiaria(serie), [serie]);
 
   return (
     <>
@@ -202,7 +205,7 @@ function GraficoHistorial({ serie, rango, onRango, precioActual, categoria }) {
       )}
 
       <ChartContainer className="h-72 w-full">
-        <ComposedChart data={serie.puntos} margin={{ top: 16, right: 16, left: 0, bottom: 8 }}>
+        <ComposedChart data={filas} margin={{ top: 16, right: 16, left: 0, bottom: 8 }}>
           <defs>
             <linearGradient id="phGradient" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%"   stopColor={color} stopOpacity={0.25}/>
@@ -234,10 +237,14 @@ function GraficoHistorial({ serie, rango, onRango, precioActual, categoria }) {
           <ChartTooltip content={<TooltipPrecio/>}
                         cursor={{ strokeDasharray: '3 3', stroke: 'var(--t4)', strokeOpacity: 0.5 }}/>
 
-          {/* stepAfter: el precio rige hasta el próximo cambio registrado. */}
-          <Area type="stepAfter" dataKey="precio" stroke={color} strokeWidth={2}
-                fill="url(#phGradient)" dot={<PuntoReal/>}
-                activeDot={{ r: 5, fill: color, stroke: 'var(--bg)', strokeWidth: 2 }}/>
+          {/* La curva une los cambios (connectNulls salta los días sin
+              ancla); el tooltip lee `vigente`, el precio que rigió ese día. */}
+          <Area type="monotone" dataKey="precio" connectNulls stroke={color} strokeWidth={2}
+                fill="url(#phGradient)" dot={<PuntoReal/>} activeDot={false}
+                isAnimationActive={false}/>
+          <Line dataKey="vigente" stroke="none" dot={false} legendType="none"
+                activeDot={{ r: 4, fill: color, stroke: 'var(--bg)', strokeWidth: 2 }}
+                isAnimationActive={false}/>
         </ComposedChart>
       </ChartContainer>
 
