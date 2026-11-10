@@ -155,6 +155,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V78` | 66 hojas de El Mundo del Juguete en el mapeo curado (`sitio_categoria.categoria`), sin categorías nuevas |
 | `V79` | Las 30 hojas de El Mundo del Juguete que `V78` dejó sin mapear (6 a `Otros` explícito), sin categorías nuevas |
 | `V80` | Toda fila de El Mundo del Juguete pasa a `genero = 'infantil'` (sacaba mochilas y vestidos de muñeca de los picks de adultos) |
+| `V81` | Señales de nombre infantiles sin talle (`juvenil`, `escolar`, `Footy`, personajes que sólo venden a chicos) pasan a `genero = 'infantil'` |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -4488,4 +4489,34 @@ SELECT 1;
 -- <<< rollback:V80
 ```
 
-Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V79`.
+Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V81` y antes que el de `V79`.
+
+---
+
+## `V81` — señales de nombre infantiles sin talle
+
+`GenderResolver` ahora reconoce palabras enteras que no son un talle pero delatan un producto de chicos: `juvenil`/`juveniles`,
+`escolar`/`escolares`, la marca infantil `Footy` y una lista corta de personajes que sólo venden a chicos (`minnie`,
+`mickey`, `paw patrol`, `peppa`, `frozen`, `toy story`). Las zapatillas Footy, las Crocs Frozen y las mochilas Disney
+quedaban con `genero` vacío o de adulto y llenaban los picks (dev, 2026-11-10: 236 filas activas). `V81` alinea las filas
+guardadas; el próximo scrape sigue siendo la fuente de verdad.
+
+- **Mismo criterio que el resolver:** nombre sin acentos, puntuación como espacio, palabra entera.
+- **`Footy` vale en cualquier rubro; el resto sólo en indumentaria** (rubro NULL/vacío cuenta como indumentaria): "escolar"
+  es también papelería y "Peppa Pig" también es un juguete para mascotas.
+- **Fuera a propósito:** `Marvel`, `Spider-Man`, `Disney`, `Hello Kitty`, `Stitch`, `Barbie`. Medidos en dev, matchean
+  colaboraciones de adulto (Ojotas adidas Marvel Spider-Man, Zapatillas adidas originals Disney), coleccionables de
+  Hadriatica y cuero Dr. Martens "stitch".
+- **Nunca una fila bloqueada a mano** (`bloqueado_por`, `V3`); activas o no; idempotente.
+
+### Rollback
+
+```sql
+-- >>> rollback:V81
+-- No-op a propósito: genero es un derivado y cada scrape lo recalcula. El rollback real es revertir la regla
+-- de GenderResolver; el próximo scrape vuelve a resolver sin estas señales.
+SELECT 1;
+-- <<< rollback:V81
+```
+
+Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V80`.
