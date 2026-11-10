@@ -20,88 +20,58 @@ INSERT INTO categoria (nombre) VALUES ('Top'), ('Top Deportivo')
 ON CONFLICT (nombre) DO NOTHING;
 
 -- Aligns the stored rows instead of waiting for every site to be scraped again; the next scrape is the source of
--- truth. Every rule below is the SQL twin of the classifier rule named next to it, over the accent-stripped,
--- lower-cased, space-padded name. Only the categories the classifier used to produce for these names, only clothing
--- (NULL/blank rubro counts as indumentaria), never a row locked by hand (V3). Idempotent: a handled row has left
--- the category its WHERE reads from.
+-- truth. Each branch of the CASE below is the SQL twin of the classifier rule named next to it, over the accent-stripped,
+-- lower-cased, space-padded name (normalized once, in `n`). Never a row locked by hand (V3); the garment rules read only
+-- the categories the classifier used to produce for these names and only clothing (NULL/blank rubro counts as
+-- indumentaria). Idempotent: a handled row already sits in its target category and the final WHERE skips it.
+WITH k AS (
+    SELECT '( deportiv| training| workout| running| run | gym| fitness| yoga| soporte| impacto| dri-fit| dri fit| techfit| compression| compresion| sport | sports | sportswear| crossback| adidas | nike | puma | asics | saucony | under armour | topper | reebok | new balance | atomik | fila | mizuno | umbro | lotto | kappa | diadora )' AS deporte,
+           '( encaje| lencer| puntilla| interior| bralette)' AS lenceria,
+           '(corpino| bra |bralette|sosten|sujetador|bikini top|top interior|ropa interior femenina)' AS corpino,
+           '(musculosa|tank top|camiseta de tirantes|sin mangas)' AS musculosa
+), n AS (
+    SELECT url,
+           categoria AS cat,
+           COALESCE(NULLIF(rubro, ''), 'indumentaria') = 'indumentaria' AS ropa,
+           ' ' || lower(translate(nombre, 'áéíóúüñÁÉÍÓÚÜÑ', 'aeiouunAEIOUUN')) || ' ' AS t
+      FROM productos
+     WHERE bloqueado_por IS NULL
+), destino AS (
+    SELECT n.url,
+           CASE
+               -- BicicletasClassifier: the sealant injector, or a sealant named with tubeless, whatever its rubro.
+               WHEN n.t ~ '^ inyector (de )?sellante ' OR (n.t ~ '^ sellante ' AND n.t ~ ' tubeless')
+                   THEN 'Repuesto de Bicicleta'
+               WHEN NOT n.ropa THEN NULL
+               -- KW_TOP_DEPORTIVO, checked before KW_CORPINO ("sports bra" holds " bra ").
+               WHEN n.cat IN ('Musculosa', 'Corpino') AND n.t ~ '(top deportivo|sports bra|corpino deportivo)'
+                   THEN 'Top Deportivo'
+               -- A bare top filed as Musculosa, unless a later tank noun qualifies it (the leading noun wins).
+               WHEN n.cat = 'Musculosa' AND n.t ~ ' top ' AND n.t !~ 'top cuello'
+                    AND (n.t ~ '^ top ' OR n.t !~ k.musculosa)
+                   THEN CASE WHEN n.t ~ k.lenceria THEN 'Corpino'
+                             WHEN n.t ~ k.deporte  THEN 'Top Deportivo'
+                             ELSE 'Top' END
+               -- croptop / crop top filed as Corpino (KW_CORPINO_TARDIO): "crop top" holds " top " and follows the sport
+               -- rule; the one-word "croptop" is only ever a Top. Bra-like words keep it in Corpino.
+               WHEN n.cat = 'Corpino' AND n.t ~ '( croptop | crop top )' AND n.t !~ k.corpino AND n.t !~ k.lenceria
+                   THEN CASE WHEN n.t ~ ' crop top ' AND n.t ~ k.deporte THEN 'Top Deportivo' ELSE 'Top' END
+               -- KW_CANILLERA_LIDER: the name leads with canillera(s), whatever else it says.
+               WHEN n.cat IN ('Otros', 'Botines', 'Calzoncillos', 'Medias', 'Sneaker') AND n.t ~ '^ canilleras? '
+                   THEN 'Accesorio Deportivo'
+           END AS nueva
+      FROM n CROSS JOIN k
+)
+UPDATE productos p
+   SET categoria = d.nueva,
+       -- The bike categories live in rubro 'deporte'.
+       rubro = CASE WHEN d.nueva = 'Repuesto de Bicicleta' THEN 'deporte' ELSE p.rubro END
+  FROM destino d
+ WHERE p.url = d.url
+   AND d.nueva IS NOT NULL
+   AND p.categoria IS DISTINCT FROM d.nueva;
 
--- 1. KW_TOP_DEPORTIVO, checked before KW_CORPINO ("sports bra" holds " bra ").
-UPDATE productos
-   SET categoria = 'Top Deportivo'
- WHERE bloqueado_por IS NULL
-   AND categoria IN ('Musculosa', 'Corpino')
-   AND COALESCE(NULLIF(rubro, ''), 'indumentaria') = 'indumentaria'
-   AND (' ' || lower(translate(nombre, 'áéíóúüñÁÉÍÓÚÜÑ', 'aeiouunAEIOUUN')) || ' ') ~ '(top deportivo|sports bra|corpino deportivo)';
-
--- 2. A bare top filed as Musculosa: lingerie-style tops go to Corpino, sport ones to Top Deportivo, the rest to Top.
-UPDATE productos
-   SET categoria = 'Corpino'
- WHERE bloqueado_por IS NULL
-   AND categoria = 'Musculosa'
-   AND COALESCE(NULLIF(rubro, ''), 'indumentaria') = 'indumentaria'
-   AND (' ' || lower(translate(nombre, 'áéíóúüñÁÉÍÓÚÜÑ', 'aeiouunAEIOUUN')) || ' ') ~ ' top '
-   AND (' ' || lower(translate(nombre, 'áéíóúüñÁÉÍÓÚÜÑ', 'aeiouunAEIOUUN')) || ' ') !~ 'top cuello'
-   AND ((' ' || lower(translate(nombre, 'áéíóúüñÁÉÍÓÚÜÑ', 'aeiouunAEIOUUN')) || ' ') ~ '^ top ' OR (' ' || lower(translate(nombre, 'áéíóúüñÁÉÍÓÚÜÑ', 'aeiouunAEIOUUN')) || ' ') !~ '(musculosa|tank top|camiseta de tirantes|sin mangas)')
-   AND (' ' || lower(translate(nombre, 'áéíóúüñÁÉÍÓÚÜÑ', 'aeiouunAEIOUUN')) || ' ') ~ '( encaje| lencer| puntilla| interior| bralette)';
-
-UPDATE productos
-   SET categoria = 'Top Deportivo'
- WHERE bloqueado_por IS NULL
-   AND categoria = 'Musculosa'
-   AND COALESCE(NULLIF(rubro, ''), 'indumentaria') = 'indumentaria'
-   AND (' ' || lower(translate(nombre, 'áéíóúüñÁÉÍÓÚÜÑ', 'aeiouunAEIOUUN')) || ' ') ~ ' top '
-   AND (' ' || lower(translate(nombre, 'áéíóúüñÁÉÍÓÚÜÑ', 'aeiouunAEIOUUN')) || ' ') !~ 'top cuello'
-   AND ((' ' || lower(translate(nombre, 'áéíóúüñÁÉÍÓÚÜÑ', 'aeiouunAEIOUUN')) || ' ') ~ '^ top ' OR (' ' || lower(translate(nombre, 'áéíóúüñÁÉÍÓÚÜÑ', 'aeiouunAEIOUUN')) || ' ') !~ '(musculosa|tank top|camiseta de tirantes|sin mangas)')
-   AND (' ' || lower(translate(nombre, 'áéíóúüñÁÉÍÓÚÜÑ', 'aeiouunAEIOUUN')) || ' ') ~ '( deportiv| training| workout| running| run | gym| fitness| yoga| soporte| impacto| dri-fit| dri fit| techfit| compression| compresion| sport | sports | sportswear| crossback| adidas | nike | puma | asics | saucony | under armour | topper | reebok | new balance | atomik | fila | mizuno | umbro | lotto | kappa | diadora )';
-
-UPDATE productos
-   SET categoria = 'Top'
- WHERE bloqueado_por IS NULL
-   AND categoria = 'Musculosa'
-   AND COALESCE(NULLIF(rubro, ''), 'indumentaria') = 'indumentaria'
-   AND (' ' || lower(translate(nombre, 'áéíóúüñÁÉÍÓÚÜÑ', 'aeiouunAEIOUUN')) || ' ') ~ ' top '
-   AND (' ' || lower(translate(nombre, 'áéíóúüñÁÉÍÓÚÜÑ', 'aeiouunAEIOUUN')) || ' ') !~ 'top cuello'
-   AND ((' ' || lower(translate(nombre, 'áéíóúüñÁÉÍÓÚÜÑ', 'aeiouunAEIOUUN')) || ' ') ~ '^ top ' OR (' ' || lower(translate(nombre, 'áéíóúüñÁÉÍÓÚÜÑ', 'aeiouunAEIOUUN')) || ' ') !~ '(musculosa|tank top|camiseta de tirantes|sin mangas)');
-
--- 3. croptop / crop top filed as Corpino (it used to be in KW_CORPINO_TARDIO): "crop top" also holds " top ", so it follows the
---    sport rule; the one-word "croptop" is only ever a Top. Bra-like words keep it in Corpino.
-UPDATE productos
-   SET categoria = 'Top Deportivo'
- WHERE bloqueado_por IS NULL
-   AND categoria = 'Corpino'
-   AND COALESCE(NULLIF(rubro, ''), 'indumentaria') = 'indumentaria'
-   AND (' ' || lower(translate(nombre, 'áéíóúüñÁÉÍÓÚÜÑ', 'aeiouunAEIOUUN')) || ' ') ~ ' crop top '
-   AND (' ' || lower(translate(nombre, 'áéíóúüñÁÉÍÓÚÜÑ', 'aeiouunAEIOUUN')) || ' ') !~ '(corpino| bra |bralette|sosten|sujetador|bikini top|top interior|ropa interior femenina)'
-   AND (' ' || lower(translate(nombre, 'áéíóúüñÁÉÍÓÚÜÑ', 'aeiouunAEIOUUN')) || ' ') !~ '( encaje| lencer| puntilla| interior| bralette)'
-   AND (' ' || lower(translate(nombre, 'áéíóúüñÁÉÍÓÚÜÑ', 'aeiouunAEIOUUN')) || ' ') ~ '( deportiv| training| workout| running| run | gym| fitness| yoga| soporte| impacto| dri-fit| dri fit| techfit| compression| compresion| sport | sports | sportswear| crossback| adidas | nike | puma | asics | saucony | under armour | topper | reebok | new balance | atomik | fila | mizuno | umbro | lotto | kappa | diadora )';
-
-UPDATE productos
-   SET categoria = 'Top'
- WHERE bloqueado_por IS NULL
-   AND categoria = 'Corpino'
-   AND COALESCE(NULLIF(rubro, ''), 'indumentaria') = 'indumentaria'
-   AND (' ' || lower(translate(nombre, 'áéíóúüñÁÉÍÓÚÜÑ', 'aeiouunAEIOUUN')) || ' ') ~ '( croptop | crop top )'
-   AND (' ' || lower(translate(nombre, 'áéíóúüñÁÉÍÓÚÜÑ', 'aeiouunAEIOUUN')) || ' ') !~ '(corpino| bra |bralette|sosten|sujetador|bikini top|top interior|ropa interior femenina)'
-   AND (' ' || lower(translate(nombre, 'áéíóúüñÁÉÍÓÚÜÑ', 'aeiouunAEIOUUN')) || ' ') !~ '( encaje| lencer| puntilla| interior| bralette)';
-
--- 4. KW_CANILLERA_LIDER: the name leads with canillera(s), whatever else it says (medias, a boot model, a boxer cut).
-UPDATE productos
-   SET categoria = 'Accesorio Deportivo'
- WHERE bloqueado_por IS NULL
-   AND categoria IN ('Otros', 'Botines', 'Calzoncillos', 'Medias', 'Sneaker')
-   AND COALESCE(NULLIF(rubro, ''), 'indumentaria') = 'indumentaria'
-   AND (' ' || lower(translate(nombre, 'áéíóúüñÁÉÍÓÚÜÑ', 'aeiouunAEIOUUN')) || ' ') ~ '^ canilleras? ';
-
--- 5. Tubeless sealant: the injector, or a sealant named with tubeless. The bike categories live in rubro 'deporte'.
-UPDATE productos
-   SET categoria = 'Repuesto de Bicicleta',
-       rubro = 'deporte'
- WHERE bloqueado_por IS NULL
-   AND categoria <> 'Repuesto de Bicicleta'
-   AND (   (' ' || lower(translate(nombre, 'áéíóúüñÁÉÍÓÚÜÑ', 'aeiouunAEIOUUN')) || ' ') ~ '^ inyector (de )?sellante '
-        OR ((' ' || lower(translate(nombre, 'áéíóúüñÁÉÍÓÚÜÑ', 'aeiouunAEIOUUN')) || ' ') ~ '^ sellante ' AND (' ' || lower(translate(nombre, 'áéíóúüñÁÉÍÓÚÜÑ', 'aeiouunAEIOUUN')) || ' ') ~ ' tubeless'));
-
--- 6. Gender follows the category (GenderResolver.FEMININE_CODED_CATEGORIES: a bare top is a women's garment)
+-- Gender follows the category (GenderResolver.FEMININE_CODED_CATEGORIES: a bare top is a women's garment)
 -- unless the name carries an explicit men signal or the row is children's. Same rule as V84's Bombacha block.
 UPDATE productos
    SET genero = 'mujer'
