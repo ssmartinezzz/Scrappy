@@ -156,6 +156,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V79` | Las 30 hojas de El Mundo del Juguete que `V78` dejó sin mapear (6 a `Otros` explícito), sin categorías nuevas |
 | `V80` | Toda fila de El Mundo del Juguete pasa a `genero = 'infantil'` (sacaba mochilas y vestidos de muñeca de los picks de adultos) |
 | `V81` | Señales de nombre infantiles sin talle (`juvenil`, `escolar`, `Footy`, personajes que sólo venden a chicos) pasan a `genero = 'infantil'` |
+| `V82` | Categoría `Combo de Actualización` (kits CPU + motherboard) y realineación de las filas que estaban en `Motherboard`/`CPU`/`Cooler` |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -4519,4 +4520,43 @@ SELECT 1;
 -- <<< rollback:V81
 ```
 
-Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V80`.
+Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V82` y antes que el de `V80`.
+
+---
+
+## `V82` — categoría `Combo de Actualización`
+
+Un kit "Kit Mother ASUS PRIME A520M-K + Procesador AMD Ryzen 5 5500 + Wraith Stealth Cooler" o "COMBO AMD RYZEN 7
+5700X+B550+16GB" son dos piezas vendidas como una. Caían en `Motherboard` (86 filas activas en dev, 2026-11-10), `CPU` (16)
+o `Cooler` (5) según qué sustantivo líder ganara: inflaban las medianas de esas piezas (Motherboard 294.999 → 263.830,
+CPU 497.013 → 487.300 de mediana) y el armador de PCs podía ver un kit como una pieza. `TechClassifier` ahora los manda a
+`Combo de Actualización` (rubro `tecnologia`), y `V82` hace las dos cosas que una categoría nueva exige:
+
+- **El `INSERT` en `categoria`.** Sin la fila, `fk_productos_categoria` (`V13`) rechaza el upsert de todo kit, y como
+  `ProductRepository` se traga los errores SQL el síntoma es `"0 nuevos"` en una corrida sana.
+  `CategoriaLookupTableTest` exige que la tabla y `CategoryGroups.canonicalCategories()` sean el mismo conjunto.
+- **La realineación** de las filas guardadas (151 en dev, activas o no) con la misma regla que el clasificador: marca de
+  paquete (`combo`, `kit` o un `+`) **y** señal de CPU **y** señal de motherboard (`mother`, `motherboard`, `placa madre`,
+  `mainboard`, `mobo` o un chipset: `a520`, `b550`, `b650`, `h610`, `z890`…), sin `pc gamer`-like ni `gabinete`. Las PCs
+  completas (`PC`, `Mini PC`) y las filas bloqueadas a mano (`V3`) no se tocan. Idempotente.
+- **Fuera a propósito:** "Combo Ryzen 5 8400f & Cooler Jiushark" (CPU + cooler, sin motherboard) sigue en `Cooler`: es un kit
+  de CPU, no una actualización. Y un CPU con su cooler de fábrica ("Procesador … + Wraith Stealth Cooler") sigue en `CPU`.
+- **El armador de PCs no la elige:** `PcBuilder` arma los pools por `categoria` explícita (`CPU`, `Motherboard`, …), así que
+  `Combo de Actualización` nunca entra a un slot.
+
+### Rollback
+
+```sql
+-- >>> rollback:V82
+UPDATE productos SET categoria = 'Motherboard' WHERE categoria = 'Combo de Actualización';
+UPDATE sitio_categoria SET categoria = NULL WHERE categoria = 'Combo de Actualización';
+DELETE FROM categoria_stats WHERE categoria = 'Combo de Actualización';
+DELETE FROM categoria WHERE nombre = 'Combo de Actualización';
+-- <<< rollback:V82
+```
+
+**El orden es obligatorio**: `productos.categoria` (`V13`), `sitio_categoria.categoria` y `categoria_stats.categoria` (`V16`)
+tienen FK a `categoria`. El destino del `UPDATE` es `'Motherboard'` porque es donde caían 86 de los 107 kits activos; los
+otros vuelven ahí en vez de a su categoría exacta, y el próximo scrape los reclasifica con el clasificador que quede.
+
+Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V81`.

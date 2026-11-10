@@ -49,7 +49,7 @@ public final class CategoryGroups {
         "Almacenamiento",
         "Cooler","Fuente","Motherboard","Red","Cable","Impresión","Mousepad",
         "Joystick","Micrófono","UPS","Tablet","Cámara","Reloj",
-        "Mini PC", "TV y Audio",
+        "Mini PC", "Combo de Actualización", "TV y Audio",
         "Consola", "Videojuego"
     );
 
