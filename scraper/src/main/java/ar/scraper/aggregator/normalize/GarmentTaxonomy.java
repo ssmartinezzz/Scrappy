@@ -2118,6 +2118,15 @@ public final class GarmentTaxonomy {
     public static String[] torsoFlat() { return TORSO_KEYWORDS_FLAT; }
     public static String[] piernasFlat() { return PIERNAS_KEYWORDS_FLAT; }
 
+    /**
+     * Swim shorts and trunks. They are Malla even though "short"/"boxer" are leading nouns of Short and
+     * Calzoncillos, so IndumentariaClassifier checks them before both. Accent-stripped, plural included
+     * ("trajes de bano" does not contain KW_MALLA's "traje de bano").
+     */
+    public static final String[] KW_MALLA_SHORT_BANO = {
+        "swim short","swim trunk","short de bano","shorts de bano","boxer de bano","boxers de bano",
+        "bermuda de bano","bermudas de bano","trajes de bano"
+    };
     public static final String[] KW_MALLA_BANO = { " bano ","banos " };
     public static final String[] KW_MALLA_BANO_PRENDA = { "short","traje","slip","boxer","bermuda","calza","ropa" };
     public static final String[] KW_PROTEINA_ISOLADA_VETO = { " pinza "," electrodo" };
