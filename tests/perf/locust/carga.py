@@ -43,7 +43,7 @@ ENDPOINTS = [
     ("status", "/api/status", 1, 30),
     # IPC + dólar ya refrescados por un job aparte — p95 medido 3 ms
     ("indices", "/api/indices", 1, 30),
-    # agregación por marca sobre el snapshot — p95 medido 4 ms
+    # una página de 48 marcas A–Z de la lista cacheada por snapshot — p95 medido 4 ms (antes de paginar; sin re-medir)
     ("marcas", "/api/marcas-browser", 1, 30),
     # la primera pantalla de /catalogo, y el endpoint más pedido — p95 medido 24 ms
     ("data", "/api/data?page=0&size=24", 5, 50),

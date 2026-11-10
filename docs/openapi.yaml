@@ -1979,7 +1979,7 @@ paths:
   /api/marcas-browser:
     get:
       tags: [Picks/Marcas]
-      summary: Brand browser.
+      summary: Brand browser, keyset-paged (every brand with at least two products).
       x-access: AUTHENTICATED
       parameters:
         - name: rubro
@@ -1990,14 +1990,31 @@ paths:
           schema: { type: string }
         - name: sort
           in: query
-          schema: { type: string, default: count }
+          description: "`nombre` is A-Z (Spanish collation, accent- and case-insensitive); `count` is most products first; `precio_asc` / `precio_desc` sort by average price. Every order is total (the brand name breaks ties). Anything else is a 400."
+          schema: { type: string, default: nombre, enum: [nombre, count, precio_asc, precio_desc] }
+        - name: cursor
+          in: query
+          description: "The opaque `nextCursor` of the previous page. Only valid for the `sort` it was issued under."
+          schema: { type: string }
+        - name: limit
+          in: query
+          description: "Page size, default 48, clamped to 1..100."
+          schema: { type: integer, default: 48, minimum: 1, maximum: 100 }
       responses:
         "200":
-          description: Brand list.
+          description: "`data`: `{ marcas[], nextCursor, total }`; `nextCursor` is `null` on the last page, `total` is the number of brands for the filter."
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiResponse"
+        "204":
+          description: No catalog loaded yet.
+        "400":
+          description: "`solicitud_invalida` — `cursor` is malformed or was issued under another `sort`, or `sort` is unknown."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
 
   # ── Sitios ──────────────────────────────────────────────────────────────
 

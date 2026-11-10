@@ -19,13 +19,21 @@ public class MarcasPicksController {
     private final ScraperService service;
     private final CatalogoDerivadoCache derivados;
 
+    /**
+     * Every brand with at least two products, in keyset pages. {@code sort} is {@code nombre} (default, A-Z),
+     * {@code count}, {@code precio_asc} or {@code precio_desc}; anything else is a 400. {@code cursor} is the opaque
+     * {@code nextCursor} of the previous page (a malformed one, or one issued under another sort, is a 400) and
+     * {@code limit} defaults to 48 and is clamped to 1..100.
+     */
     @GetMapping("/marcas-browser")
-    public ResponseEntity<ApiResponse<List<MarcasPicksDtos.Marca>>> marcasBrowser(@RequestParam(required = false) String rubro,
+    public ResponseEntity<ApiResponse<MarcasPicksDtos.MarcasPagina>> marcasBrowser(@RequestParam(required = false) String rubro,
             @RequestParam(required = false) String q,
-            @RequestParam(defaultValue = "count") String sort) {
+            @RequestParam(defaultValue = "nombre") String sort,
+            @RequestParam(required = false) String cursor,
+            @RequestParam(required = false) Integer limit) {
         if (service.getLastResult() == null) return ResponseEntity.noContent().build();
-        return ResponseEntity.ok(ApiResponse.ok(
-                derivados.marcas(MarcasKey.de(service.snapshotVersion(), rubro, q, sort))));
+        return ResponseEntity.ok(ApiResponse.ok(derivados.marcasPagina(
+                MarcasKey.de(service.snapshotVersion(), rubro, q, sort), cursor, limit == null ? 48 : limit)));
     }
 
     @GetMapping("/mejores")

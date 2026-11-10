@@ -20,7 +20,7 @@ const PROD = { url: 'https://x/2', nombre: 'Remera Basic', sitio: 'vcp', marca: 
 
 beforeEach(() => {
   vi.clearAllMocks();
-  fetchMarcasBrowser.mockResolvedValue([{ marca: 'Nike', count: 3, precioMin: 100, precioMax: 900 }]);
+  fetchMarcasBrowser.mockResolvedValue({ marcas: [{ marca: 'Nike', count: 3, precioMin: 100, precioMax: 900 }], nextCursor: null, total: 1 });
   fetchData.mockResolvedValue({ productos: [PROD] });
   fetchTendencias.mockResolvedValue({
     state: 'ok',
@@ -64,10 +64,6 @@ describe.each([['{Enter}'], [' ']])('clickable cards are keyboard-operable (key 
     const onProductClick = vi.fn();
     const user = userEvent.setup();
     render(<MarcasPanel onProductClick={onProductClick} />);
-    // The panel re-reads once more after its 350 ms search debounce and swaps the grid for a
-    // spinner while it does; interacting before that settles would lose focus to the remount.
-    await waitFor(() => expect(fetchMarcasBrowser).toHaveBeenCalledTimes(2), { timeout: 2000 });
-
     await activateWithKeyboard(user, await screen.findByRole('button', { name: /Nike/ }), key);
     const product = await screen.findByRole('button', { name: /Remera Basic/ });
     await waitFor(() => expect(fetchData).toHaveBeenCalled());

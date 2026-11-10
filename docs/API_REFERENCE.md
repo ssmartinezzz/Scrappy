@@ -733,6 +733,20 @@ vacía. Los productos sin url no se pueden direccionar y quedan afuera.
 
 ---
 
+## GET /marcas-browser
+
+Todas las marcas con al menos 2 productos (ya no hay tope de 100), paginadas por cursor. Parámetros: `rubro`, `q`
+(subcadena de la marca), `sort`, `cursor` (el `nextCursor` de la página anterior) y `limit` (48 por defecto, entre 1 y
+100). `sort` es `nombre` (por defecto: A–Z, colación en español sin distinguir acentos ni mayúsculas), `count` (más
+productos primero), `precio_asc` o `precio_desc` (precio medio). Todo orden es total: el nombre de la marca desempata.
+`data` es `{ marcas[], nextCursor, total }`; `nextCursor` es `null` en la última página y `total` es la cantidad de marcas
+del filtro. El cursor es base64url de `sort|count|precioMedio|marca`: la página siguiente arranca estrictamente después
+de esa clave con una búsqueda binaria sobre la lista completa, cacheada por snapshot, `rubro`, `q` y `sort` (cache
+`marcas`): una página cuesta O(log n + limit), no un re-sort ni un salto de N filas. Un cursor mal formado, uno emitido
+bajo otro `sort` o un `sort` desconocido es 400 `solicitud_invalida`. Sin catálogo cargado responde 204.
+
+---
+
 ## GET /tendencias
 
 Cuando hay `categoria_stats` persistidas, la response de este endpoint incluye
