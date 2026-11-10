@@ -153,6 +153,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V76` | Plataforma `hadriatica`: `sitio_plataforma_check` pasa a 17 valores y la fila de Hadriatica deja `tiendanube` |
 | `V77` | Seed de El Mundo del Juguete (VTEX, sitio de juguetes con cola no juguete, `rubro_por_defecto = 'juguetes'`) |
 | `V78` | 66 hojas de El Mundo del Juguete en el mapeo curado (`sitio_categoria.categoria`), sin categorías nuevas |
+| `V79` | Las 30 hojas de El Mundo del Juguete que `V78` dejó sin mapear (6 a `Otros` explícito), sin categorías nuevas |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -4405,7 +4406,7 @@ una a una fila **existente** de `categoria`, sin categorías nuevas (`Juguete` 4
 `Bicicleta` 2 y una cada una `Peluche`, `Libro`, `Pelota`, `Mochila`, `Bolso`, `Zapatilla`, `Pantufla`, `Ropa de Cama`,
 `Equipamiento Deportivo`, `Consola`, `Auricular`, `Mouse`, `Teclado`, `Joystick`, `Silla`). Los rompecabezas son `Juguete`, no
 `Juego de Mesa`, porque así los clasifica el nombre. Las 30 hojas mixtas o sin categoría canónica quedan sin mapear (se
-abstienen) y las de gift card y `Bolsas` no se mapean porque `VtexPage` las excluye del scrape
+abstienen; las mapea `V79`) y las de gift card y `Bolsas` no se mapean porque `VtexPage` las excluye del scrape
 (`ServicioPorNombreDeCategoria`).
 
 ### Rollback
@@ -4417,7 +4418,47 @@ UPDATE sitio_categoria SET categoria = NULL WHERE sitio_key = 'elmundodeljuguete
 -- <<< rollback:V78
 ```
 
-Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V77`. El `DELETE` quita sólo las hojas
+Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V79`, antes que el de `V77`. El orden
+importa: `V79` mapea nodos de primer nivel (`Outlet`, `Pilas`, `Combos`, `Muebles y Bazar`), que tienen `padre_id` NULL aunque
+un scrape los haya cargado, y este `DELETE` se los llevaría si todavía tuvieran categoría. El `DELETE` quita sólo las hojas
 sembradas que ningún scrape tocó (`padre_id` NULL y con categoría); las que un scrape ya cargó conservan el nodo y pierden
 `categoria`. Ninguna fila de `productos` puede apuntarles por esa vía antes del primer scrape, y las ya clasificadas
 conservan su `categoria` hasta el próximo.
+
+---
+
+## `V79` — `sitio_categoria.categoria`: las 30 hojas restantes de El Mundo del Juguete
+
+Sólo datos, mismo criterio que `V78`: las 30 hojas que `V78` dejó sin mapear, cada una a una fila **existente** de
+`categoria`. Curado con la ruta de la hoja y los nombres del primer scrape completo (2026-11-09). Con `V78`, quedan sin fila
+sólo las gift cards y `Bolsas`, que `VtexPage` excluye.
+
+| Categoría | Hojas |
+|---|---|
+| `Juguete` | Indumentaria y Disfraces (de Disfraces y Accesorios), De Paseo, Playa (de Inflables y Piletas), Baño y Cuidado, Outlet |
+| `Otros` | Pilas, Pilas y Baterías, Combos, Cartucheras, Útiles Escolares, Accesorios de Viaje |
+| `Mueble` | Cunas, Sillas y Mecedores; Muebles y Bazar |
+| `Equipamiento Deportivo` | de Precisión, Individuales |
+| `Termo y Botella` | Botellas, Vasos y Tuppers; Vasos y Termos |
+| Una cada una | `Conservadora` (Luncheras), `Cámara` (Baby Call), `Monopatín` (Rollers y Patines), `Inflable`, `Mueble de Exterior`, `Carpa`, `Pileta`, `Accesorio de Pileta`, `Artículo de Camping` (colchones inflables), `Organización`, `Bazar` (alimentación de bebé), `Bolso` (bolsos maternales) |
+
+- **`Otros` explícito:** esas seis hojas no tienen categoría canónica en ningún sitio (las cartucheras y las pilas de otros
+  sitios también caen en `Otros`). La fila deja escrito que se revisaron; el resultado es el mismo que abstenerse.
+- **Las mezcladas que van a `Juguete`:** en este sitio una hoja de juguetes le gana al nombre. Outlet y Disfraces son casi
+  todo juguete. En Baño y Cuidado la mitad son juguetes de baño y la otra mitad artículos de cuidado (cepillos, manicura,
+  reductor de inodoro), que también pasan a `Juguete`: hoy ya estaban mal clasificados (`Cable`, `Conjunto`, `Otros`).
+
+### Rollback
+
+```sql
+-- >>> rollback:V79
+UPDATE sitio_categoria SET categoria = NULL
+ WHERE sitio_key = 'elmundodeljuguete'
+   AND origen_id IN (41, 42, 63, 65, 74, 79, 98, 99, 109, 112, 116, 119, 129, 132, 133, 134,
+                     135, 136, 137, 138, 144, 145, 146, 147, 153, 156, 157, 160, 161, 166);
+-- <<< rollback:V79
+```
+
+Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V78`. No borra nodos: cuatro de estas
+hojas son de primer nivel y tienen `padre_id` NULL aunque un scrape las haya cargado, así que el criterio de `V78` no sirve
+para distinguirlas. Una fila sembrada que nadie scrapeó queda con `categoria` NULL, el mismo estado que un nodo sin mapear.
