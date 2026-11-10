@@ -26,10 +26,11 @@ class CacheConfigTest {
     }
 
     @Test
-    void registersTheThreeSnapshotCaches() {
+    void registersTheSnapshotCaches() {
         try (var ctx = contexto(Map.of())) {
             assertThat(ctx.getBean(CacheManager.class).getCacheNames())
-                    .containsExactlyInAnyOrder(CacheNames.GRUPOS, CacheNames.MARCAS, CacheNames.MEJORES);
+                    .containsExactlyInAnyOrder(CacheNames.GRUPOS, CacheNames.MARCAS, CacheNames.MEJORES,
+                            CacheNames.MEJORES_RANKING);
         }
     }
 

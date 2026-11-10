@@ -135,9 +135,10 @@ function PicksGallery({ cats, busq, onSelectCat, subtitulo = 'El mejor de cada c
   const sentinelRef = useRef(null);
 
   const filtered = useMemo(() => (
-    busq
+    (busq
       ? cats.filter(c => c.categoria.toLowerCase().includes(busq.toLowerCase()))
-      : cats
+      : [...cats]
+    ).sort((a, b) => a.categoria.localeCompare(b.categoria, 'es', { sensitivity: 'base' }))
   ), [cats, busq]);
 
   // Reset reveal cursor whenever the filtered set changes (new search query)
@@ -247,7 +248,10 @@ export default function PicksPanel({ onProductClick }) {
   if (selCat) return (
     <div className="picks-scroll">
       <CategoryPicksView cat={selCat} onBack={() => setSelCat(null)}
-                          onProductClick={onProductClick}/>
+                          onProductClick={onProductClick}
+                          pickFilters={rubro === GYMRAT
+                            ? { rubro: '', gymrat: true, genero }
+                            : { rubro: rubro || '', gymrat: false, genero: '' }}/>
     </div>
   );
 

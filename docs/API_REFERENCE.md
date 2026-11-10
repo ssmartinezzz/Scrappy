@@ -702,6 +702,24 @@ afuera siempre. Ausente, no filtra por género. Con `gymrat=true` la sección ad
 `Otros` y las remeras con `sub_categoria` `compresión` forman su propia tarjeta,
 `Remera de compresión`, en vez de contar dentro de `Remera`.
 
+Cada categoría trae los destacados curados y hasta **20** picks (`MAX_PICKS_POR_CATEGORIA`); no se descarta ninguna
+categoría. Para ver el resto, `GET /mejores/picks`.
+
+---
+
+## GET /mejores/picks
+
+Todos los productos elegibles de **una** categoría, mejores primero, paginados por cursor. Parámetros: `categoria`
+(obligatorio, la etiqueta tal cual la devuelve `/mejores`), `rubro`, `gymrat` y `genero` (los mismos de `/mejores`: para que
+las páginas describan el mismo conjunto que el resumen hay que mandar los mismos), `cursor` (el `nextCursor` de la página
+anterior) y `limit` (24 por defecto, entre 1 y 100). El orden es el de `/mejores` (`scoreP`, 999 si no tiene) con `url`
+de desempate, o sea un orden total y estable. `data` es `{ picks[], nextCursor, total }`; `nextCursor` es `null` en la
+última página. El cursor es base64url de `clave|url` y la página siguiente arranca estrictamente después de él con una
+búsqueda binaria sobre el ranking, cacheado por snapshot con la misma clave que `mejores`: una página cuesta
+O(log n + limit), no un re-sort ni un salto de N filas (5,3 µs la primera y 8,4 µs la página 4900 sobre 120 mil productos,
+`MarcasPicksPaginadoPerfTest`). Un cursor mal formado es 400 `solicitud_invalida`; una categoría desconocida es una página
+vacía. Los productos sin url no se pueden direccionar y quedan afuera.
+
 ---
 
 ## GET /tendencias

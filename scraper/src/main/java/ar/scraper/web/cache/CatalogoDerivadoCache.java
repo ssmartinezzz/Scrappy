@@ -10,6 +10,7 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 
 /** Views derived from the in-memory snapshot, cached per snapshot version. */
@@ -86,6 +87,21 @@ public class CatalogoDerivadoCache {
         var r = snapshot.getLastResult();
         if (r == null) return List.of();
         return List.copyOf(MarcasPicksView.mejores(r, k.rubro(), k.gymrat(), k.genero()));
+    }
+
+    /**
+     * The full per-category ranking behind {@code /api/mejores/picks}, keyed like {@code mejores}: a page is a binary
+     * search over this list, not a re-sort of the catalog.
+     */
+    @Cacheable(cacheNames = CacheNames.MEJORES_RANKING, key = "#k", sync = true)
+    public Map<String, List<MarcasPicksView.Ranked>> rankingPicks(MejoresKey k) {
+        var r = snapshot.getLastResult();
+        if (r == null) return Map.of();
+        return MarcasPicksView.ranking(r, k.rubro(), k.gymrat(), k.genero());
+    }
+
+    public MarcasPicksDtos.PicksPagina picks(MejoresKey k, String categoria, String cursor, int limite) {
+        return MarcasPicksView.pagina(rankingPicks(k).getOrDefault(categoria, List.of()), cursor, limite);
     }
 
     private static String normalizar(String s) {

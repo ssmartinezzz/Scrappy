@@ -38,6 +38,7 @@ GET /api/historial
 GET /api/indices
 GET /api/marcas-browser
 GET /api/mejores
+GET /api/mejores/picks
 POST /api/notificaciones/baja/{token}
 GET /api/notificaciones/baja/{token}
 POST /api/notificaciones/correo-prueba

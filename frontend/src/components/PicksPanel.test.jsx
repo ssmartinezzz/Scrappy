@@ -57,3 +57,21 @@ describe('PicksPanel — Gymrat', () => {
     expect(screen.getByRole('button', { name: /Gymrat/ })).toHaveClass('active');
   });
 });
+
+describe('PicksPanel — gallery order', () => {
+  it('lists the categories A to Z whatever order the API returns them in', async () => {
+    fetchMejores.mockImplementation(async (rubro, opts = {}) => (
+      opts.gymrat ? [cat('Zapatilla', 9), cat('Bombacha', 2), cat('Álbum', 5), cat('Calza', 7)] : [cat('Remera', 9)]
+    ));
+    const user = userEvent.setup();
+    render(<PicksPanel />);
+
+    await user.click(await screen.findByRole('button', { name: 'Gymrat' }));
+    await screen.findByText('Bombacha');
+
+    const orden = ['Álbum', 'Bombacha', 'Calza', 'Zapatilla'].map(n => screen.getByText(n));
+    for (let i = 0; i < orden.length - 1; i++) {
+      expect(orden[i].compareDocumentPosition(orden[i + 1]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    }
+  });
+});

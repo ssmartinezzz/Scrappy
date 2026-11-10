@@ -31,6 +31,7 @@ public class CacheConfig {
         manager.registerCustomCache(CacheNames.GRUPOS, acotado(gruposMax, gruposTtl));
         manager.registerCustomCache(CacheNames.MARCAS, acotado(marcasMax, marcasTtl));
         manager.registerCustomCache(CacheNames.MEJORES, acotado(mejoresMax, mejoresTtl));
+        manager.registerCustomCache(CacheNames.MEJORES_RANKING, acotado(mejoresMax, mejoresTtl));
         return manager;
     }
 
