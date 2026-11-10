@@ -154,6 +154,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V77` | Seed de El Mundo del Juguete (VTEX, sitio de juguetes con cola no juguete, `rubro_por_defecto = 'juguetes'`) |
 | `V78` | 66 hojas de El Mundo del Juguete en el mapeo curado (`sitio_categoria.categoria`), sin categorías nuevas |
 | `V79` | Las 30 hojas de El Mundo del Juguete que `V78` dejó sin mapear (6 a `Otros` explícito), sin categorías nuevas |
+| `V80` | Toda fila de El Mundo del Juguete pasa a `genero = 'infantil'` (sacaba mochilas y vestidos de muñeca de los picks de adultos) |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -4459,6 +4460,32 @@ UPDATE sitio_categoria SET categoria = NULL
 -- <<< rollback:V79
 ```
 
-Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V78`. No borra nodos: cuatro de estas
+Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V80` y antes que el de `V78`. No borra nodos: cuatro de estas
 hojas son de primer nivel y tienen `padre_id` NULL aunque un scrape las haya cargado, así que el criterio de `V78` no sirve
 para distinguirlas. Una fila sembrada que nadie scrapeó queda con `categoria` NULL, el mismo estado que un nodo sin mapear.
+
+---
+
+## `V80` — El Mundo del Juguete: todo es `infantil`
+
+`NormalizerService` ahora resuelve `genero = 'infantil'` para todo producto de El Mundo del Juguete, sin pasar por
+`GenderResolver`: una juguetería le vende a chicos. Antes, sus mochilas, pantuflas y vestidos de muñeca quedaban con
+`genero` vacío (o `mujer`/`hombre` por el nombre: "Barbie … Falda", "Iron Man") y llenaban los picks de adultos, porque
+`EligibilityPolicy` sólo descarta `infantil` (dev, 2026-11-10: 494 de las 969 filas de `Mochila` en indumentaria). `V80`
+alinea las filas ya guardadas en vez de esperar al próximo scrape, que sigue siendo la fuente de verdad.
+
+- **Todas las filas del sitio**, activas o no, cualquiera sea su `genero` previo.
+- **Una sentencia, idempotente:** una fila tratada ya es `infantil` y deja de cumplir su `WHERE`.
+- **Nunca una fila bloqueada a mano** (`bloqueado_por`, `V3`).
+
+### Rollback
+
+```sql
+-- >>> rollback:V80
+-- No-op a propósito: genero es un derivado y cada scrape lo recalcula. El rollback real es revertir la regla
+-- de NormalizerService; el próximo scrape vuelve a resolver con GenderResolver.
+SELECT 1;
+-- <<< rollback:V80
+```
+
+Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V79`.

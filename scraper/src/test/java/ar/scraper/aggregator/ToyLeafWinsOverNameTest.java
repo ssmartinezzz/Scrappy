@@ -26,7 +26,7 @@ import static org.mockito.Mockito.when;
 
 @Epic("Normalization")
 @Feature("Category")
-@DisplayName("El Mundo del Juguete: a toy leaf beats the name, nothing else does")
+@DisplayName("El Mundo del Juguete: a toy leaf beats the name, and every product is infantil")
 class ToyLeafWinsOverNameTest {
 
     private static final int HOJA_JUGUETE = 1;
@@ -93,5 +93,24 @@ class ToyLeafWinsOverNameTest {
     void otherSitesKeepNameFirst() {
         assertThat(normalizar("Easy", "Set De Bloques 120 Piezas", HOJA_JUGUETE).categoria())
                 .isEqualTo(nombreAmbiguo("Set De Bloques 120 Piezas"));
+    }
+
+    @Test
+    @DisplayName("every product of the toy store is infantil, whatever the name or the site tag says")
+    void toyStoreProductsAreInfantil() {
+        for (String nombre : List.of("Mochila Escolar Espalda 18 Con Luz Led Unicornio Rosa Footy",
+                "Calzado Zapatillas Peppa Pig Con Luces Footy", "Muñeco The Avengers Titan Hero Iron Man",
+                "Bolso Maternal Chimola Baby New Moments Pale Pink")) {
+            Product p = Product.builder().sitio("Elmundodeljuguete").nombre(nombre).genero("mujer")
+                    .url("https://x/" + nombre).sitioCategoriaOrigenId(HOJA_NO_JUGUETE).build();
+            assertThat(normalizer.normalizar(List.of(p)).get(0).genero()).as(nombre).isEqualTo("infantil");
+        }
+    }
+
+    @Test
+    @DisplayName("the same product on another site keeps its resolved genero")
+    void otherSitesKeepTheirGenero() {
+        assertThat(normalizar("Easy", "Mochila Escolar Espalda 18 Con Luz Led Unicornio Rosa Footy",
+                HOJA_NO_JUGUETE).genero()).isNotEqualTo("infantil");
     }
 }
