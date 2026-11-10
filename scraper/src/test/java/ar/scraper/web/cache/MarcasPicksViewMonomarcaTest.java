@@ -41,7 +41,7 @@ class MarcasPicksViewMonomarcaTest {
                         .categoria("Remera").build());
         var r = new AggregatedResult(normalizer.normalizar(crudos), Map.of(), Map.of(), null, 0, 0);
 
-        var marcas = MarcasPicksView.marcas(r, "", "monky", "");
+        var marcas = MarcasPicksView.marcasRanking(r, "", "monky", "count").stream().map(MarcasPicksView.MarcaRank::marca).toList();
 
         assertThat(marcas).extracting(MarcasPicksDtos.Marca::getMarca).containsExactly("Monkyforce");
     }

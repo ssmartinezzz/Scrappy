@@ -2,7 +2,6 @@ package ar.scraper.web.cache;
 
 import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
 import ar.scraper.model.Product;
-import ar.scraper.web.dto.MarcasPicksDtos;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -28,12 +27,12 @@ class MarcasPicksViewSortTest {
         add(productos, "Mid", 200, 4);
         add(productos, "Dear", 300, 3);
         var r = new AggregatedResult(productos, Map.of(), Map.of(), null, 0, 0);
-        return MarcasPicksView.marcas(r, "", "", sort).stream().map(MarcasPicksDtos.Marca::getMarca).toList();
+        return MarcasPicksView.marcasRanking(r, "", "", sort).stream().map(m -> m.marca().getMarca()).toList();
     }
 
     @Test
-    void defaultSortsByProductCountDescending() {
-        assertThat(orden("")).containsExactly("Mid", "Dear", "Cheap");
+    void countSortsByProductCountDescending() {
+        assertThat(orden("count")).containsExactly("Mid", "Dear", "Cheap");
     }
 
     @Test

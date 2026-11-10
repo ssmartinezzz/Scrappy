@@ -58,12 +58,13 @@ class MarcasPicksCacheTest {
 
     @Test
     void brandsComeFromTheCacheBean() {
-        when(derivados.marcas(Mockito.any())).thenReturn(List.of());
+        when(derivados.marcasPagina(Mockito.any(), Mockito.any(), Mockito.anyInt()))
+            .thenReturn(new ar.scraper.web.dto.MarcasPicksDtos.MarcasPagina(List.of(), null, 0));
 
-        var respuesta = endpoints.marcasBrowser("Indumentaria", "NIKE", "count");
+        var respuesta = endpoints.marcasBrowser("Indumentaria", "NIKE", "count", "abc", 10);
 
         assertThat(respuesta.getStatusCode().value()).isEqualTo(200);
-        verify(derivados).marcas(MarcasKey.de(7, "indumentaria", "nike", "count"));
+        verify(derivados).marcasPagina(MarcasKey.de(7, "indumentaria", "nike", "count"), "abc", 10);
     }
 
     @Test
@@ -80,7 +81,7 @@ class MarcasPicksCacheTest {
     void noSnapshotIsNoContentWithoutTouchingTheCache() {
         when(service.getLastResult()).thenReturn(null);
 
-        assertThat(endpoints.marcasBrowser(null, null, "count").getStatusCode().value()).isEqualTo(204);
+        assertThat(endpoints.marcasBrowser(null, null, "count", null, null).getStatusCode().value()).isEqualTo(204);
         assertThat(endpoints.mejoresPorCategoria(null).getStatusCode().value()).isEqualTo(204);
         Mockito.verifyNoInteractions(derivados);
     }

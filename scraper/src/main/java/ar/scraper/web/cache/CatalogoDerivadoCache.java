@@ -55,7 +55,7 @@ public class CatalogoDerivadoCache {
 
     public record MarcasKey(long ver, String rubro, String q, String sort) {
         public static MarcasKey de(long ver, String rubro, String q, String sort) {
-            return new MarcasKey(ver, normalizar(rubro), normalizar(q), sort);
+            return new MarcasKey(ver, normalizar(rubro), normalizar(q), StringUtils.defaultIfBlank(sort, "nombre"));
         }
     }
 
@@ -76,10 +76,14 @@ public class CatalogoDerivadoCache {
     }
 
     @Cacheable(cacheNames = CacheNames.MARCAS, key = "#k", sync = true)
-    public List<MarcasPicksDtos.Marca> marcas(MarcasKey k) {
+    public List<MarcasPicksView.MarcaRank> marcas(MarcasKey k) {
         var r = snapshot.getLastResult();
         if (r == null) return List.of();
-        return List.copyOf(MarcasPicksView.marcas(r, k.rubro(), k.q(), k.sort()));
+        return MarcasPicksView.marcasRanking(r, k.rubro(), k.q(), k.sort());
+    }
+
+    public MarcasPicksDtos.MarcasPagina marcasPagina(MarcasKey k, String cursor, int limite) {
+        return MarcasPicksView.paginaMarcas(marcas(k), k.sort(), cursor, limite);
     }
 
     @Cacheable(cacheNames = CacheNames.MEJORES, key = "#k", sync = true)

@@ -7,8 +7,17 @@ import ar.scraper.model.Product;
 import ar.scraper.web.dto.MarcasPicksDtos;
 import org.apache.commons.lang3.StringUtils;
 
+import ar.scraper.api.ApiException;
+import org.springframework.http.HttpStatus;
+
+import java.nio.charset.StandardCharsets;
+import java.text.CollationKey;
+import java.text.Collator;
 import java.util.ArrayList;
+import java.util.Base64;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 final class MarcasPicksView {
@@ -21,7 +30,51 @@ final class MarcasPicksView {
 
     private static String safe(String s) { return ProductJson.safe(s); }
 
-    static List<MarcasPicksDtos.Marca> marcas(AggregatedResult r, String rubro, String q, String sort) {
+    static final String ORDEN_NOMBRE = "nombre";
+    private static final String ORDEN_COUNT = "count";
+    private static final String ORDEN_PRECIO_ASC = "precio_asc";
+    private static final String ORDEN_PRECIO_DESC = "precio_desc";
+
+    static final int MARCAS_POR_DEFECTO = 48;
+
+    /** A brand in the paged ranking; {@code clave} is its accent- and case-insensitive Spanish collation key. */
+    record MarcaRank(MarcasPicksDtos.Marca marca, double precioMedio, CollationKey clave) {}
+
+    private static final Collator COLLATOR_ES = collator();
+
+    private static Collator collator() {
+        Collator c = Collator.getInstance(Locale.forLanguageTag("es"));
+        c.setStrength(Collator.PRIMARY);
+        return c;
+    }
+
+    private static MarcaRank rank(MarcasPicksDtos.Marca marca, double precioMedio) {
+        return new MarcaRank(marca, precioMedio, COLLATOR_ES.getCollationKey(marca.getMarca()));
+    }
+
+    private static final Comparator<MarcaRank> POR_NOMBRE =
+        Comparator.comparing(MarcaRank::clave).thenComparing(m -> m.marca().getMarca());
+
+    /** Every order is total: the brand name (collation key, then raw text) breaks every tie. */
+    private static Comparator<MarcaRank> ordenDeMarcas(String sort) {
+        return switch (sort) {
+            case ORDEN_NOMBRE -> POR_NOMBRE;
+            case ORDEN_COUNT -> Comparator.comparingInt((MarcaRank m) -> m.marca().getCount()).reversed()
+                .thenComparing(POR_NOMBRE);
+            case ORDEN_PRECIO_ASC -> Comparator.comparingDouble(MarcaRank::precioMedio).thenComparing(POR_NOMBRE);
+            case ORDEN_PRECIO_DESC -> Comparator.comparingDouble(MarcaRank::precioMedio).reversed()
+                .thenComparing(POR_NOMBRE);
+            default -> throw solicitudInvalida("sort inválido");
+        };
+    }
+
+    /**
+     * Every brand with at least two products, sorted by {@code sort} ({@code nombre}, {@code count},
+     * {@code precio_asc}, {@code precio_desc}; blank means {@code nombre}, anything else is a 400). Built once per
+     * snapshot and cached by the caller; a page is a binary search over it.
+     */
+    static List<MarcaRank> marcasRanking(AggregatedResult r, String rubro, String q, String sort) {
+        Comparator<MarcaRank> orden = ordenDeMarcas(StringUtils.defaultIfBlank(sort, ORDEN_NOMBRE));
         var byMarca = r.productos().stream()
             .filter(p -> StringUtils.isNotBlank(p.marca()))
             .filter(p -> StringUtils.isBlank(rubro)
@@ -32,59 +85,85 @@ final class MarcasPicksView {
                 p -> p.marca().trim()
             ));
 
-        var entries = new java.util.ArrayList<>(byMarca.entrySet());
-        java.util.function.ToDoubleFunction<java.util.Map.Entry<String, List<Product>>> precioMedio =
-            e -> e.getValue().stream().mapToDouble(Product::precio).average().orElse(0);
-        entries.sort(switch (sort) {
-            case "precio_asc"  -> java.util.Comparator.comparingDouble(precioMedio);
-            case "precio_desc" -> java.util.Comparator.comparingDouble(precioMedio).reversed();
-            default -> java.util.Comparator.comparingInt(
-                (java.util.Map.Entry<String,java.util.List<Product>> e) ->
-                    e.getValue().size()).reversed();
+        List<MarcaRank> result = new ArrayList<>();
+        byMarca.forEach((marca, prods) -> {
+            if (prods.size() >= 2) {
+                result.add(rank(toMarca(marca, prods), prods.stream().mapToDouble(Product::precio).average().orElse(0)));
+            }
         });
+        result.sort(orden);
+        return List.copyOf(result);
+    }
 
-        List<MarcasPicksDtos.Marca> result = new ArrayList<>();
-        entries.stream()
-            .filter(e -> e.getValue().size() >= 2)
-            .limit(100)
-            .forEach(entry -> {
-                String marca = entry.getKey();
-                var   prods  = entry.getValue();
+    private static MarcasPicksDtos.Marca toMarca(String marca, List<Product> prods) {
+        double[] sortedP = prods.stream().mapToDouble(Product::precio).sorted().toArray();
+        double mediana   = sortedP[sortedP.length / 2];
+        String rubroVal  = prods.get(0).rubro() != null ? prods.get(0).rubro() : "indumentaria";
 
-                double[] sortedP = prods.stream().mapToDouble(Product::precio).sorted().toArray();
-                double mediana   = sortedP[sortedP.length / 2];
-                String rubroVal  = prods.get(0).rubro() != null ? prods.get(0).rubro() : "indumentaria";
+        String topCats = prods.stream()
+            .filter(p -> StringUtils.isNotBlank(p.categoria()))
+            .collect(java.util.stream.Collectors.groupingBy(
+                Product::categoria, java.util.stream.Collectors.counting()))
+            .entrySet().stream()
+            .sorted(java.util.Comparator.comparingLong(
+                (java.util.Map.Entry<String,Long> e2) -> e2.getValue()).reversed())
+            .limit(3).map(java.util.Map.Entry::getKey)
+            .collect(java.util.stream.Collectors.joining(", "));
 
-                String topCats = prods.stream()
-                    .filter(p -> StringUtils.isNotBlank(p.categoria()))
-                    .collect(java.util.stream.Collectors.groupingBy(
-                        Product::categoria, java.util.stream.Collectors.counting()))
-                    .entrySet().stream()
-                    .sorted(java.util.Comparator.comparingLong(
-                        (java.util.Map.Entry<String,Long> e2) -> e2.getValue()).reversed())
-                    .limit(3).map(java.util.Map.Entry::getKey)
-                    .collect(java.util.stream.Collectors.joining(", "));
+        Product best = prods.stream()
+            .filter(p -> StringUtils.isNotBlank(p.imagenUrl()))
+            .min(java.util.Comparator.comparingInt(
+                p -> p.ml() != null && p.ml().scoreP() > 0 ? p.ml().scoreP() : 999))
+            .orElse(prods.get(0));
 
-                Product best = prods.stream()
-                    .filter(p -> StringUtils.isNotBlank(p.imagenUrl()))
-                    .min(java.util.Comparator.comparingInt(
-                        p -> p.ml() != null && p.ml().scoreP() > 0 ? p.ml().scoreP() : 999))
-                    .orElse(prods.get(0));
+        String img = StringUtils.defaultString(best.imagenUrl());
+        if (img.startsWith("//")) img = "https:" + img;
 
-                String img = StringUtils.defaultString(best.imagenUrl());
-                if (img.startsWith("//")) img = "https:" + img;
+        String pImg = safe(best.imagenUrl());
+        if (pImg.startsWith("//")) pImg = "https:" + pImg;
+        var pick = new MarcasPicksDtos.BestPick(safe(best.nombre()), best.precio(),
+                safe(best.url()), pImg,
+                best.ml() != null ? safe(best.ml().badge()) : null,
+                best.ml() != null ? best.ml().scoreP() : null);
+        return new MarcasPicksDtos.Marca(marca, prods.size(), rubroVal, img,
+                (long) mediana, (long) sortedP[0], (long) sortedP[sortedP.length - 1],
+                topCats, pick);
+    }
 
-                String pImg = safe(best.imagenUrl());
-                if (pImg.startsWith("//")) pImg = "https:" + pImg;
-                var pick = new MarcasPicksDtos.BestPick(safe(best.nombre()), best.precio(),
-                        safe(best.url()), pImg,
-                        best.ml() != null ? safe(best.ml().badge()) : null,
-                        best.ml() != null ? best.ml().scoreP() : null);
-                result.add(new MarcasPicksDtos.Marca(marca, prods.size(), rubroVal, img,
-                        (long) mediana, (long) sortedP[0], (long) sortedP[sortedP.length - 1],
-                        topCats, pick));
-            });
-        return result;
+    /**
+     * One keyset page of brands: the {@code limit} (default 48, clamped to 1..100) brands strictly after
+     * {@code cursor}, found by binary search. The cursor carries the sort and the full key, so one issued under
+     * another sort is a 400.
+     */
+    static MarcasPicksDtos.MarcasPagina paginaMarcas(List<MarcaRank> ranking, String sort, String cursor, int limit) {
+        String orden = StringUtils.defaultIfBlank(sort, ORDEN_NOMBRE);
+        Comparator<MarcaRank> cmp = ordenDeMarcas(orden);
+        int n = Math.max(1, Math.min(limit, PAGINA_MAXIMA));
+        int desde = StringUtils.isBlank(cursor) ? 0 : despuesDe(ranking, decodificarMarca(cursor, orden), cmp);
+        int hasta = Math.min(ranking.size(), desde + n);
+        List<MarcasPicksDtos.Marca> marcas = new ArrayList<>(hasta - desde);
+        for (int i = desde; i < hasta; i++) marcas.add(ranking.get(i).marca());
+        String siguiente = hasta < ranking.size() && hasta > desde ? codificarMarca(orden, ranking.get(hasta - 1)) : null;
+        return new MarcasPicksDtos.MarcasPagina(marcas, siguiente, ranking.size());
+    }
+
+    private static String codificarMarca(String sort, MarcaRank m) {
+        return codificar(sort + "|" + m.marca().getCount() + "|" + m.precioMedio() + "|" + m.marca().getMarca());
+    }
+
+    private static MarcaRank decodificarMarca(String cursor, String sort) {
+        String[] partes = decodificarTexto(cursor).split("\\|", 4);
+        try {
+            if (partes.length < 4 || !partes[0].equals(sort) || partes[3].isEmpty()) {
+                throw new IllegalArgumentException("cursor de otro orden o incompleto");
+            }
+            var marca = new MarcasPicksDtos.Marca();
+            marca.setMarca(partes[3]);
+            marca.setCount(Integer.parseInt(partes[1]));
+            return rank(marca, Double.parseDouble(partes[2]));
+        } catch (IllegalArgumentException e) {
+            throw solicitudInvalida("cursor inválido");
+        }
     }
 
     static List<MarcasPicksDtos.MejoresCategoria> mejores(AggregatedResult r, String rubro) {
@@ -188,7 +267,7 @@ final class MarcasPicksView {
      */
     static MarcasPicksDtos.PicksPagina pagina(List<Ranked> ranking, String cursor, int limit) {
         int n = Math.max(1, Math.min(limit, PAGINA_MAXIMA));
-        int desde = StringUtils.isBlank(cursor) ? 0 : despuesDe(ranking, decodificar(cursor));
+        int desde = StringUtils.isBlank(cursor) ? 0 : despuesDe(ranking, decodificar(cursor), ORDEN_RANKING);
         int hasta = Math.min(ranking.size(), desde + n);
         List<MarcasPicksDtos.Pick> picks = new ArrayList<>(hasta - desde);
         for (int i = desde; i < hasta; i++) picks.add(toPick(ranking.get(i).producto(), "top", "Buena compra"));
@@ -196,30 +275,44 @@ final class MarcasPicksView {
         return new MarcasPicksDtos.PicksPagina(picks, siguiente, ranking.size());
     }
 
-    private static int despuesDe(List<Ranked> ranking, Ranked clave) {
+    private static <T> int despuesDe(List<T> ranking, T clave, Comparator<T> orden) {
         int lo = 0;
         int hi = ranking.size();
         while (lo < hi) {
             int mid = (lo + hi) >>> 1;
-            if (ORDEN_RANKING.compare(ranking.get(mid), clave) <= 0) lo = mid + 1; else hi = mid;
+            if (orden.compare(ranking.get(mid), clave) <= 0) lo = mid + 1; else hi = mid;
         }
         return lo;
     }
 
+    private static String codificar(String raw) {
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(raw.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static String decodificarTexto(String cursor) {
+        try {
+            return new String(Base64.getUrlDecoder().decode(cursor), StandardCharsets.UTF_8);
+        } catch (IllegalArgumentException e) {
+            throw solicitudInvalida("cursor inválido");
+        }
+    }
+
+    private static ApiException solicitudInvalida(String mensaje) {
+        return new ApiException(HttpStatus.BAD_REQUEST, "solicitud_invalida", mensaje);
+    }
+
     private static String codificar(Ranked r) {
-        return java.util.Base64.getUrlEncoder().withoutPadding()
-            .encodeToString((r.clave() + "|" + r.url()).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        return codificar(r.clave() + "|" + r.url());
     }
 
     private static Ranked decodificar(String cursor) {
+        String raw = decodificarTexto(cursor);
+        int barra = raw.indexOf('|');
         try {
-            String raw = new String(java.util.Base64.getUrlDecoder().decode(cursor), java.nio.charset.StandardCharsets.UTF_8);
-            int barra = raw.indexOf('|');
             if (barra < 1 || barra == raw.length() - 1) throw new IllegalArgumentException("sin separador");
             return new Ranked(Integer.parseInt(raw.substring(0, barra)), raw.substring(barra + 1), null);
         } catch (IllegalArgumentException e) {
-            throw new ar.scraper.api.ApiException(org.springframework.http.HttpStatus.BAD_REQUEST,
-                "solicitud_invalida", "cursor inválido");
+            throw solicitudInvalida("cursor inválido");
         }
     }
 

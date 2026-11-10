@@ -23,7 +23,7 @@ beforeEach(() => {
     observe() {}
     disconnect() { this.gone = true; }
   };
-  fetchMarcasBrowser.mockResolvedValue([marca]);
+  fetchMarcasBrowser.mockResolvedValue({ marcas: [marca], nextCursor: null, total: 1 });
 });
 
 const tocarCentinela = async () => {
@@ -49,5 +49,69 @@ describe('MarcasPanel — a brand shows ALL its products', () => {
     // Producto 2 came twice (page boundary overlap) and is shown once.
     expect(screen.getAllByText('Producto 2')).toHaveLength(1);
     expect(observers.filter(o => !o.gone)).toHaveLength(0);
+  });
+});
+
+const nombrada = n => ({ ...marca, marca: n });
+
+describe('MarcasPanel — the brand grid pages by keyset', () => {
+  it('starts A-Z, offers A-Z first, and asks for the first page without a cursor', async () => {
+    render(<MarcasPanel onProductClick={() => {}} />);
+
+    await screen.findByText('Nike');
+    expect(fetchMarcasBrowser).toHaveBeenCalledTimes(1);
+    expect(fetchMarcasBrowser).toHaveBeenCalledWith(expect.objectContaining({ sort: 'nombre', rubro: '', q: '' }));
+    expect(fetchMarcasBrowser.mock.calls[0][0].cursor).toBeFalsy();
+    const opciones = screen.getAllByRole('option').map(o => o.textContent);
+    expect(opciones[0]).toBe('A–Z');
+    expect(screen.getByRole('combobox')).toHaveValue('nombre');
+  });
+
+  it('loads the next page with the cursor when the sentinel shows, without repeating brands', async () => {
+    fetchMarcasBrowser
+      .mockResolvedValueOnce({ marcas: [nombrada('Adidas'), nombrada('Bata')], nextCursor: 'c1', total: 3 })
+      .mockResolvedValueOnce({ marcas: [nombrada('Bata'), nombrada('Zara')], nextCursor: null, total: 3 });
+    render(<MarcasPanel onProductClick={() => {}} />);
+
+    await screen.findByText('Bata');
+    await tocarCentinela();
+
+    await screen.findByText('Zara');
+    expect(fetchMarcasBrowser).toHaveBeenLastCalledWith(expect.objectContaining({ sort: 'nombre', cursor: 'c1' }));
+    expect(screen.getAllByText('Bata')).toHaveLength(1);
+    expect(observers.filter(o => !o.gone)).toHaveLength(0);
+  });
+
+  it('resets the list and drops the cursor when the sort changes', async () => {
+    fetchMarcasBrowser
+      .mockResolvedValueOnce({ marcas: [nombrada('Adidas')], nextCursor: 'c1', total: 2 })
+      .mockResolvedValueOnce({ marcas: [nombrada('Puma')], nextCursor: null, total: 1 });
+    const user = userEvent.setup();
+    render(<MarcasPanel onProductClick={() => {}} />);
+    await screen.findByText('Adidas');
+
+    await user.selectOptions(screen.getByRole('combobox'), 'precio_asc');
+
+    await screen.findByText('Puma');
+    expect(screen.queryByText('Adidas')).not.toBeInTheDocument();
+    const ultima = fetchMarcasBrowser.mock.calls.at(-1)[0];
+    expect(ultima.sort).toBe('precio_asc');
+    expect(ultima.cursor).toBeFalsy();
+  });
+
+  it('ignores a response that arrives after the filters changed', async () => {
+    let resolverVieja;
+    fetchMarcasBrowser
+      .mockImplementationOnce(() => new Promise(res => { resolverVieja = res; }))
+      .mockResolvedValueOnce({ marcas: [nombrada('Nueva')], nextCursor: null, total: 1 });
+    const user = userEvent.setup();
+    render(<MarcasPanel onProductClick={() => {}} />);
+    await user.selectOptions(screen.getByRole('combobox'), 'count');
+    await screen.findByText('Nueva');
+
+    await act(async () => { resolverVieja({ marcas: [nombrada('Vieja')], nextCursor: null, total: 1 }); });
+
+    expect(screen.queryByText('Vieja')).not.toBeInTheDocument();
+    expect(screen.getByText('Nueva')).toBeInTheDocument();
   });
 });

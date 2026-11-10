@@ -46,6 +46,14 @@ public final class MarcasPicksDtos {
         private List<Pick> picks;
     }
 
+    /** One keyset page of brands; {@code nextCursor} is null on the last page (and still serialised). */
+    @Getter @Setter @NoArgsConstructor @AllArgsConstructor
+    public static class MarcasPagina {
+        private List<Marca> marcas;
+        private String nextCursor;
+        private int total;
+    }
+
     /** One keyset page of a category's ranking; {@code nextCursor} is null on the last page (and still serialised). */
     @Getter @Setter @NoArgsConstructor @AllArgsConstructor
     public static class PicksPagina {

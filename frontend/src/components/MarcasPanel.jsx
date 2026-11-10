@@ -6,6 +6,7 @@ import { RUBROS } from '../lib/rubros';
 
 
 const SORT_OPTS = [
+  { v:'nombre',      l:'A–Z'           },
   { v:'count',       l:'Más productos' },
   { v:'precio_asc',  l:'Precio ↑'      },
   { v:'precio_desc', l:'Precio ↓'      },
@@ -249,24 +250,75 @@ export default function MarcasPanel({ onProductClick }) {
   const [marcas,  setMarcas]  = useState([]);
   const [loading, setLoading] = useState(false);
   const [rubro,   setRubro]   = useState('');
-  const [sort,    setSort]    = useState('count');
+  const [sort,    setSort]    = useState('nombre');
   const [q,       setQ]       = useState('');
+  const [qAplicada, setQAplicada] = useState('');
+  const [cursor,  setCursor]  = useState(null);
+  const [fin,     setFin]     = useState(true);
+  const [total,   setTotal]   = useState(0);
   const [selMarca, setSelMarca] = useState(null);
+  const cargando = useRef(false);
+  const generacion = useRef(0);
+  const sentinelRef = useRef(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    const data = await fetchMarcasBrowser({ rubro, sort, q });
-    setMarcas(Array.isArray(data) ? data : []);
-    setLoading(false);
-  }, [rubro, sort, q]);
-
-  useEffect(() => { load(); }, [rubro, sort]);
-
-  // Debounce search
+  // Debounce the search box; the list itself only reacts to the applied text.
   useEffect(() => {
-    const t = setTimeout(() => load(), 350);
+    const t = setTimeout(() => setQAplicada(q), 350);
     return () => clearTimeout(t);
   }, [q]);
+
+  // Keyset pagination: any filter change starts over from the first page. A response that belongs to an older
+  // filter set (its generation is no longer current) is dropped, so a slow request cannot overwrite a newer list.
+  useEffect(() => {
+    const mia = ++generacion.current;
+    cargando.current = false;
+    setLoading(true); setMarcas([]); setCursor(null); setFin(true); setTotal(0);
+    fetchMarcasBrowser({ rubro, sort, q: qAplicada })
+      .then(d => {
+        if (generacion.current !== mia) return;
+        setMarcas(d?.marcas || []);
+        setTotal(d?.total || 0);
+        setCursor(d?.nextCursor || null);
+        setFin(!d?.nextCursor);
+        setLoading(false);
+      })
+      .catch(() => {
+        if (generacion.current === mia) setLoading(false);
+      });
+    return () => { generacion.current++; };
+  }, [rubro, sort, qAplicada]);
+
+  const cargarMas = useCallback(async () => {
+    if (cargando.current || !cursor) return;
+    const mia = generacion.current;
+    cargando.current = true;
+    try {
+      const d = await fetchMarcasBrowser({ rubro, sort, q: qAplicada, cursor });
+      if (generacion.current !== mia) return;
+      setMarcas(prev => {
+        const vistas = new Set(prev.map(m => m.marca));
+        return [...prev, ...(d?.marcas || []).filter(m => !vistas.has(m.marca))];
+      });
+      setCursor(d?.nextCursor || null);
+      if (!d?.nextCursor) setFin(true);
+    } catch {
+      // A failed page leaves the sentinel armed; scrolling again retries it.
+    } finally {
+      if (generacion.current === mia) cargando.current = false;
+    }
+  }, [rubro, sort, qAplicada, cursor]);
+
+  useEffect(() => {
+    if (fin || loading || selMarca) return;
+    const el = sentinelRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      entries => { if (entries[0].isIntersecting) cargarMas(); },
+      { rootMargin: '600px', threshold: 0 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [fin, loading, selMarca, cargarMas]);
 
   if (selMarca) return (
     <MarcaDetail
@@ -289,7 +341,7 @@ export default function MarcasPanel({ onProductClick }) {
             🏷 Marcas
           </div>
           <div style={{ fontSize:'.62rem', color:'var(--t4)' }}>
-            {marcas.length} marcas · clickeá para ver sus productos
+            {total.toLocaleString('es-AR')} marcas · clickeá para ver sus productos
           </div>
         </div>
 
@@ -349,6 +401,7 @@ export default function MarcasPanel({ onProductClick }) {
             ))}
           </div>
         )}
+        {!fin && !loading && <div ref={sentinelRef} style={{ height:1 }} />}
       </div>
     </div>
   );

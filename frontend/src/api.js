@@ -326,11 +326,14 @@ export async function fetchMejoresPicks(categoria, { rubro = '', gymrat = false,
   return softUnwrap(r, { picks: [], nextCursor: null, total: 0 });
 }
 
+// One keyset page of brands (>= 2 products each). `sort` is nombre (A-Z), count, precio_asc or precio_desc; `cursor`
+// is the opaque `nextCursor` of the previous page and is only valid for the sort it was issued under.
+// Resolves to { marcas, nextCursor, total }, or to an empty last page on a soft failure.
 export async function fetchMarcasBrowser(params = {}) {
   const p = new URLSearchParams();
   Object.entries(params).forEach(([k, v]) => { if (v) p.set(k, v); });
   const r = await authedFetch(`${BASE}/api/marcas-browser?${p}`);
-  return softUnwrap(r, []);
+  return softUnwrap(r, { marcas: [], nextCursor: null, total: 0 });
 }
 
 // ─── ML Training ─────────────────────────────────────────────────────────────

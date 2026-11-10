@@ -103,7 +103,7 @@ class RecomendadosDismissMarcasTest {
     void marcasBrowserReturns204WhenNoLastResult() {
         when(service.getLastResult()).thenReturn(null);
 
-        var resp = marcas.marcasBrowser(null, null, "count");
+        var resp = marcas.marcasBrowser(null, null, "count", null, null);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(204);
     }
@@ -118,12 +118,13 @@ class RecomendadosDismissMarcasTest {
                 producto("Adidas Stan Smith", "https://b.com/2", "Adidas"));
         when(service.getLastResult()).thenReturn(mockResult(products));
 
-        var resp = marcas.marcasBrowser(null, null, "count");
+        var resp = marcas.marcasBrowser(null, null, "count", null, null);
         JsonNode body = Wire.data(resp);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
-        assertThat(body.isArray()).isTrue();
-        assertThat(body.size()).isGreaterThanOrEqualTo(1);
+        assertThat(body.path("marcas").isArray()).isTrue();
+        assertThat(body.path("marcas").size()).isGreaterThanOrEqualTo(1);
+        assertThat(body.path("total").asInt()).isEqualTo(2);
     }
 
     @Test
@@ -134,13 +135,14 @@ class RecomendadosDismissMarcasTest {
                 productWithRubro("Nike Runner2", "https://a.com/3", "Nike", "indumentaria"));
         when(service.getLastResult()).thenReturn(mockResult(products));
 
-        var resp = marcas.marcasBrowser("indumentaria", null, "count");
+        var resp = marcas.marcasBrowser("indumentaria", null, "count", null, null);
         JsonNode body = Wire.data(resp);
 
         // Only products with rubro=indumentaria are included; the suplementos product is filtered
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
         // Nike has 2 indumentaria products → passes the >=2 filter
-        assertThat(body.isArray()).isTrue();
+        assertThat(body.path("marcas").isArray()).isTrue();
+        assertThat(body.path("total").asInt()).isEqualTo(1);
     }
 
     // ── helpers ──────────────────────────────────────────────────────────
