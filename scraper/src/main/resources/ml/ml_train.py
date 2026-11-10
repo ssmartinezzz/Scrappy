@@ -134,6 +134,7 @@ CAT_PARENTS = {
     "bermuda":                 "Short",
     "malla":                   INDUMENTARIA_SUPERIOR,
     "calzoncillos":            INDUMENTARIA_SUPERIOR,
+    "bombacha":                INDUMENTARIA_SUPERIOR,
     "corpino":                 "Musculosa",
     "rinonera":                "Mochila",
     "riñonera":                "Mochila",

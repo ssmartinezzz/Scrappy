@@ -12,6 +12,8 @@ final class IndumentariaClassifier implements FamiliaClassifier {
     public String clasificar(TextoClasificable texto) {
         if (texto.contiene(GarmentTaxonomy.KW_MALLA_SHORT_BANO) && !texto.contiene(GarmentTaxonomy.KW_MALLA_VETO))
             return "Malla";
+        if (texto.contiene(GarmentTaxonomy.KW_BOMBACHA) && !texto.contiene(GarmentTaxonomy.KW_BOMBACHA_VETO))
+            return "Bombacha";
         if (texto.contiene(GarmentTaxonomy.KW_CALZONCILLO)) return "Calzoncillos";
         if (texto.contiene(GarmentTaxonomy.KW_CORPINO))     return "Corpino";
         if (esMalla(texto)) return "Malla";

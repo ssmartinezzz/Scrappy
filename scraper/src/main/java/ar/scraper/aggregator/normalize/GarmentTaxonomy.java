@@ -271,9 +271,22 @@ public final class GarmentTaxonomy {
         "top interior","ropa interior femenina","sujetador","bikini top"
     };
 
+    /**
+     * Women's bottom underwear. "tanga" used to live in KW_CALZONCILLO and filed women's thongs as men's
+     * underwear. Swimwear bottoms ("bombacha de bikini", "bombacha de bano") stay Malla and "pantalon culotte"
+     * is trousers, so KW_BOMBACHA_VETO keeps both out; so does the gaucho "bombacha de campo".
+     */
+    public static final String[] KW_BOMBACHA = {
+        "bombacha"," panty "," panties ","culotte","colaless","cola less","vedetina","tanga"
+    };
+    public static final String[] KW_BOMBACHA_VETO = {
+        "bikini","bano","malla","playa","swim","pantalon","jean","bermuda"," short ",
+        "campo","gaucho","gabardina","rural"
+    };
+
     public static final String[] KW_CALZONCILLO = {
         "calzoncillo","calzoncillos","boxer","short interior",
-        "slip ","tanga","ropa interior masculina","brief","trunk ",
+        "slip ","ropa interior masculina","brief","trunk ",
         "underwear","jockstrap","cueca"
     };
 

@@ -89,4 +89,49 @@ class SportResolverTest {
         assertThat(resolver.resolver(null, null, null)).isEmpty();
         assertThat(resolver.resolver("  ", "", "")).isEmpty();
     }
+
+    @ParameterizedTest(name = "{0} -> snowboard")
+    @org.junit.jupiter.params.provider.ValueSource(strings = {
+            "Tabla Snowboard Burton Custom 158",
+            "Tablas de Snowboards Hombre",
+            "Campera Snowboarding Impermeable",
+            "Campera de Snow Mujer",
+            "Pantalón Ski Hombre",
+            "Guantes Skis Térmicos",
+            "Campera de Esquí Hombre",
+            "Lentes Para Antiparras Anon M5",
+            "Casco Anon Helo",
+            "Campera Snow-Pro Mujer",
+    })
+    @DisplayName("each snowboard keyword resolves to snowboard; accents and punctuation do not hide it")
+    void detectsSnowboard(String nombre) {
+        assertThat(resolver.resolver(nombre, "Remera", "indumentaria")).isEqualTo("snowboard");
+    }
+
+    @Test
+    @DisplayName("precedence: snowboard sits before natacion, so snow goggles are not swimming — swim goggles still are")
+    void snowboardBeatsNatacion() {
+        assertThat(resolver.resolver("Lentes Para Antiparras Anon M5", "Otros", "indumentaria")).isEqualTo("snowboard");
+        assertThat(resolver.resolver("Antiparras adidas Ripstream Starter Jr", "Otros", "indumentaria")).isEqualTo("natacion");
+        assertThat(resolver.resolver("Gorra de Natación Speedo", "Otros", "indumentaria")).isEqualTo("natacion");
+    }
+
+    @Test
+    @DisplayName("precedence: futbol is listed first and still wins over snowboard when a name matches both")
+    void futbolBeatsSnowboard() {
+        assertThat(resolver.resolver("Camiseta Boca Juniors Snowboard Edition", "Remera", "indumentaria"))
+                .isEqualTo("futbol");
+        assertThat(resolver.resolver("Campera Snow River Plate", "Remera", "indumentaria")).isEqualTo("futbol");
+        assertThat(resolver.resolver("Botines Ski Edition", "Botines", "indumentaria")).isEqualTo("futbol");
+        assertThat(resolver.resolver("Campera Snow Edition", "Remera", "indumentaria")).isEqualTo("snowboard");
+    }
+
+    @Test
+    @DisplayName("negative: words that merely contain a snowboard keyword abstain")
+    void snowboardLookalikesAbstain() {
+        assertThat(resolver.resolver("Jean Skinny Hombre", "Jean", "indumentaria")).isEmpty();
+        assertThat(resolver.resolver("Remera Snowman Navidad", "Remera", "indumentaria")).isEmpty();
+        assertThat(resolver.resolver("Remera Anonimo Lisa", "Remera", "indumentaria")).isEmpty();
+        assertThat(resolver.resolver("Remera Skiff Negra", "Remera", "indumentaria")).isEmpty();
+    }
 }

@@ -158,6 +158,10 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V81` | Señales de nombre infantiles sin talle (`juvenil`, `escolar`, `Footy`, personajes que sólo venden a chicos) pasan a `genero = 'infantil'` |
 | `V82` | Categoría `Combo de Actualización` (kits CPU + motherboard) y realineación de las filas que estaban en `Motherboard`/`CPU`/`Cooler` |
 | `V83` | Los shorts y boxers de baño (`Swim Short`, `Short de baño`, `Trajes de baño`…) guardados como `Short`/`Calzoncillos`/`Bermuda` pasan a `Malla` |
+| `V84` | Categoría `Bombacha` (ropa interior de abajo de mujer; `tanga` sale de `Calzoncillos`) y realineación de las filas guardadas, con `genero = 'mujer'` |
+| `V85` | Deporte `snowboard` (antes de `natacion`) y realineación de las filas sin deporte o en `natacion` que lo nombran |
+| `V86` | Seed de Oneplaceworld, Burtonargentina, Kingofthekongo (Tiendanube) y Equus (VTEX), los cuatro `monomarca` con su fila en `marca` |
+| `V87` | Plataforma `kevingston`: `sitio_plataforma_check` pasa a 18 valores y seed de Kevingston (`monomarca`) |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -4587,4 +4591,110 @@ SELECT 1;
 -- <<< rollback:V83
 ```
 
-Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V82`.
+Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V84` y antes que el de `V82`.
+
+---
+
+## `V84` — categoría `Bombacha`
+
+`tanga` estaba en `KW_CALZONCILLO`, así que una tanga de mujer terminaba en `Calzoncillos` (ropa interior de hombre).
+`IndumentariaClassifier` ahora chequea `KW_BOMBACHA` (`bombacha`, `panty`, `panties`, `culotte`, `colaless`, `cola less`,
+`vedetina`, `tanga`) antes que `Calzoncillos`, salvo que aparezca una palabra de `KW_BOMBACHA_VETO` (traje de baño,
+pantalón/jean/bermuda/short, bombacha gaucha). `V84` hace las dos cosas que una categoría nueva exige:
+
+- **El `INSERT` en `categoria`.** Sin la fila, `fk_productos_categoria` (`V13`) rechaza el upsert y el síntoma es `"0 nuevos"`.
+  `CategoriaLookupTableTest` exige que la tabla y `CategoryGroups.canonicalCategories()` sean el mismo conjunto.
+- **La realineación** de las filas guardadas en `Calzoncillos` u `Otros` (sólo indumentaria, nunca una fila bloqueada a mano,
+  `V3`) con la misma regla, y `genero = 'mujer'` para las que quedan en `Bombacha` sin señal masculina en el nombre ni `infantil`.
+
+### Rollback
+
+```sql
+-- >>> rollback:V84
+UPDATE productos SET categoria = 'Calzoncillos' WHERE categoria = 'Bombacha';
+UPDATE sitio_categoria SET categoria = NULL WHERE categoria = 'Bombacha';
+DELETE FROM categoria_stats WHERE categoria = 'Bombacha';
+DELETE FROM categoria WHERE nombre = 'Bombacha';
+-- <<< rollback:V84
+```
+
+**El orden es obligatorio** (FK de `productos`, `sitio_categoria` y `categoria_stats` hacia `categoria`). Las filas vuelven a
+`Calzoncillos` porque es de donde salían las tangas; las que venían de `Otros` las reclasifica el próximo scrape. El
+`genero = 'mujer'` que puso la migración no se revierte: es un derivado y cada scrape lo recalcula.
+
+Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V85` y antes que el de `V83`.
+
+---
+
+## `V85` — deporte `snowboard`
+
+Burton Argentina y DC Shoes venden equipo de nieve. `SportTaxonomy` lista `snowboard` (`snowboard`, `snowboards`,
+`snowboarding`, `snow`, `ski`, `skis`, `esqui`, `anon`) justo después de `futbol` y **antes** de `natacion`: las antiparras de
+nieve de Burton se llaman "Lentes Para Antiparras Anon M5" y `antiparra` es palabra de natación, así que el orden es lo que
+las saca de ahí. `V85` inserta la fila en `deporte` y realinea las filas sin deporte **o ya en `natacion`** que nombran esas
+palabras (rubro indumentaria o deporte, nunca `Botines`, nunca una fila bloqueada a mano). Una fila con otro deporte lo conserva.
+
+### Rollback
+
+```sql
+-- >>> rollback:V85
+UPDATE productos SET deporte = NULL WHERE deporte = 'snowboard';
+DELETE FROM deporte WHERE codigo = 'snowboard';
+-- <<< rollback:V85
+```
+
+`productos.deporte` tiene FK a `deporte`, por eso el `UPDATE` va primero. Las antiparras que `V85` sacó de `natacion` quedan
+sin deporte (no se puede reconstruir cuáles lo eran); el próximo scrape las vuelve a resolver con la taxonomía que quede.
+
+Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V86` y antes que el de `V84`.
+
+---
+
+## `V86` — seed de cuatro tiendas de marca propia
+
+Oneplaceworld, Burtonargentina, Kingofthekongo (Tiendanube) y Equus (VTEX). Sólo seed: las dos plataformas ya existen.
+`rubro_forzado` queda `NULL` (decide `RubroResolver` por categoría), `monomarca = true` y la fila en `marca` va en la misma
+migración (`marca = sitio.nombre`, `V52`). Equus además fija `genero = 'hombre'` en `NormalizerService`, sin dato en la base.
+
+### Rollback
+
+```sql
+-- >>> rollback:V86
+DELETE FROM sitio WHERE sitio_key IN ('oneplaceworld', 'burtonargentina', 'kingofthekongo', 'equus');
+DELETE FROM marca WHERE nombre IN ('Oneplaceworld', 'Burtonargentina', 'Kingofthekongo', 'Equus');
+-- <<< rollback:V86
+```
+
+Si ya hay productos de esos sitios, `fk_productos_marca` frena el segundo `DELETE`: borrá antes sus filas de `productos`.
+
+Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V87` y antes que el de `V85`.
+
+---
+
+## `V87` — plataforma `kevingston`
+
+Kevingston es PHP propio (no VTEX): `POST /api/v1/products`, 36 por página, 1577 productos (2026-11-10). `KevingstonPage` lo lee,
+así que necesita valor de plataforma propio: `sitio_plataforma_check` (CHECK, no tabla, como `V6`) pasa a 18 valores
+y la fila de Kevingston se siembra `monomarca` con su `marca`. Las otras copias del vocabulario viajan en el mismo commit:
+`SitiosRepository.PLATAFORMAS_VALIDAS`, `ScraperFactory.PAGINAS`, `PlatformVocabularySyncTest` (puntero) y
+`SitioSeedSyncTest`.
+
+### Rollback
+
+```sql
+-- >>> rollback:V87
+DELETE FROM sitio WHERE sitio_key = 'kevingston';
+DELETE FROM marca WHERE nombre = 'Kevingston';
+ALTER TABLE sitio DROP CONSTRAINT sitio_plataforma_check;
+ALTER TABLE sitio ADD CONSTRAINT sitio_plataforma_check
+    CHECK (plataforma IN ('tiendanube','shopify','vtex','vaypol','woocommerce',
+                          'monkyforce','maximus','fullh4rd','compragamer',
+                          'qloud','oscommerce','inpro','morashop','prestashop',
+                          'gamerfactory','ambiancedeco','hadriatica'));
+-- <<< rollback:V87
+```
+
+El orden es obligatorio: mientras la fila `kevingston` viva, el CHECK angosto la rechaza. Si ya hay productos del sitio,
+`fk_productos_marca` frena el `DELETE` de `marca`: borrá antes sus filas de `productos`.
+
+Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V86`.

@@ -65,6 +65,12 @@ public class SubcategoryResolver {
             new String[]{"slip",   "slip"},
             new String[]{"brief",  "brief"}
         ));
+        SUBCATEG_TIER1.put("Bombacha", Arrays.<String[]>asList(
+            new String[]{"tanga",     "tanga"},
+            new String[]{"colaless",  "colaless", "cola less"},
+            new String[]{"vedetina",  "vedetina"},
+            new String[]{"culotte",   "culotte"}
+        ));
         SUBCATEG_TIER1.put("Corpino", Arrays.<String[]>asList(
             new String[]{"deportivo",   "deportivo", "training", "gym", "sport", "fitness"},
             new String[]{"push-up",     "push up", "pushup", "push-up"},

@@ -82,6 +82,9 @@ class V27RollbackRoundTripTest extends PostgresTestBase {
                 // ese valor— es RECHAZADO por Postgres, que valida las filas
                 // existentes al re-agregar el CHECK. Los rollbacks componen al
                 // revés: de más nuevo a más viejo.
+                // V87 widened the plataforma CHECK to 18 values and seeded a `kevingston` row on top of
+                // everything below: newest rollback first, or narrowing hits that row.
+                st.execute(DocumentedRollback.sqlFor("V87"));
                 st.execute(DocumentedRollback.sqlFor("V76"));
                 st.execute(DocumentedRollback.sqlFor("V45"));
                 st.execute(DocumentedRollback.sqlFor("V44"));
@@ -124,6 +127,9 @@ class V27RollbackRoundTripTest extends PostgresTestBase {
         try (Connection c = dataSource().getConnection()) {
             c.setAutoCommit(false);
             try (Statement st = c.createStatement()) {
+                // V87 widened the plataforma CHECK to 18 values and seeded a `kevingston` row on top of
+                // everything below: newest rollback first, or narrowing hits that row.
+                st.execute(DocumentedRollback.sqlFor("V87"));
                 st.execute(DocumentedRollback.sqlFor("V76"));
                 st.execute(DocumentedRollback.sqlFor("V45"));
                 // sitio_key es GENERATED ALWAYS (V23) — se deriva de `sitio`,

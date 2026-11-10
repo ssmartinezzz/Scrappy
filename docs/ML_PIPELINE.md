@@ -431,10 +431,31 @@ y al renormalizar es la categoría guardada, no el texto del sitio. Excepción e
 `NormalizerService` (no en el clasificador): en `elmundodeljuguete` una hoja mapeada a
 categoría de juguetes va antes que el nombre.
 
+**`Bombacha` es la ropa interior de abajo de mujer** (`V84`): `bombacha`, `panty`/`panties`,
+`culotte`, `colaless`/`cola less`, `vedetina` y `tanga` (que vivía en `KW_CALZONCILLO` y
+mandaba las tangas de mujer a `Calzoncillos`, o sea a hombre). `IndumentariaClassifier` la
+chequea antes que `Calzoncillos`, con `KW_BOMBACHA_VETO`: traje de baño (`bikini`, `baño`,
+`malla`, `playa`, `swim`), `pantalon culotte`/`jean`/`bermuda`/`short` y la bombacha gaucha
+(`campo`, `gaucho`, `gabardina`, `rural`). `GenderResolver` la trata como categoría femenina
+(como `Corpino`). `ropa interior femenina` sigue en `Corpino` (no distingue arriba de abajo).
+El zero-shot de imagen tiene su etiqueta (`ml_embeddings.py`: "women's panties or bikini briefs
+underwear, not swimwear"), y `ml_train.py` la agrupa igual que `calzoncillos`.
+
+**Género fijo por sitio.** `NormalizerService.GENERO_FIJO_POR_SITIO` (sitio → género) gana
+sobre todo: `elmundodeljuguete` → `infantil`, `equus` → `hombre`.
+
+**Ruido a `Otros` por sitio.** `NormalizerService.PALABRAS_OTROS_POR_SITIO` manda a `Otros`, antes
+del clasificador, los nombres con ciertas palabras completas sólo en ese sitio: `oneplaceworld`
+(hamaca, combo) y `kingofthekongo` (tote). Es por sitio porque en otras tiendas son productos
+legítimos (`Reposera y Hamaca`, combos de suplementos, `Bolso`).
+
 **`deporte` es una dimensión, no una categoría.** Una camiseta de Boca sigue siendo
 `Remera` y además lleva `deporte='futbol'` (`V59`). `SportResolver` decide con el
-mapa de `SportTaxonomy` (futbol, natacion, hockey, rugby, tenis, basquet, voley,
-ciclismo, golf, combate; el primero que matchea gana). Dar de alta un deporte son
+mapa de `SportTaxonomy` (futbol, snowboard, natacion, hockey, rugby, tenis, basquet, voley,
+ciclismo, golf, combate; el primero que matchea gana). `snowboard` (`V85`: `snowboard`,
+`snow`, `ski`, `esqui`, `anon`) va **antes** de natacion a propósito: las antiparras de
+nieve de Burton se llaman "Lentes Para Antiparras Anon M5" y `antiparra` es palabra de
+natación. No hay `fijaciones` pelado (ferretería). Dar de alta un deporte son
 **dos** cambios, igual que una categoría: el keyword y la fila en la tabla `deporte`
 (FK). Los clubes van con nombre completo (`river plate`, no `river`: "Kennebec
 River" es Timberland). `EligibilityPolicy` saca de armadores, recomendados y picks

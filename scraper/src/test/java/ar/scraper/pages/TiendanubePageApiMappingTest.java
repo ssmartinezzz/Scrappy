@@ -8,6 +8,8 @@ import io.qameta.allure.Feature;
 import io.qameta.allure.Story;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.lang.reflect.Method;
 import java.util.List;
@@ -174,5 +176,27 @@ class TiendanubePageApiMappingTest {
         assertThat(fromJs("{\"nombre\":\"X\",\"precio\":\"$ 1.000.001\"}")).isEmpty();
         assertThat(fromJs("{\"nombre\":\"X\",\"precio\":\"$ 500\"}")).map(Product::precioOriginal)
                 .isEqualTo(Optional.empty());
+    }
+
+    @ParameterizedTest(name = "[{index}] {0}")
+    @ValueSource(strings = {"Gift Card $50.000", "GIFT CARD", "Giftcard Digital", "Gift  Card", "Gift Cards Fin de Año",
+            "Tarjeta de Regalo", "Tarjetas de regalo Navidad", "Mi TARJETA DE REGALO"})
+    @DisplayName("a gift card or tarjeta de regalo is a voucher: dropped from both the API and the DOM path")
+    void giftCardsAreDropped(String nombre) throws Exception {
+        assertThat(TiendanubePage.esGiftCard(nombre)).isTrue();
+        assertThat(fromApi("{\"name\":\"" + nombre + "\",\"canonical_url\":\"/productos/g\",\"variants\":[{\"price\":\"5000\"}]}"))
+                .isEmpty();
+        assertThat(fromJs("{\"nombre\":\"" + nombre + "\",\"precio\":\"$ 5.000\",\"url\":\"/productos/g\"}")).isEmpty();
+    }
+
+    @ParameterizedTest(name = "[{index}] {0}")
+    @ValueSource(strings = {"Polo Gift Off White", "Gifted Hoodie", "Tarjetero de Cuero", "Tarjeta Postal Estampada",
+            "Remera Regalo", "Card Holder Negro"})
+    @DisplayName("names that merely share a word with a gift card stay products, on both paths")
+    void lookAlikesStayProducts(String nombre) throws Exception {
+        assertThat(TiendanubePage.esGiftCard(nombre)).isFalse();
+        assertThat(fromApi("{\"name\":\"" + nombre + "\",\"canonical_url\":\"/productos/g\",\"variants\":[{\"price\":\"5000\"}]}"))
+                .isPresent();
+        assertThat(fromJs("{\"nombre\":\"" + nombre + "\",\"precio\":\"$ 5.000\",\"url\":\"/productos/g\"}")).isPresent();
     }
 }
