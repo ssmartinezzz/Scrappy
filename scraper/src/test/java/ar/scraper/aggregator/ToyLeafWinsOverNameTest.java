@@ -110,7 +110,7 @@ class ToyLeafWinsOverNameTest {
     @Test
     @DisplayName("the same product on another site keeps its resolved genero")
     void otherSitesKeepTheirGenero() {
-        assertThat(normalizar("Easy", "Mochila Escolar Espalda 18 Con Luz Led Unicornio Rosa Footy",
+        assertThat(normalizar("Easy", "Mochila Urbana Espalda 20 Lts Negra",
                 HOJA_NO_JUGUETE).genero()).isNotEqualTo("infantil");
     }
 }
