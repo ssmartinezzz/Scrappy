@@ -2,6 +2,7 @@
 const LABELS = {
   futbol: 'Fútbol',
   natacion: 'Natación',
+  snowboard: 'Snowboard',
   hockey: 'Hockey',
   rugby: 'Rugby',
   tenis: 'Tenis',

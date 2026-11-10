@@ -29,6 +29,11 @@ public final class SportTaxonomy {
             "manchester city", "juventus", "psg", "paris saint germain", "inter miami",
             "milan", "bayern", "liverpool", "chelsea", "arsenal"
         });
+        // Ahead of natacion on purpose: Burton's snow goggles are "Antiparras Anon M5" and must not be swimming.
+        // "anon" is Burton's goggle/helmet brand. No bare "fijaciones" (hardware bindings of any kind).
+        KEYWORDS.put("snowboard", new String[] {
+            "snowboard", "snowboards", "snowboarding", "snow", "ski", "skis", "esqui", "anon"
+        });
         KEYWORDS.put("natacion", new String[] {
             "natacion", "malla de natacion", "antiparra", "antiparras", "gorra de natacion",
             "gorro de natacion", "swim", "swimwear", "aleta", "aletas", "speedo"
