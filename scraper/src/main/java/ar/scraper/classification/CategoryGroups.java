@@ -12,7 +12,7 @@ public final class CategoryGroups {
         "Chomba","Casaca","Chaleco","Saco","Traje","Piloto",
         "Calza","Baggy","Jean","Jogging","Short","Bermuda","Pollera",
         "Vestido","Enterito","Pantalón",
-        "Calzoncillos","Corpino","Malla",
+        "Calzoncillos","Bombacha","Corpino","Malla",
         "Mochila","Bolso","Riñonera","Billetera","Cinturón",
         "Bufanda","Guantes","Gorro","Gorra","Lentes","Medias",
         "Accesorio Deportivo"

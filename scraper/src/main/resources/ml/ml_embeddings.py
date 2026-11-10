@@ -431,6 +431,7 @@ PROMPTS = {
         ("a photo of tall boots", "Botas"),
         # ── Ropa interior / baño ────────────────────────────────────────
         ("a photo of men's underwear or boxers", "Calzoncillos"),
+        ("a photo of women's panties or bikini briefs underwear, not swimwear", "Bombacha"),
         ("a photo of a bra or bralette", "Corpino"),
         ("a photo of a swimsuit or bikini", "Malla"),
         # ── Indumentaria superior ───────────────────────────────────────

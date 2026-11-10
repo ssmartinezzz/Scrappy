@@ -144,7 +144,7 @@ def _categoria_vocabulary_from_java_category_classifier():
         "Botines", "Borcego", "Pantufla", "Zapato", "Mocasin", "Sandalia",
         "Ojotas", "Botas",
         # Ropa interior / baño
-        "Calzoncillos", "Corpino", "Malla",
+        "Calzoncillos", "Bombacha", "Corpino", "Malla",
         # Indumentaria superior
         "Puffer", "Piloto", "Traje", "Saco", "Chaleco", "Campera",
         "Sweater", "Buzo", "Casaca", "Chomba", "Musculosa", "Camisa",

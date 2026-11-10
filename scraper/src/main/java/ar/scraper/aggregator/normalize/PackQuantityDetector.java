@@ -47,6 +47,7 @@ public class PackQuantityDetector {
         GARMENT_PLURAL_ROOTS.put("media", "medias");
         GARMENT_PLURAL_ROOTS.put("calzoncillo", "calzoncillos");
         GARMENT_PLURAL_ROOTS.put("boxer", "boxers");
+        GARMENT_PLURAL_ROOTS.put("bombacha", "bombachas");
         for (String plural : GARMENT_PLURAL_ROOTS.values()) {
             GARMENT_PLURAL_PATTERNS.add(Pattern.compile(
                 "\\b(\\d{1,2})\\s+" + Pattern.quote(plural) + "\\b"));
