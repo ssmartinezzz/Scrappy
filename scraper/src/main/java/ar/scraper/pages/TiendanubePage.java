@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.microsoft.playwright.Page;
 
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.*;
 import org.apache.commons.lang3.StringUtils;
@@ -19,6 +20,15 @@ public class TiendanubePage extends StorePage implements CatalogPage {
      * quien depende de las dos capas.
      */
     public static final int MAX_PAGINAS_DEFAULT = 60;
+
+    /** A gift card is a voucher, not a good. "Polo Gift Off White" is a shirt, so only the two-word form counts. */
+    private static final Pattern GIFT_CARD = Pattern.compile(
+            "\\b(gift\\s*cards?|tarjetas?\\s+de\\s+regalo)\\b",
+            Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
+
+    static boolean esGiftCard(String nombre) {
+        return GIFT_CARD.matcher(nombre).find();
+    }
 
     private final List<String> extraUrls;
     private final int maxPaginas;
@@ -151,7 +161,7 @@ public class TiendanubePage extends StorePage implements CatalogPage {
     private Optional<Product> fromApi(JsonNode prod, String dom) {
         try {
             String nombre = prod.path("name").asText("").trim();
-            if (nombre.isBlank()) return Optional.empty();
+            if (nombre.isBlank() || esGiftCard(nombre)) return Optional.empty();
 
             String url = dom + prod.path("canonical_url").asText("");
 
@@ -327,7 +337,7 @@ public class TiendanubePage extends StorePage implements CatalogPage {
     private Optional<Product> fromJs(JsonNode n) {
         try {
             String nombre = n.path("nombre").asText("").trim();
-            if (nombre.isBlank()) return Optional.empty();
+            if (nombre.isBlank() || esGiftCard(nombre)) return Optional.empty();
             Optional<Double> precio = precioEnRango(n.path("precio").asText(""));
             if (precio.isEmpty()) return Optional.empty();
             OptionalDouble compareParsed = PrecioParser.parse(n.path("compare").asText("").trim());
@@ -514,7 +524,7 @@ public class TiendanubePage extends StorePage implements CatalogPage {
 
     /** No browser dependency; fully unit-testable. */
     public static OptionalInt resolveNextPageFromHrefs(List<String> hrefs, int currentPage) {
-        var pat = java.util.regex.Pattern.compile("[?&]page=(\\d+)");
+        var pat = Pattern.compile("[?&]page=(\\d+)");
         int maxN = -1;
         for (String h : hrefs) {
             if (h == null) continue;

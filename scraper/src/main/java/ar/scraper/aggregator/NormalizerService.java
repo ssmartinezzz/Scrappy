@@ -15,11 +15,14 @@ import ar.scraper.aggregator.normalize.SubcategoryResolver;
 import ar.scraper.model.Product;
 import org.springframework.stereotype.Component;
 
+import ar.scraper.aggregator.text.AccentStripper;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 import lombok.RequiredArgsConstructor;
@@ -36,8 +39,18 @@ public class NormalizerService {
      * or food ("Set de bloques" is a Conjunto, "con Vestido" a Vestido) while the leaf is exact.
      */
     private static final Set<String> SITIOS_DONDE_LA_HOJA_JUGUETE_GANA = Set.of("elmundodeljuguete");
-    // A toy store sells to kids: its backpacks, shoes and dolls' dresses are not adult picks.
-    private static final Set<String> SITIOS_SOLO_INFANTILES = Set.of("elmundodeljuguete");
+    // Sites whose whole catalogue is one gender, whatever the name says. A toy store sells to kids: its
+    // backpacks, shoes and dolls' dresses are not adult picks. Equus is a men's-only shop.
+    private static final Map<String, String> GENERO_FIJO_POR_SITIO =
+            Map.of("elmundodeljuguete", "infantil", "equus", "hombre");
+
+    // Words that make a product "Otros" on one store only: they are legitimate categories elsewhere (a hammock
+    // is "Reposera y Hamaca" on a garden store, a tote bag a Bolso, "combo" a kit on supplement and PC stores).
+    // Whole words, accent-stripped, matched on the name.
+    private static final Map<String, Set<String>> PALABRAS_OTROS_POR_SITIO = Map.of(
+            "oneplaceworld", Set.of("hamaca", "hamacas", "combo", "combos"),
+            "kingofthekongo", Set.of("tote"));
+    private static final Pattern NO_ALNUM = Pattern.compile("[^a-z0-9]+");
 
     private final PackQuantityDetector packQuantityDetector;
     private final CategoryClassifier categoryClassifier;
@@ -81,6 +94,13 @@ public class NormalizerService {
                 && CategoryGroups.esCategoriaJuguetes(categoriaDelArbol);
     }
 
+    private static boolean esOtrosEnSuSitio(String sitioKey, String nombre) {
+        Set<String> palabras = PALABRAS_OTROS_POR_SITIO.get(sitioKey);
+        if (palabras == null) return false;
+        String limpio = NO_ALNUM.matcher(AccentStripper.strip(nombre.toLowerCase())).replaceAll(" ");
+        return Arrays.stream(limpio.trim().split(" ")).anyMatch(palabras::contains);
+    }
+
     /** In an own-label store the brand is the store, even over a curated match in the name. */
     private String marcaDe(Product p, String nombre, String sitioKey) {
         if (siteRegistry.esMonomarca(sitioKey)) return siteRegistry.porKey(sitioKey).nombre();
@@ -93,11 +113,12 @@ public class NormalizerService {
         String delArbol       = categoriaDelArbol(p, categoriasDelArbol);
         String cat            = hojaJugueteGana(sitioKey, delArbol)
                 ? delArbol
-                : categoryClassifier.normalizarCategoria(p.categoria(), nombre, delArbol);
+                : esOtrosEnSuSitio(sitioKey, nombre)
+                        ? "Otros"
+                        : categoryClassifier.normalizarCategoria(p.categoria(), nombre, delArbol);
         String rubro          = rubroResolver.resolver(sitioKey, cat, p.rubro());
-        String genero         = SITIOS_SOLO_INFANTILES.contains(sitioKey)
-                ? "infantil"
-                : genderResolver.resolver(p.genero(), nombre, cat, rubro);
+        String genero         = GENERO_FIJO_POR_SITIO.getOrDefault(sitioKey,
+                genderResolver.resolver(p.genero(), nombre, cat, rubro));
         List<String> talles = sizeNormalizer.normalizar(p.talles());
         String marca          = marcaDe(p, nombre, sitioKey);
         boolean gymrat        = gymratTagger.esGymrat(nombre, sitioKey, cat, rubro, marca);

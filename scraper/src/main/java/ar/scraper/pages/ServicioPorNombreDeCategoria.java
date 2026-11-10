@@ -20,7 +20,9 @@ public final class ServicioPorNombreDeCategoria implements CriterioDeServicio {
 
     /** Lower-cased site name to the exact (lower-cased, trimmed) node names that are not products there. */
     private static final Map<String, Set<String>> NODOS_EXCLUIDOS_POR_SITIO = Map.of(
-            "elmundodeljuguete", Set.of("bolsas"));
+            "elmundodeljuguete", Set.of("bolsas"),
+            // Test nodes left in the live tree ("prueba" and its child "testingids").
+            "equus", Set.of("prueba", "testingids"));
 
     private final Set<String> nodosExcluidos;
 
