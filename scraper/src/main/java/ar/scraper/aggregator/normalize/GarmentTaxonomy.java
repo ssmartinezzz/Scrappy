@@ -225,9 +225,29 @@ public final class GarmentTaxonomy {
     };
 
     public static final String[] KW_MUSCULOSA = {
-        "musculosa","tank top","camiseta de tirantes","sin mangas",
-        "top deportivo","sports bra","corpino deportivo",
-        " top " // "Top" suelto (sin "deportivo"/"interior"/"cuello") — palabra completa
+        "musculosa","tank top","camiseta de tirantes","sin mangas"
+    };
+
+    /** Explicit sport tops: always "Top Deportivo", ahead of the lingerie keywords ("sports bra" holds " bra "). */
+    public static final String[] KW_TOP_DEPORTIVO = {"top deportivo","sports bra","corpino deportivo"};
+
+    /** A bare "top", whole word. Lingerie, sport or neither decides Corpino / Top Deportivo / Top. */
+    public static final String[] KW_TOP = {" top "};
+
+    /** A bare top that also names lingerie is a Corpino. */
+    public static final String[] KW_TOP_LENCERIA = {" encaje"," lencer"," puntilla"," interior"," bralette"};
+
+    /** Sport signals in the name of a bare top (leading space = word start, so "run" does not match "brunch"). */
+    public static final String[] KW_TOP_SENAL_DEPORTIVA = {
+        " deportiv"," training"," workout"," running"," run "," gym"," fitness"," yoga"," soporte"," impacto",
+        " dri-fit"," dri fit"," techfit"," compression"," compresion"," sport "," sports "," sportswear",
+        " crossback"
+    };
+
+    /** Sport brands: a bare top from one of them is a sport top. */
+    public static final String[] KW_TOP_MARCA_DEPORTIVA = {
+        " adidas "," nike "," puma "," asics "," saucony "," under armour "," topper "," reebok "," new balance ",
+        " atomik "," fila "," mizuno "," umbro "," lotto "," kappa "," diadora "
     };
 
     // Palabras 100% culinarias — corren al inicio de clasificar() para que keywords genéricos de
@@ -391,7 +411,9 @@ public final class GarmentTaxonomy {
      */
     public static final String[] KW_MUSCULOSA_TARDIA = {" tank ", " stringer ", " musculos "};
     public static final String[] KW_REMERA_TARDIA = {" boxy ", " long sleeve ", " slim fit ", " v-neck "};
-    public static final String[] KW_CORPINO_TARDIO = {" croptop ", " crop top ", " bras "};
+    public static final String[] KW_CORPINO_TARDIO = {" bras "};
+    /** A crop top is a fashion top, not lingerie. */
+    public static final String[] KW_TOP_TARDIO = {" croptop ", " crop top "};
 
     public static final String[] KW_BUFANDA = {
         "bufanda","scarf","panuelo cuello","echarpe","cuello polar",
@@ -1884,6 +1906,7 @@ public final class GarmentTaxonomy {
         " caja pedalera "," cajas pedaleras "," pastilla de freno "," pastillas de freno "," pastilla de cambio ",
         " pedalier "," biela "," bielas "," porta eje "," cinta de manubrio "," canasto para manubrio ",
         " porta caramanola "," caramanola "," ciclocomputador "," pin conector de cadena ",
+        " inyector de sellante "," inyector sellante ",
         " funda de cambio "," cinta para tubelizar "," set de freno "
     };
     public static final String[] KW_REPUESTO_BICI_GENERICO_LIDER = {
@@ -1891,7 +1914,7 @@ public final class GarmentTaxonomy {
         " bocina "," inflador "," bomba "," horquilla "," stem "," manubrio "," maza "," eje "," freno ",
         " frenos "," liquido de freno "," disco de freno "," discos de freno "," puños "," punos "," grip ",
         " palanca "," shifter "," bateria "," rueda "," ruedas "," rotor "," herramienta "," multiherramienta ",
-        " estuche "," funda para asiento "," kit reparacion "," kit de reparacion "," set de herramientas "," plato "," platos "
+        " sellante "," estuche "," funda para asiento "," kit reparacion "," kit de reparacion "," set de herramientas "," plato "," platos "
     };
     public static final String[] KW_REPUESTO_BICI_CONTEXTO = {
         " bicicleta"," bici "," bicis "," mtb "," ciclismo"," ciclista"," shimano "," sram "," trek "," bontrager ",
@@ -1961,6 +1984,9 @@ public final class GarmentTaxonomy {
     };
 
     public static final String[] KW_EQUIPAMIENTO_DEPORTIVO_VETO = { " inflable" };
+
+    /** Shin guards: the leading noun wins over "medias", a boot model or a boxer cut further on. */
+    public static final String[] KW_CANILLERA_LIDER = { " canillera "," canilleras " };
 
     public static final String[] KW_KAYAK_LIDER = { " kayak "," kayaks "," canoa "," canoas " };
     public static final String[] KW_BOTE_LIDER = { " bote "," botes " };
@@ -2117,7 +2143,7 @@ public final class GarmentTaxonomy {
 
     public static final String[] TORSO_KEYWORDS_FLAT = concatKeywords(
         KW_PUFFER, KW_PILOTO, KW_SACO, KW_CHALECO, KW_CAMPERA, KW_SWEATER,
-        KW_BUZO, KW_CASACA, KW_CHOMBA, KW_MUSCULOSA, KW_CAMISA, KW_REMERA);
+        KW_BUZO, KW_CASACA, KW_CHOMBA, KW_MUSCULOSA, KW_TOP_DEPORTIVO, KW_TOP, KW_CAMISA, KW_REMERA);
     public static final String[] PIERNAS_KEYWORDS_FLAT = concatKeywords(
         KW_CALZA, KW_BAGGY, KW_JEAN, KW_JOGGING, KW_BERMUDA, KW_SHORT,
         KW_VESTIDO, KW_ENTERITO, KW_POLLERA, KW_PANTALON);

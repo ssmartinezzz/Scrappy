@@ -136,6 +136,8 @@ CAT_PARENTS = {
     "calzoncillos":            INDUMENTARIA_SUPERIOR,
     "bombacha":                INDUMENTARIA_SUPERIOR,
     "corpino":                 "Musculosa",
+    "top":                     "Musculosa",
+    "top deportivo":           "Musculosa",
     "rinonera":                "Mochila",
     "riñonera":                "Mochila",
     "billetera":               "Accesorios",

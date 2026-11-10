@@ -148,7 +148,7 @@ function PlaceholderTab({ label }) {
 const BUILDER_GROUPS = [
   {
     key: 'torso', label: 'Torso',
-    cats: ['Puffer', 'Campera', 'Sweater', 'Buzo', 'Musculosa', 'Camisa',
+    cats: ['Puffer', 'Campera', 'Sweater', 'Buzo', 'Musculosa', 'Top', 'Top Deportivo', 'Camisa',
            'Remera', 'Chomba', 'Casaca', 'Chaleco', 'Saco', 'Traje', 'Piloto'],
   },
   {
@@ -180,7 +180,7 @@ const PICKER_GROUPS = BUILDER_GROUPS.map(g => ({ label: g.label, tags: g.cats })
 
 // Default gym categories pre-selected on mount (UOB-03, UOB-05)
 const GYM_DEFAULT_CATS = new Set([
-  'Remera', 'Buzo', 'Musculosa', 'Campera',                                    // torso
+  'Remera', 'Buzo', 'Musculosa', 'Top Deportivo', 'Campera',                   // torso
   'Short', 'Calza', 'Jogging', 'Pantalón',                                     // piernas
   'Zapatilla', 'Zapatilla Running', 'Zapatilla Entrenamiento',
   'Zapatilla Urbana', 'Sneaker',                                                // calzado
@@ -190,7 +190,7 @@ const GYM_DEFAULT_CATS = new Set([
 // wants "casi todo" available as casual. The backend gate (estilo=casual) keeps
 // only non-gymrat apparel for torso/piernas; calzado is category-driven.
 const CASUAL_DEFAULT_CATS = new Set([
-  'Remera', 'Buzo', 'Campera', 'Sweater', 'Camisa', 'Chomba', 'Musculosa',     // torso
+  'Remera', 'Buzo', 'Campera', 'Sweater', 'Camisa', 'Chomba', 'Musculosa', 'Top', 'Top Deportivo', // torso
   'Jean', 'Pantalón', 'Bermuda', 'Short', 'Jogging', 'Baggy',                  // piernas
   'Zapatilla', 'Zapatilla Urbana', 'Zapatilla Skate', 'Sneaker',               // calzado
 ]);

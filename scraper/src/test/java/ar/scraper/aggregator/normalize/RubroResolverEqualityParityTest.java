@@ -127,7 +127,9 @@ class RubroResolverEqualityParityTest {
         // resultado por sitio x categoría no cambia.
         // V84 (Bombacha): 273 -> 274. Ropa interior femenina es de indumentaria, como Calzoncillos y Corpino:
         // ninguno de los 23 sitios de V18 la nombra en su rubro_forzado.
-        assertThat(cats).as("CategoryGroups.canonicalCategories()").hasSize(274);
+        // V88 (Top, Top Deportivo): 274 -> 276. Son de indumentaria, como Corpino y Musculosa: ninguno de los 23 sitios
+        // de V18 las nombra en su rubro_forzado.
+        assertThat(cats).as("CategoryGroups.canonicalCategories()").hasSize(276);
 
         List<String> rubrosExistentes = Arrays.asList(null, "", "tecnologia", "suplementos", "indumentaria");
 
@@ -155,7 +157,7 @@ class RubroResolverEqualityParityTest {
             }
         }
 
-        assertThat(total).isEqualTo(23L * 274 * 5);
+        assertThat(total).isEqualTo(23L * 276 * 5);
         assertThat(mismatches)
                 .as("old substring oracle vs new equality — mismatched (sitio, categoria, rubroPrevio) triples")
                 .isEmpty();

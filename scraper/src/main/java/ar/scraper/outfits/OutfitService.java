@@ -67,7 +67,7 @@ public class OutfitService {
             "gym", new StyleRule(
                     Set.of("Zapatilla", "Zapatilla Running", "Zapatilla Entrenamiento",
                             "Zapatilla Urbana", "Sneaker"),
-                    Set.of("Buzo", "Campera", "Remera", "Musculosa"),
+                    Set.of("Buzo", "Campera", "Remera", "Musculosa", "Top Deportivo"),
                     Set.of("Short", "Pantalón", "Calza"),
                     Set.of("Gorra", "Medias", "Suplemento"))
             // Botines/Borcego/Botas/Ojotas/Zapatilla Skate (calzado — skate no es training, ej.
@@ -92,7 +92,7 @@ public class OutfitService {
      */
     public static final Set<String> KNOWN_CATEGORIAS = Collections.unmodifiableSet(
             new HashSet<>(Arrays.asList(
-                    "Puffer", "Campera", "Sweater", "Buzo", "Musculosa", "Camisa", "Remera",
+                    "Puffer", "Campera", "Sweater", "Buzo", "Musculosa", "Top", "Top Deportivo", "Camisa", "Remera",
                     "Chomba", "Casaca", "Chaleco", "Saco", "Traje", "Piloto",
                     "Calza", "Baggy", "Jean", "Jogging", "Short", "Bermuda", "Pollera", "Pantalón",
                     "Zapatilla", "Zapatilla Running", "Zapatilla Entrenamiento",
@@ -113,7 +113,7 @@ public class OutfitService {
 
     private static Map<String, String> buildCategoriaSubslotMap() {
         Map<String, String> m = new HashMap<>();
-        for (String cat : List.of("Remera", "Musculosa", "Camisa", "Chomba"))
+        for (String cat : List.of("Remera", "Musculosa", "Top", "Top Deportivo", "Camisa", "Chomba"))
             m.put(cat, SUBSLOT_TORSO_BASE);
         for (String cat : List.of("Buzo", "Campera", "Sweater", "Puffer", "Casaca", "Chaleco", "Saco", "Traje", "Piloto"))
             m.put(cat, SUBSLOT_TORSO_OUTER);
@@ -133,7 +133,7 @@ public class OutfitService {
     private static Map<String, String> buildCategoriaSlotMap() {
         Map<String, String> m = new HashMap<>();
         for (String cat : List.of(
-                "Puffer", "Campera", "Sweater", "Buzo", "Musculosa", "Camisa", "Remera",
+                "Puffer", "Campera", "Sweater", "Buzo", "Musculosa", "Top", "Top Deportivo", "Camisa", "Remera",
                 "Chomba", "Casaca", "Chaleco", "Saco", "Traje", "Piloto")) {
             m.put(cat, SLOT_TORSO);
         }

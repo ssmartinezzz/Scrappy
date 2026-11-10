@@ -31,9 +31,10 @@ class GymAccessoriesOutOfOtrosTest {
     }
 
     @Test
-    void croptopsAndBrasAreCorpinos() {
-        for (String n : new String[]{"CROPTOP 4REAL NEGRO", "CROPTOP TRAINING DEPT. BLANCO", "Bras Cruzado"}) {
-            assertThat(cat(n)).as(n).isEqualTo("Corpino");
+    void brasAreCorpinosAndCroptopsAreTops() {
+        assertThat(cat("Bras Cruzado")).isEqualTo("Corpino");
+        for (String n : new String[]{"CROPTOP 4REAL NEGRO", "CROPTOP TRAINING DEPT. BLANCO"}) {
+            assertThat(cat(n)).as(n).isEqualTo("Top");
         }
     }
 

@@ -15,6 +15,7 @@ final class IndumentariaClassifier implements FamiliaClassifier {
         if (texto.contiene(GarmentTaxonomy.KW_BOMBACHA) && !texto.contiene(GarmentTaxonomy.KW_BOMBACHA_VETO))
             return "Bombacha";
         if (texto.contiene(GarmentTaxonomy.KW_CALZONCILLO)) return "Calzoncillos";
+        if (texto.contiene(GarmentTaxonomy.KW_TOP_DEPORTIVO)) return "Top Deportivo";
         if (texto.contiene(GarmentTaxonomy.KW_CORPINO))     return "Corpino";
         if (esMalla(texto)) return "Malla";
 
@@ -30,6 +31,8 @@ final class IndumentariaClassifier implements FamiliaClassifier {
         if (texto.contiene(GarmentTaxonomy.KW_CHOMBA)
                 || (texto.contiene(GarmentTaxonomy.KW_CHOMBA_MARCA) && esContextoChomba(texto)))
             return "Chomba";
+        String top = clasificarTop(texto);
+        if (!top.isEmpty()) return top;
         if (texto.contiene(GarmentTaxonomy.KW_MUSCULOSA)) return "Musculosa";
         if (texto.contiene(GarmentTaxonomy.KW_CAMISA) && !texto.contiene(GarmentTaxonomy.KW_CAMISA_VETO)) return "Camisa";
         if (texto.contiene(GarmentTaxonomy.KW_REMERA) && !texto.contiene(GarmentTaxonomy.KW_REMERA_VETO)) return "Remera";
@@ -45,6 +48,21 @@ final class IndumentariaClassifier implements FamiliaClassifier {
         if (texto.contiene(GarmentTaxonomy.KW_POLLERA))  return "Pollera";
         if (texto.contiene(GarmentTaxonomy.KW_PANTALON) && !texto.contiene(GarmentTaxonomy.KW_PANTALON_VETO)) return "Pantalón";
         return "";
+    }
+
+    /**
+     * A bare "top": lingerie-style is a Corpino, a sport signal or sport brand a Top Deportivo, anything else a
+     * Top. The leading noun wins: "Top Under Armour Halo Run Tank" is a top, while "Tank Top" (the top is the
+     * tank's qualifier) stays a Musculosa, and "Top Cuello Alto" is a Remera.
+     */
+    private static String clasificarTop(TextoClasificable texto) {
+        if (!texto.contiene(GarmentTaxonomy.KW_TOP) || texto.contiene("top cuello")) return "";
+        boolean lidera = texto.sinPrefijoDeVentaEmpiezaCon(GarmentTaxonomy.KW_TOP);
+        if (!lidera && texto.contiene(GarmentTaxonomy.KW_MUSCULOSA)) return "";
+        if (texto.contiene(GarmentTaxonomy.KW_TOP_LENCERIA)) return "Corpino";
+        if (texto.contiene(GarmentTaxonomy.KW_TOP_SENAL_DEPORTIVA)
+                || texto.contiene(GarmentTaxonomy.KW_TOP_MARCA_DEPORTIVA)) return "Top Deportivo";
+        return "Top";
     }
 
     private static boolean esMalla(TextoClasificable texto) {

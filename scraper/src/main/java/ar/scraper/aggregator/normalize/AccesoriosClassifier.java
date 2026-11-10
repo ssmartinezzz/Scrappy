@@ -22,6 +22,7 @@ final class AccesoriosClassifier implements FamiliaClassifier {
         if (texto.contiene(GarmentTaxonomy.KW_MUSCULOSA_TARDIA))     return "Musculosa";
         if (texto.contiene(GarmentTaxonomy.KW_REMERA_TARDIA))        return "Remera";
         if (texto.contiene(GarmentTaxonomy.KW_CORPINO_TARDIO))       return "Corpino";
+        if (texto.contiene(GarmentTaxonomy.KW_TOP_TARDIO))           return "Top";
         return "";
     }
 }

@@ -15,7 +15,7 @@ public class GenderResolver {
     // producto, el género se fuerza a "mujer" antes de que el combined-check (que incluye raw VTEX)
     // lo pise.
     private static final Set<String> FEMININE_CODED_CATEGORIES =
-            Set.of("Calza", "Pollera", "Vestido", "Enterito", "Corpino", "Bombacha", "Malla");
+            Set.of("Calza", "Pollera", "Vestido", "Enterito", "Corpino", "Bombacha", "Malla", "Top", "Top Deportivo");
 
     private static final Set<String> WOMEN_TOKENS =
             Set.of(" wmn ", " girl ", " croptop ", " crop top ", " bras ");

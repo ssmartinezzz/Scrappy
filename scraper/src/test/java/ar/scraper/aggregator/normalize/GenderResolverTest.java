@@ -30,6 +30,17 @@ class GenderResolverTest {
     // ══════════════════════════════════════════════════════════════════
 
     @Test
+    void topSinSenalDevuelveMujer() {
+        assertThat(resolver.resolver("", "TOP COZY", "Top")).isEqualTo("mujer");
+        assertThat(resolver.resolver("", "Top Puma Training", "Top Deportivo")).isEqualTo("mujer");
+    }
+
+    @Test
+    void topConSenalDeHombreDevuelveHombre() {
+        assertThat(resolver.resolver("", "Top Compresion de Hombre", "Top Deportivo")).isEqualTo("hombre");
+    }
+
+    @Test
     void calzaConRawVtexHombreDevuelveMujer() {
         // VTEX sets raw="Hombre" at category level even for women's calzas.
         // The feminine-coded override must fire before combined.contains("hombre").

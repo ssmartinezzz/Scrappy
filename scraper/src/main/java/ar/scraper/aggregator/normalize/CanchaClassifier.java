@@ -6,6 +6,7 @@ final class CanchaClassifier implements FamiliaClassifier {
     public String clasificar(TextoClasificable texto) {
         if (texto.lideraSinVeto(GarmentTaxonomy.KW_EQUIPAMIENTO_DEPORTIVO_LIDER, GarmentTaxonomy.KW_EQUIPAMIENTO_DEPORTIVO_VETO))
             return "Equipamiento Deportivo";
+        if (texto.sinPrefijoDeVentaEmpiezaCon(GarmentTaxonomy.KW_CANILLERA_LIDER)) return "Accesorio Deportivo";
         return "";
     }
 }
