@@ -68,4 +68,34 @@ class ServicioPorNombreDeCategoriaExclusionesTest {
 
         assertThat(ids).containsExactlyInAnyOrder(71, 158, 159, 151);
     }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"prueba", "testingids", "Prueba", " TestingIds "})
+    @DisplayName("Equus: its leftover test nodes (prueba, testingids) are not products, whatever the case")
+    void equusTestNodesAreExcluded(String nodo) {
+        assertThat(ServicioPorNombreDeCategoria.para("Equus").esServicio(nodo)).isTrue();
+    }
+
+    @Test
+    @DisplayName("the Equus test nodes are excluded on Equus only, and only as exact names")
+    void equusExclusionIsPerSiteAndExact() {
+        assertThat(ServicioPorNombreDeCategoria.para("Easy").esServicio("prueba")).isFalse();
+        assertThat(ServicioPorNombreDeCategoria.para("Elmundodeljuguete").esServicio("testingids")).isFalse();
+        assertThat(new ServicioPorNombreDeCategoria().esServicio("prueba")).isFalse();
+        var equus = ServicioPorNombreDeCategoria.para("Equus");
+        assertThat(equus.esServicio("Pruebas de Color")).isFalse();
+        assertThat(equus.esServicio("Remeras")).isFalse();
+        assertThat(equus.esServicio("Bolsas")).as("Bolsas is a Juguete-only exclusion").isFalse();
+    }
+
+    @Test
+    @DisplayName("on Equus the whole prueba subtree is flagged and its siblings are not")
+    void equusPruebaSubtree() {
+        List<VtexPage.CategoriaVtex> arbol = List.of(
+                new VtexPage.CategoriaVtex(1, "prueba", List.of(new VtexPage.CategoriaVtex(2, "testingids", List.of()))),
+                new VtexPage.CategoriaVtex(3, "Remeras", List.of()));
+
+        assertThat(VtexPage.idsDeServicio(arbol, ServicioPorNombreDeCategoria.para("Equus")))
+                .containsExactlyInAnyOrder(1, 2);
+    }
 }

@@ -102,6 +102,9 @@ class V59DeporteTest extends PostgresTestBase {
                     }
                 }
                 aplicar(st);
+                // V59 predates the 'snowboard' entry of SportTaxonomy: V85 is the backfill that mirrors it, so
+                // the parity over EVERY sport needs both migrations replayed in version order.
+                st.execute(recurso("/db/migration/V85__deporte_snowboard.sql"));
 
                 try (ResultSet rs = st.executeQuery("SELECT nombre, deporte FROM productos ORDER BY url")) {
                     int rows = 0;
@@ -163,8 +166,12 @@ class V59DeporteTest extends PostgresTestBase {
     }
 
     private static String migracion() throws Exception {
-        try (InputStream in = V59DeporteTest.class.getResourceAsStream(MIGRATION)) {
-            assertThat(in).as("migration %s on the classpath", MIGRATION).isNotNull();
+        return recurso(MIGRATION);
+    }
+
+    private static String recurso(String path) throws Exception {
+        try (InputStream in = V59DeporteTest.class.getResourceAsStream(path)) {
+            assertThat(in).as("migration %s on the classpath", path).isNotNull();
             return new String(in.readAllBytes(), StandardCharsets.UTF_8);
         }
     }
