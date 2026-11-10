@@ -163,6 +163,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V86` | Seed de Oneplaceworld, Burtonargentina, Kingofthekongo (Tiendanube) y Equus (VTEX), los cuatro `monomarca` con su fila en `marca` |
 | `V87` | Plataforma `kevingston`: `sitio_plataforma_check` pasa a 18 valores y seed de Kevingston (`monomarca`) |
 | `V88` | Categorías `Top` y `Top Deportivo` (salen de `Musculosa`), `croptop` pasa de `Corpino` a `Top`, las canilleras a `Accesorio Deportivo` y el inyector de sellante a `Repuesto de Bicicleta`; los tops movidos quedan con `genero = 'mujer'` salvo señal de hombre o infantil |
+| `V89` | Índice parcial `idx_productos_marca_precio` sobre `(lower(coalesce(marca,'')), precio, url) WHERE activo`: una marca paginada por cursor (`/api/data?cursor=`) pasa de barrer 87 mil filas a un rango de índice |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -4737,5 +4738,27 @@ DELETE FROM categoria WHERE nombre IN ('Top', 'Top Deportivo');
 `Musculosa` porque es de donde salían; los tops que `V88` mandó a `Corpino`, las canilleras y el inyector no se revierten (no se
 puede reconstruir de dónde venía cada una): el próximo scrape con el clasificador que quede las vuelve a resolver.
 
-Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V87`.
+Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V89` y antes que el de `V87`.
 
+---
+
+## `V89` — índice `idx_productos_marca_precio`
+
+`/api/data` gana un modo por cursor (`?cursor=`, claves `(precio, url)`, sin `OFFSET` ni `COUNT`) para que una marca muestre
+TODOS sus productos sin que la página N cueste más que la 1. El filtro de marca es `lower(coalesce(marca,'')) = ?` y ningún índice
+lo cubría: cada página, la primera o la 4900, hacía un `Seq Scan` de las ~87 mil filas activas (~34 ms medidos en una copia
+de la base de dev, 2026-11-10). `V89` agrega el índice parcial `(lower(coalesce(marca,'')), precio, url) WHERE activo` (misma
+forma que `idx_productos_rubro_precio`, `V73`). Una sola marca se filtra ahora con igualdad simple y no con `= ANY(?)`: sólo
+esa forma deja que el índice entregue las filas ya ordenadas, y la página pasa a ser un rango de índice (0,17 ms, primera
+página y página profunda por igual, `Index Scan` / `Index Scan Backward`). Con varias marcas sigue `= ANY(?)`.
+
+### Rollback
+
+```sql
+-- >>> rollback:V89
+DROP INDEX IF EXISTS idx_productos_marca_precio;
+-- <<< rollback:V89
+```
+
+Es sólo un índice: borrarlo no cambia ningún resultado, sólo vuelve al `Seq Scan` por página. Es el bloque más nuevo: en una cadena
+de rollbacks corre PRIMERO, antes que el de `V88`.

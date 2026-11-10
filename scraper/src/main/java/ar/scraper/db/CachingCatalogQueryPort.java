@@ -1,6 +1,8 @@
 package ar.scraper.db;
 
+import ar.scraper.catalog.CatalogCursor;
 import ar.scraper.catalog.CatalogFilter;
+import ar.scraper.catalog.CatalogKeysetPage;
 import ar.scraper.catalog.CatalogPage;
 import ar.scraper.catalog.CatalogQueryPort;
 import ar.scraper.catalog.CatalogResumen;
@@ -56,6 +58,12 @@ class CachingCatalogQueryPort implements CatalogQueryPort {
     @Override
     public CatalogPage buscar(CatalogFilter filtro, String orden, int page, int size, Optional<Instant> desde) {
         return delegate.buscar(filtro, orden, page, size, desde);
+    }
+
+    @Override
+    public CatalogKeysetPage buscarPorCursor(CatalogFilter filtro, String orden, CatalogCursor cursor, int size,
+                                             Optional<Instant> desde) {
+        return delegate.buscarPorCursor(filtro, orden, cursor, size, desde);
     }
 
     @Override

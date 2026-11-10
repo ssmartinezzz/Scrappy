@@ -175,6 +175,12 @@ class CachingCatalogQueryPortTest extends PostgresTestBase {
         }
 
         @Override
+        public ar.scraper.catalog.CatalogKeysetPage buscarPorCursor(CatalogFilter filtro, String orden,
+                ar.scraper.catalog.CatalogCursor cursor, int size, Optional<Instant> desde) {
+            throw new UnsupportedOperationException("no ejercitado por este test");
+        }
+
+        @Override
         public Facets facetas() {
             return facetas(Optional.empty());
         }

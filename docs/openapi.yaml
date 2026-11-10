@@ -786,15 +786,19 @@ paths:
         - $ref: "#/components/parameters/ColorDominante"
         - $ref: "#/components/parameters/ExcluirCategoria"
         - $ref: "#/components/parameters/Deporte"
+        - name: cursor
+          in: query
+          description: "Keyset mode: the opaque `data.nextCursor` of the previous page (empty = from the start). Replaces `page`: no OFFSET and no COUNT, so page N costs what page 1 does, and `page.total` is `-1`. Only `orden=precio_asc` / `precio_desc` support it; any other `orden`, or a cursor `nextCursor` did not produce, is a 400. In page-number mode the response already carries `data.nextCursor` for those two orders, so a client switches to cursors without a separate first call."
+          schema: { type: string }
       responses:
         "200":
-          description: "`data`: `{ meta, productos[] }` plus `page`. An empty catalog answers 200 with empty items and `page.total = 0`, never 204."
+          description: "`data`: `{ meta, productos[], nextCursor? }` plus `page`. `nextCursor` is absent on the last page and for orders without a keyset. An empty catalog answers 200 with empty items and `page.total = 0`, never 204."
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiPagedResponse"
         "400":
-          description: "`solicitud_invalida` — `deporte` is not one of the known codes."
+          description: "`solicitud_invalida` — `deporte` is not one of the known codes, or `cursor` is malformed or sent with an `orden` other than `precio_asc`/`precio_desc`."
           content:
             application/json:
               schema:

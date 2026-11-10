@@ -24,6 +24,13 @@ public final class CatalogoDtos {
     public static class Catalogo {
         private Meta meta;
         private List<ProductoRow> productos;
+        /** Opaque keyset position after this page; absent on the last page and on orders without a keyset. */
+        @JsonInclude(JsonInclude.Include.NON_NULL)
+        private String nextCursor;
+
+        public Catalogo(Meta meta, List<ProductoRow> productos) {
+            this(meta, productos, null);
+        }
     }
 
     @Getter @Setter @NoArgsConstructor @AllArgsConstructor

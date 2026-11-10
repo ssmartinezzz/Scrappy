@@ -680,6 +680,17 @@ el menos barato primero; no son lo mismo que `mercado_asc`.
 (`precio_historico`): un producto de $100 que cayó 90% va antes que uno de $900 que cayó 10%. Sin
 historial va al final. Sólo ese orden toca `precio_historico`; el total no cambia.
 
+**Modo cursor (`cursor`).** `page` + `size` pagina con `LIMIT/OFFSET`: bien para el catálogo, pero cada página profunda
+vuelve a recorrer todo lo anterior. Con el parámetro `cursor` (vacío = desde el principio) el endpoint pagina por
+claves: `WHERE <filtros> AND (precio, url) > (?, ?) ORDER BY precio, url LIMIT size` (`<` y `DESC` para `precio_desc`), sin
+`OFFSET` ni `COUNT`, así que la página N cuesta lo mismo que la 1 y `page.total` vale `-1`. La respuesta trae
+`data.nextCursor` (opaco: base64url de `precio|url`), ausente en la última página. Sólo `precio_asc` y `precio_desc` tienen
+clave; cualquier otro `orden`, o un cursor que `nextCursor` no produjo, es 400 `solicitud_invalida`. En modo página la
+respuesta ya trae `nextCursor` para esos dos órdenes, de modo que el cliente pasa a cursores sin una llamada extra
+(`MarcasPanel` lo usa para listar TODOS los productos de una marca). Una sola marca se filtra con igualdad simple y el
+índice `idx_productos_marca_precio` (`V89`) entrega las filas ya ordenadas: 0,17 ms por página medidos en una copia de
+la base de dev, la primera igual que la profunda.
+
 ---
 
 ## GET /mejores
