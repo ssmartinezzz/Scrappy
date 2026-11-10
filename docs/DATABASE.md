@@ -154,6 +154,10 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V77` | Seed de El Mundo del Juguete (VTEX, sitio de juguetes con cola no juguete, `rubro_por_defecto = 'juguetes'`) |
 | `V78` | 66 hojas de El Mundo del Juguete en el mapeo curado (`sitio_categoria.categoria`), sin categorías nuevas |
 | `V79` | Las 30 hojas de El Mundo del Juguete que `V78` dejó sin mapear (6 a `Otros` explícito), sin categorías nuevas |
+| `V80` | Toda fila de El Mundo del Juguete pasa a `genero = 'infantil'` (sacaba mochilas y vestidos de muñeca de los picks de adultos) |
+| `V81` | Señales de nombre infantiles sin talle (`juvenil`, `escolar`, `Footy`, personajes que sólo venden a chicos) pasan a `genero = 'infantil'` |
+| `V82` | Categoría `Combo de Actualización` (kits CPU + motherboard) y realineación de las filas que estaban en `Motherboard`/`CPU`/`Cooler` |
+| `V83` | Los shorts y boxers de baño (`Swim Short`, `Short de baño`, `Trajes de baño`…) guardados como `Short`/`Calzoncillos`/`Bermuda` pasan a `Malla` |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -4459,6 +4463,128 @@ UPDATE sitio_categoria SET categoria = NULL
 -- <<< rollback:V79
 ```
 
-Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V78`. No borra nodos: cuatro de estas
+Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V80` y antes que el de `V78`. No borra nodos: cuatro de estas
 hojas son de primer nivel y tienen `padre_id` NULL aunque un scrape las haya cargado, así que el criterio de `V78` no sirve
 para distinguirlas. Una fila sembrada que nadie scrapeó queda con `categoria` NULL, el mismo estado que un nodo sin mapear.
+
+---
+
+## `V80` — El Mundo del Juguete: todo es `infantil`
+
+`NormalizerService` ahora resuelve `genero = 'infantil'` para todo producto de El Mundo del Juguete, sin pasar por
+`GenderResolver`: una juguetería le vende a chicos. Antes, sus mochilas, pantuflas y vestidos de muñeca quedaban con
+`genero` vacío (o `mujer`/`hombre` por el nombre: "Barbie … Falda", "Iron Man") y llenaban los picks de adultos, porque
+`EligibilityPolicy` sólo descarta `infantil` (dev, 2026-11-10: 494 de las 969 filas de `Mochila` en indumentaria). `V80`
+alinea las filas ya guardadas en vez de esperar al próximo scrape, que sigue siendo la fuente de verdad.
+
+- **Todas las filas del sitio**, activas o no, cualquiera sea su `genero` previo.
+- **Una sentencia, idempotente:** una fila tratada ya es `infantil` y deja de cumplir su `WHERE`.
+- **Nunca una fila bloqueada a mano** (`bloqueado_por`, `V3`).
+
+### Rollback
+
+```sql
+-- >>> rollback:V80
+-- No-op a propósito: genero es un derivado y cada scrape lo recalcula. El rollback real es revertir la regla
+-- de NormalizerService; el próximo scrape vuelve a resolver con GenderResolver.
+SELECT 1;
+-- <<< rollback:V80
+```
+
+Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V81` y antes que el de `V79`.
+
+---
+
+## `V81` — señales de nombre infantiles sin talle
+
+`GenderResolver` ahora reconoce palabras enteras que no son un talle pero delatan un producto de chicos: `juvenil`/`juveniles`,
+`escolar`/`escolares`, la marca infantil `Footy` y una lista corta de personajes que sólo venden a chicos (`minnie`,
+`mickey`, `paw patrol`, `peppa`, `frozen`, `toy story`). Las zapatillas Footy, las Crocs Frozen y las mochilas Disney
+quedaban con `genero` vacío o de adulto y llenaban los picks (dev, 2026-11-10: 236 filas activas). `V81` alinea las filas
+guardadas; el próximo scrape sigue siendo la fuente de verdad.
+
+- **Mismo criterio que el resolver:** nombre sin acentos, puntuación como espacio, palabra entera.
+- **`Footy` vale en cualquier rubro; el resto sólo en indumentaria** (rubro NULL/vacío cuenta como indumentaria): "escolar"
+  es también papelería y "Peppa Pig" también es un juguete para mascotas.
+- **Fuera a propósito:** `Marvel`, `Spider-Man`, `Disney`, `Hello Kitty`, `Stitch`, `Barbie`. Medidos en dev, matchean
+  colaboraciones de adulto (Ojotas adidas Marvel Spider-Man, Zapatillas adidas originals Disney), coleccionables de
+  Hadriatica y cuero Dr. Martens "stitch".
+- **Nunca una fila bloqueada a mano** (`bloqueado_por`, `V3`); activas o no; idempotente.
+
+### Rollback
+
+```sql
+-- >>> rollback:V81
+-- No-op a propósito: genero es un derivado y cada scrape lo recalcula. El rollback real es revertir la regla
+-- de GenderResolver; el próximo scrape vuelve a resolver sin estas señales.
+SELECT 1;
+-- <<< rollback:V81
+```
+
+Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V82` y antes que el de `V80`.
+
+---
+
+## `V82` — categoría `Combo de Actualización`
+
+Un kit "Kit Mother ASUS PRIME A520M-K + Procesador AMD Ryzen 5 5500 + Wraith Stealth Cooler" o "COMBO AMD RYZEN 7
+5700X+B550+16GB" son dos piezas vendidas como una. Caían en `Motherboard` (86 filas activas en dev, 2026-11-10), `CPU` (16)
+o `Cooler` (5) según qué sustantivo líder ganara: inflaban las medianas de esas piezas (Motherboard 294.999 → 263.830,
+CPU 497.013 → 487.300 de mediana) y el armador de PCs podía ver un kit como una pieza. `TechClassifier` ahora los manda a
+`Combo de Actualización` (rubro `tecnologia`), y `V82` hace las dos cosas que una categoría nueva exige:
+
+- **El `INSERT` en `categoria`.** Sin la fila, `fk_productos_categoria` (`V13`) rechaza el upsert de todo kit, y como
+  `ProductRepository` se traga los errores SQL el síntoma es `"0 nuevos"` en una corrida sana.
+  `CategoriaLookupTableTest` exige que la tabla y `CategoryGroups.canonicalCategories()` sean el mismo conjunto.
+- **La realineación** de las filas guardadas (151 en dev, activas o no) con la misma regla que el clasificador: marca de
+  paquete (`combo`, `kit` o un `+`) **y** señal de CPU **y** señal de motherboard (`mother`, `motherboard`, `placa madre`,
+  `mainboard`, `mobo` o un chipset: `a520`, `b550`, `b650`, `h610`, `z890`…), sin `pc gamer`-like ni `gabinete`. Las PCs
+  completas (`PC`, `Mini PC`) y las filas bloqueadas a mano (`V3`) no se tocan. Idempotente.
+- **Fuera a propósito:** "Combo Ryzen 5 8400f & Cooler Jiushark" (CPU + cooler, sin motherboard) sigue en `Cooler`: es un kit
+  de CPU, no una actualización. Y un CPU con su cooler de fábrica ("Procesador … + Wraith Stealth Cooler") sigue en `CPU`.
+- **El armador de PCs no la elige:** `PcBuilder` arma los pools por `categoria` explícita (`CPU`, `Motherboard`, …), así que
+  `Combo de Actualización` nunca entra a un slot.
+
+### Rollback
+
+```sql
+-- >>> rollback:V82
+UPDATE productos SET categoria = 'Motherboard' WHERE categoria = 'Combo de Actualización';
+UPDATE sitio_categoria SET categoria = NULL WHERE categoria = 'Combo de Actualización';
+DELETE FROM categoria_stats WHERE categoria = 'Combo de Actualización';
+DELETE FROM categoria WHERE nombre = 'Combo de Actualización';
+-- <<< rollback:V82
+```
+
+**El orden es obligatorio**: `productos.categoria` (`V13`), `sitio_categoria.categoria` y `categoria_stats.categoria` (`V16`)
+tienen FK a `categoria`. El destino del `UPDATE` es `'Motherboard'` porque es donde caían 86 de los 107 kits activos; los
+otros vuelven ahí en vez de a su categoría exacta, y el próximo scrape los reclasifica con el clasificador que quede.
+
+Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V83` y antes que el de `V81`.
+
+---
+
+## `V83` — los shorts de baño son `Malla`
+
+`IndumentariaClassifier` ahora archiva los shorts y boxers de baño como `Malla`: `swim short`, `swim trunk`,
+`short(s)`/`boxer(s)`/`bermuda(s) de baño` y `trajes de baño` (plural; `KW_MALLA` sólo tenía el singular). Antes "Swim Short
+Walker Black" (Harvey) caía en `Short` porque `short` es sustantivo líder, y "Trajes de Baño adidas BÓXERS SOLID SWIM" en
+`Calzoncillos` por `boxer`; la regla corre antes que ambos. `V83` alinea las filas guardadas (22 en dev, 2026-11-10) en vez
+de esperar al próximo scrape, que sigue siendo la fuente de verdad.
+
+- **Mismo criterio que el clasificador:** nombre sin acentos y en minúsculas, con alguna de esas frases y ninguna de las
+  palabras de medida que delatan la malla metálica de Easy (` mts`, ` cm `, ` mm `, ` m2`, ` lts`, ` kg `, ` grs`).
+- **Sólo las categorías de origen** `Short`, `Calzoncillos` y `Bermuda`; nunca una fila bloqueada a mano (`V3`); idempotente.
+- **Los artículos de baño de Easy** ("Set de Accesorios de Baño", "Cortina de Baño") no son ropa y no se tocan.
+
+### Rollback
+
+```sql
+-- >>> rollback:V83
+-- No-op a propósito: categoria es un derivado y cada scrape la recalcula. El rollback real es revertir la regla de
+-- IndumentariaClassifier; no se puede reconstruir qué filas eran Short y cuáles ya eran Malla antes de la migración.
+SELECT 1;
+-- <<< rollback:V83
+```
+
+Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V82`.

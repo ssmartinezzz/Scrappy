@@ -45,13 +45,13 @@ class ConjuntoBeforeTechTest {
     @Test
     @DisplayName("los bundles mother+CPU salen de Conjunto y caen en una categoría de hardware")
     void losBundlesMotherCpuDejanDeSerRopa() {
-        // Cuál de las dos gana lo decide el orden de `clasificarTech`, no este cambio.
+        // Desde V82 son su propia categoría: pieza suelta (Motherboard/CPU) ya no es la respuesta.
         for (String nombre : new String[]{
                 "Kit Mother ASUS PRIME A520M-K + Procesador AMD Ryzen 5 5600GT 4.6GHz Turbo AM4 + Wraith Stealth Cooler",
                 "Kit Mother Asrock B850 RIPTIDE WIFI + Procesador AMD Ryzen 5 9600X 5.4GHz Turbo AM5 - No Incluye Cooler"}) {
             assertThat(cat(nombre))
                 .as("bundle mother+CPU: %s", nombre)
-                .isIn("Motherboard", "CPU");
+                .isEqualTo("Combo de Actualización");
         }
     }
 

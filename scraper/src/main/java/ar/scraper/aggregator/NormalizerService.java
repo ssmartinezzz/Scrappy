@@ -36,6 +36,8 @@ public class NormalizerService {
      * or food ("Set de bloques" is a Conjunto, "con Vestido" a Vestido) while the leaf is exact.
      */
     private static final Set<String> SITIOS_DONDE_LA_HOJA_JUGUETE_GANA = Set.of("elmundodeljuguete");
+    // A toy store sells to kids: its backpacks, shoes and dolls' dresses are not adult picks.
+    private static final Set<String> SITIOS_SOLO_INFANTILES = Set.of("elmundodeljuguete");
 
     private final PackQuantityDetector packQuantityDetector;
     private final CategoryClassifier categoryClassifier;
@@ -93,7 +95,9 @@ public class NormalizerService {
                 ? delArbol
                 : categoryClassifier.normalizarCategoria(p.categoria(), nombre, delArbol);
         String rubro          = rubroResolver.resolver(sitioKey, cat, p.rubro());
-        String genero = genderResolver.resolver(p.genero(), nombre, cat, rubro);
+        String genero         = SITIOS_SOLO_INFANTILES.contains(sitioKey)
+                ? "infantil"
+                : genderResolver.resolver(p.genero(), nombre, cat, rubro);
         List<String> talles = sizeNormalizer.normalizar(p.talles());
         String marca          = marcaDe(p, nombre, sitioKey);
         boolean gymrat        = gymratTagger.esGymrat(nombre, sitioKey, cat, rubro, marca);

@@ -33,6 +33,14 @@ public class GenderResolver {
     // Whole words too: as substrings they hit teaNINA, argiNINA, alaNINA, femeNINO and BEBEr.
     private static final Set<String> KIDS_WORDS = Set.of(" nino ", " nina ", " ninos ", " ninas ", " bebe ",
             " bebes ", " infantil ", " infantiles ", " kids ");
+    // Kids' name signals with no size label. Whole words, accent-stripped, like the sets above, and V81.
+    // Footy is a kids-only brand, so it holds in any rubro. The rest only in clothing: "escolar" is also
+    // stationery and "Peppa Pig" is also a pet toy. Deliberately not here: Marvel, Spider-Man, Disney and
+    // Hello Kitty (adult adidas/Crocs collabs, Hadriatica collectibles), Stitch (Dr. Martens "stitch"
+    // leather), Barbie (Hadriatica Nintendo dress).
+    private static final Set<String> KIDS_BRAND_WORDS = Set.of(" footy ");
+    private static final Set<String> KIDS_NAME_WORDS = Set.of(" juvenil ", " juveniles ", " escolar ",
+            " escolares ", " minnie ", " mickey ", " paw patrol ", " peppa ", " frozen ", " toy story ");
     private static final Pattern NO_ALNUM = Pattern.compile("[^a-z0-9]+");
 
     public String resolver(String raw, String nombre, String categoria) {
@@ -51,6 +59,8 @@ public class GenderResolver {
         // Outside clothing the same tokens are not sizes: "450 GS" is grams, "PC/PS" is PlayStation.
         boolean esRopa = rubro == null || rubro.isBlank() || "indumentaria".equals(rubro);
         if (esRopa && KIDS_TOKENS.stream().anyMatch(palabras::contains)) return "infantil";
+        if (KIDS_BRAND_WORDS.stream().anyMatch(palabras::contains)) return "infantil";
+        if (esRopa && KIDS_NAME_WORDS.stream().anyMatch(palabras::contains)) return "infantil";
 
         // Señal explícita "de hombre"/"de mujer" en el NOMBRE del producto gana sobre un spec de
         // género del sitio (raw) que puede estar mal taggeado a nivel catálogo — bug encontrado en
