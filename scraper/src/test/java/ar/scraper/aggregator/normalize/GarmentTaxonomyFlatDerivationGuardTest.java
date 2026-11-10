@@ -36,7 +36,7 @@ class GarmentTaxonomyFlatDerivationGuardTest {
     // Frozen snapshot — mirrors NormalizerService's pre-extraction
     // TORSO_KEYWORDS_FLAT = concatKeywords(KW_PUFFER, KW_PILOTO, KW_SACO,
     // KW_CHALECO, KW_CAMPERA, KW_SWEATER, KW_BUZO, KW_CASACA, KW_CHOMBA,
-    // KW_MUSCULOSA, KW_CAMISA, KW_REMERA) — transcribed independently of
+    // KW_MUSCULOSA, KW_CAMISA, KW_REMERA; since picks-taxonomia-top KW_TOP_DEPORTIVO and KW_TOP follow KW_MUSCULOSA) — transcribed independently of
     // GarmentTaxonomy's own derivation.
     private static final String[][] TORSO_COMPOSING_ARRAYS = {
         {"puffer","plumon"," pluma "," plumas ","down jacket","down coat",
@@ -63,8 +63,11 @@ class GarmentTaxonomyFlatDerivationGuardTest {
          "casaca deportiva","camiseta nba","jersey nba"},
         {"chomba","polo shirt","polera","rugby shirt",
          "pique polo","lacoste polo","fred perry polo"},
-        {"musculosa","tank top","camiseta de tirantes","sin mangas",
-         "top deportivo","sports bra","corpino deportivo"," top "},
+        {"musculosa","tank top","camiseta de tirantes","sin mangas"},
+        // picks-taxonomia-top — the sport top and the bare top left KW_MUSCULOSA for their own
+        // arrays; they stay in the flat torso list so pack-quantity detection still sees them.
+        {"top deportivo","sports bra","corpino deportivo"},
+        {" top "},
         // richer-category-taxonomy — snapshot ACTUALIZADO a conciencia, que es
         // exactamente para lo que este guard existe. "shirt" pelado se mudó de
         // KW_CAMISA a KW_REMERA: KW_CAMISA corre ANTES que KW_REMERA en el

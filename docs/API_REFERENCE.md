@@ -680,6 +680,17 @@ el menos barato primero; no son lo mismo que `mercado_asc`.
 (`precio_historico`): un producto de $100 que cayó 90% va antes que uno de $900 que cayó 10%. Sin
 historial va al final. Sólo ese orden toca `precio_historico`; el total no cambia.
 
+**Modo cursor (`cursor`).** `page` + `size` pagina con `LIMIT/OFFSET`: bien para el catálogo, pero cada página profunda
+vuelve a recorrer todo lo anterior. Con el parámetro `cursor` (vacío = desde el principio) el endpoint pagina por
+claves: `WHERE <filtros> AND (precio, url) > (?, ?) ORDER BY precio, url LIMIT size` (`<` y `DESC` para `precio_desc`), sin
+`OFFSET` ni `COUNT`, así que la página N cuesta lo mismo que la 1 y `page.total` vale `-1`. La respuesta trae
+`data.nextCursor` (opaco: base64url de `precio|url`), ausente en la última página. Sólo `precio_asc` y `precio_desc` tienen
+clave; cualquier otro `orden`, o un cursor que `nextCursor` no produjo, es 400 `solicitud_invalida`. En modo página la
+respuesta ya trae `nextCursor` para esos dos órdenes, de modo que el cliente pasa a cursores sin una llamada extra
+(`MarcasPanel` lo usa para listar TODOS los productos de una marca). Una sola marca se filtra con igualdad simple y el
+índice `idx_productos_marca_precio` (`V89`) entrega las filas ya ordenadas: 0,17 ms por página medidos en una copia de
+la base de dev, la primera igual que la profunda.
+
 ---
 
 ## GET /mejores
@@ -701,6 +712,24 @@ género más los `unisex` y los que no tienen género, que aparecen en los dos. 
 afuera siempre. Ausente, no filtra por género. Con `gymrat=true` la sección además no muestra
 `Otros` y las remeras con `sub_categoria` `compresión` forman su propia tarjeta,
 `Remera de compresión`, en vez de contar dentro de `Remera`.
+
+Cada categoría trae los destacados curados y hasta **20** picks (`MAX_PICKS_POR_CATEGORIA`); no se descarta ninguna
+categoría. Para ver el resto, `GET /mejores/picks`.
+
+---
+
+## GET /mejores/picks
+
+Todos los productos elegibles de **una** categoría, mejores primero, paginados por cursor. Parámetros: `categoria`
+(obligatorio, la etiqueta tal cual la devuelve `/mejores`), `rubro`, `gymrat` y `genero` (los mismos de `/mejores`: para que
+las páginas describan el mismo conjunto que el resumen hay que mandar los mismos), `cursor` (el `nextCursor` de la página
+anterior) y `limit` (24 por defecto, entre 1 y 100). El orden es el de `/mejores` (`scoreP`, 999 si no tiene) con `url`
+de desempate, o sea un orden total y estable. `data` es `{ picks[], nextCursor, total }`; `nextCursor` es `null` en la
+última página. El cursor es base64url de `clave|url` y la página siguiente arranca estrictamente después de él con una
+búsqueda binaria sobre el ranking, cacheado por snapshot con la misma clave que `mejores`: una página cuesta
+O(log n + limit), no un re-sort ni un salto de N filas (5,3 µs la primera y 8,4 µs la página 4900 sobre 120 mil productos,
+`MarcasPicksPaginadoPerfTest`). Un cursor mal formado es 400 `solicitud_invalida`; una categoría desconocida es una página
+vacía. Los productos sin url no se pueden direccionar y quedan afuera.
 
 ---
 

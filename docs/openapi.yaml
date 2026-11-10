@@ -786,15 +786,19 @@ paths:
         - $ref: "#/components/parameters/ColorDominante"
         - $ref: "#/components/parameters/ExcluirCategoria"
         - $ref: "#/components/parameters/Deporte"
+        - name: cursor
+          in: query
+          description: "Keyset mode: the opaque `data.nextCursor` of the previous page (empty = from the start). Replaces `page`: no OFFSET and no COUNT, so page N costs what page 1 does, and `page.total` is `-1`. Only `orden=precio_asc` / `precio_desc` support it; any other `orden`, or a cursor `nextCursor` did not produce, is a 400. In page-number mode the response already carries `data.nextCursor` for those two orders, so a client switches to cursors without a separate first call."
+          schema: { type: string }
       responses:
         "200":
-          description: "`data`: `{ meta, productos[] }` plus `page`. An empty catalog answers 200 with empty items and `page.total = 0`, never 204."
+          description: "`data`: `{ meta, productos[], nextCursor? }` plus `page`. `nextCursor` is absent on the last page and for orders without a keyset. An empty catalog answers 200 with empty items and `page.total = 0`, never 204."
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiPagedResponse"
         "400":
-          description: "`solicitud_invalida` — `deporte` is not one of the known codes."
+          description: "`solicitud_invalida` — `deporte` is not one of the known codes, or `cursor` is malformed or sent with an `orden` other than `precio_asc`/`precio_desc`."
           content:
             application/json:
               schema:
@@ -1925,6 +1929,52 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiResponse"
+
+  /api/mejores/picks:
+    get:
+      tags: [Picks/Marcas]
+      summary: Every product of one category, best first, in keyset pages.
+      description: "`/api/mejores` keeps the curated highlights plus the first 20 picks per category; this endpoint lists the whole category in the same ranking (`scoreP`, 999 when unscored, then `url`, a total order). `nextCursor` is the opaque position of the last row served (base64url of `clave|url`); the next page resumes strictly after it by binary search over a ranking cached per snapshot, never by skipping N rows. Products without a url cannot be addressed and are left out."
+      x-access: AUTHENTICATED
+      parameters:
+        - name: categoria
+          in: query
+          required: true
+          description: "The category label exactly as `/api/mejores` returns it. An unknown one is an empty last page, not an error."
+          schema: { type: string }
+        - name: rubro
+          in: query
+          schema: { type: string }
+        - name: gymrat
+          in: query
+          description: "Same meaning as in `/api/mejores`; the pages describe the same set as the summary only with the same `rubro`/`gymrat`/`genero`."
+          schema: { type: boolean, default: false }
+        - name: genero
+          in: query
+          schema: { type: string, enum: [hombre, mujer] }
+        - name: cursor
+          in: query
+          description: "The `nextCursor` of the previous page; absent starts at the best product."
+          schema: { type: string }
+        - name: limit
+          in: query
+          description: "Page size, default 24, clamped to 1..100."
+          schema: { type: integer, default: 24, minimum: 1, maximum: 100 }
+      responses:
+        "200":
+          description: "`data`: `{ picks[], nextCursor, total }`; `nextCursor` is `null` on the last page, `total` is the size of the category ranking."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        "204":
+          description: No catalog loaded yet.
+        "400":
+          description: "`solicitud_invalida` — `cursor` is malformed."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
 
   /api/marcas-browser:
     get:

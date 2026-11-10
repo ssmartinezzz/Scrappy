@@ -5,7 +5,8 @@ final class ConjuntoClassifier implements FamiliaClassifier {
     private static final String[][] TORSO = {
         GarmentTaxonomy.KW_PUFFER, GarmentTaxonomy.KW_PILOTO, GarmentTaxonomy.KW_SACO, GarmentTaxonomy.KW_CHALECO,
         GarmentTaxonomy.KW_CAMPERA, GarmentTaxonomy.KW_SWEATER, GarmentTaxonomy.KW_BUZO, GarmentTaxonomy.KW_CASACA,
-        GarmentTaxonomy.KW_CHOMBA, GarmentTaxonomy.KW_MUSCULOSA, GarmentTaxonomy.KW_CAMISA, GarmentTaxonomy.KW_REMERA
+        GarmentTaxonomy.KW_CHOMBA, GarmentTaxonomy.KW_MUSCULOSA,
+        GarmentTaxonomy.KW_TOP_DEPORTIVO, GarmentTaxonomy.KW_TOP, GarmentTaxonomy.KW_CAMISA, GarmentTaxonomy.KW_REMERA
     };
 
     private static final String[][] PIERNAS = {

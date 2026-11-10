@@ -123,7 +123,7 @@ public final class ApiRoutePolicy {
             new RoutePolicy(Set.of(HttpMethod.GET),
                     List.of("/api/grupos", "/api/buscar-externo"), Access.AUTHENTICATED),
             new RoutePolicy(Set.of(HttpMethod.GET),
-                    List.of("/api/mejores", "/api/marcas-browser"), Access.AUTHENTICATED),
+                    List.of("/api/mejores", "/api/mejores/picks", "/api/marcas-browser"), Access.AUTHENTICATED),
             new RoutePolicy(Set.of(HttpMethod.GET),
                     List.of("/api/indices", "/api/recomendacion"), Access.AUTHENTICATED),
             new RoutePolicy(Set.of(HttpMethod.GET),

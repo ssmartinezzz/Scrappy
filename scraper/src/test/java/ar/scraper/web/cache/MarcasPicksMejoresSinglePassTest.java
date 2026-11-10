@@ -22,7 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 /** The per-category selection must equal the straightforward multi-pass definition it replaced. */
 class MarcasPicksMejoresSinglePassTest {
 
-    private static final int MAX = 10;
+    private static final int MAX = 20;
 
     private static final String[] SEGMENTS = {"premium", "standard", "budget", ""};
     private static final String[][] BADGES = {{}, {"all_time_low"}, {"verified_deal"}, {"all_time_low", "verified_deal"}};
@@ -68,7 +68,6 @@ class MarcasPicksMejoresSinglePassTest {
         List<MarcasPicksDtos.MejoresCategoria> result = new ArrayList<>();
         byCat.entrySet().stream()
                 .sorted((a, b) -> b.getValue().size() - a.getValue().size())
-                .limit(40)
                 .forEach(entry -> {
                     String cat = entry.getKey();
                     var prods = entry.getValue();

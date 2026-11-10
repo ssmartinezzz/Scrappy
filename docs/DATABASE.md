@@ -162,6 +162,8 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V85` | Deporte `snowboard` (antes de `natacion`) y realineación de las filas sin deporte o en `natacion` que lo nombran |
 | `V86` | Seed de Oneplaceworld, Burtonargentina, Kingofthekongo (Tiendanube) y Equus (VTEX), los cuatro `monomarca` con su fila en `marca` |
 | `V87` | Plataforma `kevingston`: `sitio_plataforma_check` pasa a 18 valores y seed de Kevingston (`monomarca`) |
+| `V88` | Categorías `Top` y `Top Deportivo` (salen de `Musculosa`), `croptop` pasa de `Corpino` a `Top`, las canilleras a `Accesorio Deportivo` y el inyector de sellante a `Repuesto de Bicicleta`; los tops movidos quedan con `genero = 'mujer'` salvo señal de hombre o infantil |
+| `V89` | Índice parcial `idx_productos_marca_precio` sobre `(lower(coalesce(marca,'')), precio, url) WHERE activo`: una marca paginada por cursor (`/api/data?cursor=`) pasa de barrer 87 mil filas a un rango de índice |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -4697,4 +4699,66 @@ ALTER TABLE sitio ADD CONSTRAINT sitio_plataforma_check
 El orden es obligatorio: mientras la fila `kevingston` viva, el CHECK angosto la rechaza. Si ya hay productos del sitio,
 `fk_productos_marca` frena el `DELETE` de `marca`: borrá antes sus filas de `productos`.
 
-Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V86`.
+Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V88` y antes que el de `V86`.
+
+---
+
+## `V88` — categorías `Top` y `Top Deportivo`
+
+`KW_MUSCULOSA` contenía `" top "`, `top deportivo`, `sports bra` y `corpino deportivo`: 367 filas activas de `Musculosa` eran tops
+deportivos, tops de vestir, un juguete y hasta un inyector de sellante. `IndumentariaClassifier` ahora los parte en tres: `Top
+Deportivo` (`KW_TOP_DEPORTIVO`, o un top pelado con señal o marca deportiva), `Corpino` (un top pelado con encaje, lencería,
+puntilla, interior o bralette) y `Top` (cualquier otro top pelado, y `croptop`/`crop top` en `AccesoriosClassifier`).
+`Musculosa` conserva `musculosa`, `tank top`, `camiseta de tirantes` y `sin mangas`; el sustantivo líder manda ("Top Under
+Armour Halo Run Tank" es un top, "Tank Top" es una musculosa, "Top Cuello Alto" es una remera). Además
+`CanchaClassifier` manda a `Accesorio Deportivo` todo nombre que arranca con `canillera(s)` (caían en `Otros`, `Botines`,
+`Calzoncillos`, `Medias` y `Sneaker`) y `BicicletasClassifier` manda `inyector de sellante` y `sellante … tubeless` a
+`Repuesto de Bicicleta`. `V88` hace las dos cosas que una categoría nueva exige:
+
+- **El `INSERT` en `categoria`** de `Top` y `Top Deportivo`. Sin las filas, `fk_productos_categoria` (`V13`) rechaza el upsert y
+  el síntoma es `"0 nuevos"`. `CategoriaLookupTableTest` exige que la tabla y `CategoryGroups.canonicalCategories()` sean el mismo conjunto.
+- **La realineación** de las filas guardadas con la misma regla que el clasificador (sólo `bloqueado_por IS NULL`, sólo
+  indumentaria; el inyector además pasa a `rubro = 'deporte'`, donde viven las categorías de bicicleta). Idempotente.
+- **El género** de `Top` y `Top Deportivo` pasa a `mujer` (están en `GenderResolver.FEMININE_CODED_CATEGORIES`: un top pelado
+  es de mujer), salvo una señal explícita de hombre en el nombre o una fila `infantil`, igual que `Bombacha` en `V84`. El
+  rollback no restaura el género anterior: no se guardó.
+
+### Rollback
+
+```sql
+-- >>> rollback:V88
+UPDATE productos SET categoria = 'Musculosa' WHERE categoria IN ('Top', 'Top Deportivo');
+UPDATE sitio_categoria SET categoria = NULL WHERE categoria IN ('Top', 'Top Deportivo');
+DELETE FROM categoria_stats WHERE categoria IN ('Top', 'Top Deportivo');
+DELETE FROM categoria WHERE nombre IN ('Top', 'Top Deportivo');
+-- <<< rollback:V88
+```
+
+**El orden es obligatorio** (FK de `productos`, `sitio_categoria` y `categoria_stats` hacia `categoria`). Las filas vuelven a
+`Musculosa` porque es de donde salían; los tops que `V88` mandó a `Corpino`, las canilleras y el inyector no se revierten (no se
+puede reconstruir de dónde venía cada una): el próximo scrape con el clasificador que quede las vuelve a resolver.
+
+Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V89` y antes que el de `V87`.
+
+---
+
+## `V89` — índice `idx_productos_marca_precio`
+
+`/api/data` gana un modo por cursor (`?cursor=`, claves `(precio, url)`, sin `OFFSET` ni `COUNT`) para que una marca muestre
+TODOS sus productos sin que la página N cueste más que la 1. El filtro de marca es `lower(coalesce(marca,'')) = ?` y ningún índice
+lo cubría: cada página, la primera o la 4900, hacía un `Seq Scan` de las ~87 mil filas activas (~34 ms medidos en una copia
+de la base de dev, 2026-11-10). `V89` agrega el índice parcial `(lower(coalesce(marca,'')), precio, url) WHERE activo` (misma
+forma que `idx_productos_rubro_precio`, `V73`). Una sola marca se filtra ahora con igualdad simple y no con `= ANY(?)`: sólo
+esa forma deja que el índice entregue las filas ya ordenadas, y la página pasa a ser un rango de índice (0,17 ms, primera
+página y página profunda por igual, `Index Scan` / `Index Scan Backward`). Con varias marcas sigue `= ANY(?)`.
+
+### Rollback
+
+```sql
+-- >>> rollback:V89
+DROP INDEX IF EXISTS idx_productos_marca_precio;
+-- <<< rollback:V89
+```
+
+Es sólo un índice: borrarlo no cambia ningún resultado, sólo vuelve al `Seq Scan` por página. Es el bloque más nuevo: en una cadena
+de rollbacks corre PRIMERO, antes que el de `V88`.

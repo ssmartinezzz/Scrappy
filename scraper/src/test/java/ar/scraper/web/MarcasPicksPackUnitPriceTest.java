@@ -292,10 +292,10 @@ class MarcasPicksPackUnitPriceTest {
     }
 
     @Test
-    void categoryReturnsUpToTenPicksAndIncludesMidRankedPack() {
+    void categoryReturnsUpToTwentyPicksAndIncludesMidRankedPack() {
         // 12 non-pack singles with ascending scoreP (1..12) + a pack scored 6 by its
         // unit price. The pack is NOT the single best value, but sits comfortably
-        // within the 10 best by scoreP → it must surface among the picks (the whole
+        // within the 20 best by scoreP → it must surface among the picks (the whole
         // point: packs integrate into Mejores Picks, not a separate view).
         java.util.List<Product> productos = new java.util.ArrayList<>();
         for (int i = 0; i < 12; i++) {
@@ -313,8 +313,8 @@ class MarcasPicksPackUnitPriceTest {
         JsonNode node = zapatillasNode(resp);
         assertThat(node).isNotNull();
         JsonNode picks = node.path("picks");
-        // Capped at 10 per category even though 13 products qualify.
-        assertThat(picks.size()).isEqualTo(10);
+        // Below the 20-per-category cap, so all 13 qualifying products are offered.
+        assertThat(picks.size()).isEqualTo(13);
         boolean packPresent = false;
         for (JsonNode pk : picks) {
             if ("https://site.com/pack".equals(pk.path("url").asText())) packPresent = true;

@@ -9,10 +9,11 @@ import org.apache.commons.lang3.StringUtils;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 final class MarcasPicksView {
 
-    private static final int MAX_PICKS_POR_CATEGORIA = 10;
+    private static final int MAX_PICKS_POR_CATEGORIA = 20;
     private static final String SUB_COMPRESION = "compresión";
     private static final String CATEGORIA_COMPRESION = "Remera de compresión";
 
@@ -97,21 +98,13 @@ final class MarcasPicksView {
     /** {@code genero} is {@code hombre}, {@code mujer} or blank; unisex and unlabelled products fit both. */
     static List<MarcasPicksDtos.MejoresCategoria> mejores(AggregatedResult r, String rubro, boolean gymrat,
                                                           String genero) {
-        java.util.Map<String, java.util.List<Product>> byCat = r.productos().stream()
-            .filter(p -> StringUtils.isNotBlank(p.categoria()))
-            .filter(p -> !gymrat || !"Otros".equals(p.categoria()))
-            .filter(p -> StringUtils.isBlank(rubro)
-                || rubro.equalsIgnoreCase(p.rubro() != null ? p.rubro() : "indumentaria"))
-            .filter(p -> !gymrat || (p.esGymrat() && SiteClassification.esMarcaGymPicks(p.sitio(), p.marca())))
-            .filter(ar.scraper.outfits.EligibilityPolicy::elegible)
-            .filter(p -> aplicaAGenero(p, genero))
+        java.util.Map<String, java.util.List<Product>> byCat = elegibles(r, rubro, gymrat, genero)
             .collect(java.util.stream.Collectors.groupingBy(p -> etiquetaDeCategoria(p, gymrat)));
 
         List<MarcasPicksDtos.MejoresCategoria> result = new ArrayList<>();
 
         byCat.entrySet().stream()
             .sorted((a,b) -> b.getValue().size() - a.getValue().size())
-            .limit(40)
             .forEach(entry -> {
                 String cat   = entry.getKey();
                 var   prods  = entry.getValue();
@@ -143,6 +136,91 @@ final class MarcasPicksView {
             });
 
         return result;
+    }
+
+    private static java.util.stream.Stream<Product> elegibles(AggregatedResult r, String rubro, boolean gymrat,
+                                                              String genero) {
+        return r.productos().stream()
+            .filter(p -> StringUtils.isNotBlank(p.categoria()))
+            .filter(p -> !gymrat || !"Otros".equals(p.categoria()))
+            .filter(p -> StringUtils.isBlank(rubro)
+                || rubro.equalsIgnoreCase(p.rubro() != null ? p.rubro() : "indumentaria"))
+            .filter(p -> !gymrat || (p.esGymrat() && SiteClassification.esMarcaGymPicks(p.sitio(), p.marca())))
+            .filter(ar.scraper.outfits.EligibilityPolicy::elegible)
+            .filter(p -> aplicaAGenero(p, genero));
+    }
+
+    /** A product in the paged ranking: its sort key is {@code (clave, url)}, a total order because urls are unique. */
+    record Ranked(int clave, String url, Product producto) {}
+
+    private static final java.util.Comparator<Ranked> ORDEN_RANKING =
+        java.util.Comparator.comparingInt(Ranked::clave).thenComparing(Ranked::url);
+
+    /**
+     * Every eligible product of every category, ranked like {@code mejores} ranks its picks ({@code scoreP}, 999 when
+     * unscored) with the url as tie-break, one entry per url (its best key). Products without a url cannot be
+     * addressed by a cursor and are left out. Built once per snapshot and cached by the caller.
+     */
+    static Map<String, List<Ranked>> ranking(AggregatedResult r, String rubro, boolean gymrat, String genero) {
+        Map<String, Map<String, Ranked>> porCategoria = new java.util.HashMap<>();
+        elegibles(r, rubro, gymrat, genero).forEach(p -> {
+            String url = StringUtils.defaultString(p.url());
+            if (url.isBlank()) return;
+            int clave = p.ml() != null ? clave(p) : 999;
+            porCategoria.computeIfAbsent(etiquetaDeCategoria(p, gymrat), k -> new java.util.HashMap<>())
+                .merge(url, new Ranked(clave, url, p), (a, b) -> ORDEN_RANKING.compare(b, a) < 0 ? b : a);
+        });
+        Map<String, List<Ranked>> out = new java.util.HashMap<>();
+        porCategoria.forEach((cat, porUrl) -> {
+            List<Ranked> lista = new ArrayList<>(porUrl.values());
+            lista.sort(ORDEN_RANKING);
+            out.put(cat, List.copyOf(lista));
+        });
+        return Map.copyOf(out);
+    }
+
+    static final int PAGINA_POR_DEFECTO = 24;
+    static final int PAGINA_MAXIMA = 100;
+
+    /**
+     * One keyset page: the {@code limit} products strictly after {@code cursor} (base64url of {@code clave|url}, found
+     * by binary search, never by skipping N rows). {@code nextCursor} is null on the last page.
+     */
+    static MarcasPicksDtos.PicksPagina pagina(List<Ranked> ranking, String cursor, int limit) {
+        int n = Math.max(1, Math.min(limit, PAGINA_MAXIMA));
+        int desde = StringUtils.isBlank(cursor) ? 0 : despuesDe(ranking, decodificar(cursor));
+        int hasta = Math.min(ranking.size(), desde + n);
+        List<MarcasPicksDtos.Pick> picks = new ArrayList<>(hasta - desde);
+        for (int i = desde; i < hasta; i++) picks.add(toPick(ranking.get(i).producto(), "top", "Buena compra"));
+        String siguiente = hasta < ranking.size() && hasta > desde ? codificar(ranking.get(hasta - 1)) : null;
+        return new MarcasPicksDtos.PicksPagina(picks, siguiente, ranking.size());
+    }
+
+    private static int despuesDe(List<Ranked> ranking, Ranked clave) {
+        int lo = 0;
+        int hi = ranking.size();
+        while (lo < hi) {
+            int mid = (lo + hi) >>> 1;
+            if (ORDEN_RANKING.compare(ranking.get(mid), clave) <= 0) lo = mid + 1; else hi = mid;
+        }
+        return lo;
+    }
+
+    private static String codificar(Ranked r) {
+        return java.util.Base64.getUrlEncoder().withoutPadding()
+            .encodeToString((r.clave() + "|" + r.url()).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    }
+
+    private static Ranked decodificar(String cursor) {
+        try {
+            String raw = new String(java.util.Base64.getUrlDecoder().decode(cursor), java.nio.charset.StandardCharsets.UTF_8);
+            int barra = raw.indexOf('|');
+            if (barra < 1 || barra == raw.length() - 1) throw new IllegalArgumentException("sin separador");
+            return new Ranked(Integer.parseInt(raw.substring(0, barra)), raw.substring(barra + 1), null);
+        } catch (IllegalArgumentException e) {
+            throw new ar.scraper.api.ApiException(org.springframework.http.HttpStatus.BAD_REQUEST,
+                "solicitud_invalida", "cursor inválido");
+        }
     }
 
     private static boolean aplicaAGenero(Product p, String genero) {

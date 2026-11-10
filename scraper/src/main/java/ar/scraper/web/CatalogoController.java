@@ -4,7 +4,9 @@ import ar.scraper.indices.IndiceService;
 
 import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
 import ar.scraper.aggregator.normalize.SportTaxonomy;
+import ar.scraper.catalog.CatalogCursor;
 import ar.scraper.catalog.CatalogFilter;
+import ar.scraper.catalog.CatalogKeysetPage;
 import ar.scraper.catalog.CatalogPage;
 import ar.scraper.catalog.CatalogQueryPort;
 import ar.scraper.catalog.CatalogResumen;
@@ -75,6 +77,20 @@ public class CatalogoController {
         return codigo;
     }
 
+    /** Page-number mode: the same read as {@link #data} with no cursor. */
+    public ResponseEntity<ApiResponse<CatalogoDtos.Catalogo>> data(int page, int size, List<String> talle, String genero,
+            List<String> categoria, String q, String sitio, List<String> marca, String badge, String segment,
+            String rubro, Boolean gymrat, String orden, Boolean pack, Double precioMin, Double precioMax,
+            List<String> subCategoria, String fit, String estampado, String escote, String colorDominante,
+            List<String> excluirCategoria, String deporte) {
+        return data(page, size, talle, genero, categoria, q, sitio, marca, badge, segment, rubro, gymrat, orden, pack,
+                precioMin, precioMax, subCategoria, fit, estampado, escote, colorDominante, excluirCategoria, deporte, null);
+    }
+
+    /**
+     * {@code cursor} switches to keyset mode (see {@link #dataPorCursor}); absent, {@code page} + {@code size} paginate
+     * with OFFSET as always.
+     */
     @GetMapping("/data")
     public ResponseEntity<ApiResponse<CatalogoDtos.Catalogo>> data(@RequestParam(defaultValue = "0")   int page,
             @RequestParam(defaultValue = "24")  int size,
@@ -98,11 +114,13 @@ public class CatalogoController {
             @RequestParam(required = false)     String escote,
             @RequestParam(required = false)     String colorDominante,
             @RequestParam(required = false)     List<String> excluirCategoria,
-            @RequestParam(required = false)     String deporte) {
+            @RequestParam(required = false)     String deporte,
+            @RequestParam(required = false)     String cursor) {
         CatalogFilter filtro = new CatalogFilter(
                 talle, genero, categoria, q, sitio, marca, badge, segment, rubro,
                 gymrat, pack, precioMin, precioMax, subCategoria,
                 fit, estampado, escote, colorDominante, excluirCategoria, deporteConocido(deporte));
+        if (cursor != null) return dataPorCursor(filtro, size, cursor, orden);
 
         // Summary and page share one bound: an unbounded summary next to a bounded page would offer
         // facets the page cannot satisfy.
@@ -110,20 +128,62 @@ public class CatalogoController {
 
         CatalogResumen resumen = catalogQuery.resumen(cota);
         int numero = Math.min(Math.max(page, 0), Integer.MAX_VALUE - 1);
-        if (resumen.total() == 0) {
-            var vacio = new CatalogoDtos.Meta(
-                    config.getMoneda(), config.getPrecioMinimo(), config.getPrecioMaximo(),
-                    0, 0, LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")),
-                    CatalogoDtos.FacetsDto.vacio(), Map.of(), null);
-            return ResponseEntity.ok(new ApiResponse<>(new CatalogoDtos.Catalogo(vacio, List.of()),
-                    PageMeta.of(numero, size, 0)));
-        }
+        if (resumen.total() == 0) return vacia(PageMeta.of(numero, size, 0));
 
         CatalogPage paginaSql = catalogQuery.buscar(filtro, orden, numero + 1, size, cota);
 
+        // Price orders can continue by cursor: hand out the first cursor so a client switches from page numbers to
+        // keyset without a separate "first page" call. Other orders have no keyset, so no cursor.
+        String siguiente = null;
+        List<Product> filasSql = paginaSql.productos();
+        if (CatalogCursor.admite(orden) && !filasSql.isEmpty()
+                && (long) numero * size + filasSql.size() < paginaSql.total()) {
+            Product ultimo = filasSql.get(filasSql.size() - 1);
+            siguiente = new CatalogCursor(ultimo.precio(), ultimo.url()).codificar();
+        }
+        return responder(resumen, cota, filasSql, PageMeta.of(numero, size, paginaSql.total()), siguiente);
+    }
+
+    /**
+     * Keyset mode of {@code /api/data}, selected by the presence of {@code cursor} (empty = from the start). Only
+     * {@code precio_asc} and {@code precio_desc} have a keyset; any other order, or a cursor that is not one
+     * {@code nextCursor} produced, is a 400. No OFFSET and no COUNT: {@code page.total} is -1.
+     */
+    private ResponseEntity<ApiResponse<CatalogoDtos.Catalogo>> dataPorCursor(CatalogFilter filtro, int size,
+            String cursor, String orden) {
+        if (!CatalogCursor.admite(orden)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "solicitud_invalida",
+                    "cursor solo admite orden=precio_asc o precio_desc, no " + orden);
+        }
+        CatalogCursor desde;
+        try {
+            desde = StringUtils.isBlank(cursor) ? null : CatalogCursor.decodificar(cursor);
+        } catch (IllegalArgumentException e) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "solicitud_invalida", "cursor inválido");
+        }
+
+        java.util.Optional<java.time.Instant> cota = service.cotaDeLectura();
+        CatalogResumen resumen = catalogQuery.resumen(cota);
+        PageMeta meta = new PageMeta(0, size, -1, 0);
+        if (resumen.total() == 0) return vacia(meta);
+
+        CatalogKeysetPage pagina = catalogQuery.buscarPorCursor(filtro, orden, desde, size, cota);
+        return responder(resumen, cota, pagina.productos(), meta,
+                pagina.siguiente() == null ? null : pagina.siguiente().codificar());
+    }
+
+    private ResponseEntity<ApiResponse<CatalogoDtos.Catalogo>> vacia(PageMeta meta) {
+        var vacio = new CatalogoDtos.Meta(
+                config.getMoneda(), config.getPrecioMinimo(), config.getPrecioMaximo(),
+                0, 0, LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")),
+                CatalogoDtos.FacetsDto.vacio(), Map.of(), null);
+        return ResponseEntity.ok(new ApiResponse<>(new CatalogoDtos.Catalogo(vacio, List.of()), meta));
+    }
+
+    private ResponseEntity<ApiResponse<CatalogoDtos.Catalogo>> responder(CatalogResumen resumen,
+            java.util.Optional<java.time.Instant> cota, List<Product> filasSql, PageMeta page, String siguiente) {
         // senal/finan are computed, not persisted: only for this page's products.
-        List<Product> pagina = financiacionEnricher.enriquecer(
-                senalEnricher.enriquecer(paginaSql.productos()));
+        List<Product> pagina = financiacionEnricher.enriquecer(senalEnricher.enriquecer(filasSql));
 
         String presetActivoLabel = presets.cargarPresetActivo()
                 .map(ar.scraper.financiacion.Preset::label).orElse("");
@@ -144,8 +204,7 @@ public class CatalogoController {
         List<CatalogoDtos.ProductoRow> filas = pagina.stream()
                 .map(p -> CatalogoDtos.ProductoRow.of(p, presetActivoLabel)).toList();
 
-        return ResponseEntity.ok(new ApiResponse<>(new CatalogoDtos.Catalogo(meta, filas),
-                PageMeta.of(numero, size, paginaSql.total())));
+        return ResponseEntity.ok(new ApiResponse<>(new CatalogoDtos.Catalogo(meta, filas, siguiente), page));
     }
 
     /**

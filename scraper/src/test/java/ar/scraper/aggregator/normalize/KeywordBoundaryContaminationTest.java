@@ -76,8 +76,8 @@ class KeywordBoundaryContaminationTest {
         "'Adaptador Hdmi Hembra A Mini Hdmi',                   Cable",
         "'Antiparras Arena Cobra Core Swipe Mirror',            Lentes",
         "'Toalla adidas de Microfibra Magnética Players Cart',  Otros",
-        // ...y el corpiño de verdad sigue siendo Corpino
-        "'Sports Bra Negro de Mujer',                           Corpino",
+        // ...y el corpiño de verdad sigue siendo Corpino (el deportivo es Top Deportivo desde V88)
+        "'Sports Bra Negro de Mujer',                           Top Deportivo",
         "'Bralette Deportivo Rosa',                             Corpino",
     })
     @DisplayName("'bra' no se come Hembra, Cobra ni Microfibra")

@@ -314,6 +314,18 @@ export async function fetchMejores(rubro = '', { gymrat = false, genero = '' } =
   return softUnwrap(r, []);
 }
 
+// One keyset page of a category's products (best first). `cursor` is the opaque `nextCursor` of the previous page;
+// null asks for the first one. Resolves to { picks, nextCursor, total }, or to an empty last page on a soft failure.
+export async function fetchMejoresPicks(categoria, { rubro = '', gymrat = false, genero = '', cursor = null, limit = 24 } = {}) {
+  const p = new URLSearchParams({ categoria, limit: String(limit) });
+  if (rubro) p.set('rubro', rubro);
+  if (gymrat) p.set('gymrat', 'true');
+  if (genero) p.set('genero', genero);
+  if (cursor) p.set('cursor', cursor);
+  const r = await authedFetch(`${BASE}/api/mejores/picks?${p}`);
+  return softUnwrap(r, { picks: [], nextCursor: null, total: 0 });
+}
+
 export async function fetchMarcasBrowser(params = {}) {
   const p = new URLSearchParams();
   Object.entries(params).forEach(([k, v]) => { if (v) p.set(k, v); });

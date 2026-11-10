@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { fetchMarcasBrowser, fetchData, fmt, BADGE_LABELS } from '../api';
 import { SEMANTIC } from '../lib/colors';
 import { getBrandLogoUrl, getBrandInitials, getBrandColor, logoSobreOscuro } from '../lib/brandLogos';
@@ -103,15 +103,58 @@ function MarcaCard({ marca, onClick }) {
 function MarcaDetail({ marca, onBack, onProductClick }) {
   const [prods,   setProds]   = useState([]);
   const [loading, setLoading] = useState(true);
+  // Keyset pagination: page 0 (page-number mode) hands out the first cursor, the rest is `cursor=`.
+  const [cursor,  setCursor]  = useState(null);
+  const [fin,     setFin]     = useState(false);
+  const cargando = useRef(false);
+  const sentinelRef = useRef(null);
 
   useEffect(() => {
-    setLoading(true);
+    let cancelled = false;
+    setLoading(true); setProds([]); setCursor(null); setFin(false); cargando.current = false;
     fetchData({ marca: marca.marca, size: 48, page: 0, orden:'precio_asc' })
-      .then(d => { setProds(d?.productos || []); setLoading(false); })
+      .then(d => {
+        if (cancelled) return;
+        setProds(d?.productos || []);
+        setCursor(d?.nextCursor || null);
+        setFin(!d?.nextCursor);
+        setLoading(false);
+      })
       .catch(() => {
         // Unreachable backend: keep the loading state instead of showing an empty brand.
       });
+    return () => { cancelled = true; };
   }, [marca.marca]);
+
+  const cargarMas = useCallback(async () => {
+    if (cargando.current || !cursor) return;
+    cargando.current = true;
+    try {
+      const d = await fetchData({ marca: marca.marca, size: 48, orden:'precio_asc', cursor });
+      setProds(prev => {
+        const vistos = new Set(prev.map(p => p.url));
+        return [...prev, ...(d?.productos || []).filter(p => !vistos.has(p.url))];
+      });
+      setCursor(d?.nextCursor || null);
+      if (!d?.nextCursor) setFin(true);
+    } catch {
+      // A failed page leaves the sentinel armed; scrolling again retries it.
+    } finally {
+      cargando.current = false;
+    }
+  }, [marca.marca, cursor]);
+
+  useEffect(() => {
+    if (fin || loading) return;
+    const el = sentinelRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      entries => { if (entries[0].isIntersecting) cargarMas(); },
+      { rootMargin: '600px', threshold: 0 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [fin, loading, cargarMas]);
 
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100%' }}>
@@ -195,6 +238,7 @@ function MarcaDetail({ marca, onBack, onProductClick }) {
             </button>
           ))}
         </div>
+        {!fin && !loading && <div ref={sentinelRef} style={{ height:1 }} />}
       </div>
     </div>
   );

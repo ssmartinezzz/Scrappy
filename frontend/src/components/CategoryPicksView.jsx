@@ -1,4 +1,5 @@
-import { fmt } from '../api';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { fetchMejoresPicks, fmt } from '../api';
 import PickCard from './PickCard';
 import CategoryPicksCarousel from './CategoryPicksCarousel';
 
@@ -25,9 +26,55 @@ export function tagline(cat, pick, mediana) {
 // and the picks carousel. Consumed by BOTH PicksPanel's in-panel CatDetail
 // and the routed /picks/:categoria page (CategoryPicksPage) so both entries
 // render one identical body (design doc ADR-2).
-export default function CategoryPicksView({ cat, onBack, onProductClick }) {
+// Below the curated highlights the view lists EVERY product of the category, best first, loading keyset pages
+// (the backend's opaque `nextCursor`, never an offset) as a sentinel scrolls into view. `pickFilters` must be the same
+// rubro/gymrat/genero the summary `cat` was fetched with, so the pages describe the same set.
+export default function CategoryPicksView({ cat, onBack, onProductClick, pickFilters }) {
   const picks = cat.picks || [];
   const firstPick = picks[0];
+
+  const [extra, setExtra] = useState([]);
+  const [cursor, setCursor] = useState(null);
+  const [fin, setFin] = useState(false);
+  const cargando = useRef(false);
+  const sentinelRef = useRef(null);
+  const filtros = pickFilters || { rubro: '', gymrat: false, genero: '' };
+  const filtrosKey = `${filtros.rubro}|${filtros.gymrat}|${filtros.genero}`;
+
+  useEffect(() => {
+    setExtra([]); setCursor(null); setFin(false); cargando.current = false;
+  }, [cat.categoria, filtrosKey]);
+
+  const cargarMas = useCallback(async () => {
+    if (cargando.current) return;
+    cargando.current = true;
+    try {
+      const page = await fetchMejoresPicks(cat.categoria, { ...filtros, cursor });
+      setExtra(prev => {
+        const vistos = new Set([...picks, ...prev].map(p => p.url));
+        return [...prev, ...(page?.picks || []).filter(p => !vistos.has(p.url))];
+      });
+      setCursor(page?.nextCursor || null);
+      if (!page?.nextCursor) setFin(true);
+    } catch {
+      // A failed page leaves the sentinel armed; scrolling again retries it.
+    } finally {
+      cargando.current = false;
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cat.categoria, filtrosKey, cursor]);
+
+  useEffect(() => {
+    if (fin) return;
+    const el = sentinelRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      entries => { if (entries[0].isIntersecting) cargarMas(); },
+      { rootMargin: '600px', threshold: 0 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [fin, cargarMas]);
 
   return (
     <div className="picks-catdetail">
@@ -60,6 +107,15 @@ export default function CategoryPicksView({ cat, onBack, onProductClick }) {
           )}
         />
       )}
+
+      {extra.length > 0 && (
+        <div className="picks-grid">
+          {extra.map(pick => (
+            <PickCard key={pick.url} pick={pick} mediana={cat.mediana} onClick={onProductClick}/>
+          ))}
+        </div>
+      )}
+      {!fin && <div ref={sentinelRef} className="picks-sentinel" />}
     </div>
   );
 }

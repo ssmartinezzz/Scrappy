@@ -1,7 +1,9 @@
 package ar.scraper.db;
 
 import ar.scraper.classification.SiteRegistry;
+import ar.scraper.catalog.CatalogCursor;
 import ar.scraper.catalog.CatalogFilter;
+import ar.scraper.catalog.CatalogKeysetPage;
 import ar.scraper.catalog.CatalogPage;
 import ar.scraper.catalog.CatalogQueryPort;
 import ar.scraper.catalog.CatalogResumen;
@@ -62,6 +64,41 @@ class CatalogQueryRepository implements CatalogQueryPort {
         } catch (Exception e) {
             LOG.error("[DB] Error consultando el catálogo: {}", e.getMessage(), e);
             return new CatalogPage(List.of(), 0);
+        }
+    }
+
+    /**
+     * The read that scales: {@code (precio, url)} strictly after the cursor, ordered by that same pair (descending
+     * for {@code precio_desc}, url included, so one backward index scan serves it), {@code size + 1} rows to learn
+     * whether there is a next page. No COUNT, no OFFSET: page N costs what page 1 does.
+     */
+    @Override
+    public CatalogKeysetPage buscarPorCursor(CatalogFilter filtro, String orden, CatalogCursor cursor, int size,
+                                             Optional<Instant> desde) {
+        if (!CatalogCursor.admite(orden)) {
+            throw new IllegalArgumentException("orden sin soporte de cursor: " + orden);
+        }
+        boolean desc = "precio_desc".equals(orden);
+        Where base = construirWhere(filtro, cotaDe(desde));
+        List<Object> params = new ArrayList<>(base.params());
+        String sql = base.sql();
+        if (cursor != null) {
+            sql += " AND (p.precio, p.url) " + (desc ? "<" : ">") + " (?, ?)";
+            params.add(cursor.precio());
+            params.add(cursor.url());
+        }
+        Where where = new Where(sql, params);
+        int limite = Math.max(1, size);
+        try {
+            List<Product> filas = leerUrlsYProductos(where,
+                    "ORDER BY p.precio " + (desc ? "DESC" : "ASC") + ", p.url " + (desc ? "DESC" : "ASC"), limite + 1, 0);
+            if (filas.size() <= limite) return new CatalogKeysetPage(filas, null);
+            List<Product> pagina = List.copyOf(filas.subList(0, limite));
+            Product ultimo = pagina.get(limite - 1);
+            return new CatalogKeysetPage(pagina, new CatalogCursor(ultimo.precio(), ultimo.url()));
+        } catch (Exception e) {
+            LOG.error("[DB] Error consultando el catálogo por cursor: {}", e.getMessage(), e);
+            return new CatalogKeysetPage(List.of(), null);
         }
     }
 
@@ -316,8 +353,16 @@ class CatalogQueryRepository implements CatalogQueryPort {
             params.add(new TextArray(enMinusculas(f.talles())));
         }
         if (noVacia(f.marcas())) {
-            cond.add("lower(coalesce(p.marca,'')) = ANY(?)");
-            params.add(new TextArray(enMinusculas(f.marcas())));
+            List<String> marcas = enMinusculas(f.marcas());
+            if (marcas.size() == 1) {
+                // A plain equality, not = ANY: only this form lets idx_productos_marca_precio (V89) hand the rows
+                // back already ordered by (precio, url), so a brand page is a short index range scan, not a sort.
+                cond.add("lower(coalesce(p.marca,'')) = ?");
+                params.add(marcas.get(0));
+            } else {
+                cond.add("lower(coalesce(p.marca,'')) = ANY(?)");
+                params.add(new TextArray(marcas));
+            }
         }
         if (noVacio(f.badge())) {
             cond.add("EXISTS (SELECT 1 FROM producto_badge b WHERE b.url = p.url "
@@ -443,9 +488,13 @@ class CatalogQueryRepository implements CatalogQueryPort {
      * página (con el filtro y el orden), los productos de esas urls, y sus dos tablas hijas.
      */
     private List<Product> leerPagina(Where where, String orden, int size, int offset) {
+        return leerUrlsYProductos(where, orderBy(orden), size, offset);
+    }
+
+    private List<Product> leerUrlsYProductos(Where where, String orderBy, int size, int offset) {
         List<String> urls = new ArrayList<>();
         String sqlUrls = "SELECT p.url FROM productos p WHERE " + where.sql()
-                + "\n" + orderBy(orden) + "\nLIMIT ? OFFSET ?";
+                + "\n" + orderBy + "\nLIMIT ? OFFSET ?";
         jdbc.query(sqlUrls, ps -> {
             int i = bind(ps, where.params());
             ps.setInt(i++, size);
