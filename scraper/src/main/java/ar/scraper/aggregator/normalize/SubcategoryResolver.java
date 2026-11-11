@@ -195,6 +195,10 @@ public class SubcategoryResolver {
             new String[]{"snapback", "snapback"},
             new String[]{"visera",   "visera"}
         ));
+        // Matched as a whole word: "Legolas" is not a LEGO. Tier 1 wins over the sport tier ("Lego Futbol").
+        SUBCATEG_TIER1.put("Juguete", Arrays.<String[]>asList(
+            new String[]{"lego", "lego", "lego:"}
+        ));
         SUBCATEG_TIER1.put("Vestido", Arrays.<String[]>asList(
             new String[]{"largo",  "largo", "maxi"},
             new String[]{"corto",  "corto", "mini"},
@@ -256,6 +260,9 @@ public class SubcategoryResolver {
                 }
             }
         }
+
+        // Same for a Funko: "Funko Pop! Alien 3 - Ripley & The Runner" is not a running product.
+        if ("Juguete".equals(categoria) && n.contains(" funko")) return "";
 
         // The sport tier is for garments; "Perfume Hockey Club" is not a hockey product.
         if ("Perfume".equals(categoria)) return "";

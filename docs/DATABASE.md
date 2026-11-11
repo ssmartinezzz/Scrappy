@@ -168,6 +168,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V91` | Plataforma `magento`: `sitio_plataforma_check` pasa a 19 valores y seed de Las Pepas (`monomarca`) |
 | `V92` | Categoría `Bijouterie` (aros, collar, choker, anillo, broche...) y los "Perfume para Auto" pasan de `Perfume`/`perfumeria` a `Limpieza de Auto`/`hogar` |
 | `V93` | Categorías `Desodorante` (rubro `perfumeria`) y `Llavero` (en ningún grupo de rubro); los desodorantes guardados como `Perfume` se mueven y las `Perfume` sin palabra de fragancia (juguetes `Splash`, `Teja Colonial`) se realinean |
+| `V94` | Categorías `Vincha`, `Bandana` y `Traje Deportivo` (indumentaria); las `Gorra` con vincha/bandana, los `tracksuit`/`catsuit` guardados como `Traje`/`Conjunto`, todo Funko (a `Juguete`/`juguetes`, sin subcategoría de deporte) y las `Juguete` LEGO (`sub_categoria = 'lego'`) se realinean |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -4895,4 +4896,37 @@ DELETE FROM categoria WHERE nombre IN ('Desodorante', 'Llavero');
 
 **El orden es obligatorio** (FK de `productos`, `sitio_categoria` y `categoria_stats` hacia `categoria`). El realineo de las `Perfume` sin
 fragancia no se revierte: no se guardó la categoría anterior y esas filas nunca fueron perfumes. Los desodorantes vuelven a `Perfume` con
-rubro `perfumeria`. Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V92`.
+rubro `perfumeria`. Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V94` y antes que el de `V92`.
+
+---
+
+## `V94` — categorías `Vincha`, `Bandana` y `Traje Deportivo`; Funko y LEGO
+
+Tres categorías nuevas de indumentaria, cada una con sus **dos** cambios (keyword + `INSERT` en `categoria`). `vincha` y `bandana` salen de
+`KW_GORRA` a `KW_VINCHA` / `KW_BANDANA`, que `AccesoriosClassifier` chequea antes que `Gorra` (por eso "Bermuda Bandana" sigue siendo
+`Bermuda`: `IndumentariaClassifier` corre antes). `tracksuit`/`catsuit` salen de `KW_TRAJE` (se agregan a `KW_TRAJE_VETO`) y los resuelve
+`TrajeDeportivoClassifier`, antes de `ConjuntoClassifier` ("Conjunto Puma Tracksuit" es `Traje Deportivo`, no `Conjunto`); una pieza suelta que
+**arranca** con campera/pantalón/buzo/... (`KW_TRAJE_DEPORTIVO_PIEZA_LIDER`) sigue a su sustantivo. Funko (`KW_FUNKO`) se chequea primero en
+`CategoryClassifier` y es siempre `Juguete`; `SubcategoryResolver` no le da subcategoría de deporte y da `lego` a las `Juguete` con la palabra
+`lego` (tier 1, gana sobre "Futbol"/"Runner"). Canon 282.
+
+El `UPDATE` mueve las `Gorra` con vincha/bandana, parte las `Traje` con `tracksuit`/`catsuit` entre pieza suelta (vuelve a su sustantivo) y
+`Traje Deportivo`, pasa las `Conjunto` con `tracksuit` a `Traje Deportivo`, y pone `Juguete`/`juguetes`/sin subcategoría/sin deporte a toda fila
+con ` funko ` (el rubro se escribe acá porque `renormalizar` no lo persiste). Después marca `lego` en las `Juguete` con ` lego `. Nunca toca filas
+bloqueadas (`bloqueado_por`), y cada `UPDATE` es idempotente.
+
+### Rollback
+
+```sql
+-- >>> rollback:V94
+UPDATE productos SET categoria = 'Gorra' WHERE categoria IN ('Vincha', 'Bandana');
+UPDATE productos SET categoria = 'Traje' WHERE categoria = 'Traje Deportivo';
+UPDATE sitio_categoria SET categoria = NULL WHERE categoria IN ('Vincha', 'Bandana', 'Traje Deportivo');
+DELETE FROM categoria_stats WHERE categoria IN ('Vincha', 'Bandana', 'Traje Deportivo');
+DELETE FROM categoria WHERE nombre IN ('Vincha', 'Bandana', 'Traje Deportivo');
+-- <<< rollback:V94
+```
+
+**El orden es obligatorio** (FK de `productos`, `sitio_categoria` y `categoria_stats` hacia `categoria`). No se revierten los pasos de Funko ni de
+LEGO (no se guardó el estado anterior y el clasificador nuevo los volvería a mover); los `Traje Deportivo` vuelven a `Traje` aunque algunos
+fueran `Conjunto`. Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V93`.

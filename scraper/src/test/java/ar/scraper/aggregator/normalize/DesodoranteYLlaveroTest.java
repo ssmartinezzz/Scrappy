@@ -21,7 +21,7 @@ class DesodoranteYLlaveroTest {
             "Perfume Mujer Eau de Parfum 100ml|Perfume",
             "Body Splash Vainilla 200 ml|Perfume",
             "Llavero Insigne Full Black|Llavero",
-            "Funko Pop! Llavero: The Flash|Llavero",
+            "Funko Pop! Llavero: The Flash|Juguete",
             "Nes Controller Keychain PYRAMID - Llavero|Llavero",
             "POKEMON RUBBER REEL KEYCHAIN - Pikachu|Llavero",
             "LLAVERO DE CUERO FLOWER|Llavero",

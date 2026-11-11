@@ -401,8 +401,24 @@ public final class GarmentTaxonomy {
 
     public static final String[] KW_GORRA = {
         "gorra"," cap "," hat ","sombrero","boina","snapback",
-        "bucket hat"," buff ","balaclava","vincha","visera","dad hat"," bandana "
+        "bucket hat"," buff ","balaclava","visera","dad hat"
     };
+
+    // Own categories, checked before KW_GORRA. "vinchas" is covered by the open end; bandana needs both spaces
+    // ("Bermuda Bandana" is a Bermuda: IndumentariaClassifier runs before AccesoriosClassifier).
+    public static final String[] KW_VINCHA = { " vincha" };
+    public static final String[] KW_BANDANA = { " bandana "," bandanas " };
+
+    // A suit worn as one piece. Loose pieces ("CAMPERA TRACKSUIT NEGRA") follow their leading noun instead.
+    public static final String[] KW_TRAJE_DEPORTIVO = { " tracksuit"," catsuit" };
+    public static final String[] KW_TRAJE_DEPORTIVO_PIEZA_LIDER = {
+        " campera"," pantalon"," buzo"," remera"," short "," chaleco"," jogging"," jogger"," calza"," musculosa",
+        " bermuda"," sweater"," top "," camiseta"," chomba"
+    };
+
+    // Funko is always a toy, whatever else the title says (keychain, backpack, plush, figure, even a swimsuit-shaped
+    // "Runner" in a film title). Checked first in CategoryClassifier.
+    public static final String[] KW_FUNKO = { " funko" }; // open end: "Funko/Sanrio", "Funko:"
 
     /**
      * Gym-brand names with no garment noun ("Morley Tank", "Boxy Fit Boxing", "CROPTOP 4REAL"),
@@ -2220,7 +2236,7 @@ public final class GarmentTaxonomy {
     };
     public static final String[] KW_CAMISA_VETO = { " tela oxford"," funda "," costado "," banquito " };
     public static final String[] KW_PANTALON_VETO = { "pantalonero" };
-    public static final String[] KW_TRAJE_VETO = { " funda " };
+    public static final String[] KW_TRAJE_VETO = { " funda "," tracksuit"," catsuit" };
     public static final String[] KW_SACO_VETO = { " inflable"," dormir"," hidroquimica" };
     public static final String[] KW_ACCESORIO_DEPORTIVO_VETO = { " combustible"," tapa de seguridad"," pico vertedor" };
     public static final String[] KW_MOCHILA_SANITARIA_CALIFICADOR = {

@@ -138,9 +138,6 @@ class HadriaticaCategoryClassifierTest {
 
     @ParameterizedTest(name = "[{index}] \"{0}\" -> Figura Coleccionable")
     @ValueSource(strings = {
-        "FUNKO POP! SAINT SEIYA GOLD AQUARIUS HYOGA 1425",
-        "Funko Bitty POP! Star Wars - 4 Pack Miniature Vinyl Figures (Han Solo)",
-        "Funko Pop! Games: Pokemon - Charmander",
         "POP Disney: Lilo &amp; Stitch - Stitch - (Hanukkah) - (Dreidel)",
         "Amiibo Super Smash Bros. - Mario",
         "Amiibo Cards Animal Crossing - Series 3 - PACK de 6 Unidades",
@@ -163,9 +160,20 @@ class HadriaticaCategoryClassifierTest {
         assertThat(cat(nombre)).isEqualTo("Figura Coleccionable");
     }
 
+    @ParameterizedTest(name = "[{index}] \"{0}\" -> Juguete")
+    @ValueSource(strings = {
+        "FUNKO POP! SAINT SEIYA GOLD AQUARIUS HYOGA 1425",
+        "Funko Bitty POP! Star Wars - 4 Pack Miniature Vinyl Figures (Han Solo)",
+        "Funko Pop! Games: Pokemon - Charmander",
+        "Funko Pop! Llavero: Fortnite - Havoc"
+    })
+    @DisplayName("Funko is always a Juguete, figure or keychain alike")
+    void funkoIsAToy(String nombre) {
+        assertThat(cat(nombre)).isEqualTo("Juguete");
+    }
+
     @ParameterizedTest(name = "[{index}] \"{0}\" -> not Figura Coleccionable")
     @ValueSource(strings = {
-        "Funko Pop! Llavero: Fortnite - Havoc",
         "Funko Pop Keychain: Game of Thrones - Jon Snow",
         "Keychain - One Piece - Trafalgar Law 3D",
         "Figura decorativa de jardin Gnomo 30 cm",

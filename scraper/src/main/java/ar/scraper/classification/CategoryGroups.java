@@ -14,7 +14,7 @@ public final class CategoryGroups {
         "Vestido","Enterito","Pantalón",
         "Calzoncillos","Bombacha","Corpino","Top","Top Deportivo","Malla",
         "Mochila","Bolso","Riñonera","Billetera","Cinturón",
-        "Bufanda","Guantes","Gorro","Gorra","Lentes","Medias","Bijouterie",
+        "Bufanda","Guantes","Gorro","Gorra","Vincha","Bandana","Traje Deportivo","Lentes","Medias","Bijouterie",
         "Accesorio Deportivo"
     );
 
