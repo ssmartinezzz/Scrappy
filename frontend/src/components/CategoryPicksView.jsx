@@ -98,13 +98,13 @@ export default function CategoryPicksView({ cat, onBack, onProductClick, pickFil
       )}
 
       {subChips?.length > 0 && (
-        <div className="picks-subchips" role="group" aria-label="Subcategoría">
+        <fieldset className="picks-subchips" aria-label="Subcategoría">
           {['', ...subChips].map(s => (
             <button key={s || 'todos'} type="button" onClick={() => setSub(s)}
               className={`picks-rubro-btn${sub === s ? ' active' : ''}`}
             >{s || 'Todos'}</button>
           ))}
-        </div>
+        </fieldset>
       )}
 
       {picks.length === 0 ? (

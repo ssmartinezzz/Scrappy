@@ -18,7 +18,6 @@ UPDATE productos p
    SET rubro = 'perfumeria'
  WHERE p.categoria = 'Perfume'
    AND p.bloqueado_por IS NULL
-   AND p.rubro IS DISTINCT FROM 'perfumeria'
    AND (' ' || lower(translate(p.nombre, 'áéíóúüñÁÉÍÓÚÜÑ', 'aeiouunAEIOUUN')) || ' ')
         ~ '(perfume|fragancia|eau de toilette|eau de parfum| colonia |desodorante |antitranspirante|body splash|body mist)'
    AND NOT EXISTS (SELECT 1 FROM sitio s
