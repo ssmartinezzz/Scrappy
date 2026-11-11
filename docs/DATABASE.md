@@ -164,7 +164,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V87` | Plataforma `kevingston`: `sitio_plataforma_check` pasa a 18 valores y seed de Kevingston (`monomarca`) |
 | `V88` | Categorías `Top` y `Top Deportivo` (salen de `Musculosa`), `croptop` pasa de `Corpino` a `Top`, las canilleras a `Accesorio Deportivo` y el inyector de sellante a `Repuesto de Bicicleta`; los tops movidos quedan con `genero = 'mujer'` salvo señal de hombre o infantil |
 | `V89` | Índice parcial `idx_productos_marca_precio` sobre `(lower(coalesce(marca,'')), precio, url) WHERE activo`: una marca paginada por cursor (`/api/data?cursor=`) pasa de barrer 87 mil filas a un rango de índice |
-| `V90` | Rubro `perfumeria`: `chk_productos_rubro_domain` pasa a 10 valores; las filas `Perfume` guardadas las realinea `POST /api/ml/renormalizar` |
+| `V90` | Rubro `perfumeria`: `chk_productos_rubro_domain` pasa a 10 valores; las filas `Perfume` guardadas con nombre de fragancia se realinean |
 | `V91` | Plataforma `magento`: `sitio_plataforma_check` pasa a 19 valores y seed de Las Pepas (`monomarca`) |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
@@ -4772,15 +4772,18 @@ de rollbacks corre después del de `V90` y antes que el de `V88`.
 `Perfume` pasa a tener rubro propio. `chk_productos_rubro_domain` (CHECK, no tabla, como `V6`) se re-lista completo con el valor
 nuevo (10 valores). Las otras copias del vocabulario viajan en el mismo commit: `CategoryGroups.esCategoriaPerfumeria`,
 `RubroResolver` (rama justo después de los rubros forzados `tecnologia`/`oficina`, que siguen ganando), `frontend/src/lib/rubros.js`
-y el color de `PicksPanel.jsx`. `V90` NO hace `UPDATE` de las filas guardadas: había `Perfume` que eran juguetes (`splash`) o tejas
-(`colonial`), y un `UPDATE` ciego las habría mandado a `perfumeria`. `KW_PERFUME` ya no matchea `splash` pelado ni `colonia`
-como subcadena; las filas se alinean con `POST /api/ml/renormalizar` (clasifica de nuevo y `RubroResolver` decide el rubro).
+y el color de `PicksPanel.jsx`. `V90` además alinea las filas guardadas, porque `POST /api/ml/renormalizar` NO persiste `rubro`
+(sólo `categoria`, `marca`, `genero`, talles y `sub_categoria`): `categoria = 'Perfume'`, sin `bloqueado_por`, de sitios que no estén
+forzados a `tecnologia`/`oficina`, y con un nombre que diga fragancia (gemelo SQL de `KW_PERFUME`). Hay `Perfume` guardados que son
+juguetes (`Base-X Splash`) o tejas (`Teja Colonial`): `KW_PERFUME` ya no matchea `splash` pelado ni `colonia` como subcadena, pero esas
+filas conservan su categoría hasta el próximo scrape del sitio, y hasta entonces el `UPDATE` las deja en su rubro. Idempotente.
 
 ### Rollback
 
 ```sql
 -- >>> rollback:V90
-UPDATE productos SET rubro = 'indumentaria' WHERE rubro = 'perfumeria';
+UPDATE productos p SET rubro = COALESCE((SELECT s.rubro_por_defecto FROM sitio s WHERE s.nombre = p.sitio), 'indumentaria')
+ WHERE p.rubro = 'perfumeria';
 ALTER TABLE productos DROP CONSTRAINT chk_productos_rubro_domain;
 ALTER TABLE productos
     ADD CONSTRAINT chk_productos_rubro_domain
@@ -4790,8 +4793,9 @@ ALTER TABLE productos
 -- <<< rollback:V90
 ```
 
-**El orden es obligatorio**: mientras haya filas `perfumeria`, el CHECK angosto las rechaza. Las filas vuelven a `indumentaria`
-porque no se guardó el rubro anterior (era `indumentaria` o el rubro por defecto del sitio); el próximo scrape las re-resuelve.
+**El orden es obligatorio**: mientras haya filas `perfumeria`, el CHECK angosto las rechaza. Las filas vuelven al `rubro_por_defecto` de su sitio
+(`juguetes` en Elmundodeljuguete, `construccion` en Easy) o a `indumentaria` si no tiene: no se guardó el rubro anterior, así que
+es lo que `RubroResolver` habría devuelto; el próximo scrape las re-resuelve.
 
 Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V91` y antes que el de `V89`.
 
