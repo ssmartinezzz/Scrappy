@@ -164,6 +164,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V87` | Plataforma `kevingston`: `sitio_plataforma_check` pasa a 18 valores y seed de Kevingston (`monomarca`) |
 | `V88` | Categorías `Top` y `Top Deportivo` (salen de `Musculosa`), `croptop` pasa de `Corpino` a `Top`, las canilleras a `Accesorio Deportivo` y el inyector de sellante a `Repuesto de Bicicleta`; los tops movidos quedan con `genero = 'mujer'` salvo señal de hombre o infantil |
 | `V89` | Índice parcial `idx_productos_marca_precio` sobre `(lower(coalesce(marca,'')), precio, url) WHERE activo`: una marca paginada por cursor (`/api/data?cursor=`) pasa de barrer 87 mil filas a un rango de índice |
+| `V90` | Rubro `perfumeria`: `chk_productos_rubro_domain` pasa a 10 valores y las filas `Perfume` guardadas (sin bloqueo, fuera de sitios forzados a `tecnologia`/`oficina`) se realinean |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -4760,5 +4761,34 @@ DROP INDEX IF EXISTS idx_productos_marca_precio;
 -- <<< rollback:V89
 ```
 
-Es sólo un índice: borrarlo no cambia ningún resultado, sólo vuelve al `Seq Scan` por página. Es el bloque más nuevo: en una cadena
-de rollbacks corre PRIMERO, antes que el de `V88`.
+Es sólo un índice: borrarlo no cambia ningún resultado, sólo vuelve al `Seq Scan` por página. Ya no es el bloque más nuevo: en una cadena
+de rollbacks corre después del de `V90` y antes que el de `V88`.
+
+---
+
+## `V90` — rubro `perfumeria`
+
+`Perfume` pasa a tener rubro propio. `chk_productos_rubro_domain` (CHECK, no tabla, como `V6`) se re-lista completo con el valor
+nuevo (10 valores). Las otras copias del vocabulario viajan en el mismo commit: `CategoryGroups.esCategoriaPerfumeria`,
+`RubroResolver` (rama justo después de los rubros forzados `tecnologia`/`oficina`, que siguen ganando), `frontend/src/lib/rubros.js`
+y el color de `PicksPanel.jsx`. `V90` además alinea las filas guardadas (`categoria = 'Perfume'`, sin `bloqueado_por`, de sitios
+que no estén forzados a `tecnologia`/`oficina`) en vez de esperar un scrape por sitio. Idempotente.
+
+### Rollback
+
+```sql
+-- >>> rollback:V90
+UPDATE productos SET rubro = 'indumentaria' WHERE rubro = 'perfumeria';
+ALTER TABLE productos DROP CONSTRAINT chk_productos_rubro_domain;
+ALTER TABLE productos
+    ADD CONSTRAINT chk_productos_rubro_domain
+        CHECK (rubro IS NULL OR rubro IN ('indumentaria', 'tecnologia', 'suplementos',
+                                          'oficina', 'construccion', 'hogar',
+                                          'deporte', 'juguetes', 'libros'));
+-- <<< rollback:V90
+```
+
+**El orden es obligatorio**: mientras haya filas `perfumeria`, el CHECK angosto las rechaza. Las filas vuelven a `indumentaria`
+porque no se guardó el rubro anterior (era `indumentaria` o el rubro por defecto del sitio); el próximo scrape las re-resuelve.
+
+Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V89`.

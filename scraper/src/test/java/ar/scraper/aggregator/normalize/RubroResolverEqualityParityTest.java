@@ -144,7 +144,8 @@ class RubroResolverEqualityParityTest {
                             || (CategoryGroups.esCategoriaTech(cat) && sinRubroForzado(rubroForzadoPorSitio, sitioKey))
                             || CategoryGroups.esCategoriaDeporte(cat)
                             || CategoryGroups.esCategoriaJuguetes(cat)
-                            || CategoryGroups.esCategoriaLibros(cat)) {
+                            || CategoryGroups.esCategoriaLibros(cat)
+                            || CategoryGroups.esCategoriaPerfumeria(cat)) {
                         continue;
                     }
                     String oldResult = oldSubstringResolver(sitioKey, cat, rubroExistente);

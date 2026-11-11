@@ -103,7 +103,9 @@ public final class CategoryGroups {
     );
 
     /** Standalone canonical categories not covered by the sets above. */
-    private static final Set<String> CATEGORIAS_OTRAS = Set.of("Conjunto","Perfume","Otros");
+    private static final Set<String> CATEGORIAS_OTRAS = Set.of("Conjunto","Otros");
+
+    private static final Set<String> CATEGORIAS_PERFUMERIA = Set.of("Perfume");
 
     /**
      * Single source of truth injected into the tool schema {@code enum} and the system prompt so
@@ -121,6 +123,7 @@ public final class CategoryGroups {
         all.addAll(CATEGORIAS_OFICINA);
         all.addAll(CATEGORIAS_CONSTRUCCION);
         all.addAll(CATEGORIAS_HOGAR);
+        all.addAll(CATEGORIAS_PERFUMERIA);
         all.addAll(CATEGORIAS_OTRAS);
         return java.util.Collections.unmodifiableSet(all);
     }
@@ -156,6 +159,10 @@ public final class CategoryGroups {
 
     public static boolean esCategoriaLibros(String cat) {
         return cat != null && CATEGORIAS_LIBROS.contains(cat);
+    }
+
+    public static boolean esCategoriaPerfumeria(String cat) {
+        return cat != null && CATEGORIAS_PERFUMERIA.contains(cat);
     }
 
     public static boolean esCategoriaTech(String cat) {

@@ -25,6 +25,8 @@ public class RubroResolver {
             return "tecnologia";
         } else if ("oficina".equals(rubroForzado) && !catEsTextil && !catEsSuppl) {
             return "oficina";
+        } else if (CategoryGroups.esCategoriaPerfumeria(cat)) {
+            return "perfumeria";
         } else if (catEsConstr) {
             return "construccion";
         } else if (catEsHogar) {
