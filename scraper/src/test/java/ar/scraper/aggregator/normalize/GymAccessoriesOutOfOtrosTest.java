@@ -47,7 +47,7 @@ class GymAccessoriesOutOfOtrosTest {
     @Test
     void nonApparelStaysInOtros() {
         for (String n : new String[]{"Gift Card MKF $50000", "Gift Bag", "Sticker Planc",
-                "Monky\\Llavero", "Sparks Parfum", "Sistema de Parches", "SALUDO VIRTUAL"}) {
+                "Sparks Parfum", "Sistema de Parches", "SALUDO VIRTUAL"}) {
             assertThat(cat(n)).as(n).isEqualTo("Otros");
         }
     }

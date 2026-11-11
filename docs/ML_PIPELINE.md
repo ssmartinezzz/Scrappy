@@ -458,6 +458,13 @@ scrunchie, hebilla, dije, brazalete): `CategoryClassifier` la chequea **antes** 
 `cm`/`mm`, `talla`, `reloj`, `inteligente`...). Un `Perfume para Auto` ya no es `Perfume`: `KW_LIMPIEZA_AUTO_LIDER` lo manda a `Limpieza de Auto`
 (rubro `hogar`), junto a `aromatizante`. Canon 277.
 
+**`Desodorante` y `Llavero`** (`V93`, canon 279). `desodorante `/`antitranspirante` salen de `KW_PERFUME` a `KW_DESODORANTE`, que `AccesoriosClassifier`
+chequea antes ("Desodorante ... fragancia X" es `Desodorante`); es categoría de `perfumeria` y no tiene subcategoría de perfume
+(`SubcategoryResolver` sólo la da a `Perfume`). `Llavero` (`KW_LLAVERO`: `llavero`/`keychain` en cualquier parte del nombre) corre primero en
+`CategoryClassifier`, antes de Figura Coleccionable/Juguete/Peluche y de `NonTextileGuard`, salvo que el nombre **arranque** con
+mochila/bolso/cartera/riñonera; no pertenece a ningún grupo de rubro (el rubro sigue al sitio). `pin`/`pins` son líder de `Bijouterie`.
+`V93` también realinea las `Perfume` guardadas sin palabra de fragancia (los inflables `Splash`, la `Teja Colonial`).
+
 **Género fijo por sitio.** `NormalizerService.GENERO_FIJO_POR_SITIO` (sitio → género) gana
 sobre todo: `elmundodeljuguete` → `infantil`, `equus` → `hombre`.
 

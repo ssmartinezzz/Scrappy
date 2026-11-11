@@ -4,6 +4,7 @@ final class AccesoriosClassifier implements FamiliaClassifier {
 
     @Override
     public String clasificar(TextoClasificable texto) {
+        if (texto.contiene(GarmentTaxonomy.KW_DESODORANTE))          return "Desodorante";
         if (texto.contiene(GarmentTaxonomy.KW_PERFUME))              return "Perfume";
         if (texto.contiene(GarmentTaxonomy.KW_BILLETERA))            return "Billetera";
         if (texto.contiene(GarmentTaxonomy.KW_RINONERA))             return "Riñonera";
