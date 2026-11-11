@@ -80,7 +80,7 @@ describe('CategoryPicksView — carousel / list toggle', () => {
     const { container } = renderView();
 
     await tocarCentinela();
-    await waitFor(() => expect(screen.getByText('Producto 3')).toBeInTheDocument());
+    expect(await screen.findByText('Producto 3')).toBeInTheDocument();
 
     expect(carrusel()).toHaveTextContent('Producto 1');
     expect(carrusel()).toHaveTextContent('Producto 3');
@@ -94,7 +94,7 @@ describe('CategoryPicksView — carousel / list toggle', () => {
 
     await act(async () => { screen.getByRole('button', { name: 'Vista lista' }).click(); });
     await tocarCentinela();
-    await waitFor(() => expect(screen.getByText('Producto 3')).toBeInTheDocument());
+    expect(await screen.findByText('Producto 3')).toBeInTheDocument();
 
     expect(carrusel()).toBeNull();
     const grid = container.querySelector('.picks-grid');
