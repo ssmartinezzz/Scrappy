@@ -331,7 +331,7 @@ export default function PicksPanel({ onProductClick }) {
   const genero = generoRuta || GENEROS[0].key;
   const [busq, setBusq] = useState('');
 
-  const clave = rubro === null || rubro === undefined ? null : claveCache(rubro, rubro === GYMRAT ? genero : '');
+  const clave = rubro == null ? null : claveCache(rubro, genero);
   const { byRubro, resumenListo } = usePicksPorRubro(clave, rubro, genero);
   const destinoLegado = useRedireccionLegado(legado, resumenListo, byRubro);
 
