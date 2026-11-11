@@ -14,7 +14,7 @@ import java.sql.Statement;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-@DisplayName("V90 — rubro perfumeria: CHECK domain and realignment of stored Perfume rows")
+@DisplayName("V90 — rubro perfumeria: CHECK domain")
 class V90RubroPerfumeriaTest extends PostgresTestBase {
 
     private static final String MIGRATION = "/db/migration/V90__rubro_perfumeria.sql";
@@ -31,42 +31,13 @@ class V90RubroPerfumeriaTest extends PostgresTestBase {
     }
 
     @Test
-    @DisplayName("Perfume rows move to perfumeria; locked rows, other categories and forced tecnologia/oficina sites stay")
-    void realignsStoredPerfume() throws Exception {
-        enTransaccion(st -> {
-            st.execute("INSERT INTO sitio (nombre, sitio_key, plataforma, es_premium, rubro_forzado, origen) VALUES "
-                    + "('V90 Tech', 'v90tech', 'shopify', false, 'tecnologia', 'config'), "
-                    + "('V90 Office', 'v90office', 'shopify', false, 'oficina', 'config')");
-            st.execute("""
-                    INSERT INTO productos (url, sitio, nombre, precio, categoria, rubro, activo, bloqueado_por, bloqueado_at) VALUES
-                        ('p-indu',   'V90 Test',   'Eau de Parfum',  1, 'Perfume', 'indumentaria', true, NULL,    NULL),
-                        ('p-null',   'V90 Test',   'Colonia',        1, 'Perfume', NULL,           true, NULL,    NULL),
-                        ('p-juguete','V90 Test',   'Body Splash',    1, 'Perfume', 'juguetes',     true, NULL,    NULL),
-                        ('p-lock',   'V90 Test',   'Perfume lock',   1, 'Perfume', 'indumentaria', true, 'local', now()),
-                        ('p-tech',   'V90 Tech',   'Perfume tech',   1, 'Perfume', 'tecnologia',   true, NULL,    NULL),
-                        ('p-office', 'V90 Office', 'Perfume office', 1, 'Perfume', 'oficina',      true, NULL,    NULL),
-                        ('remera',   'V90 Test',   'Remera',         1, 'Remera',  'indumentaria', true, NULL,    NULL)
-                    """);
-            aplicar(st);
-
-            assertThat(rubro(st, "p-indu")).isEqualTo("perfumeria");
-            assertThat(rubro(st, "p-null")).isEqualTo("perfumeria");
-            assertThat(rubro(st, "p-juguete")).isEqualTo("perfumeria");
-            assertThat(rubro(st, "p-lock")).isEqualTo("indumentaria");
-            assertThat(rubro(st, "p-tech")).isEqualTo("tecnologia");
-            assertThat(rubro(st, "p-office")).isEqualTo("oficina");
-            assertThat(rubro(st, "remera")).isEqualTo("indumentaria");
-        });
-    }
-
-    @Test
     @DisplayName("The documented rollback sends perfumeria rows back to indumentaria and narrows the CHECK")
     void rollbackDocumentadoCorre() throws Exception {
         enTransaccion(st -> {
             st.execute("INSERT INTO productos (url, sitio, nombre, precio, categoria, rubro, activo) "
                     + "VALUES ('p', 'V90 Test', 'Eau de Parfum', 1, 'Perfume', 'indumentaria', true)");
             aplicar(st);
-            assertThat(rubro(st, "p")).isEqualTo("perfumeria");
+            st.execute("UPDATE productos SET rubro = 'perfumeria' WHERE url = 'p'");
 
             st.execute(DocumentedRollback.sqlFor("V90"));
 

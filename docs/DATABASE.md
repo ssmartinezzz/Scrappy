@@ -164,7 +164,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V87` | Plataforma `kevingston`: `sitio_plataforma_check` pasa a 18 valores y seed de Kevingston (`monomarca`) |
 | `V88` | Categorías `Top` y `Top Deportivo` (salen de `Musculosa`), `croptop` pasa de `Corpino` a `Top`, las canilleras a `Accesorio Deportivo` y el inyector de sellante a `Repuesto de Bicicleta`; los tops movidos quedan con `genero = 'mujer'` salvo señal de hombre o infantil |
 | `V89` | Índice parcial `idx_productos_marca_precio` sobre `(lower(coalesce(marca,'')), precio, url) WHERE activo`: una marca paginada por cursor (`/api/data?cursor=`) pasa de barrer 87 mil filas a un rango de índice |
-| `V90` | Rubro `perfumeria`: `chk_productos_rubro_domain` pasa a 10 valores y las filas `Perfume` guardadas (sin bloqueo, fuera de sitios forzados a `tecnologia`/`oficina`) se realinean |
+| `V90` | Rubro `perfumeria`: `chk_productos_rubro_domain` pasa a 10 valores; las filas `Perfume` guardadas las realinea `POST /api/ml/renormalizar` |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -4771,8 +4771,9 @@ de rollbacks corre después del de `V90` y antes que el de `V88`.
 `Perfume` pasa a tener rubro propio. `chk_productos_rubro_domain` (CHECK, no tabla, como `V6`) se re-lista completo con el valor
 nuevo (10 valores). Las otras copias del vocabulario viajan en el mismo commit: `CategoryGroups.esCategoriaPerfumeria`,
 `RubroResolver` (rama justo después de los rubros forzados `tecnologia`/`oficina`, que siguen ganando), `frontend/src/lib/rubros.js`
-y el color de `PicksPanel.jsx`. `V90` además alinea las filas guardadas (`categoria = 'Perfume'`, sin `bloqueado_por`, de sitios
-que no estén forzados a `tecnologia`/`oficina`) en vez de esperar un scrape por sitio. Idempotente.
+y el color de `PicksPanel.jsx`. `V90` NO hace `UPDATE` de las filas guardadas: había `Perfume` que eran juguetes (`splash`) o tejas
+(`colonial`), y un `UPDATE` ciego las habría mandado a `perfumeria`. `KW_PERFUME` ya no matchea `splash` pelado ni `colonia`
+como subcadena; las filas se alinean con `POST /api/ml/renormalizar` (clasifica de nuevo y `RubroResolver` decide el rubro).
 
 ### Rollback
 

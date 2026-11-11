@@ -206,6 +206,13 @@ public class SubcategoryResolver {
                                   "frieren", "fullmetal alchemist", "demon slayer", "yu yu hakusho", "inio asano",
                                   "the legend of zelda 03:"}
         ));
+        // First match wins, so a name that mentions both an eau de parfum and an eau de toilette is a parfum.
+        SUBCATEG_TIER1.put("Perfume", Arrays.<String[]>asList(
+            new String[]{"Eau de Parfum",    "eau de parfum", "edp", "parfum"},
+            new String[]{"Eau de Toilette",  "eau de toilette", "edt"},
+            new String[]{"Body Splash",      "body splash", "body mist", "splash"},
+            new String[]{"Colonia",          "colonia", "eau de cologne"}
+        ));
         SUBCATEG_TIER1.put("Botines", Arrays.<String[]>asList(
             new String[]{"futsal",  "futsal", "papi", "salon", "ic"},
             new String[]{"campo",   "campo", "fg", "cesped"}
@@ -249,6 +256,9 @@ public class SubcategoryResolver {
                 }
             }
         }
+
+        // The sport tier is for garments; "Perfume Hockey Club" is not a hockey product.
+        if ("Perfume".equals(categoria)) return "";
 
         String catNorm = normalizarAcentos(categoria);
         for (String[] entry : SUBCATEG_TIER2) {

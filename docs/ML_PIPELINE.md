@@ -441,6 +441,13 @@ chequea antes que `Calzoncillos`, con `KW_BOMBACHA_VETO`: traje de baño (`bikin
 El zero-shot de imagen tiene su etiqueta (`ml_embeddings.py`: "women's panties or bikini briefs
 underwear, not swimwear"), y `ml_train.py` la agrupa igual que `calzoncillos`.
 
+**`Perfume` tiene rubro propio y subcategorías** (`V90`). `RubroResolver` manda `Perfume` a `perfumeria`, salvo en un sitio
+con `rubro_forzado` `tecnologia`/`oficina`, que sigue ganando. `SubcategoryResolver` lo parte por nombre en `Eau de Parfum`
+(`eau de parfum`, `edp`, `parfum`), `Eau de Toilette` (`eau de toilette`, `edt`), `Body Splash` (`body splash`, `body mist`,
+`splash`) y `Colonia` (`colonia`, `eau de cologne`); gana la primera en ese orden y, si ninguna aparece, queda `''`. El tier
+deportivo (`hockey`, `running`...) no corre para `Perfume`. `KW_PERFUME` ya no matchea `splash` pelado ni `colonia` como
+subcadena (las antiparras `Base-X Splash` y la `Teja Colonial` eran `Perfume`). Las filas guardadas las alinea `POST /api/ml/renormalizar`.
+
 **Género fijo por sitio.** `NormalizerService.GENERO_FIJO_POR_SITIO` (sitio → género) gana
 sobre todo: `elmundodeljuguete` → `infantil`, `equus` → `hombre`.
 

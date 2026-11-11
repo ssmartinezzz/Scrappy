@@ -1698,8 +1698,8 @@ public final class GarmentTaxonomy {
     };
 
     public static final String[] KW_PERFUME = {
-        "perfume","colonia","eau de toilette","eau de parfum","fragancia",
-        "desodorante ","antitranspirante","splash","body mist"
+        "perfume"," colonia ","eau de toilette","eau de parfum","fragancia",
+        "desodorante ","antitranspirante","body splash","body mist"
     };
 
     // `KW_TECLADO` no tenía la palabra "teclado" pelada — sólo "teclado gamer"/"teclado mecanico" —
