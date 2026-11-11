@@ -1,8 +1,8 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import PicksPanel from '@/components/PicksPanel';
+import { renderPicks } from '@/test/renderPicks';
 import { fetchMejores, fetchMejoresPicks } from '@/api';
 import { PERFUMERIA_PROXIMAMENTE, PERFUME_SUBCATEGORIAS } from '@/lib/perfumeria';
 
@@ -41,13 +41,13 @@ const abrirPerfumeria = async user => {
 
 describe('PicksPanel — perfumería', () => {
   it('offers Perfumería as a rubro entry', async () => {
-    render(<PicksPanel />);
+    renderPicks();
     expect(await screen.findByRole('button', { name: 'Perfumería' })).toBeInTheDocument();
   });
 
   it('lists every mocked "Próximamente" card, greyed and not clickable', async () => {
     const user = userEvent.setup();
-    render(<PicksPanel />);
+    renderPicks();
     await abrirPerfumeria(user);
 
     expect(PERFUMERIA_PROXIMAMENTE.map(c => c.label))
@@ -65,7 +65,7 @@ describe('PicksPanel — perfumería', () => {
 
   it('shows no Próximamente cards in other rubros', async () => {
     const user = userEvent.setup();
-    render(<PicksPanel />);
+    renderPicks();
     await user.click(await screen.findByRole('button', { name: 'Indumentaria' }));
     await screen.findByText('Remera');
     expect(screen.queryByText('Próximamente')).not.toBeInTheDocument();
@@ -73,7 +73,7 @@ describe('PicksPanel — perfumería', () => {
 
   it('filters the Perfume picks by sub-category chip', async () => {
     const user = userEvent.setup();
-    render(<PicksPanel />);
+    renderPicks();
     await abrirPerfumeria(user);
     await user.click(screen.getByText('Perfume'));
 
@@ -94,7 +94,7 @@ describe('PicksPanel — perfumería', () => {
 
   it('shows no sub-category chips on a category of another rubro', async () => {
     const user = userEvent.setup();
-    render(<PicksPanel />);
+    renderPicks();
     await user.click(await screen.findByRole('button', { name: 'Indumentaria' }));
     await user.click(await screen.findByText('Remera'));
     expect(screen.queryByRole('button', { name: 'Eau de Toilette' })).not.toBeInTheDocument();

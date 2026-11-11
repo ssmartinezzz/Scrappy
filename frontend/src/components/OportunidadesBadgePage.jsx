@@ -10,7 +10,7 @@ const PAGE_SIZE = 48;
 // Routed page for /analisis/oportunidades/:badge — deep-linkable, bookmarkable,
 // shareable full paginated listing of every product holding a given badge
 // (spec "Drill-Down Full Paginated Listing" / "Badge drill-down deep link").
-// Mirrors CategoryPicksPage's ADR-1 pattern (owns its own fetch/local state,
+// Owns its own fetch/local state (ADR-1 pattern,
 // mounts cold, no lifted AppLayout state) but paginates via /api/data?badge=
 // (like the main catalog) instead of the capped /api/mejores preview.
 export default function OportunidadesBadgePage({ onProductClick }) {

@@ -34,10 +34,8 @@ function leerModo() {
   }
 }
 
-// Shared detail body: header (title, count · mediana, tagline), back control,
-// and the products. Consumed by BOTH PicksPanel's in-panel CatDetail
-// and the routed /picks/:categoria page (CategoryPicksPage) so both entries
-// render one identical body (design doc ADR-2).
+// Category detail body: header (title, count · mediana, tagline), back control and the products. Rendered by
+// PicksPanel for /picks/<rubro>/<categoria>.
 // The view shows EVERY product of the category, best first — the curated highlights followed by keyset pages (the
 // backend's opaque `nextCursor`, never an offset) loaded as a sentinel scrolls into view — either as one carousel or
 // as one list, never both. The mode is a per-viewer preference kept in localStorage, like /favoritos. `pickFilters` must be the same

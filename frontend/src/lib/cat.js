@@ -4,7 +4,7 @@
 // is keyed by the CANONICAL categoria (Title Case, "Medias") since V16 —
 // every catStats lookup now uses the raw categoria directly, not this
 // function's output. normCat's only remaining job is `slugify`/
-// `canonicalFromSlug` below, for `/picks/:categoria` URLs — it still needs a
+// `canonicalFromSlug` below, for `/picks/<rubro>/<categoria>` URLs — it still needs a
 // stable, lowercase, accent-free key for that, unrelated to catStats.
 export function normCat(raw) {
   if (!raw) return 'general';

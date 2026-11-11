@@ -4,7 +4,6 @@ import SplashPanel from './components/SplashPanel';
 import AppLayout, {
   CatalogoPanelRoute,
   PicksPanelRoute,
-  CategoryPicksPageRoute,
   MarcasPanelRoute,
   GruposPanelRoute,
   MercadoPanelRoute,
@@ -148,8 +147,7 @@ export default function App() {
           }/>
           <Route path="/" element={<AppLayout/>}>
             <Route path="catalogo"   element={<CatalogoPanelRoute/>}/>
-            <Route path="picks"      element={<PicksPanelRoute/>}/>
-            <Route path="picks/:categoria" element={<CategoryPicksPageRoute/>}/>
+            <Route path="picks/*"    element={<PicksPanelRoute/>}/>
             <Route path="marcas"     element={<MarcasPanelRoute/>}/>
             <Route path="grupos"     element={<GruposPanelRoute/>}/>
             {/* /tendencias retired (spec "Old route retired") -> redirect to /analisis/mercado */}
