@@ -84,6 +84,8 @@ class V27RollbackRoundTripTest extends PostgresTestBase {
                 // revés: de más nuevo a más viejo.
                 // V87 widened the plataforma CHECK to 18 values and seeded a `kevingston` row on top of
                 // everything below: newest rollback first, or narrowing hits that row.
+                // V91 widened it once more (19 values, a `laspepas` row): it goes first of all.
+                st.execute(DocumentedRollback.sqlFor("V91"));
                 st.execute(DocumentedRollback.sqlFor("V87"));
                 st.execute(DocumentedRollback.sqlFor("V76"));
                 st.execute(DocumentedRollback.sqlFor("V45"));
@@ -129,6 +131,8 @@ class V27RollbackRoundTripTest extends PostgresTestBase {
             try (Statement st = c.createStatement()) {
                 // V87 widened the plataforma CHECK to 18 values and seeded a `kevingston` row on top of
                 // everything below: newest rollback first, or narrowing hits that row.
+                // V91 widened it once more (19 values, a `laspepas` row): it goes first of all.
+                st.execute(DocumentedRollback.sqlFor("V91"));
                 st.execute(DocumentedRollback.sqlFor("V87"));
                 st.execute(DocumentedRollback.sqlFor("V76"));
                 st.execute(DocumentedRollback.sqlFor("V45"));

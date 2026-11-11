@@ -47,6 +47,16 @@ final class IndumentariaClassifier implements FamiliaClassifier {
         if (texto.contiene(GarmentTaxonomy.KW_ENTERITO)) return "Enterito";
         if (texto.contiene(GarmentTaxonomy.KW_POLLERA))  return "Pollera";
         if (texto.contiene(GarmentTaxonomy.KW_PANTALON) && !texto.contiene(GarmentTaxonomy.KW_PANTALON_VETO)) return "Pantalón";
+        return clasificarPorSustantivoLider(texto);
+    }
+
+    private static String clasificarPorSustantivoLider(TextoClasificable texto) {
+        if (texto.sinPrefijoDeVentaEmpiezaCon(GarmentTaxonomy.KW_BLUSA_LIDER)) return "Camisa";
+        if (texto.sinPrefijoDeVentaEmpiezaCon(GarmentTaxonomy.KW_ABRIGO_LARGO_LIDER)) return "Campera";
+        if (texto.sinPrefijoDeVentaEmpiezaCon(GarmentTaxonomy.KW_BABUCHA_LIDER)) return "Pantalón";
+        if (texto.sinPrefijoDeVentaEmpiezaCon(GarmentTaxonomy.KW_ENTERIZA_LIDER)) return "Enterito";
+        if (texto.sinPrefijoDeVentaEmpiezaCon(GarmentTaxonomy.KW_CHATITA_LIDER)) return "Zapato";
+        if (texto.lideraSinVeto(GarmentTaxonomy.KW_PANUELO_LIDER, GarmentTaxonomy.KW_PANUELO_VETO)) return "Bufanda";
         return "";
     }
 

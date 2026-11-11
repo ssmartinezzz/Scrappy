@@ -164,6 +164,9 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V87` | Plataforma `kevingston`: `sitio_plataforma_check` pasa a 18 valores y seed de Kevingston (`monomarca`) |
 | `V88` | Categorías `Top` y `Top Deportivo` (salen de `Musculosa`), `croptop` pasa de `Corpino` a `Top`, las canilleras a `Accesorio Deportivo` y el inyector de sellante a `Repuesto de Bicicleta`; los tops movidos quedan con `genero = 'mujer'` salvo señal de hombre o infantil |
 | `V89` | Índice parcial `idx_productos_marca_precio` sobre `(lower(coalesce(marca,'')), precio, url) WHERE activo`: una marca paginada por cursor (`/api/data?cursor=`) pasa de barrer 87 mil filas a un rango de índice |
+| `V90` | Rubro `perfumeria`: `chk_productos_rubro_domain` pasa a 10 valores; las filas `Perfume` guardadas con nombre de fragancia se realinean |
+| `V91` | Plataforma `magento`: `sitio_plataforma_check` pasa a 19 valores y seed de Las Pepas (`monomarca`) |
+| `V92` | Categoría `Bijouterie` (aros, collar, choker, anillo, broche...) y los "Perfume para Auto" pasan de `Perfume`/`perfumeria` a `Limpieza de Auto`/`hogar` |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -4760,5 +4763,101 @@ DROP INDEX IF EXISTS idx_productos_marca_precio;
 -- <<< rollback:V89
 ```
 
-Es sólo un índice: borrarlo no cambia ningún resultado, sólo vuelve al `Seq Scan` por página. Es el bloque más nuevo: en una cadena
-de rollbacks corre PRIMERO, antes que el de `V88`.
+Es sólo un índice: borrarlo no cambia ningún resultado, sólo vuelve al `Seq Scan` por página. Ya no es el bloque más nuevo: en una cadena
+de rollbacks corre después del de `V90` y antes que el de `V88`.
+
+---
+
+## `V90` — rubro `perfumeria`
+
+`Perfume` pasa a tener rubro propio. `chk_productos_rubro_domain` (CHECK, no tabla, como `V6`) se re-lista completo con el valor
+nuevo (10 valores). Las otras copias del vocabulario viajan en el mismo commit: `CategoryGroups.esCategoriaPerfumeria`,
+`RubroResolver` (rama justo después de los rubros forzados `tecnologia`/`oficina`, que siguen ganando), `frontend/src/lib/rubros.js`
+y el color de `PicksPanel.jsx`. `V90` además alinea las filas guardadas, porque `POST /api/ml/renormalizar` NO persiste `rubro`
+(sólo `categoria`, `marca`, `genero`, talles y `sub_categoria`): `categoria = 'Perfume'`, sin `bloqueado_por`, de sitios que no estén
+forzados a `tecnologia`/`oficina`, y con un nombre que diga fragancia (gemelo SQL de `KW_PERFUME`). Hay `Perfume` guardados que son
+juguetes (`Base-X Splash`) o tejas (`Teja Colonial`): `KW_PERFUME` ya no matchea `splash` pelado ni `colonia` como subcadena, pero esas
+filas conservan su categoría hasta el próximo scrape del sitio, y hasta entonces el `UPDATE` las deja en su rubro. Idempotente.
+
+### Rollback
+
+```sql
+-- >>> rollback:V90
+UPDATE productos p SET rubro = COALESCE((SELECT s.rubro_por_defecto FROM sitio s WHERE s.nombre = p.sitio), 'indumentaria')
+ WHERE p.rubro = 'perfumeria';
+ALTER TABLE productos DROP CONSTRAINT chk_productos_rubro_domain;
+ALTER TABLE productos
+    ADD CONSTRAINT chk_productos_rubro_domain
+        CHECK (rubro IS NULL OR rubro IN ('indumentaria', 'tecnologia', 'suplementos',
+                                          'oficina', 'construccion', 'hogar',
+                                          'deporte', 'juguetes', 'libros'));
+-- <<< rollback:V90
+```
+
+**El orden es obligatorio**: mientras haya filas `perfumeria`, el CHECK angosto las rechaza. Las filas vuelven al `rubro_por_defecto` de su sitio
+(`juguetes` en Elmundodeljuguete, `construccion` en Easy) o a `indumentaria` si no tiene: no se guardó el rubro anterior, así que
+es lo que `RubroResolver` habría devuelto; el próximo scrape las re-resuelve.
+
+Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V91` y antes que el de `V89`.
+
+---
+
+## `V91` — plataforma `magento` y seed de Las Pepas
+
+Las Pepas (`laspepas.com.ar`) es moda de mujer sobre Magento 2, la primera tienda de esa plataforma. `MagentoPage` lee su listado
+renderizado en el server (12 tarjetas por página, `?p=N`), así que necesita valor de plataforma propio: `sitio_plataforma_check`
+(CHECK, no tabla, como `V6`) pasa a 19 valores y la fila se siembra `monomarca` (marca propia) con su `marca`, sin `rubro_forzado`
+(la tienda también vende perfume, `V90`). Las otras copias del vocabulario viajan en el mismo commit:
+`SitiosRepository.PLATAFORMAS_VALIDAS`, `ScraperFactory.PAGINAS`, `PlatformVocabularySyncTest` (puntero) y `SitioSeedSyncTest`.
+
+### Rollback
+
+```sql
+-- >>> rollback:V91
+DELETE FROM sitio WHERE sitio_key = 'laspepas';
+DELETE FROM marca WHERE nombre = 'Laspepas';
+ALTER TABLE sitio DROP CONSTRAINT sitio_plataforma_check;
+ALTER TABLE sitio ADD CONSTRAINT sitio_plataforma_check
+    CHECK (plataforma IN ('tiendanube','shopify','vtex','vaypol','woocommerce',
+                          'monkyforce','maximus','fullh4rd','compragamer',
+                          'qloud','oscommerce','inpro','morashop','prestashop',
+                          'gamerfactory','ambiancedeco','hadriatica','kevingston'));
+-- <<< rollback:V91
+```
+
+El orden es obligatorio: mientras la fila `laspepas` viva, el CHECK angosto la rechaza. Si ya hay productos del sitio,
+`fk_productos_marca` frena el `DELETE` de `marca`: borrá antes sus filas de `productos`.
+
+Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V92` y antes que el de `V90`.
+
+---
+
+## `V92` — categoría `Bijouterie` y perfumes de auto
+
+Las Pepas dejó 144 filas en `Otros` (aros, collares, chokers, anillos, broches, blusas, tapados...). Las de ropa entran a categorías
+que ya existían por **sustantivo líder** (`Blusa` → `Camisa`; `Tapado`/`Trench`/`Parka`/`Kimono` → `Campera`; `Babucha` → `Pantalón`;
+`Enteriza` → `Enterito`; `Chatita`/`Guillermina de` → `Zapato`; `Capucha`/`Pañuelo` → `Bufanda`): sólo si el nombre arranca con la
+palabra, así que `Remera con Aros` sigue siendo `Remera`. La bijouterie no tenía categoría, así que `V92` hace las dos cosas que una
+categoría nueva exige: el `INSERT` de `Bijouterie` en `categoria` (sin la fila, `fk_productos_categoria` rechaza el upsert y el
+síntoma es `"0 nuevos"`) y su keyword (`KW_BIJOUTERIE_LIDER`). Además `Perfume para Auto ...` (un aromatizante) deja `Perfume`: va a
+`Limpieza de Auto`, como `aromatizante`, y a rubro `hogar`; el `UPDATE` sólo toca nombres que arrancan con esa frase y filas sin
+bloqueo. Las filas de `Otros` de la bijouterie las pasa `POST /api/ml/renormalizar` (el rubro ya era `indumentaria`).
+
+### Rollback
+
+```sql
+-- >>> rollback:V92
+UPDATE productos SET categoria = 'Perfume', rubro = 'perfumeria'
+ WHERE categoria = 'Limpieza de Auto'
+   AND (' ' || lower(translate(nombre, 'áéíóúüñÁÉÍÓÚÜÑ', 'aeiouunAEIOUUN')) || ' ')
+        ~ '^ (perfume para auto|perfumes para auto|perfume de auto|perfume auto )';
+UPDATE productos SET categoria = 'Otros' WHERE categoria = 'Bijouterie';
+UPDATE sitio_categoria SET categoria = NULL WHERE categoria = 'Bijouterie';
+DELETE FROM categoria_stats WHERE categoria = 'Bijouterie';
+DELETE FROM categoria WHERE nombre = 'Bijouterie';
+-- <<< rollback:V92
+```
+
+**El orden es obligatorio** (FK de `productos`, `sitio_categoria` y `categoria_stats` hacia `categoria`). Los perfumes de auto vuelven a
+`Perfume`/`perfumeria` (el estado que dejaba `V90`); los de `V92` que ya eran `Limpieza de Auto` por `aromatizante` no entran porque
+el nombre no empieza con esa frase. Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V91`.

@@ -715,6 +715,14 @@ body { overflow-x: hidden; }
 .picks-rubro-back:hover { background: var(--s3); color: var(--t1); }
 .picks-rubro-back:focus-visible { outline: 2px solid var(--p); outline-offset: 2px; }
 
+.picks-subchips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 1rem; padding: 0; border: 0; min-inline-size: 0; }
+.picks-proximamente { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  min-height: 160px; padding: 1rem; border-radius: 14px; border: 1px dashed var(--bd2); background: var(--s2);
+  color: var(--t4); opacity: .6; filter: grayscale(1); cursor: not-allowed; user-select: none; }
+.picks-proximamente-icon { font-size: 1.8rem; }
+.picks-proximamente-title { font-size: .85rem; font-weight: 800; color: var(--t3, var(--t4)); }
+.picks-proximamente-badge { font-size: .65rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+
 /* CatDetail header */
 .picks-catdetail { padding: 1rem 1.25rem; max-width: 1400px; margin: 0 auto; }
 .picks-back-btn { background: none; border: none; cursor: pointer; color: var(--p2);

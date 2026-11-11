@@ -83,7 +83,7 @@ class RubroResolverEqualityParityTest {
     }
 
     @Test
-    @DisplayName("equality agrees with the old substring oracle over 23 sitios x 274 categorías x 5 rubros previos")
+    @DisplayName("equality agrees with the old substring oracle over 23 sitios x 277 categorías x 5 rubros previos")
     void equalityAgreesWithOldSubstringOracleAcrossTheFullMatrix() {
         List<SeedRow> rows = seedRows();
         Map<String, SiteRegistry.Sitio> cache = new HashMap<>();
@@ -129,7 +129,8 @@ class RubroResolverEqualityParityTest {
         // ninguno de los 23 sitios de V18 la nombra en su rubro_forzado.
         // V88 (Top, Top Deportivo): 274 -> 276. Son de indumentaria, como Corpino y Musculosa: ninguno de los 23 sitios
         // de V18 las nombra en su rubro_forzado.
-        assertThat(cats).as("CategoryGroups.canonicalCategories()").hasSize(276);
+        // V92 (Bijouterie): 276 -> 277. Accesorio de indumentaria, como Bufanda y Lentes: ninguno de los 23 sitios de V18 la nombra.
+        assertThat(cats).as("CategoryGroups.canonicalCategories()").hasSize(277);
 
         List<String> rubrosExistentes = Arrays.asList(null, "", "tecnologia", "suplementos", "indumentaria");
 
@@ -144,7 +145,8 @@ class RubroResolverEqualityParityTest {
                             || (CategoryGroups.esCategoriaTech(cat) && sinRubroForzado(rubroForzadoPorSitio, sitioKey))
                             || CategoryGroups.esCategoriaDeporte(cat)
                             || CategoryGroups.esCategoriaJuguetes(cat)
-                            || CategoryGroups.esCategoriaLibros(cat)) {
+                            || CategoryGroups.esCategoriaLibros(cat)
+                            || CategoryGroups.esCategoriaPerfumeria(cat)) {
                         continue;
                     }
                     String oldResult = oldSubstringResolver(sitioKey, cat, rubroExistente);
@@ -157,7 +159,7 @@ class RubroResolverEqualityParityTest {
             }
         }
 
-        assertThat(total).isEqualTo(23L * 276 * 5);
+        assertThat(total).isEqualTo(23L * 277 * 5);
         assertThat(mismatches)
                 .as("old substring oracle vs new equality — mismatched (sitio, categoria, rubroPrevio) triples")
                 .isEmpty();

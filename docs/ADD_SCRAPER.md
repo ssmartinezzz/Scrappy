@@ -409,6 +409,25 @@ el que se muestra como precio. Sólo `strikethrough > special.ARS` es un descuen
 
 ---
 
+## Caso 10: Sitio Magento 2
+
+Plataforma `magento` (`V91`), página `MagentoPage` (familia paginada: recibe `urls_extra` y `max_paginas`). Se lee el HTML
+del listado, no una API: Magento suele bloquear `/graphql` (403) y `/rest/V1` (401) para clientes anónimos.
+
+- **Paginación**: `?p=N`, 12 por página, y una página pasada el final trae 0 tarjetas (no se repite). `product_list_limit`
+  se ignora. El crawl corta en la primera página sin tarjetas o idéntica a la anterior.
+- **Tarjeta**: `li.product-item-info`; nombre y URL en `a.product-item-link`; precio en `data-price-amount` de
+  `data-price-type="finalPrice"` (el `oldPrice` es `precioOriginal` si es mayor); imagen en `img.product-image-photo`
+  (la primera diapositiva trae `src`; las demás son lazy y llevan `data-src`).
+- **Un producto, varias rutas**: el mismo slug aparece bajo cada catálogo que lo contiene. Deduplicar por URL deja copias;
+  `MagentoPage` deduplica por el último segmento de la URL.
+- **Fallar fuerte**: 0 tarjetas en la página 1 de un catálogo lanza `MagentoPayloadException`; un catálogo muerto o un
+  layout nuevo nunca es un "0 productos" silencioso.
+- Catálogos extra: `sitio.NOMBRE.urls_extra=` separados por coma. Género, infantil y exclusiones son reglas de la tienda
+  (ver Las Pepas en [`SITES.md`](./SITES.md)).
+
+---
+
 ## Caso 9: Sitio detrás de un challenge de Cloudflare
 
 El síntoma no es un 403 común: el dominio entero (incluido `robots.txt`) responde

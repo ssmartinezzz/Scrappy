@@ -29,8 +29,11 @@ export function tagline(cat, pick, mediana) {
 // Below the curated highlights the view lists EVERY product of the category, best first, loading keyset pages
 // (the backend's opaque `nextCursor`, never an offset) as a sentinel scrolls into view. `pickFilters` must be the same
 // rubro/gymrat/genero the summary `cat` was fetched with, so the pages describe the same set.
-export default function CategoryPicksView({ cat, onBack, onProductClick, pickFilters }) {
-  const picks = cat.picks || [];
+// `subChips` (optional) lists sub-categories to filter by; picks carry `subCategoria` when the product has one.
+export default function CategoryPicksView({ cat, onBack, onProductClick, pickFilters, subChips }) {
+  const [sub, setSub] = useState('');
+  const delFiltro = lista => (sub ? lista.filter(p => p.subCategoria === sub) : lista);
+  const picks = delFiltro(cat.picks || []);
   const firstPick = picks[0];
 
   const [extra, setExtra] = useState([]);
@@ -42,7 +45,7 @@ export default function CategoryPicksView({ cat, onBack, onProductClick, pickFil
   const filtrosKey = `${filtros.rubro}|${filtros.gymrat}|${filtros.genero}`;
 
   useEffect(() => {
-    setExtra([]); setCursor(null); setFin(false); cargando.current = false;
+    setExtra([]); setCursor(null); setFin(false); cargando.current = false; setSub('');
   }, [cat.categoria, filtrosKey]);
 
   const cargarMas = useCallback(async () => {
@@ -51,7 +54,7 @@ export default function CategoryPicksView({ cat, onBack, onProductClick, pickFil
     try {
       const page = await fetchMejoresPicks(cat.categoria, { ...filtros, cursor });
       setExtra(prev => {
-        const vistos = new Set([...picks, ...prev].map(p => p.url));
+        const vistos = new Set([...(cat.picks || []), ...prev].map(p => p.url));
         return [...prev, ...(page?.picks || []).filter(p => !vistos.has(p.url))];
       });
       setCursor(page?.nextCursor || null);
@@ -94,9 +97,19 @@ export default function CategoryPicksView({ cat, onBack, onProductClick, pickFil
         </p>
       )}
 
+      {subChips?.length > 0 && (
+        <fieldset className="picks-subchips" aria-label="Subcategoría">
+          {['', ...subChips].map(s => (
+            <button key={s || 'todos'} type="button" onClick={() => setSub(s)}
+              className={`picks-rubro-btn${sub === s ? ' active' : ''}`}
+            >{s || 'Todos'}</button>
+          ))}
+        </fieldset>
+      )}
+
       {picks.length === 0 ? (
         <div className="picks-empty">
-          Todavía no hay picks calculados para esta categoría.
+          {sub ? 'Sin picks destacados en esta subcategoría todavía.' : 'Todavía no hay picks calculados para esta categoría.'}
         </div>
       ) : (
         <CategoryPicksCarousel
@@ -108,9 +121,9 @@ export default function CategoryPicksView({ cat, onBack, onProductClick, pickFil
         />
       )}
 
-      {extra.length > 0 && (
+      {delFiltro(extra).length > 0 && (
         <div className="picks-grid">
-          {extra.map(pick => (
+          {delFiltro(extra).map(pick => (
             <PickCard key={pick.url} pick={pick} mediana={cat.mediana} onClick={onProductClick}/>
           ))}
         </div>

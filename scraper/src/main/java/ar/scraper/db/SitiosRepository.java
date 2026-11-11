@@ -37,7 +37,7 @@ class SitiosRepository implements SitiosPort {
             "tiendanube", "shopify", "vtex", "vaypol", "woocommerce",
             "monkyforce", "maximus", "fullh4rd", "compragamer",
             "qloud", "oscommerce", "inpro", "morashop", "prestashop", "gamerfactory", "ambiancedeco", "hadriatica",
-            "kevingston");
+            "kevingston", "magento");
 
     private final JdbcTemplate jdbc;
     private final SiteRegistry siteRegistry;

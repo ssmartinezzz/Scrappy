@@ -1962,7 +1962,7 @@ paths:
           schema: { type: integer, default: 24, minimum: 1, maximum: 100 }
       responses:
         "200":
-          description: "`data`: `{ picks[], nextCursor, total }`; `nextCursor` is `null` on the last page, `total` is the size of the category ranking."
+          description: "`data`: `{ picks[], nextCursor, total }`; `nextCursor` is `null` on the last page, `total` is the size of the category ranking. Each pick carries `subCategoria` (the product's `sub_categoria`) unless it is blank."
           content:
             application/json:
               schema:

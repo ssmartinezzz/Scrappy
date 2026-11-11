@@ -7,6 +7,7 @@ import ar.scraper.pages.BasePage;
 import ar.scraper.pages.FullH4rdPage;
 import ar.scraper.pages.GamerFactoryPage;
 import ar.scraper.pages.KevingstonPage;
+import ar.scraper.pages.MagentoPage;
 import ar.scraper.pages.InproPage;
 import ar.scraper.pages.MonkyforcePage;
 import ar.scraper.pages.MorashopPage;
@@ -73,7 +74,7 @@ class ScraperFactoryPlatformTest {
             WooCommercePage.class, TechStorePage.class, FullH4rdPage.class, VaypolPage.class,
             QloudPage.class, OsCommercePage.class, InproPage.class, VtexPage.class, ShopifyPage.class,
             TiendanubePage.class, MonkyforcePage.class, MorashopPage.class, PrestashopPage.class,
-            GamerFactoryPage.class, KevingstonPage.class);
+            GamerFactoryPage.class, KevingstonPage.class, MagentoPage.class);
 
     private static final SiteRegistry SITE_REGISTRY = SiteRegistry.forTesting(Map.of(
             "forever", new SiteRegistry.Sitio("Forever", "forever", "shopify", false, null, "config"),
@@ -192,6 +193,7 @@ class ScraperFactoryPlatformTest {
                 Arguments.of("prestashop",  PrestashopPage.class),
                 Arguments.of("gamerfactory", GamerFactoryPage.class),
                 Arguments.of("kevingston",  KevingstonPage.class),
+                Arguments.of("magento",     MagentoPage.class),
                 Arguments.of("tiendanube",  TiendanubePage.class));
     }
 
@@ -219,7 +221,7 @@ class ScraperFactoryPlatformTest {
     @Test
     void tiendanubeFamilyReceivesExtraUrlsAndPageCap() {
         List<String> extra = List.of("https://tienda.com.ar/ofertas");
-        for (String plataforma : List.of("tiendanube", "monkyforce", "morashop")) {
+        for (String plataforma : List.of("tiendanube", "monkyforce", "morashop", "magento")) {
             List<?> args = paginaDe(registryCon(plataforma),
                     new SiteConfig("tienda", "https://tienda.com.ar", "moda", extra)).args();
             assertThat(args.get(6)).as(plataforma + " extraUrls").isEqualTo(extra);
