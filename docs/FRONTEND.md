@@ -4,7 +4,7 @@
 
 ## Frontend (rutas)
 
-Catálogo `/catalogo` · Picks `/picks(/:categoria)` · Para ti `/recomendados` ·
+Catálogo `/catalogo` · Picks `/picks(/:rubro(/:categoria))` · Para ti `/recomendados` ·
 Cronjobs `/cronjobs` · Marcas `/marcas` · Suplementos `/suplementos` ·
 Análisis `/analisis/mercado` · `/analisis/oportunidades(/:badge)` ·
 Comparar `/grupos` · Cuotas `/financiacion` · Favoritos `/favoritos` ·
@@ -26,6 +26,14 @@ viaja como `rubro`. Dentro de la galería de Gymrat hay un selector **Hombre | M
 Hombre): pide `fetchMejores('', { gymrat: true, genero })` → `GET /api/mejores?gymrat=true&genero=hombre|mujer`
 y cachea cada género por separado (`gymrat:hombre`, `gymrat:mujer`); la card de la entrada sigue pidiendo
 Gymrat sin género.
+
+**Cada paso de `/picks` es una ruta**: `/picks` (rubros) · `/picks/<rubro>` (galería; el neutro es
+`/picks/todos`) · `/picks/<rubro>/<categoria>` (detalle, slug de `lib/cat.js` `slugify`) ·
+`/picks/gymrat/<hombre|mujer>[/<categoria>]`. `PicksPanel` lee todo de la URL y `App.jsx` lo monta en
+**una sola** ruta `picks/*`: rutas separadas lo remontarían y perdería la cache por rubro. Un link viejo
+`/picks/<categoria>` (primer segmento que no es rubro) se redirige con `replace` al rubro dueño de la categoría.
+El detalle muestra **todos** los productos de la categoría como carrusel **o** como lista, nunca ambos; el
+toggle se recuerda en `localStorage` (`picks:viewMode`), igual que `/favoritos`.
 
 **`/picks` en `perfumeria`**: la galería suma tres cards grises "Próximamente" (Maquillaje, Cuidado de la piel, Cabello) que NO son categorías: son un mock de frontend, sin filas en la base ni keywords, definido en
 `PERFUMERIA_PROXIMAMENTE` (`lib/perfumeria.js`; borrar la entrada cuando exista la categoría real: `Desodorante` ya lo es y salió del mock). Dentro de la categoría

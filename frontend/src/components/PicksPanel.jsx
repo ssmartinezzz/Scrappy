@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { fetchMejores, fmt } from '../api';
 import { SEMANTIC } from '../lib/colors';
 import { CategoryCard } from './ui/category-card';
@@ -7,6 +8,7 @@ import CategoryPicksView, { tagline } from './CategoryPicksView';
 import CategoryPicksCarousel from './CategoryPicksCarousel';
 import { RUBROS } from '../lib/rubros';
 import { PERFUMERIA_PROXIMAMENTE, PERFUME_SUBCATEGORIAS } from '../lib/perfumeria';
+import { canonicalFromSlug, slugify } from '../lib/cat';
 
 
 const INITIAL_BATCH = 9;
@@ -40,6 +42,30 @@ const GENEROS = [{ key: 'hombre', label: 'Hombre' }, { key: 'mujer', label: 'Muj
 
 // Gymrat's entry summary is every gender (key 'gymrat'); its gallery is one gender (key 'gymrat:hombre').
 const claveCache = (rubro, genero) => (rubro === GYMRAT && genero ? `${GYMRAT}:${genero}` : rubro);
+
+// The URL is the panel's state: /picks · /picks/<rubro> · /picks/<rubro>/<categoria> · /picks/gymrat/<genero>[/<categoria>].
+// The neutral rubro '' is spelled `todos`. A first segment that is no rubro is an old /picks/<categoria> link.
+const TODOS = 'todos';
+const RUBRO_KEYS_ENTRADA = new Set(RUBROS_ENTRADA.map(r => r.key));
+
+function leerRuta(resto) {
+  const [primero, segundo, tercero] = (resto || '').split('/').filter(Boolean);
+  if (!primero) return { rubro: null };
+  if (primero === TODOS) return { rubro: '', catSlug: segundo };
+  if (primero === GYMRAT) {
+    if (GENEROS.some(g => g.key === segundo)) return { rubro: GYMRAT, genero: segundo, catSlug: tercero };
+    return { rubro: GYMRAT, catSlug: segundo };
+  }
+  if (RUBRO_KEYS_ENTRADA.has(primero)) return { rubro: primero, catSlug: segundo };
+  return { rubro: undefined, legado: primero };
+}
+
+function rutaDe(rubro, genero, categoria) {
+  const partes = ['/picks', rubro === '' ? TODOS : rubro];
+  if (rubro === GYMRAT && (genero || categoria)) partes.push(genero || GENEROS[0].key);
+  if (categoria) partes.push(slugify(categoria));
+  return partes.join('/');
+}
 
 const cargarPicks = (key, genero) => {
   if (key !== GYMRAT) return fetchMejores(key);
@@ -215,18 +241,11 @@ function PicksGallery({ cats, busq, onSelectCat, proximamente = [], subtitulo = 
   );
 }
 
-// ─── PicksPanel ───────────────────────────────────────────────────────────────
-export default function PicksPanel({ onProductClick }) {
-  // rubro === null is the carousel step; a string (including '' = Todos) is
-  // the gallery for that rubro. Cats are cached per rubro so stepping back and
-  // forth between the carousel and a gallery costs no request.
+// ─── Data: every rubro summary + the cats of the open rubro, cached per key ──
+function usePicksPorRubro(clave, rubro, genero) {
   const [byRubro, setByRubro] = useState({});
-  const [rubro,   setRubro]   = useState(null);
-  const [loading, setLoading] = useState(false);
   const [resumenListo, setResumenListo] = useState(false);
-  const [selCat,  setSelCat]  = useState(null);
-  const [busq,    setBusq]    = useState('');
-  const [genero,  setGenero]  = useState('hombre');
+  const pedidos = useRef(new Set());
 
   // Entry step needs every rubro at once (cover image + counters per card).
   useEffect(() => {
@@ -243,37 +262,95 @@ export default function PicksPanel({ onProductClick }) {
     return () => { cancelled = true; };
   }, []);
 
-  const clave = rubro === null ? null : claveCache(rubro, rubro === GYMRAT ? genero : '');
-
   useEffect(() => {
-    if (clave === null || byRubro[clave]) return;
-    let cancelled = false;
-    setLoading(true);
+    if (clave === null || byRubro[clave] || pedidos.current.has(clave)) return;
+    pedidos.current.add(clave);
     cargarPicks(rubro, rubro === GYMRAT ? genero : '').then(d => {
-      if (cancelled) return;
       setByRubro(prev => ({ ...prev, [clave]: Array.isArray(d) ? d : [] }));
-      setLoading(false);
     }).catch(() => {
-      // Unreachable backend: keep the loading state for this rubro.
-    });
-    return () => { cancelled = true; };
+      // Unreachable backend: keep the loading state for this rubro; a reload retries.
+    }).finally(() => pedidos.current.delete(clave));
   }, [clave, rubro, genero, byRubro]);
 
-  const abrirRubro = useCallback(key => {
-    setSelCat(null);
-    setBusq('');
-    setRubro(key);
-  }, []);
+  return { byRubro, resumenListo };
+}
 
-  if (selCat) return (
+// An old /picks/<categoria> link: find the rubro that owns it and move to its real path.
+function useRedireccionLegado(legado, resumenListo, byRubro) {
+  const navigate = useNavigate();
+  const destino = useMemo(() => {
+    if (!legado || !resumenListo) return null;
+    const rubroDueno = RUBROS_ENTRADA.find(r => canonicalFromSlug(legado, byRubro[r.key]));
+    return rubroDueno ? rutaDe(rubroDueno.key, '', canonicalFromSlug(legado, byRubro[rubroDueno.key]).categoria) : null;
+  }, [legado, resumenListo, byRubro]);
+  useEffect(() => {
+    if (destino) navigate(destino, { replace: true });
+  }, [destino, navigate]);
+  return destino;
+}
+
+const pickFiltersDe = (rubro, genero) => (rubro === GYMRAT
+  ? { rubro: '', gymrat: true, genero }
+  : { rubro: rubro || '', gymrat: false, genero: '' });
+
+// /picks/<rubro>/<categoria>: the detail, or a loading / not-found message while the slug cannot be resolved.
+function DetalleCategoria({ cat, buscando, rubro, genero, onBack, onProductClick }) {
+  if (cat) return (
     <div className="picks-scroll">
-      <CategoryPicksView cat={selCat} onBack={() => setSelCat(null)}
+      <CategoryPicksView cat={cat} onBack={onBack}
                           onProductClick={onProductClick}
-                          subChips={rubro === 'perfumeria' && selCat.categoria === 'Perfume' ? PERFUME_SUBCATEGORIAS : undefined}
-                          pickFilters={rubro === GYMRAT
-                            ? { rubro: '', gymrat: true, genero }
-                            : { rubro: rubro || '', gymrat: false, genero: '' }}/>
+                          subChips={rubro === 'perfumeria' && cat.categoria === 'Perfume' ? PERFUME_SUBCATEGORIAS : undefined}
+                          pickFilters={pickFiltersDe(rubro, genero)}/>
     </div>
+  );
+  if (buscando) return (
+    <div className="picks-scroll">
+      <div className="picks-state-msg">Cargando picks...</div>
+    </div>
+  );
+  return (
+    <div className="picks-scroll">
+      <div className="picks-catdetail">
+        <button onClick={onBack} className="picks-back-btn">← Volver</button>
+        <div className="picks-state-msg">
+          No encontramos esta categoría. Puede que ya no exista o que el enlace esté desactualizado.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── PicksPanel ───────────────────────────────────────────────────────────────
+export default function PicksPanel({ onProductClick }) {
+  // rubro === null is the carousel step; a string (including '' = Todos) is the gallery for that rubro, and a
+  // category slug on top opens its detail. All of it comes from the URL. Cats are cached per rubro so stepping
+  // back and forth costs no request — App.jsx mounts this under ONE `picks/*` route so the cache survives.
+  const { '*': resto } = useParams();
+  const navigate = useNavigate();
+  const { rubro, genero: generoRuta, catSlug, legado } = leerRuta(resto);
+  const genero = generoRuta || GENEROS[0].key;
+  const [busq, setBusq] = useState('');
+
+  const clave = rubro == null ? null : claveCache(rubro, genero);
+  const { byRubro, resumenListo } = usePicksPorRubro(clave, rubro, genero);
+  const destinoLegado = useRedireccionLegado(legado, resumenListo, byRubro);
+
+  const abrirRubro = useCallback(key => {
+    setBusq('');
+    navigate(rutaDe(key));
+  }, [navigate]);
+
+  const cats = clave === null ? [] : byRubro[clave];
+  const loading = clave !== null && !cats;
+
+  if (rubro === undefined) return (
+    <DetalleCategoria buscando={!resumenListo || Boolean(destinoLegado)}
+                      onBack={() => navigate('/picks')} onProductClick={onProductClick}/>
+  );
+
+  if (catSlug) return (
+    <DetalleCategoria cat={canonicalFromSlug(catSlug, cats)} buscando={loading} rubro={rubro} genero={genero}
+                      onBack={() => navigate(rutaDe(rubro, generoRuta))} onProductClick={onProductClick}/>
   );
 
   if (rubro === null) return (
@@ -284,14 +361,12 @@ export default function PicksPanel({ onProductClick }) {
     </div>
   );
 
-  const cats = byRubro[clave] || [];
-
   return (
     <div className="picks-panel">
       {/* Rubro tabs — stays outside the immersive theme so it reads as
           dashboard chrome, not part of the editorial gallery surface */}
       <div className="picks-rubro-bar">
-        <button onClick={() => setRubro(null)} className="picks-rubro-back"
+        <button onClick={() => navigate('/picks')} className="picks-rubro-back"
           aria-label="Volver a los rubros">← Rubros</button>
         {RUBROS.map(r => (
           <button key={r.key} onClick={() => abrirRubro(r.key)}
@@ -304,7 +379,7 @@ export default function PicksPanel({ onProductClick }) {
         {rubro === GYMRAT && (
           <div className="picks-genero" role="group" aria-label="Género">
             {GENEROS.map(g => (
-              <button key={g.key} onClick={() => setGenero(g.key)}
+              <button key={g.key} onClick={() => navigate(rutaDe(GYMRAT, g.key))}
                 className={`picks-rubro-btn${genero===g.key ? ' active' : ''}`}
               >{g.label}</button>
             ))}
@@ -325,7 +400,7 @@ export default function PicksPanel({ onProductClick }) {
           </div>
         )}
         {!loading && cats.length > 0 && (
-          <PicksGallery cats={cats} busq={busq} onSelectCat={setSelCat}
+          <PicksGallery cats={cats} busq={busq} onSelectCat={c => navigate(rutaDe(rubro, generoRuta, c.categoria))}
             proximamente={rubro === 'perfumeria' ? PERFUMERIA_PROXIMAMENTE : []}
             subtitulo={rubro === GYMRAT ? 'Lo mejor de las marcas de gym' : undefined} />
         )}

@@ -1,8 +1,8 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import PicksPanel from '@/components/PicksPanel';
+import { renderPicks } from '@/test/renderPicks';
 import { fetchMejores } from '@/api';
 
 vi.mock('@/api', async importOriginal => ({
@@ -29,7 +29,7 @@ beforeEach(() => {
 
 describe('PicksPanel — Gymrat', () => {
   it('shows a Gymrat card after the rubros and fetches its summary on entry', async () => {
-    render(<PicksPanel />);
+    renderPicks();
 
     expect(await screen.findByRole('button', { name: 'Gymrat' })).toBeInTheDocument();
     await waitFor(() => expect(fetchMejores).toHaveBeenCalledWith('', { gymrat: true }));
@@ -37,7 +37,7 @@ describe('PicksPanel — Gymrat', () => {
 
   it('opens the gallery filtered by gymrat and never sends it as a rubro', async () => {
     const user = userEvent.setup();
-    render(<PicksPanel />);
+    renderPicks();
 
     await user.click(await screen.findByRole('button', { name: 'Gymrat' }));
 
@@ -49,7 +49,7 @@ describe('PicksPanel — Gymrat', () => {
 
   it('keeps a Gymrat tab in the gallery bar', async () => {
     const user = userEvent.setup();
-    render(<PicksPanel />);
+    renderPicks();
 
     await user.click(await screen.findByRole('button', { name: 'Gymrat' }));
     await screen.findByText('Creatina Gym');
@@ -64,7 +64,7 @@ describe('PicksPanel — gallery order', () => {
       opts.gymrat ? [cat('Zapatilla', 9), cat('Bombacha', 2), cat('Álbum', 5), cat('Calza', 7)] : [cat('Remera', 9)]
     ));
     const user = userEvent.setup();
-    render(<PicksPanel />);
+    renderPicks();
 
     await user.click(await screen.findByRole('button', { name: 'Gymrat' }));
     await screen.findByText('Bombacha');

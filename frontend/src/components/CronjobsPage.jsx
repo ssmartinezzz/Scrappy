@@ -1,6 +1,6 @@
 // Admin panel for scraper cron jobs. Routed page for /cronjobs — owns its own
 // fetch in local state (no lifted state to AppLayout's catalog reducer, same
-// as CategoryPicksPage). The list is the shadcn Table + TanStack Table pattern
+// as OportunidadesBadgePage). The list is the shadcn Table + TanStack Table pattern
 // the user supplied (sortable headers, numeric pagination, page-size select),
 // ported to JSX + project tokens. Create/edit opens CronJobCard (the animated
 // coach-card-style detail card) in a modal overlay.

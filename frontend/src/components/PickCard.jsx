@@ -3,7 +3,7 @@ import { TIPO_META, SEMANTIC } from '../lib/colors';
 
 // Extracted VERBATIM from PicksPanel.jsx CatDetail (formerly inline in the
 // removed .picks-pick-list grid) — zero visual diff. Shared by CategoryPicksView
-// (used both in-panel and on the routed /picks/:categoria page) via
+// (used by the /picks/<rubro>/<categoria> detail) via
 // CategoryPicksCarousel's renderItem. Keeps all .picks-pick-* plain-CSS classes.
 export default function PickCard({ pick, mediana, onClick }) {
   const m = TIPO_META[pick.tipo] || TIPO_META.valor;

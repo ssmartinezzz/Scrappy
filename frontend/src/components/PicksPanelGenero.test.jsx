@@ -1,8 +1,8 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import PicksPanel from '@/components/PicksPanel';
+import { renderPicks } from '@/test/renderPicks';
 import { fetchMejores } from '@/api';
 
 vi.mock('@/api', async importOriginal => ({
@@ -35,7 +35,7 @@ async function abrirGymrat(user) {
 describe('PicksPanel — Gymrat Hombre / Mujer', () => {
   it('opens on Hombre and asks the backend for that gender', async () => {
     const user = userEvent.setup();
-    render(<PicksPanel />);
+    renderPicks();
 
     await abrirGymrat(user);
 
@@ -47,7 +47,7 @@ describe('PicksPanel — Gymrat Hombre / Mujer', () => {
 
   it('switches to Mujer and fetches it once', async () => {
     const user = userEvent.setup();
-    render(<PicksPanel />);
+    renderPicks();
     await abrirGymrat(user);
     await screen.findByText('Short Hombre');
 
@@ -65,7 +65,7 @@ describe('PicksPanel — Gymrat Hombre / Mujer', () => {
 
   it('shows no gender toggle outside Gymrat', async () => {
     const user = userEvent.setup();
-    render(<PicksPanel />);
+    renderPicks();
 
     await user.click(await screen.findByRole('button', { name: /Indumentaria/ }));
     await screen.findByText('Remera');
@@ -74,7 +74,7 @@ describe('PicksPanel — Gymrat Hombre / Mujer', () => {
   });
 
   it('keeps the entry card summary on the unfiltered Gymrat request', async () => {
-    render(<PicksPanel />);
+    renderPicks();
 
     await waitFor(() => expect(fetchMejores).toHaveBeenCalledWith('', { gymrat: true }));
   });

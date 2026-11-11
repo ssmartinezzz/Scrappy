@@ -33,7 +33,6 @@ const OportunidadesPanel = lazy(() => import('./OportunidadesPanel'));
 const OportunidadesBadgePage = lazy(() => import('./OportunidadesBadgePage'));
 const GruposPanel    = lazy(() => import('./GruposPanel'));
 const PicksPanel     = lazy(() => import('./PicksPanel'));
-const CategoryPicksPage = lazy(() => import('./CategoryPicksPage'));
 const MarcasPanel    = lazy(() => import('./MarcasPanel'));
 const FavoritosPanel = lazy(() => import('./FavoritosPanel'));
 const OutfitsPanel   = lazy(() => import('./OutfitsPanel'));
@@ -347,11 +346,6 @@ function PicksRoute() {
   return <PicksPanel onProductClick={prod => dispatch({ type:'OPEN_DETAIL', prod })}/>;
 }
 
-function CategoryPicksPageRoute() {
-  const { dispatch } = useOutletContext();
-  return <CategoryPicksPage onProductClick={prod => dispatch({ type:'OPEN_DETAIL', prod })}/>;
-}
-
 function MarcasRoute() {
   const { dispatch } = useOutletContext();
   return <MarcasPanel onProductClick={prod => dispatch({ type:'OPEN_DETAIL', prod })}/>;
@@ -483,7 +477,7 @@ function PcsRoute() {
 }
 
 // No outlet context needed — CronjobsPage owns its own fetch/local state,
-// same reasoning as CategoryPicksPage/FinanRoute (ADR-1, sdd/scraper-cronjobs/design).
+// same reasoning as FinanRoute (ADR-1, sdd/scraper-cronjobs/design).
 function CronjobsRoute() {
   return <CronjobsPage/>;
 }
@@ -496,7 +490,6 @@ function UsuariosAdminRoute() {
 
 export {
   CatalogoRoute as CatalogoPanelRoute, PicksRoute as PicksPanelRoute,
-  CategoryPicksPageRoute,
   MarcasRoute as MarcasPanelRoute, GruposRoute as GruposPanelRoute,
   RecomendadosRoute as RecomendadosPanelRoute,
   MercadoRoute as MercadoPanelRoute,
