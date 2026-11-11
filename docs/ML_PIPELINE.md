@@ -448,6 +448,16 @@ con `rubro_forzado` `tecnologia`/`oficina`, que sigue ganando. `SubcategoryResol
 deportivo (`hockey`, `running`...) no corre para `Perfume`. `KW_PERFUME` ya no matchea `splash` pelado ni `colonia` como
 subcadena (las antiparras `Base-X Splash` y la `Teja Colonial` eran `Perfume`). `POST /api/ml/renormalizar` actualiza la `sub_categoria` de las filas guardadas pero NO su `rubro` (lo alinea `V90`), y unas `Perfume` mal clasificadas (los inflables `Splash` de Elmundodeljuguete) conservan la categoría hasta el próximo scrape del sitio.
 
+**Moda de mujer por sustantivo líder, y `Bijouterie`** (`V92`). Las Pepas dejó 144 filas en `Otros`; quedan 15 (`llavero`, `aplique`,
+`cuaderno`, `boligrafo`, `pin`: sin categoría). `IndumentariaClassifier` suma al final reglas por **primera palabra** del nombre
+(`KW_*_LIDER`; `Remera con Aros` sigue siendo `Remera`): `blusa`/`camisola` → `Camisa`; `tapado`/`trench`/`parka`/`kimono` → `Campera`;
+`babucha` → `Pantalón`; `enteriza` → `Enterito`; `chatita`/`guillermina de` → `Zapato`; `capucha`/`pañuelo` → `Bufanda` (con
+`KW_PANUELO_VETO`: los pañuelos descartables no). `Bijouterie` es categoría nueva (aros, collar, choker, anillo, pulsera, broche,
+scrunchie, hebilla, dije, brazalete): `CategoryClassifier` la chequea **antes** de `NonTextileGuard`, que veta esas palabras a propósito
+(collares de mascota, anillos de sellado, broches de media sombra de Easy), y la protege `KW_BIJOUTERIE_VETO` (perro, gato, medida
+`cm`/`mm`, `talla`, `reloj`, `inteligente`...). Un `Perfume para Auto` ya no es `Perfume`: `KW_LIMPIEZA_AUTO_LIDER` lo manda a `Limpieza de Auto`
+(rubro `hogar`), junto a `aromatizante`. Canon 277.
+
 **Género fijo por sitio.** `NormalizerService.GENERO_FIJO_POR_SITIO` (sitio → género) gana
 sobre todo: `elmundodeljuguete` → `infantil`, `equus` → `hombre`.
 

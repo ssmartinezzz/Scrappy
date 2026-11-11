@@ -82,6 +82,9 @@ public class CategoryClassifier {
         TextoClasificable clasificable = TextoClasificable.de(texto);
         String tiempoLibre = primeraCategoria(FAMILIAS_DE_TIEMPO_LIBRE, clasificable);
         if (!tiempoLibre.isEmpty()) return tiempoLibre;
+        // Before the guard, which vetoes jewelry words on purpose (collar, anillo, broche: pet collars, rings, clasps).
+        if (clasificable.lideraSinVeto(GarmentTaxonomy.KW_BIJOUTERIE_LIDER, GarmentTaxonomy.KW_BIJOUTERIE_VETO))
+            return "Bijouterie";
         if (NonTextileGuard.esClaramenteNoTextil(texto)) return "";
         return primeraCategoria(FAMILIAS_EN_ORDEN, clasificable);
     }

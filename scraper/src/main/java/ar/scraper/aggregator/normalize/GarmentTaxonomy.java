@@ -1151,7 +1151,8 @@ public final class GarmentTaxonomy {
         " shampoo para auto"," shampoo con cera"," shampoo auto"," manopla "," limpia tablero"," limpia tapizados",
         " limpiadores y lava parabrisas"," brillo y lustre"," accesorios de limpieza automotor"," limpia llantas"," limpiador de llantas"," removedor de"," plumero para auto"," pano microfibra"," panos microfibra",
         " pano de microfibra"," panos de microfibra"," pano para auto"," kit de limpieza para auto"," aspiradora de auto",
-        " aspiradora para auto"," aspiradora auto"," aspiradoras de auto"
+        " aspiradora para auto"," aspiradora auto"," aspiradoras de auto",
+        " perfume para auto"," perfumes para auto"," perfume de auto"," perfume auto "
     };
     public static final String[] KW_LIMPIEZA_AUTO_VETO = {
         " cartucho"," selladora"," selladores"," neutra"," acetica"," hogar"," depilar"," vela"," madera"," bano"," sanitario",
@@ -1695,6 +1696,27 @@ public final class GarmentTaxonomy {
         "maple","jarabe de arce","sirope","topping proteico","topping fit",
         "pudding","chia ","semillas","fruta","miel","mermelada","dulce de",
         "snack saludable","galletita","galleta","tostada","pan proteico"
+    };
+
+    // Leading nouns of women's fashion that had no keyword (Las Pepas: 130 of 144 `Otros`). Leading only: "Remera con
+    // Aros" is a Remera and "Collar para Perros" belongs to the pet family that runs first.
+    public static final String[] KW_BLUSA_LIDER = {" blusa "," blusas "," camisola "};
+    public static final String[] KW_ABRIGO_LARGO_LIDER = {" tapado "," tapados "," trench "," parka "," parkas "," kimono "," kimonos "};
+    public static final String[] KW_BABUCHA_LIDER = {" babucha "," babuchas "};
+    public static final String[] KW_ENTERIZA_LIDER = {" enteriza "," enterizas "};
+    public static final String[] KW_CHATITA_LIDER = {" chatita "," chatitas "," guillermina de "," guillerminas de "};
+    public static final String[] KW_PANUELO_LIDER = {" capucha "," capuchas "," panuelo "," panuelos "};
+    public static final String[] KW_PANUELO_VETO = {" descartable"," hoja "," hojas "," papel "," nariz "};
+    public static final String[] KW_BIJOUTERIE_LIDER = {
+        " aros "," aritos "," arito "," collar "," collares "," choker "," chokers "," chocker "," anillo "," anillos ",
+        " pulsera "," pulseras "," dije "," dijes "," broche "," broches "," scrunchie "," scrunchies "," hebilla "," hebillas ",
+        " gargantilla "," brazalete "," brazaletes "
+    };
+    // Easy sells pet collars, shade-net clasps and sealing rings under the same nouns; their names carry a measure
+    // or a pet/hardware word, jewelry names do not.
+    public static final String[] KW_BIJOUTERIE_VETO = {
+        " perro"," gato"," mascota"," pet "," pets "," pet's "," cm "," mm "," grs "," mts "," lts "," piezas "," un ",
+        " sombra "," sellado "," goma "," inteligente "," smart "," ropa "," plastico "," talla "," talle "," reloj "
     };
 
     public static final String[] KW_PERFUME = {
