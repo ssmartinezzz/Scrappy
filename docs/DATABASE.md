@@ -167,6 +167,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V90` | Rubro `perfumeria`: `chk_productos_rubro_domain` pasa a 10 valores; las filas `Perfume` guardadas con nombre de fragancia se realinean |
 | `V91` | Plataforma `magento`: `sitio_plataforma_check` pasa a 19 valores y seed de Las Pepas (`monomarca`) |
 | `V92` | Categoría `Bijouterie` (aros, collar, choker, anillo, broche...) y los "Perfume para Auto" pasan de `Perfume`/`perfumeria` a `Limpieza de Auto`/`hogar` |
+| `V93` | Categorías `Desodorante` (rubro `perfumeria`) y `Llavero` (en ningún grupo de rubro); los desodorantes guardados como `Perfume` se mueven y las `Perfume` sin palabra de fragancia (juguetes `Splash`, `Teja Colonial`) se realinean |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -4860,4 +4861,38 @@ DELETE FROM categoria WHERE nombre = 'Bijouterie';
 
 **El orden es obligatorio** (FK de `productos`, `sitio_categoria` y `categoria_stats` hacia `categoria`). Los perfumes de auto vuelven a
 `Perfume`/`perfumeria` (el estado que dejaba `V90`); los de `V92` que ya eran `Limpieza de Auto` por `aromatizante` no entran porque
-el nombre no empieza con esa frase. Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V91`.
+el nombre no empieza con esa frase. Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V93` y antes que el de `V91`.
+
+---
+
+## `V93` — categorías `Desodorante` y `Llavero`
+
+Dos categorías nuevas, cada una con sus **dos** cambios (keyword + `INSERT` en `categoria`; sin la fila, `fk_productos_categoria` rechaza el
+upsert y el síntoma es `"0 nuevos"`). `Desodorante` (`KW_DESODORANTE`: `desodorante `, `antitranspirante`) se chequea **antes** que
+`KW_PERFUME` en `AccesoriosClassifier`, así que "Desodorante ... fragancia X" es desodorante; entra a `CATEGORIAS_PERFUMERIA` y su rubro es
+`perfumeria`. `Llavero` (`KW_LLAVERO`: `llavero`, `keychain`) se chequea en `CategoryClassifier` antes que las familias de tiempo libre
+(Figura Coleccionable, Juguete, Peluche) y antes de `NonTextileGuard`; un nombre que **arranca** con mochila/bolso/cartera/riñonera sigue
+siendo ese bolso. `Llavero` está en el canon pero en ningún grupo de rubro: el rubro lo da el sitio (Hadriatica `juguetes`, Kevingston
+`indumentaria`). Además `pin`/`pins` entran a `KW_BIJOUTERIE_LIDER` (sólo líder: "Cable 24 pin" no).
+
+El `UPDATE` mueve las `Perfume` no bloqueadas con `desodorante`/`antitranspirante` a `Desodorante`/`perfumeria` (el rubro se escribe acá porque
+`renormalizar` no lo persiste). Un segundo `UPDATE` realinea las `Perfume` **sin ninguna palabra de fragancia** (`perfume`, `colonia`,
+`eau de toilette`, `eau de parfum`, `fragancia`, `body splash`, `body mist`, `scent`): `antiparra` → `Lentes`; `inflable`/`tobogan`/`bracitos`
+→ `Inflable`; el resto de `juguetes` → `Juguete`; lo demás → `Otros`. No toca el rubro. Las `Otros` de llavero las pasa
+`POST /api/ml/renormalizar` (el rubro ya era correcto). Canon 279.
+
+### Rollback
+
+```sql
+-- >>> rollback:V93
+UPDATE productos SET categoria = 'Perfume' WHERE categoria = 'Desodorante';
+UPDATE productos SET categoria = 'Otros' WHERE categoria = 'Llavero';
+UPDATE sitio_categoria SET categoria = NULL WHERE categoria IN ('Desodorante', 'Llavero');
+DELETE FROM categoria_stats WHERE categoria IN ('Desodorante', 'Llavero');
+DELETE FROM categoria WHERE nombre IN ('Desodorante', 'Llavero');
+-- <<< rollback:V93
+```
+
+**El orden es obligatorio** (FK de `productos`, `sitio_categoria` y `categoria_stats` hacia `categoria`). El realineo de las `Perfume` sin
+fragancia no se revierte: no se guardó la categoría anterior y esas filas nunca fueron perfumes. Los desodorantes vuelven a `Perfume` con
+rubro `perfumeria`. Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V92`.

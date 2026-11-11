@@ -105,7 +105,10 @@ public final class CategoryGroups {
     /** Standalone canonical categories not covered by the sets above. */
     private static final Set<String> CATEGORIAS_OTRAS = Set.of("Conjunto","Otros");
 
-    private static final Set<String> CATEGORIAS_PERFUMERIA = Set.of("Perfume");
+    /** In the canon but in no rubro group: a keychain is sold by toy, fashion and gaming sites alike, so the rubro follows the site. */
+    private static final Set<String> CATEGORIAS_SIN_RUBRO = Set.of("Llavero");
+
+    private static final Set<String> CATEGORIAS_PERFUMERIA = Set.of("Perfume","Desodorante");
 
     /**
      * Single source of truth injected into the tool schema {@code enum} and the system prompt so
@@ -125,6 +128,7 @@ public final class CategoryGroups {
         all.addAll(CATEGORIAS_HOGAR);
         all.addAll(CATEGORIAS_PERFUMERIA);
         all.addAll(CATEGORIAS_OTRAS);
+        all.addAll(CATEGORIAS_SIN_RUBRO);
         return java.util.Collections.unmodifiableSet(all);
     }
 

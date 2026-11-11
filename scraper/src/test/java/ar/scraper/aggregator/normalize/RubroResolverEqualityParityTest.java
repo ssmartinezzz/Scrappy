@@ -83,7 +83,7 @@ class RubroResolverEqualityParityTest {
     }
 
     @Test
-    @DisplayName("equality agrees with the old substring oracle over 23 sitios x 277 categorías x 5 rubros previos")
+    @DisplayName("equality agrees with the old substring oracle over 23 sitios x 279 categorías x 5 rubros previos")
     void equalityAgreesWithOldSubstringOracleAcrossTheFullMatrix() {
         List<SeedRow> rows = seedRows();
         Map<String, SiteRegistry.Sitio> cache = new HashMap<>();
@@ -130,7 +130,8 @@ class RubroResolverEqualityParityTest {
         // V88 (Top, Top Deportivo): 274 -> 276. Son de indumentaria, como Corpino y Musculosa: ninguno de los 23 sitios
         // de V18 las nombra en su rubro_forzado.
         // V92 (Bijouterie): 276 -> 277. Accesorio de indumentaria, como Bufanda y Lentes: ninguno de los 23 sitios de V18 la nombra.
-        assertThat(cats).as("CategoryGroups.canonicalCategories()").hasSize(277);
+        // V93 (Desodorante, Llavero): 277 -> 279. Desodorante joins Perfume in perfumeria; Llavero is in no group (the rubro follows the site).
+        assertThat(cats).as("CategoryGroups.canonicalCategories()").hasSize(279);
 
         List<String> rubrosExistentes = Arrays.asList(null, "", "tecnologia", "suplementos", "indumentaria");
 
@@ -159,7 +160,7 @@ class RubroResolverEqualityParityTest {
             }
         }
 
-        assertThat(total).isEqualTo(23L * 277 * 5);
+        assertThat(total).isEqualTo(23L * 279 * 5);
         assertThat(mismatches)
                 .as("old substring oracle vs new equality — mismatched (sitio, categoria, rubroPrevio) triples")
                 .isEmpty();

@@ -1710,18 +1710,30 @@ public final class GarmentTaxonomy {
     public static final String[] KW_BIJOUTERIE_LIDER = {
         " aros "," aritos "," arito "," collar "," collares "," choker "," chokers "," chocker "," anillo "," anillos ",
         " pulsera "," pulseras "," dije "," dijes "," broche "," broches "," scrunchie "," scrunchies "," hebilla "," hebillas ",
-        " gargantilla "," brazalete "," brazaletes "
+        " gargantilla "," brazalete "," brazaletes "," pin "," pins "
     };
     // Easy sells pet collars, shade-net clasps and sealing rings under the same nouns; their names carry a measure
     // or a pet/hardware word, jewelry names do not.
     public static final String[] KW_BIJOUTERIE_VETO = {
         " perro"," gato"," mascota"," pet "," pets "," pet's "," cm "," mm "," grs "," mts "," lts "," piezas "," un ",
-        " sombra "," sellado "," goma "," inteligente "," smart "," ropa "," plastico "," talla "," talle "," reloj "
+        " sombra "," sellado "," goma "," inteligente "," smart "," ropa "," plastico "," talla "," talle "," reloj ",
+        " tablero "," hembra "," macho "
     };
 
+    // Checked before KW_PERFUME: "Desodorante ... fragancia X" is a deodorant, not a fragrance.
+    public static final String[] KW_DESODORANTE = {"desodorante ","antitranspirante"};
+
     public static final String[] KW_PERFUME = {
-        "perfume"," colonia ","eau de toilette","eau de parfum","fragancia",
-        "desodorante ","antitranspirante","body splash","body mist"
+        "perfume"," colonia ","eau de toilette","eau de parfum","fragancia","body splash","body mist"
+    };
+
+    // Contains-anywhere ("Funko Pop! Llavero: The Flash"); the backslash form is a real Hadriatica name ("Monky\\Llavero").
+    public static final String[] KW_LLAVERO = {" llavero"," llaveros","\\llavero"," keychain"};
+    // A camera shaped or sold as a keychain ("Mini Camara Digital ... Llavero Retro") stays a camera.
+    public static final String[] KW_LLAVERO_VETO = {" camara "," camaras "};
+    // A bag that merely comes with a keychain stays a bag.
+    public static final String[] KW_LLAVERO_VETO_LIDER = {
+        " mochila "," mochilas "," bolso "," bolsos "," cartera "," carteras "," rinonera "," rinoneras "
     };
 
     // `KW_TECLADO` no tenía la palabra "teclado" pelada — sólo "teclado gamer"/"teclado mecanico" —
