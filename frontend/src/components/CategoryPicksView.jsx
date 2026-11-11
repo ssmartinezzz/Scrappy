@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { LayoutGrid, List } from 'lucide-react';
 import { fetchMejoresPicks, fmt } from '../api';
 import PickCard from './PickCard';
 import CategoryPicksCarousel from './CategoryPicksCarousel';
@@ -22,25 +23,42 @@ export function tagline(cat, pick, mediana) {
   return `El mejor precio/calidad en ${cat} en este momento`;
 }
 
+const VIEW_MODE_KEY = 'picks:viewMode';
+
+// Storage can throw (blocked or full); an unknown stored value falls back to the carousel.
+function leerModo() {
+  try {
+    return localStorage.getItem(VIEW_MODE_KEY) === 'list' ? 'list' : 'carousel';
+  } catch {
+    return 'carousel';
+  }
+}
+
 // Shared detail body: header (title, count · mediana, tagline), back control,
-// and the picks carousel. Consumed by BOTH PicksPanel's in-panel CatDetail
+// and the products. Consumed by BOTH PicksPanel's in-panel CatDetail
 // and the routed /picks/:categoria page (CategoryPicksPage) so both entries
 // render one identical body (design doc ADR-2).
-// Below the curated highlights the view lists EVERY product of the category, best first, loading keyset pages
-// (the backend's opaque `nextCursor`, never an offset) as a sentinel scrolls into view. `pickFilters` must be the same
+// The view shows EVERY product of the category, best first — the curated highlights followed by keyset pages (the
+// backend's opaque `nextCursor`, never an offset) loaded as a sentinel scrolls into view — either as one carousel or
+// as one list, never both. The mode is a per-viewer preference kept in localStorage, like /favoritos. `pickFilters` must be the same
 // rubro/gymrat/genero the summary `cat` was fetched with, so the pages describe the same set.
 // `subChips` (optional) lists sub-categories to filter by; picks carry `subCategoria` when the product has one.
 export default function CategoryPicksView({ cat, onBack, onProductClick, pickFilters, subChips }) {
   const [sub, setSub] = useState('');
   const delFiltro = lista => (sub ? lista.filter(p => p.subCategoria === sub) : lista);
-  const picks = delFiltro(cat.picks || []);
-  const firstPick = picks[0];
+  const firstPick = delFiltro(cat.picks || [])[0];
+  const [viewMode, setViewMode] = useState(leerModo);
+  const elegirModo = modo => {
+    setViewMode(modo);
+    try { localStorage.setItem(VIEW_MODE_KEY, modo); } catch { /* still works for this session */ }
+  };
 
   const [extra, setExtra] = useState([]);
   const [cursor, setCursor] = useState(null);
   const [fin, setFin] = useState(false);
   const cargando = useRef(false);
-  const sentinelRef = useRef(null);
+  // State, not a ref: the sentinel moves between carousel items as pages arrive, and the observer must follow it.
+  const [sentinel, setSentinel] = useState(null);
   const filtros = pickFilters || { rubro: '', gymrat: false, genero: '' };
   const filtrosKey = `${filtros.rubro}|${filtros.gymrat}|${filtros.genero}`;
 
@@ -69,7 +87,7 @@ export default function CategoryPicksView({ cat, onBack, onProductClick, pickFil
 
   useEffect(() => {
     if (fin) return;
-    const el = sentinelRef.current;
+    const el = sentinel;
     if (!el) return;
     const observer = new IntersectionObserver(
       entries => { if (entries[0].isIntersecting) cargarMas(); },
@@ -77,7 +95,16 @@ export default function CategoryPicksView({ cat, onBack, onProductClick, pickFil
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, [fin, cargarMas]);
+  }, [fin, cargarMas, sentinel]);
+
+  const todos = delFiltro([...(cat.picks || []), ...extra]);
+  const centinela = fin ? null : <div ref={setSentinel} className="picks-sentinel" />;
+  const modoBtn = (modo, etiqueta, Icono) => (
+    <button type="button" className={`picks-view-btn${viewMode === modo ? ' active' : ''}`}
+      aria-pressed={viewMode === modo} aria-label={etiqueta} title={etiqueta} onClick={() => elegirModo(modo)}>
+      <Icono size={18} aria-hidden="true" />
+    </button>
+  );
 
   return (
     <div className="picks-catdetail">
@@ -97,38 +124,47 @@ export default function CategoryPicksView({ cat, onBack, onProductClick, pickFil
         </p>
       )}
 
-      {subChips?.length > 0 && (
-        <fieldset className="picks-subchips" aria-label="Subcategoría">
-          {['', ...subChips].map(s => (
-            <button key={s || 'todos'} type="button" onClick={() => setSub(s)}
-              className={`picks-rubro-btn${sub === s ? ' active' : ''}`}
-            >{s || 'Todos'}</button>
-          ))}
+      <div className="picks-catdetail-toolbar">
+        {subChips?.length > 0 && (
+          <fieldset className="picks-subchips" aria-label="Subcategoría">
+            {['', ...subChips].map(s => (
+              <button key={s || 'todos'} type="button" onClick={() => setSub(s)}
+                className={`picks-rubro-btn${sub === s ? ' active' : ''}`}
+              >{s || 'Todos'}</button>
+            ))}
+          </fieldset>
+        )}
+        <fieldset className="picks-view-toggle" aria-label="Modo de vista">
+          {modoBtn('carousel', 'Vista carrusel', LayoutGrid)}
+          {modoBtn('list', 'Vista lista', List)}
         </fieldset>
+      </div>
+
+      {todos.length === 0 && fin && (
+        <div className="picks-empty">
+          {sub ? 'Sin productos en esta subcategoría todavía.' : 'Todavía no hay productos para esta categoría.'}
+        </div>
       )}
 
-      {picks.length === 0 ? (
-        <div className="picks-empty">
-          {sub ? 'Sin picks destacados en esta subcategoría todavía.' : 'Todavía no hay picks calculados para esta categoría.'}
-        </div>
-      ) : (
+      {todos.length > 0 && viewMode === 'carousel' && (
         <CategoryPicksCarousel
           title={cat.categoria}
-          items={picks}
+          items={todos}
+          trailing={centinela}
           renderItem={pick => (
             <PickCard pick={pick} mediana={cat.mediana} onClick={onProductClick}/>
           )}
         />
       )}
 
-      {delFiltro(extra).length > 0 && (
+      {todos.length > 0 && viewMode === 'list' && (
         <div className="picks-grid">
-          {delFiltro(extra).map(pick => (
+          {todos.map(pick => (
             <PickCard key={pick.url} pick={pick} mediana={cat.mediana} onClick={onProductClick}/>
           ))}
         </div>
       )}
-      {!fin && <div ref={sentinelRef} className="picks-sentinel" />}
+      {(todos.length === 0 || viewMode === 'list') && centinela}
     </div>
   );
 }

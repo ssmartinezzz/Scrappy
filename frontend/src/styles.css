@@ -716,6 +716,13 @@ body { overflow-x: hidden; }
 .picks-rubro-back:focus-visible { outline: 2px solid var(--p); outline-offset: 2px; }
 
 .picks-subchips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 1rem; padding: 0; border: 0; min-inline-size: 0; }
+.picks-catdetail-toolbar { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px; margin: 0 0 1rem; }
+.picks-catdetail-toolbar .picks-subchips { margin: 0; flex: 1 1 auto; }
+.picks-view-toggle { display: flex; gap: 8px; margin: 0 0 0 auto; padding: 0; border: 0; min-inline-size: 0; }
+.picks-view-btn { width: 44px; height: 44px; display: flex; align-items: center; justify-content: center;
+  border-radius: 8px; border: 1.5px solid var(--bd2); background: var(--s2); color: var(--t3); cursor: pointer; }
+.picks-view-btn.active { background: var(--p); color: #fff; }
+.picks-view-btn:focus-visible { outline: 2px solid var(--p); outline-offset: 2px; }
 .picks-proximamente { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
   min-height: 160px; padding: 1rem; border-radius: 14px; border: 1px dashed var(--bd2); background: var(--s2);
   color: var(--t4); opacity: .6; filter: grayscale(1); cursor: not-allowed; user-select: none; }

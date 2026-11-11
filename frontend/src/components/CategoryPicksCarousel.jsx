@@ -30,7 +30,10 @@ function computeIsMobile() {
   return typeof window !== 'undefined' && !window.matchMedia(TABLET_MIN_QUERY).matches;
 }
 
-export default function CategoryPicksCarousel({ title, subtitle, items, renderItem, className }) {
+// `trailing` (optional) is rendered inside the item one page before the last, so a caller's infinite-scroll sentinel
+// becomes visible while there is still a page left to show. A sentinel after the track would sit in the clipped gap
+// past the viewport and never intersect.
+export default function CategoryPicksCarousel({ title, subtitle, items, renderItem, className, trailing }) {
   const [itemsPerView, setItemsPerView] = useState(computeItemsPerView);
   const [mobile, setMobile] = useState(computeIsMobile);
   const [page, setPage] = useState(0);
@@ -72,6 +75,7 @@ export default function CategoryPicksCarousel({ title, subtitle, items, renderIt
     if (e.key === 'ArrowRight') { e.preventDefault(); goNext(); }
   }, [mobile, goPrev, goNext]);
 
+  const trailingAt = Math.max(0, safeItems.length - 1 - itemsPerView);
   const showChevrons = !mobile && safeItems.length > itemsPerView;
 
   const trackStyle = mobile
@@ -125,6 +129,7 @@ export default function CategoryPicksCarousel({ title, subtitle, items, renderIt
             {safeItems.map((item, i) => (
               <div key={item.key ?? item.url} className="picks-carousel-item">
                 {renderItem(item, i)}
+                {i === trailingAt && trailing}
               </div>
             ))}
           </div>

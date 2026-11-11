@@ -23,6 +23,7 @@ beforeEach(() => {
     matches: true, media: query, addEventListener: vi.fn(), removeEventListener: vi.fn(),
     addListener: vi.fn(), removeListener: vi.fn(),
   }));
+  localStorage.clear();
   window.IntersectionObserver = class {
     constructor(cb) { this.cb = cb; observers.push(this); }
     observe() {}
@@ -66,5 +67,49 @@ describe('CategoryPicksView — every product of the category', () => {
 
     expect(observers.filter(o => !o.gone)).toHaveLength(0);
     expect(fetchMejoresPicks).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('CategoryPicksView — carousel / list toggle', () => {
+  const renderView = () => render(
+    <CategoryPicksView cat={cat} onBack={() => {}} onProductClick={() => {}} />);
+  const carrusel = () => screen.queryByRole('region', { name: 'Remera' });
+
+  it('defaults to the carousel and puts every loaded product inside it, not in a list below', async () => {
+    fetchMejoresPicks.mockResolvedValueOnce({ picks: [pick(3)], nextCursor: null, total: 3 });
+    const { container } = renderView();
+
+    await tocarCentinela();
+    await waitFor(() => expect(screen.getByText('Producto 3')).toBeInTheDocument());
+
+    expect(carrusel()).toHaveTextContent('Producto 1');
+    expect(carrusel()).toHaveTextContent('Producto 3');
+    expect(container.querySelector('.picks-grid')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Vista carrusel' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('switches to a list holding the highlights and the loaded pages, with no carousel, and remembers it', async () => {
+    fetchMejoresPicks.mockResolvedValueOnce({ picks: [pick(3)], nextCursor: null, total: 3 });
+    const { container, unmount } = renderView();
+
+    await act(async () => { screen.getByRole('button', { name: 'Vista lista' }).click(); });
+    await tocarCentinela();
+    await waitFor(() => expect(screen.getByText('Producto 3')).toBeInTheDocument());
+
+    expect(carrusel()).toBeNull();
+    const grid = container.querySelector('.picks-grid');
+    expect(grid).toHaveTextContent('Producto 1');
+    expect(grid).toHaveTextContent('Producto 3');
+    expect(screen.getAllByText('Producto 1')).toHaveLength(1);
+
+    unmount();
+    renderView();
+    expect(screen.getByRole('button', { name: 'Vista lista' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('falls back to the carousel when the stored mode is unknown', () => {
+    localStorage.setItem('picks:viewMode', 'mosaico');
+    renderView();
+    expect(screen.getByRole('button', { name: 'Vista carrusel' })).toHaveAttribute('aria-pressed', 'true');
   });
 });
