@@ -15,6 +15,8 @@ final class AccesoriosClassifier implements FamiliaClassifier {
         if (texto.contiene(GarmentTaxonomy.KW_GUANTES))              return "Guantes";
         if (texto.contiene(GarmentTaxonomy.KW_LENTES))               return "Lentes";
         if (texto.contiene(GarmentTaxonomy.KW_GORRO))                return "Gorro";
+        if (texto.contiene(GarmentTaxonomy.KW_VINCHA))               return "Vincha";
+        if (texto.contiene(GarmentTaxonomy.KW_BANDANA))              return "Bandana";
         if (texto.contiene(GarmentTaxonomy.KW_GORRA))                return "Gorra";
         if (texto.contiene(GarmentTaxonomy.KW_MEDIAS) && !texto.contiene(GarmentTaxonomy.KW_MEDIAS_VETO)) return "Medias";
         if (texto.contiene(GarmentTaxonomy.KW_ACCESORIO_DEPORTIVO)

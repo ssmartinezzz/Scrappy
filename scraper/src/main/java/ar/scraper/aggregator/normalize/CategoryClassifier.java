@@ -41,6 +41,7 @@ public class CategoryClassifier {
         new NutricionTempranaClassifier(NUTRICION),
         new OficinaClassifier(),
         new TechClassifier(),
+        new TrajeDeportivoClassifier(),
         new ConjuntoClassifier(),
         new EquipamientoDeportivoClassifier(),
         new CalzadoClassifier(),
@@ -80,7 +81,8 @@ public class CategoryClassifier {
     private String clasificar(String texto) {
         if (StringUtils.isBlank(texto)) return "";
         TextoClasificable clasificable = TextoClasificable.de(texto);
-        // First: the toy, figure and plush families would otherwise claim "Funko Pop! Llavero" and keychain-shaped toys.
+        if (clasificable.contiene(GarmentTaxonomy.KW_FUNKO)) return "Juguete";
+        // Then: the toy, figure and plush families would otherwise claim "Funko Pop! Llavero" and keychain-shaped toys.
         if (clasificable.contiene(GarmentTaxonomy.KW_LLAVERO)
                 && !clasificable.sinPrefijoDeVentaEmpiezaCon(GarmentTaxonomy.KW_LLAVERO_VETO_LIDER)
                 && !clasificable.contiene(GarmentTaxonomy.KW_LLAVERO_VETO))

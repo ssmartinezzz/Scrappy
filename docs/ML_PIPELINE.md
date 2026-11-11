@@ -465,6 +465,11 @@ chequea antes ("Desodorante ... fragancia X" es `Desodorante`); es categoría de
 mochila/bolso/cartera/riñonera; no pertenece a ningún grupo de rubro (el rubro sigue al sitio). `pin`/`pins` son líder de `Bijouterie`.
 `V93` también realinea las `Perfume` guardadas sin palabra de fragancia (los inflables `Splash`, la `Teja Colonial`).
 
+**`Vincha`, `Bandana` y `Traje Deportivo`** (`V94`, canon 282). `vincha`/`bandana` ya no son `Gorra` (`KW_VINCHA`/`KW_BANDANA`, antes de `KW_GORRA` en
+`AccesoriosClassifier`; "Bermuda Bandana" sigue siendo `Bermuda`). `tracksuit`/`catsuit` son `Traje Deportivo` (`TrajeDeportivoClassifier`, antes de
+`ConjuntoClassifier`) salvo una pieza suelta que arranca con campera/pantalón/...; Funko es siempre `Juguete` (primero en `CategoryClassifier`) y las
+`Juguete` con `lego` tienen `sub_categoria = 'lego'`.
+
 **Género fijo por sitio.** `NormalizerService.GENERO_FIJO_POR_SITIO` (sitio → género) gana
 sobre todo: `elmundodeljuguete` → `infantil`, `equus` → `hombre`.
 

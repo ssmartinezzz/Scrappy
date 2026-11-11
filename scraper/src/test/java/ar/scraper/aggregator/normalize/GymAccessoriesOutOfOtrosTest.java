@@ -39,9 +39,9 @@ class GymAccessoriesOutOfOtrosTest {
     }
 
     @Test
-    void bandanasAreHeadwear() {
-        assertThat(cat("Dealer Bandana")).isEqualTo("Gorra");
-        assertThat(cat("Monky Bandana")).isEqualTo("Gorra");
+    void bandanasAreTheirOwnCategory() {
+        assertThat(cat("Dealer Bandana")).isEqualTo("Bandana");
+        assertThat(cat("Monky Bandana")).isEqualTo("Bandana");
     }
 
     @Test
