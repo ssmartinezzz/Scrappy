@@ -9,5 +9,4 @@ export const PERFUMERIA_PROXIMAMENTE = [
   { key: 'maquillaje',     icon: '💄', label: 'Maquillaje' },
   { key: 'cuidado-piel',   icon: '🧴', label: 'Cuidado de la piel' },
   { key: 'cabello',        icon: '💇', label: 'Cabello' },
-  { key: 'desodorantes',   icon: '🫧', label: 'Desodorantes' },
 ];

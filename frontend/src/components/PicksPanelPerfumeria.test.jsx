@@ -51,7 +51,7 @@ describe('PicksPanel — perfumería', () => {
     await abrirPerfumeria(user);
 
     expect(PERFUMERIA_PROXIMAMENTE.map(c => c.label))
-      .toEqual(['Maquillaje', 'Cuidado de la piel', 'Cabello', 'Desodorantes']);
+      .toEqual(['Maquillaje', 'Cuidado de la piel', 'Cabello']);
     for (const { label } of PERFUMERIA_PROXIMAMENTE) {
       const card = screen.getByText(label).closest('[data-proximamente]');
       expect(card).not.toBeNull();
@@ -59,7 +59,7 @@ describe('PicksPanel — perfumería', () => {
       expect(card.tagName).not.toBe('BUTTON');
       await user.click(card);
     }
-    expect(screen.getAllByText('Próximamente')).toHaveLength(4);
+    expect(screen.getAllByText('Próximamente')).toHaveLength(3);
     expect(fetchMejoresPicks).not.toHaveBeenCalled();
   });
 

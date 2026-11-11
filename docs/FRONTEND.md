@@ -27,9 +27,8 @@ Hombre): pide `fetchMejores('', { gymrat: true, genero })` → `GET /api/mejores
 y cachea cada género por separado (`gymrat:hombre`, `gymrat:mujer`); la card de la entrada sigue pidiendo
 Gymrat sin género.
 
-**`/picks` en `perfumeria`**: la galería suma cuatro cards grises "Próximamente" (Maquillaje, Cuidado de la piel, Cabello,
-Desodorantes) que NO son categorías: son un mock de frontend, sin filas en la base ni keywords, definido en
-`PERFUMERIA_PROXIMAMENTE` (`lib/perfumeria.js`; borrar la entrada cuando exista la categoría real). Dentro de la categoría
+**`/picks` en `perfumeria`**: la galería suma tres cards grises "Próximamente" (Maquillaje, Cuidado de la piel, Cabello) que NO son categorías: son un mock de frontend, sin filas en la base ni keywords, definido en
+`PERFUMERIA_PROXIMAMENTE` (`lib/perfumeria.js`; borrar la entrada cuando exista la categoría real: `Desodorante` ya lo es y salió del mock). Dentro de la categoría
 `Perfume` hay chips por subcategoría (`PERFUME_SUBCATEGORIAS`) que filtran en el cliente por el `subCategoria` de cada pick.
 
 **`/analisis/oportunidades` se filtra por rubro y juzga con `/api/data`.** Una fila de chips
