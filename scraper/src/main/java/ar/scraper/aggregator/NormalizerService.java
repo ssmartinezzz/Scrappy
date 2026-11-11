@@ -21,6 +21,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -42,7 +43,9 @@ public class NormalizerService {
     // Sites whose whole catalogue is one gender, whatever the name says. A toy store sells to kids: its
     // backpacks, shoes and dolls' dresses are not adult picks. Equus is a men's-only shop.
     private static final Map<String, String> GENERO_FIJO_POR_SITIO =
-            Map.of("elmundodeljuguete", "infantil", "equus", "hombre");
+            Map.of("elmundodeljuguete", "infantil", "equus", "hombre", "laspepas", "mujer");
+    // Fixed-gender sites whose scraper tags a kids line apart: that tag outranks the fixed gender.
+    private static final Set<String> SITIOS_CON_LINEA_INFANTIL = Set.of("laspepas");
 
     // Words that make a product "Otros" on one store only: they are legitimate categories elsewhere (a hammock
     // is "Reposera y Hamaca" on a garden store, a tote bag a Bolso, "combo" a kit on supplement and PC stores).
@@ -101,6 +104,12 @@ public class NormalizerService {
         return Arrays.stream(limpio.trim().split(" ")).anyMatch(palabras::contains);
     }
 
+    private static Optional<String> generoFijo(String sitioKey, String generoScrapeado) {
+        if ("infantil".equals(generoScrapeado) && SITIOS_CON_LINEA_INFANTIL.contains(sitioKey))
+            return Optional.of("infantil");
+        return Optional.ofNullable(GENERO_FIJO_POR_SITIO.get(sitioKey));
+    }
+
     /** In an own-label store the brand is the store, even over a curated match in the name. */
     private String marcaDe(Product p, String nombre, String sitioKey) {
         if (siteRegistry.esMonomarca(sitioKey)) return siteRegistry.porKey(sitioKey).nombre();
@@ -117,8 +126,8 @@ public class NormalizerService {
                         ? "Otros"
                         : categoryClassifier.normalizarCategoria(p.categoria(), nombre, delArbol);
         String rubro          = rubroResolver.resolver(sitioKey, cat, p.rubro());
-        String genero         = GENERO_FIJO_POR_SITIO.getOrDefault(sitioKey,
-                genderResolver.resolver(p.genero(), nombre, cat, rubro));
+        String genero         = generoFijo(sitioKey, p.genero())
+                .orElseGet(() -> genderResolver.resolver(p.genero(), nombre, cat, rubro));
         List<String> talles = sizeNormalizer.normalizar(p.talles());
         String marca          = marcaDe(p, nombre, sitioKey);
         boolean gymrat        = gymratTagger.esGymrat(nombre, sitioKey, cat, rubro, marca);

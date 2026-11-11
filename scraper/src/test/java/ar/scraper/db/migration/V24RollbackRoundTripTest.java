@@ -65,7 +65,7 @@ class V24RollbackRoundTripTest extends PostgresTestBase {
                         "tiendanube", "shopify", "vtex", "vaypol", "woocommerce",
                         "monkyforce", "maximus", "fullh4rd", "compragamer",
                         "qloud", "oscommerce", "inpro", "morashop", "prestashop", "gamerfactory", "ambiancedeco", "hadriatica",
-                        "kevingston");
+                        "kevingston", "magento");
                 assertThat(sitioKeys(st)).contains("rockethard", "venex");
 
                 // Rollbacks compose in reverse order, newest first: both V27
@@ -80,6 +80,8 @@ class V24RollbackRoundTripTest extends PostgresTestBase {
                 // revés: de más nuevo a más viejo.
                 // V87 widened the plataforma CHECK to 18 values and seeded a `kevingston` row on top of
                 // everything below: newest rollback first, or narrowing hits that row.
+                // V91 widened it once more (19 values, a `laspepas` row): it goes first of all.
+                st.execute(DocumentedRollback.sqlFor("V91"));
                 st.execute(DocumentedRollback.sqlFor("V87"));
                 st.execute(DocumentedRollback.sqlFor("V76"));
                 st.execute(DocumentedRollback.sqlFor("V46"));

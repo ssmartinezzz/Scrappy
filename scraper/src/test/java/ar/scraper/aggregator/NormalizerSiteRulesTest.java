@@ -41,7 +41,8 @@ class NormalizerSiteRulesTest {
                 "equus", new Sitio("Equus", "equus", "vtex", false, null, "config", true),
                 "oneplaceworld", new Sitio("Oneplaceworld", "oneplaceworld", "tiendanube", false, null, "config", true),
                 "kingofthekongo", new Sitio("Kingofthekongo", "kingofthekongo", "tiendanube", false, null, "config", true),
-                "midway", new Sitio("Midway", "midway", "tiendanube", false, null, "config", false)));
+                "midway", new Sitio("Midway", "midway", "tiendanube", false, null, "config", false),
+                "laspepas", new Sitio("Laspepas", "laspepas", "magento", false, null, "config", true)));
         return new NormalizerService(new PackQuantityDetector(), new CategoryClassifier(), new BrandExtractor(),
                 new GenderResolver(), new SizeNormalizer(), new SubcategoryResolver(),
                 new RubroResolver(registry), new GymratTagger(), new SportResolver(), registry,
@@ -77,6 +78,21 @@ class NormalizerSiteRulesTest {
         assertThat(normalizar("Midway", "Calza Mujer Deportiva", "").genero()).isEqualTo("mujer");
         assertThat(normalizar("Midway", "Tanga Encaje Negra", "").genero()).isEqualTo("mujer");
         assertThat(normalizar("Oneplaceworld", "Calza Mujer Deportiva", "").genero()).isEqualTo("mujer");
+    }
+
+    @ParameterizedTest(name = "[{index}] {0}")
+    @ValueSource(strings = {"Remera Lisa", "Pantalon Hombre Recto", "Cartera Mini", "Fragancia Ninfa"})
+    @DisplayName("every Las Pepas product is mujer, whatever the name says")
+    void laspepasIsMujer(String nombre) {
+        assertThat(normalizar("Laspepas", nombre, "mujer").genero()).isEqualTo("mujer");
+        assertThat(normalizar("Laspepas", nombre, "").genero()).isEqualTo("mujer");
+    }
+
+    @Test
+    @DisplayName("Las Pepas' kids line keeps the infantil the page tagged; no other fixed-gender site does")
+    void laspepasKidsLineStaysInfantil() {
+        assertThat(normalizar("Laspepas", "Musculosa Otto", "infantil").genero()).isEqualTo("infantil");
+        assertThat(normalizar("Equus", "Musculosa Otto", "infantil").genero()).isEqualTo("hombre");
     }
 
     // ─── PALABRAS_OTROS_POR_SITIO ──────────────────────────────────────────

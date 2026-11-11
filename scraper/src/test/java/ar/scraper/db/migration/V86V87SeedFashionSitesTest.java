@@ -70,6 +70,8 @@ class V86V87SeedFashionSitesTest extends PostgresTestBase {
         try (Connection c = dataSource().getConnection()) {
             c.setAutoCommit(false);
             try (Statement st = c.createStatement()) {
+                // Newest first: V91 widened the CHECK again and seeded a 'magento' row the narrower one would reject.
+                st.execute(DocumentedRollback.sqlFor("V91"));
                 st.execute(DocumentedRollback.sqlFor("V87"));
 
                 assertThat(count(st, "SELECT count(*) FROM sitio WHERE sitio_key = 'kevingston'")).isZero();

@@ -61,8 +61,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 @Epic("Persistence")
 @Feature("Site registry")
-@Story("V18 ∪ V24 ∪ V27 ∪ V28 ∪ V30 ∪ V43 ∪ V44 ∪ V45 ∪ V54 ∪ V61 ∪ V62 ∪ V74 ∪ V75 ∪ V77 ∪ V86 ∪ V87 seed covers every config.properties site")
-@DisplayName("sitio seed sync (V18 ∪ V24 ∪ V27 ∪ V28 ∪ V30 ∪ V43 ∪ V44 ∪ V45 ∪ V54 ∪ V61 ∪ V62 ∪ V74 ∪ V75 ∪ V77 ∪ V86 ∪ V87, no DB)")
+@Story("V18 ∪ V24 ∪ V27 ∪ V28 ∪ V30 ∪ V43 ∪ V44 ∪ V45 ∪ V54 ∪ V61 ∪ V62 ∪ V74 ∪ V75 ∪ V77 ∪ V86 ∪ V87 ∪ V91 seed covers every config.properties site")
+@DisplayName("sitio seed sync (V18 ∪ V24 ∪ V27 ∪ V28 ∪ V30 ∪ V43 ∪ V44 ∪ V45 ∪ V54 ∪ V61 ∪ V62 ∪ V74 ∪ V75 ∪ V77 ∪ V86 ∪ V87 ∪ V91, no DB)")
 class SitioSeedSyncTest {
 
     private static final String V18 = "/db/migration/V18__sitio_lookup_table.sql";
@@ -81,6 +81,7 @@ class SitioSeedSyncTest {
     private static final String V77 = "/db/migration/V77__seed_elmundodeljuguete.sql";
     private static final String V86 = "/db/migration/V86__seed_oneplaceworld_burtonargentina_kingofthekongo_equus.sql";
     private static final String V87 = "/db/migration/V87__platform_vocabulary_kevingston.sql";
+    private static final String V91 = "/db/migration/V91__platform_vocabulary_magento_laspepas.sql";
 
     private record SeedRow(String nombre, String sitioKey, String plataforma,
                             boolean esPremium, String rubroForzado, String origen) {
@@ -172,7 +173,7 @@ class SitioSeedSyncTest {
      */
     private static List<SeedRow> seedRows() {
         List<SeedRow> rows = new ArrayList<>();
-        for (String migration : List.of(V18, V24, V27, V28, V30, V43, V44, V45, V54, V61, V62, V74, V75, V77, V86, V87)) {
+        for (String migration : List.of(V18, V24, V27, V28, V30, V43, V44, V45, V54, V61, V62, V74, V75, V77, V86, V87, V91)) {
             rows.addAll(seedRowsFrom(migration));
         }
         assertThat(rows).as("at least one seed row parsed across V18 ∪ V24 ∪ V27 ∪ V28").isNotEmpty();

@@ -165,6 +165,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V88` | Categorías `Top` y `Top Deportivo` (salen de `Musculosa`), `croptop` pasa de `Corpino` a `Top`, las canilleras a `Accesorio Deportivo` y el inyector de sellante a `Repuesto de Bicicleta`; los tops movidos quedan con `genero = 'mujer'` salvo señal de hombre o infantil |
 | `V89` | Índice parcial `idx_productos_marca_precio` sobre `(lower(coalesce(marca,'')), precio, url) WHERE activo`: una marca paginada por cursor (`/api/data?cursor=`) pasa de barrer 87 mil filas a un rango de índice |
 | `V90` | Rubro `perfumeria`: `chk_productos_rubro_domain` pasa a 10 valores; las filas `Perfume` guardadas las realinea `POST /api/ml/renormalizar` |
+| `V91` | Plataforma `magento`: `sitio_plataforma_check` pasa a 19 valores y seed de Las Pepas (`monomarca`) |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -4792,4 +4793,34 @@ ALTER TABLE productos
 **El orden es obligatorio**: mientras haya filas `perfumeria`, el CHECK angosto las rechaza. Las filas vuelven a `indumentaria`
 porque no se guardó el rubro anterior (era `indumentaria` o el rubro por defecto del sitio); el próximo scrape las re-resuelve.
 
-Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V89`.
+Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V91` y antes que el de `V89`.
+
+---
+
+## `V91` — plataforma `magento` y seed de Las Pepas
+
+Las Pepas (`laspepas.com.ar`) es moda de mujer sobre Magento 2, la primera tienda de esa plataforma. `MagentoPage` lee su listado
+renderizado en el server (12 tarjetas por página, `?p=N`), así que necesita valor de plataforma propio: `sitio_plataforma_check`
+(CHECK, no tabla, como `V6`) pasa a 19 valores y la fila se siembra `monomarca` (marca propia) con su `marca`, sin `rubro_forzado`
+(la tienda también vende perfume, `V90`). Las otras copias del vocabulario viajan en el mismo commit:
+`SitiosRepository.PLATAFORMAS_VALIDAS`, `ScraperFactory.PAGINAS`, `PlatformVocabularySyncTest` (puntero) y `SitioSeedSyncTest`.
+
+### Rollback
+
+```sql
+-- >>> rollback:V91
+DELETE FROM sitio WHERE sitio_key = 'laspepas';
+DELETE FROM marca WHERE nombre = 'Laspepas';
+ALTER TABLE sitio DROP CONSTRAINT sitio_plataforma_check;
+ALTER TABLE sitio ADD CONSTRAINT sitio_plataforma_check
+    CHECK (plataforma IN ('tiendanube','shopify','vtex','vaypol','woocommerce',
+                          'monkyforce','maximus','fullh4rd','compragamer',
+                          'qloud','oscommerce','inpro','morashop','prestashop',
+                          'gamerfactory','ambiancedeco','hadriatica','kevingston'));
+-- <<< rollback:V91
+```
+
+El orden es obligatorio: mientras la fila `laspepas` viva, el CHECK angosto la rechaza. Si ya hay productos del sitio,
+`fk_productos_marca` frena el `DELETE` de `marca`: borrá antes sus filas de `productos`.
+
+Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V90`.
