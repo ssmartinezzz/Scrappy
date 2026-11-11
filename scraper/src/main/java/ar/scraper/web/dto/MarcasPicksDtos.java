@@ -81,5 +81,6 @@ public final class MarcasPicksDtos {
         private String segment;
         private Integer pctil;
         private Double precioOrig;
+        private String subCategoria;
     }
 }

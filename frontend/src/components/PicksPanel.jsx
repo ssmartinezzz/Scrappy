@@ -6,6 +6,7 @@ import { RubroCard } from './ui/rubro-card';
 import CategoryPicksView, { tagline } from './CategoryPicksView';
 import CategoryPicksCarousel from './CategoryPicksCarousel';
 import { RUBROS } from '../lib/rubros';
+import { PERFUMERIA_PROXIMAMENTE, PERFUME_SUBCATEGORIAS } from '../lib/perfumeria';
 
 
 const INITIAL_BATCH = 9;
@@ -130,8 +131,20 @@ function RubroCarousel({ byRubro, cargando, onSelect }) {
   );
 }
 
+// Greyed placeholder for a category that does not exist yet (see PERFUMERIA_PROXIMAMENTE). A div, not a button:
+// nothing to open, nothing to focus.
+function ProximamenteCard({ card }) {
+  return (
+    <div className="picks-proximamente" data-proximamente aria-disabled="true">
+      <span className="picks-proximamente-icon" aria-hidden="true">{card.icon}</span>
+      <span className="picks-proximamente-title">{card.label}</span>
+      <span className="picks-proximamente-badge">Próximamente</span>
+    </div>
+  );
+}
+
 // ─── Gallery: hero + grid + search, con reveal progresivo ────────────────────
-function PicksGallery({ cats, busq, onSelectCat, subtitulo = 'El mejor de cada categoría según precio/calidad' }) {
+function PicksGallery({ cats, busq, onSelectCat, proximamente = [], subtitulo = 'El mejor de cada categoría según precio/calidad' }) {
   const [visibleCount, setVisibleCount] = useState(INITIAL_BATCH);
   const sentinelRef = useRef(null);
 
@@ -148,6 +161,9 @@ function PicksGallery({ cats, busq, onSelectCat, subtitulo = 'El mejor de cada c
   }, [filtered]);
 
   const visible = filtered.slice(0, visibleCount);
+  const proximos = busq
+    ? proximamente.filter(c => c.label.toLowerCase().includes(busq.toLowerCase()))
+    : proximamente;
 
   // Sentinel observer — grows visibleCount, no-ops once everything is revealed
   useEffect(() => {
@@ -175,7 +191,7 @@ function PicksGallery({ cats, busq, onSelectCat, subtitulo = 'El mejor de cada c
       </div>
 
       <div className="picks-main">
-        {filtered.length === 0 ? (
+        {filtered.length === 0 && proximos.length === 0 ? (
           <div className="picks-empty">
             Sin resultados para "{busq}". Probá otra búsqueda.
           </div>
@@ -184,6 +200,9 @@ function PicksGallery({ cats, busq, onSelectCat, subtitulo = 'El mejor de cada c
             <div className="picks-grid">
               {visible.map(cat => (
                 <CategoryBanner key={cat.categoria} cat={cat} onClick={onSelectCat} />
+              ))}
+              {visibleCount >= filtered.length && proximos.map(c => (
+                <ProximamenteCard key={c.key} card={c} />
               ))}
             </div>
             {visibleCount < filtered.length && (
@@ -250,6 +269,7 @@ export default function PicksPanel({ onProductClick }) {
     <div className="picks-scroll">
       <CategoryPicksView cat={selCat} onBack={() => setSelCat(null)}
                           onProductClick={onProductClick}
+                          subChips={rubro === 'perfumeria' && selCat.categoria === 'Perfume' ? PERFUME_SUBCATEGORIAS : undefined}
                           pickFilters={rubro === GYMRAT
                             ? { rubro: '', gymrat: true, genero }
                             : { rubro: rubro || '', gymrat: false, genero: '' }}/>
@@ -306,6 +326,7 @@ export default function PicksPanel({ onProductClick }) {
         )}
         {!loading && cats.length > 0 && (
           <PicksGallery cats={cats} busq={busq} onSelectCat={setSelCat}
+            proximamente={rubro === 'perfumeria' ? PERFUMERIA_PROXIMAMENTE : []}
             subtitulo={rubro === GYMRAT ? 'Lo mejor de las marcas de gym' : undefined} />
         )}
       </div>

@@ -444,6 +444,7 @@ final class MarcasPicksView {
             n.setPctil(p.ml().pctilCategoria());
         }
         n.setPrecioOrig(p.precioOriginal());
+        n.setSubCategoria(StringUtils.trimToNull(p.subCategoria()));
         return n;
     }
 }

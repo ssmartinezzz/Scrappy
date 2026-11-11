@@ -716,6 +716,9 @@ afuera siempre. Ausente, no filtra por género. Con `gymrat=true` la sección ad
 Cada categoría trae los destacados curados y hasta **20** picks (`MAX_PICKS_POR_CATEGORIA`); no se descarta ninguna
 categoría. Para ver el resto, `GET /mejores/picks`.
 
+Cada pick trae `subCategoria` (`sub_categoria` del producto: `Eau de Parfum`, `compresión`...) y la omite cuando está vacía; `/picks`
+la usa para filtrar las fragancias por chip en `perfumeria`.
+
 ---
 
 ## GET /mejores/picks
