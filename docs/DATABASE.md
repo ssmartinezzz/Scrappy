@@ -171,6 +171,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V94` | Categorías `Vincha`, `Bandana` y `Traje Deportivo` (indumentaria); las `Gorra` con vincha/bandana, los `tracksuit`/`catsuit` guardados como `Traje`/`Conjunto`, todo Funko (a `Juguete`/`juguetes`, sin subcategoría de deporte) y las `Juguete` LEGO (`sub_categoria = 'lego'`) se realinean |
 | `V95` | Seed de Under Armour y Nike (VTEX), las dos `monomarca` con su fila en `marca`; Nike devuelve 403 a `page.request()` y `VtexPage` lee su API con `fetch` dentro de la página |
 | `V96` | Categorías `Camisaco` (indumentaria), `LEGO` y `TCG` (juguetes) y `Wall Panel` (construcción); los `blazer` que no lideran el nombre salen de `Saco`, los `Top` con palabra de limpieza/suplemento se corrigen, ninguna `Camisa`/`Chomba` es `gymrat`, y las `Juguete` LEGO, los juegos de cartas coleccionables y los wall panel pasan a su categoría |
+| `V97` | Las `Juguete` LEGO de Elmundodeljuguete (hoja `Lego` / `Sets de Ladrillos y Bloques` → `Juguete`, que ganaba al nombre) pasan a `LEGO`; los libros de LEGO siguen `Libro` |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -4991,5 +4992,26 @@ DELETE FROM categoria WHERE nombre IN ('Camisaco', 'LEGO', 'TCG', 'Wall Panel');
 
 **El orden es obligatorio** (FK de `productos`, `sitio_categoria` y `categoria_stats` hacia `categoria`). No se revierten los pasos de `blazer`, `Top` ni
 gymrat (no se guardó el estado anterior y el clasificador nuevo los volvería a mover); los `Wall Panel` vuelven a `Placa Decorativa` aunque algunos
-fueran `Vinilo Decorativo`, y los `Camisaco` a `Saco` aunque algunos fueran `Camisa`. Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO,
-antes que el de `V95`.
+fueran `Vinilo Decorativo`, y los `Camisaco` a `Saco` aunque algunos fueran `Camisa`. Ya no es el bloque más nuevo: en una cadena de rollbacks corre
+después del de `V97` y antes que el de `V95`.
+
+---
+
+## `V97` — LEGO de Elmundodeljuguete
+
+La hoja curada de Elmundodeljuguete (`V78`: `Lego` y `Sets de Ladrillos y Bloques` → `Juguete`) le gana al clasificador por nombre
+(`NormalizerService.hojaJugueteGana`) y se saltaba el corte `LEGO` que `V96` aplicó una vez y `CategoryClassifier.normalizarCategoria`
+aplica al resto. El código ahora pasa también esa hoja por `CategoryClassifier.separarLego`; la migración reaplica la regla del paso 6 de `V96`
+sobre las filas ya scrapeadas: `Juguete` con ` lego ` / ` lego:` (palabra entera, sin Funko, sin filas bloqueadas) pasa a `LEGO`/`juguetes` sin
+subcategoría (también las que traían `fútbol`). Los libros (`Libro Lego …`, hoja `Libros`) no se tocan. Idempotente. No agrega categorías.
+
+### Rollback
+
+```sql
+-- >>> rollback:V97
+UPDATE productos SET categoria = 'Juguete' WHERE categoria = 'LEGO' AND sitio = 'Elmundodeljuguete';
+-- <<< rollback:V97
+```
+
+Sólo devuelve las de Elmundodeljuguete (no se guardó qué filas movió la migración); pierden el `fútbol` que algunas traían, que el clasificador
+no vuelve a poner. Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V96`.

@@ -121,7 +121,7 @@ public class NormalizerService {
         String sitioKey       = sitioKey(p.sitio());
         String delArbol       = categoriaDelArbol(p, categoriasDelArbol);
         String cat            = hojaJugueteGana(sitioKey, delArbol)
-                ? delArbol
+                ? CategoryClassifier.separarLego(delArbol, nombre)
                 : esOtrosEnSuSitio(sitioKey, nombre)
                         ? "Otros"
                         : categoryClassifier.normalizarCategoria(p.categoria(), nombre, delArbol);
