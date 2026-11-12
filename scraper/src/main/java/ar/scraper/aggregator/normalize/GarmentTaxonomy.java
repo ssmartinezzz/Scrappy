@@ -167,7 +167,9 @@ public final class GarmentTaxonomy {
         // "set "/"kit "/"pack " sin espacio adelante se comían "Sun(set)", "Mind(set)",
         // "Wind(kit)", "Triple(kit)" y "Doy(pack)" — un doypack de creatina y una campera
         // rompeviento entraban como Conjunto.
-        "conjunto","combo"," set ","set de"," kit "," pack ","dos piezas","2 piezas"
+        "conjunto","combo"," set ","set de"," kit "," pack ","dos piezas","2 piezas",
+        // Ayrun sells its outfits as "Total look <color>", with no garment noun.
+        "total look"
     };
 
     public static final String[] KW_PUFFER = {
@@ -347,6 +349,11 @@ public final class GarmentTaxonomy {
         "calza","legging","leggin","tight","malla deportiva",
         "capri","culote"
     };
+
+    // A bare "biker" is a biker short (17 of 20 active rows were already Calza). Kept out of
+    // KW_CALZA on purpose: ConjuntoClassifier reads KW_CALZA as a bottom, and "Campera Biker"
+    // would become torso + bottom = Conjunto.
+    public static final String[] KW_CALZA_BIKER = { " biker " };
 
     public static final String[] KW_BERMUDA = {
         "bermuda","bermudas","short largo","short 3/4","walk short"

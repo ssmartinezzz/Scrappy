@@ -465,4 +465,26 @@ class CategoryClassifierTest {
         Allure.parameter("nombre", "GRANGER Omelette Natural");
         assertThat(classifier.normalizarCategoria(null, "GRANGER Omelette Natural")).isNotEqualTo("Indumentaria");
     }
+
+    // Ayrun names its biker shorts and its outfits without a garment noun.
+    @Test
+    void bikerSeamlessEsCalza() {
+        assertThat(classifier.normalizarCategoria(null, "Biker seamless Fusion (Gris cemento)")).isEqualTo("Calza");
+        assertThat(classifier.normalizarCategoria(null, "CROSS TRAIL BIKER")).isEqualTo("Calza");
+    }
+
+    @Test
+    void bikerConSustantivoDePrendaNoEsCalza() {
+        // negative: "biker" is a style word there, the garment noun wins
+        assertThat(classifier.normalizarCategoria(null, "Campera Biker Cuero Negra")).isEqualTo("Campera");
+        assertThat(classifier.normalizarCategoria(null, "Bikers Remera Oversize")).isEqualTo("Remera");
+        assertThat(classifier.normalizarCategoria(null, "Crash Bandicoot Action Figures Biker Crash With Mask"))
+                .isEqualTo("Figura Coleccionable");
+    }
+
+    @Test
+    void totalLookEsConjunto() {
+        assertThat(classifier.normalizarCategoria(null, "Total look yellow")).isEqualTo("Conjunto");
+        assertThat(classifier.normalizarCategoria(null, "TOTAL LOOK FOCUS GRIS")).isEqualTo("Conjunto");
+    }
 }
