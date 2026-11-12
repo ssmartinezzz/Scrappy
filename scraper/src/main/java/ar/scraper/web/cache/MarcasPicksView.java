@@ -1,5 +1,6 @@
 package ar.scraper.web.cache;
 
+import ar.scraper.catalog.ProductKey;
 import ar.scraper.classification.SiteClassification;
 import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
 import ar.scraper.json.ProductJson;
@@ -434,6 +435,7 @@ final class MarcasPicksView {
         n.setEsPack(p.esPack());
         n.setPrecioUnitario(ProductJson.precioUnitario(p));
         n.setUrl(safe(p.url()));
+        n.setKey(StringUtils.trimToNull(ProductKey.of(p.url())));
         n.setImg(img);
         n.setSitio(safe(p.sitio()));
         n.setMarca(safe(p.marca()));
