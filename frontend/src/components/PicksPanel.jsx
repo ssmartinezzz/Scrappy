@@ -6,8 +6,9 @@ import { CategoryCard } from './ui/category-card';
 import { RubroCard } from './ui/rubro-card';
 import CategoryPicksView, { tagline } from './CategoryPicksView';
 import CategoryPicksCarousel from './CategoryPicksCarousel';
-import { RUBROS } from '../lib/rubros';
-import { PERFUMERIA_PROXIMAMENTE, PERFUME_SUBCATEGORIAS } from '../lib/perfumeria';
+import { RUBROS, rubroLabel } from '../lib/rubros';
+import { PERFUMERIA_PROXIMAMENTE } from '../lib/perfumeria';
+import { subChipsDe } from '../lib/subcategorias';
 import { canonicalFromSlug, slugify } from '../lib/cat';
 
 
@@ -289,17 +290,32 @@ function useRedireccionLegado(legado, resumenListo, byRubro) {
   return destino;
 }
 
+// Picks › Rubro (› genero for gymrat): each segment is the route the user would walk back to.
+function migasDe(rubro, generoRuta, navigate) {
+  const migas = [{ label: 'Picks', onClick: () => navigate('/picks') }];
+  if (rubro === GYMRAT) {
+    migas.push({ label: GYMRAT_ENTRADA.label, onClick: () => navigate(rutaDe(GYMRAT)) });
+    if (generoRuta) migas.push({
+      label: GENEROS.find(g => g.key === generoRuta)?.label ?? generoRuta,
+      onClick: () => navigate(rutaDe(GYMRAT, generoRuta)),
+    });
+  } else {
+    migas.push({ label: rubro === '' ? 'Todos' : rubroLabel(rubro), onClick: () => navigate(rutaDe(rubro)) });
+  }
+  return migas;
+}
+
 const pickFiltersDe = (rubro, genero) => (rubro === GYMRAT
   ? { rubro: '', gymrat: true, genero }
   : { rubro: rubro || '', gymrat: false, genero: '' });
 
 // /picks/<rubro>/<categoria>: the detail, or a loading / not-found message while the slug cannot be resolved.
-function DetalleCategoria({ cat, buscando, rubro, genero, onBack, onProductClick }) {
+function DetalleCategoria({ cat, buscando, rubro, genero, migas, onBack, onProductClick }) {
   if (cat) return (
-    <div className="picks-scroll">
-      <CategoryPicksView cat={cat} onBack={onBack}
+    <div className="picks-scroll picks-scroll--detalle">
+      <CategoryPicksView cat={cat} onBack={onBack} migas={migas}
                           onProductClick={onProductClick}
-                          subChips={rubro === 'perfumeria' && cat.categoria === 'Perfume' ? PERFUME_SUBCATEGORIAS : undefined}
+                          subChips={subChipsDe(rubro, cat.categoria)}
                           pickFilters={pickFiltersDe(rubro, genero)}/>
     </div>
   );
@@ -350,6 +366,7 @@ export default function PicksPanel({ onProductClick }) {
 
   if (catSlug) return (
     <DetalleCategoria cat={canonicalFromSlug(catSlug, cats)} buscando={loading} rubro={rubro} genero={genero}
+                      migas={migasDe(rubro, generoRuta, navigate)}
                       onBack={() => navigate(rutaDe(rubro, generoRuta))} onProductClick={onProductClick}/>
   );
 
