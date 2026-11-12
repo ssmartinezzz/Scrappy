@@ -68,4 +68,12 @@ class ScraperConfigFlareSolverrTest {
         assertThat(config.requiereBypassCloudflare("fullh4rd")).isFalse();
         assertThat(config.requiereBypassCloudflare("compragamer")).isFalse();
     }
+
+    @Test
+    @DisplayName("un nombre visible con espacio lee el flag de su sitio_key")
+    void displayNameWithSpaceReadsItsSiteKey() {
+        Properties p = new Properties();
+        p.setProperty("sitio.underarmour.cloudflare", "true");
+        assertThat(configWith(p).requiereBypassCloudflare("Under Armour")).isTrue();
+    }
 }

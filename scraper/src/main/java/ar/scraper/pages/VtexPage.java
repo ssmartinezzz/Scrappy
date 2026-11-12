@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.microsoft.playwright.APIResponse;
 import com.microsoft.playwright.Page;
 
+import java.net.URI;
 import java.util.function.ToIntFunction;
 import java.util.*;
 import org.apache.commons.lang3.StringUtils;
@@ -136,7 +137,15 @@ public class VtexPage extends StorePage implements CatalogPage, ArbolDeCategoria
         Set<String> vistas = new HashSet<>();
         List<Product> result = new ArrayList<>();
         for (String fq : partes) {
-            for (Product p : crawlLegacy(dom, fq)) {
+            List<Product> parte;
+            try {
+                parte = crawlLegacy(dom, fq);
+            } catch (BloqueoDeApi e) {
+                if (result.isEmpty()) throw e;
+                registrarTruncamiento(vistas.size() / PAGE_SIZE + 1, e);
+                break;
+            }
+            for (Product p : parte) {
                 if (vistas.add(p.url())) result.add(p);
             }
         }
@@ -155,19 +164,11 @@ public class VtexPage extends StorePage implements CatalogPage, ArbolDeCategoria
                     + "?_from=" + from + "&_to=" + to + fq + "&O=OrderByReleaseDateDESC";
             log.debug("[{}] Legacy API from={}", sitio, from);
             try {
-                APIResponse resp = page.request().get(apiUrl);
-                boolean ok;
-                int status;
-                OptionalInt totalDeEstaPagina;
-                String body;
-                try {
-                    ok = resp.ok();
-                    status = resp.status();
-                    totalDeEstaPagina = parseResourcesTotal(resp.headers());
-                    body = ok ? resp.text() : null;
-                } finally {
-                    resp.dispose();
-                }
+                RespuestaApi resp = get(apiUrl);
+                boolean ok = resp.ok();
+                int status = resp.status();
+                OptionalInt totalDeEstaPagina = resp.total();
+                String body = ok ? resp.body() : null;
                 if (!ok) {
                     if (reintentos < REINTENTOS) {
                         reintentos++;
@@ -203,6 +204,10 @@ public class VtexPage extends StorePage implements CatalogPage, ArbolDeCategoria
                     break;
                 }
                 from += PAGE_SIZE;
+            } catch (BloqueoDeApi e) {
+                if (result.isEmpty()) throw e;
+                registrarTruncamiento(from / PAGE_SIZE + 1, e);
+                break;
             } catch (Exception e) {
                 if (reintentos < REINTENTOS) {
                     reintentos++;
@@ -274,22 +279,84 @@ public class VtexPage extends StorePage implements CatalogPage, ArbolDeCategoria
     }
 
     private OptionalInt totalLegacy(String dom, String path) {
-        APIResponse resp = page.request().get(dom + "/api/catalog_system/pub/products/search?_from=0&_to=0&fq=C:" + path);
+        RespuestaApi resp = getConReintentoPorLimite(dom + "/api/catalog_system/pub/products/search?_from=0&_to=0&fq=C:" + path);
+        return resp.ok() ? resp.total() : OptionalInt.empty();
+    }
+
+    private String getText(String url) {
+        RespuestaApi resp = getConReintentoPorLimite(url);
+        if (!resp.ok()) throw new IllegalStateException("HTTP " + resp.status() + " en " + url);
+        return resp.body();
+    }
+
+    /** The site 429s back-to-back calls; the tree and the per-category counts must wait it out, not read it as empty. */
+    private RespuestaApi getConReintentoPorLimite(String url) {
+        RespuestaApi resp = get(url);
+        for (int i = 1; i <= REINTENTOS && resp.status() == 429; i++) {
+            page.waitForTimeout(ESPERA_REINTENTO_MS * i);
+            log.debug("[{}] HTTP 429 en {}, reintento {}", sitio, url, i);
+            resp = get(url);
+        }
+        return resp;
+    }
+
+    private record RespuestaApi(int status, String body, OptionalInt total) {
+        boolean ok() { return status >= 200 && status < 300; }
+    }
+
+    /** The WAF blocks the API through the page too: there is no way left to read this catalog. */
+    static final class BloqueoDeApi extends IllegalStateException {
+        BloqueoDeApi(String message) { super(message); }
+    }
+
+    /** Set on the first 403 from {@code page.request()}; from then on every call goes through the page. */
+    private boolean modoFetch;
+
+    /**
+     * Single seam for the VTEX API. {@code page.request()} first; a 403 there means a WAF that blocks
+     * Playwright's HTTP fingerprint but not the browser, so the rest of the run goes through
+     * {@code fetch} inside the page (already on the site's origin after {@link #prepararSesion}).
+     */
+    private RespuestaApi get(String url) {
+        if (!modoFetch) {
+            RespuestaApi resp = viaRequest(url);
+            if (resp.status() != 403) return resp;
+            modoFetch = true;
+            log.warn("[{}] HTTP 403 en page.request(): el resto de la corrida lee la API con fetch dentro de la página", sitio);
+        }
+        RespuestaApi resp = viaFetch(url);
+        if (resp.status() == 403) {
+            throw new BloqueoDeApi("HTTP 403 en " + url + " también con fetch dentro de la página");
+        }
+        return resp;
+    }
+
+    private RespuestaApi viaRequest(String url) {
+        APIResponse resp = page.request().get(url);
         try {
-            return resp.ok() ? parseResourcesTotal(resp.headers()) : OptionalInt.empty();
+            boolean ok = resp.ok();
+            return new RespuestaApi(resp.status(), ok ? resp.text() : null, parseResourcesTotal(resp.headers()));
         } finally {
             resp.dispose();
         }
     }
 
-    private String getText(String url) {
-        APIResponse resp = page.request().get(url);
-        try {
-            if (!resp.ok()) throw new IllegalStateException("HTTP " + resp.status() + " en " + url);
-            return resp.text();
-        } finally {
-            resp.dispose();
-        }
+    private static final String FETCH_JS = """
+            async path => {
+              const r = await fetch(path, {credentials: 'same-origin'});
+              return {status: r.status, body: r.ok ? await r.text() : '', resources: r.headers.get('resources')};
+            }""";
+
+    @SuppressWarnings("unchecked")
+    private RespuestaApi viaFetch(String url) {
+        URI uri = URI.create(url);
+        String relativa = uri.getRawPath() + (uri.getRawQuery() == null ? "" : "?" + uri.getRawQuery());
+        Map<String, Object> r = (Map<String, Object>) page.evaluate(FETCH_JS, relativa);
+        int status = ((Number) r.get("status")).intValue();
+        Object body = r.get("body");
+        Object resources = r.get("resources");
+        Map<String, String> headers = resources == null ? Map.of() : Map.of("resources", resources.toString());
+        return new RespuestaApi(status, body == null ? null : body.toString(), parseResourcesTotal(headers));
     }
 
     static OptionalInt parseResourcesTotal(Map<String, String> headers) {

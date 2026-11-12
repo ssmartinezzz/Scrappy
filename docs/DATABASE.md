@@ -169,6 +169,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V92` | Categoría `Bijouterie` (aros, collar, choker, anillo, broche...) y los "Perfume para Auto" pasan de `Perfume`/`perfumeria` a `Limpieza de Auto`/`hogar` |
 | `V93` | Categorías `Desodorante` (rubro `perfumeria`) y `Llavero` (en ningún grupo de rubro); los desodorantes guardados como `Perfume` se mueven y las `Perfume` sin palabra de fragancia (juguetes `Splash`, `Teja Colonial`) se realinean |
 | `V94` | Categorías `Vincha`, `Bandana` y `Traje Deportivo` (indumentaria); las `Gorra` con vincha/bandana, los `tracksuit`/`catsuit` guardados como `Traje`/`Conjunto`, todo Funko (a `Juguete`/`juguetes`, sin subcategoría de deporte) y las `Juguete` LEGO (`sub_categoria = 'lego'`) se realinean |
+| `V95` | Seed de Under Armour y Nike (VTEX), las dos `monomarca` con su fila en `marca`; Nike devuelve 403 a `page.request()` y `VtexPage` lee su API con `fetch` dentro de la página |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -4929,4 +4930,28 @@ DELETE FROM categoria WHERE nombre IN ('Vincha', 'Bandana', 'Traje Deportivo');
 
 **El orden es obligatorio** (FK de `productos`, `sitio_categoria` y `categoria_stats` hacia `categoria`). No se revierten los pasos de Funko ni de
 LEGO (no se guardó el estado anterior y el clasificador nuevo los volvería a mover); los `Traje Deportivo` vuelven a `Traje` aunque algunos
-fueran `Conjunto`. Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V93`.
+fueran `Conjunto`. Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V95` y antes que el de `V93`.
+
+---
+
+## `V95` — seed de Under Armour y Nike
+
+Las tiendas oficiales de Under Armour (394 productos) y Nike (2804), ambas VTEX, medidas el 2026-11-12 con el header `resources`.
+Sólo seed: la plataforma ya existe. `rubro_forzado` queda `NULL` (decide `RubroResolver` por categoría) y `monomarca = true`:
+`NormalizerService` asigna `marca = sitio.nombre` (`V52`), por eso el `nombre` es `'Under Armour'` / `'Nike'` (la grafía de
+`BrandExtractor.MARCAS` y `SiteClassification`) y el `sitio_key` es el nombre normalizado (`underarmour`, `nike`). Las dos filas de
+`marca` ya las sembró `V21`; el `INSERT` de la migración es una guarda. Nike está detrás de un WAF de Cloudflare que devuelve 403
+a `page.request()` pero no al `fetch` de la página ya cargada; `VtexPage` cae a ese `fetch` sin flag por sitio (ver
+[`ADD_SCRAPER.md`](./ADD_SCRAPER.md) Caso 3).
+
+### Rollback
+
+```sql
+-- >>> rollback:V95
+DELETE FROM sitio WHERE sitio_key IN ('underarmour', 'nike');
+-- <<< rollback:V95
+```
+
+No se borra de `marca`: `V21` ya traía `'Under Armour'` y `'Nike'` y otras filas las usan. Si ya hay productos de esos sitios,
+`fk_productos_sitio` frena el `DELETE`: borrá antes sus filas de `productos`. Es el bloque más nuevo: en una cadena de rollbacks
+corre PRIMERO, antes que el de `V94`.

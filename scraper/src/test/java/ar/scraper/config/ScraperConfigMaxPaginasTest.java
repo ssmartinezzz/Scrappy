@@ -98,4 +98,11 @@ class ScraperConfigMaxPaginasTest {
         ScraperConfig config = configWith(siteProps("entreno", "120"));
         assertThat(config.getMaxPaginas("harvey", FALLBACK)).isEqualTo(FALLBACK);
     }
+
+    @Test
+    @DisplayName("un nombre visible con espacio lee la propiedad de su sitio_key")
+    void displayNameWithSpaceReadsItsSiteKey() {
+        ScraperConfig config = configWith(siteProps("underarmour", "7"));
+        assertThat(config.getMaxPaginas("Under Armour", FALLBACK)).isEqualTo(7);
+    }
 }

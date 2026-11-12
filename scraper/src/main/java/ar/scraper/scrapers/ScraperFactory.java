@@ -87,8 +87,9 @@ public class ScraperFactory {
     public static BaseScraper crear(ScraperConfig config, SiteConfig site, SiteRegistry siteRegistry,
                                     CloudflareListener cloudflare) {
         String n       = site.nombre().toLowerCase();
-        String display = Character.toUpperCase(n.charAt(0)) + n.substring(1);
-        String plataforma = StringUtils.defaultString(siteRegistry.plataforma(SiteClassification.sitioKey(n)));
+        String key     = SiteClassification.sitioKey(n);
+        String display = siteRegistry.nombreVisible(key, Character.toUpperCase(n.charAt(0)) + n.substring(1));
+        String plataforma = StringUtils.defaultString(siteRegistry.plataforma(key));
         return new BaseScraper(config, display, site.url(), site.extraUrls(), elegir(plataforma, site.url()),
                 cloudflare);
     }
