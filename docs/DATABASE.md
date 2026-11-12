@@ -350,6 +350,18 @@ la excepción sale en vez del centinela.
 persistir aunque el job falle), los seeders de arranque y `PasswordResetService.despachar`
 (token + mail).
 
+**El upsert del catálogo va en lotes, no en un solo JSON.** `ProductRepository.upsertEnLotes`
+serializa con un `JsonGenerator` en streaming (sin árbol Jackson ni `String` del catálogo
+entero) y llama a `sp_upsert_run` y `sp_vincular_sitio_categoria` cada
+`FILAS_POR_LOTE` (2000) filas, todo dentro de la misma transacción. Las dos funciones
+son fila por fila, así que partir no cambia el resultado: `nuevos`/`actualizados`/
+`sinCambios` se suman, una URL repetida entre lotes se resuelve en el mismo orden que
+dentro de un lote, y el soft-delete, `purgarHistorialViejo` y el rollback-only no se
+tocaron. Medido con 80.000 filas (estado estable, todo `sinCambios`): 518 MB asignados
+antes, 156 MB después; tiempo ~56,0 s antes y ~54,1 s después (medianas de 7 rondas
+intercaladas; lo domina la base, no la serialización). Un constructor nuevo de
+`ProductRepository` con dos constructores necesita `@Autowired` en el de Spring.
+
 **Acceso: `JdbcTemplate`, nunca `dataSource.getConnection()` a mano.** Cada adaptador de
 `db/` arma su `new JdbcTemplate(dataSource)` en el constructor, sobre el mismo proxy, así
 que entra en la transacción del llamador. `Sql.traducir` convierte tanto `SQLException`
