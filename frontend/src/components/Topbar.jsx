@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils';
 import { RUBROS } from '../lib/rubros';
 import { IpcBadge } from './ui/ipc-badge';
 import UserMenu from './UserMenu';
+import { BrandLockup } from './brand/Brand';
 
 
 function mlBannerText(mlBanner) {
@@ -66,8 +67,7 @@ export default function Topbar({
           a flex child shrink below its content); the brand and the right-hand
           cluster stay pinned and visible. */}
       <div className="flex items-center gap-1 px-2 py-[.45rem]">
-        <span className="text-base mr-[4px] shrink-0">🛒</span>
-        <strong className="hidden text-[.85rem] text-primary2 mr-[12px] shrink-0 sm:inline">Scraper AR</strong>
+        <BrandLockup className="mr-2 shrink-0" />
 
         {/* Rubro tabs */}
         <div className="flex min-w-0 flex-1 gap-[3px] overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">

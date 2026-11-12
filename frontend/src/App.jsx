@@ -1,3 +1,4 @@
+import { BrandMark } from './components/brand/Brand';
 import { useEffect, useState, lazy, Suspense } from 'react';
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import SplashPanel from './components/SplashPanel';
@@ -95,7 +96,7 @@ export function SplashRoute() {
   if (!isAdmin) {
     return (
       <div className="fixed inset-0 flex flex-col items-center justify-center gap-3 bg-bg p-6 text-center">
-        <div className="text-[2.8rem] leading-none">🛍</div>
+        <BrandMark size={56} className="rounded-[14px]" />
         <h1 className="text-xl font-semibold text-t1">Sin datos todavía</h1>
         <p className="max-w-sm text-sm text-t3">
           Todavía no hay datos — pedile a un administrador que corra un scraping.

@@ -1,3 +1,4 @@
+import { BrandMark } from './brand/Brand';
 import { useState, useEffect } from 'react';
 import { fetchSitios, startScrape, limpiarCatalogo, limpiarMl } from '../api';
 import { cn } from '../lib/utils';
@@ -164,11 +165,11 @@ export default function SplashPanel({
       <div className="my-auto flex w-full flex-col items-center gap-5">
       {/* ── Header ─────────────────────────────────────────────── */}
       <div className="text-center">
-        <div className="text-[2.8rem] leading-none drop-shadow-[0_0_24px_color-mix(in_srgb,var(--p)_60%,transparent)]">🛍</div>
+        <BrandMark size={64} className="mx-auto rounded-[16px] shadow-[0_12px_32px_color-mix(in_srgb,var(--p)_35%,transparent)]" />
         <h1
-          className="my-1 bg-gradient-to-br from-primary2 to-primary bg-clip-text font-display text-display-1 tracking-tight text-transparent"
+          className="mt-3 mb-1 bg-gradient-to-br from-primary2 to-primary bg-clip-text font-display text-display-1 tracking-[-.04em] text-transparent"
         >
-          Scraper Ropa AR
+          Scrappy
         </h1>
         <div className="text-eyebrow text-t4">
           Inteligencia de precios · Argentina
