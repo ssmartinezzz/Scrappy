@@ -82,5 +82,7 @@ public final class MarcasPicksDtos {
         private Integer pctil;
         private Double precioOrig;
         private String subCategoria;
+        /** The product's short handle ({@code ProductKey.of(url)}): the detail panel hydrates and links /historial by it. */
+        private String key;
     }
 }

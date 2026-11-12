@@ -717,7 +717,8 @@ Cada categoría trae los destacados curados y hasta **20** picks (`MAX_PICKS_POR
 categoría. Para ver el resto, `GET /mejores/picks`.
 
 Cada pick trae `subCategoria` (`sub_categoria` del producto: `Eau de Parfum`, `compresión`...) y la omite cuando está vacía; `/picks`
-la usa para filtrar las fragancias por chip en `perfumeria`.
+la usa para filtrar las fragancias por chip en `perfumeria`. También trae `key` (`ProductKey.of(url)`): el panel de
+detalle hidrata el pick por `/api/producto/{key}` y enlaza `/historial/{key}`.
 
 ---
 

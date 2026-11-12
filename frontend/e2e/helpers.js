@@ -32,7 +32,7 @@ export function marcadorApp(page) {
   // database has products and SplashRoute then picks by role:
   //
   //   productos  → /catalogo             → "Catálogo"
-  //   vacía, ADMIN  → /splash panel      → "Scraper Ropa AR"
+  //   vacía, ADMIN  → /splash panel      → "Scrappy"
   //   vacía, VIEWER → /splash empty state → "Sin datos todavía"
   //
   // This used to be `Catálogo` alone, which quietly required a SEEDED database.
@@ -46,7 +46,7 @@ export function marcadorApp(page) {
   // catching up with the contract the helper above it already declared.
   return page
     .getByText('Catálogo')
-    .or(page.getByRole('heading', { name: 'Scraper Ropa AR' }))
+    .or(page.getByRole('heading', { name: 'Scrappy' }))
     .or(page.getByText('Sin datos todavía'))
     .first();
 }

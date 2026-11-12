@@ -129,6 +129,7 @@ class MarcasPicksMejoresSinglePassTest {
         n.setEsPack(p.esPack());
         n.setPrecioUnitario(ProductJson.precioUnitario(p));
         n.setUrl(ProductJson.safe(p.url()));
+        n.setKey(StringUtils.trimToNull(ar.scraper.catalog.ProductKey.of(p.url())));
         n.setImg(img);
         n.setSitio(ProductJson.safe(p.sitio()));
         n.setMarca(ProductJson.safe(p.marca()));

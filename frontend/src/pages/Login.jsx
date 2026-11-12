@@ -9,6 +9,7 @@
 //     anywhere in ar.scraper.security, and rendering it disabled would still
 //     imply a flow that will never exist (spec: no functional OAuth
 //     affordance).
+import { BrandMark } from '../components/brand/Brand';
 import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
@@ -54,6 +55,8 @@ export default function Login() {
       <div className="flex h-full items-center justify-center">
         <div className="border-border bg-s2 flex w-full max-w-sm flex-col items-center gap-y-8 rounded-card border px-6 py-12 shadow-md">
           <div className="flex flex-col items-center gap-y-2">
+            <BrandMark size={56} className="rounded-[14px]" />
+            <span className="font-display text-xl font-extrabold tracking-[-.03em] text-primary2">Scrappy</span>
             <h1 className="text-3xl font-semibold text-t1">Iniciar sesión</h1>
           </div>
 

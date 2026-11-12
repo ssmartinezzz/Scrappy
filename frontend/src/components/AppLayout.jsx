@@ -523,6 +523,7 @@ export default function AppLayout() {
   const location = useLocation();
   const topbarRef = useRef(null);
   const tabbarRef  = useRef(null);
+  const headerRef  = useRef(null);
 
   // GPU fine-tuning blocking overlay state — separate useState (not the main
   // reducer) so it stays isolated from the catalog/filter state machine above.
@@ -614,15 +615,16 @@ export default function AppLayout() {
   useLayoutEffect(() => {
     const topbarNode = topbarRef.current;
     const tabbarNode = tabbarRef.current;
-    if (!topbarNode || !tabbarNode) return;
+    const headerNode = headerRef.current;
+    if (!topbarNode || !tabbarNode || !headerNode) return;
     const update = () => {
-      const th = topbarNode.offsetHeight;
-      const tb = tabbarNode.offsetHeight;
-      document.documentElement.style.setProperty('--topbar-h', th + 'px');
-      document.documentElement.style.setProperty('--tabbar-h', tb + 'px');
-      document.documentElement.style.setProperty('--sticky-offset', (th + tb) + 'px');
+      document.documentElement.style.setProperty('--topbar-h', topbarNode.offsetHeight + 'px');
+      document.documentElement.style.setProperty('--tabbar-h', tabbarNode.offsetHeight + 'px');
+      // The header, not topbar + tabbar: it also carries the iPhone safe-area inset.
+      document.documentElement.style.setProperty('--sticky-offset', headerNode.offsetHeight + 'px');
     };
     const ro = new ResizeObserver(update);
+    ro.observe(headerNode);
     ro.observe(topbarNode);
     ro.observe(tabbarNode);
     update(); // initial measurement before first resize event
@@ -789,20 +791,27 @@ export default function AppLayout() {
 
   return (
     <div className="app-shell">
-      <div ref={topbarRef}>
-      <Topbar
-        meta={S.meta}
-        facets={S.facets}
-        rubroFiltro={S.rubroFiltro}
-        onRubroChange={v => setFilter({ rubroFiltro:v, sitioFiltro:'' })}
-        onReScrape={onReScrape}
-        canScrape={isAdmin}
-        mlBanner={mlBanner}
-      />
-      </div>{/* topbarRef wrapper */}
+      {/* One fixed header for every view. Sticky could not do it: half the
+          views scroll an inner container (the catalogue grid), the other half
+          scroll the window (a picks category), and inside a 100dvh shell a
+          sticky header scrolled away with the window. Fixed + the shell's
+          padding-top (--sticky-offset) holds in both. */}
+      <header className="app-header" ref={headerRef}>
+        <div ref={topbarRef}>
+        <Topbar
+          meta={S.meta}
+          facets={S.facets}
+          rubroFiltro={S.rubroFiltro}
+          onRubroChange={v => setFilter({ rubroFiltro:v, sitioFiltro:'' })}
+          onReScrape={onReScrape}
+          canScrape={isAdmin}
+          mlBanner={mlBanner}
+        />
+        </div>{/* topbarRef wrapper */}
+        <PrimaryNav ref={tabbarRef} />
+      </header>
       <div className="layout">
         <div className="content">
-          <PrimaryNav ref={tabbarRef} />
 
           {/* An offer, never a hijack: the route under it is untouched and
               nothing redirects (spec, "ADMIN progress routing without a hard

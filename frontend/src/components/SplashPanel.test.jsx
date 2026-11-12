@@ -134,3 +134,11 @@ describe('SplashPanel — la barra refleja sitios terminados, no el reloj', () =
     expect(screen.getByText('1/4 sitios')).toBeInTheDocument();
   });
 });
+
+describe('SplashPanel — brand', () => {
+  it('is titled Scrappy and shows the favicon mark', () => {
+    const { container } = renderSplash({ scrapeStatus: 'IDLE' });
+    expect(screen.getByRole('heading', { level: 1, name: 'Scrappy' })).toBeInTheDocument();
+    expect(container.querySelector('img[src$="favicon.svg"]')).not.toBeNull();
+  });
+});

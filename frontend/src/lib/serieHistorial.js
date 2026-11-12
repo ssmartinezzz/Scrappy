@@ -16,9 +16,9 @@ export const RANGOS = [
   { id: 'Todo' },
 ];
 
-// "Todo" never shows less than a year: a product first seen last week would
-// otherwise stretch one week across the whole chart.
-const MESES_MINIMOS_TODO = 12;
+// "Todo" opens a little before the first record, so the curve fills the chart
+// instead of hugging the right edge after an empty stretch with no data.
+const MARGEN_TODO = 0.1;
 
 function aInstante(iso) {
   const [y, m, d] = String(iso).split('-').map(Number);
@@ -41,7 +41,8 @@ function restarMeses(t, n) {
 function inicioDeRango(rango, hasta, primero) {
   if (rango?.dias) return hasta - rango.dias * DIA;
   if (rango?.meses) return restarMeses(hasta, rango.meses);
-  return Math.min(primero, restarMeses(hasta, MESES_MINIMOS_TODO));
+  const margen = Math.max(1, Math.round(((hasta - primero) / DIA) * MARGEN_TODO));
+  return primero - margen * DIA;
 }
 
 // A price that held for six months must outweigh one that held for two days.

@@ -128,3 +128,11 @@ describe('Topbar — no per-site chip row', () => {
     expect(screen.queryByRole('button', { name: /Gym/ })).not.toBeInTheDocument();
   });
 });
+
+describe('Topbar — brand', () => {
+  it('shows the Scrappy mark and name', () => {
+    const { container } = render(<Topbar {...baseProps()} />);
+    expect(screen.getByText('Scrappy')).toBeInTheDocument();
+    expect(container.querySelector('img[src$="favicon.svg"]')).not.toBeNull();
+  });
+});
