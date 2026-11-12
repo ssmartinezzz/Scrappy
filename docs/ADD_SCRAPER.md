@@ -17,6 +17,9 @@ Antes de codear, determinar la plataforma del sitio:
   vacío y sin plataforma?
 ¿Devuelve 403 con `cf-mitigated`  → Challenge de Cloudflare: ver Caso 9  {fullh4rd}
   o `<title>Just a moment...`?
+¿403 "Attention Required" sólo   → WAF por huella HTTP: VtexPage cae solo a fetch en la
+  en page.request(), sin           página, ver Caso 3  {nike}
+  `cf-mitigated`, y el navegador carga?
 ¿Otro?                          → Necesita Page custom
 ```
 
@@ -74,6 +77,8 @@ ON CONFLICT (nombre) DO NOTHING;
 ```
 
 `origen` tiene que ser **`'config'`**: es lo que el test de abajo busca.
+
+`nombre` es el nombre con el que corre el sitio (`ScraperFactory` lo lee de esta fila; sin fila, usa la clave con mayúscula inicial). Puede diferir de la clave (`'Under Armour'` / `underarmour`, `V95`) siempre que `SiteClassification.sitioKey(nombre)` dé la clave: `sp_upsert_sitio_categoria` une por `nombre` y la marca de un sitio monomarca **es** ese `nombre`.
 `rubro_forzado` va con el mismo valor que `sitio.NOMBRE.rubro` en
 `config.properties`, o `NULL` si no lo declarás.
 
@@ -192,6 +197,8 @@ Las tres piezas de arriba con `plataforma = 'vtex'`.
 La API Legacy responde HTTP 400 pasado `_from` ≈ 2550, así que `VtexPage` parte el catálogo por el árbol de `/api/catalog_system/pub/category/tree/3` (`fq=C:/106/108/`) hasta que cada parte entra en `VENTANA_LEGACY`, usando el total del header `resources`. Una hoja más grande que la ventana se crawlea hasta donde llega, con un WARN.
 
 La API lista `categories` **de la hoja hacia la raíz**, y el resto del sitio depende de leerla bien: `raw` sale del camino más profundo. Los fixtures escritos a mano suelen traer el orden inverso; copiá una respuesta real.
+
+**WAF que bloquea `page.request()` (nike).** `page.request()` usa el stack HTTP de Node, no el del navegador, y un WAF de Cloudflare puede darle `403` con un HTML "Attention Required" mientras `page.goto(home)` responde 200 y un `fetch` dentro de esa página devuelve la API (206 con el header `resources`). No es el [Caso 9](#caso-9-sitio-detrás-de-un-challenge-de-cloudflare): ahí el 403 trae `cf-mitigated: challenge` y `Just a moment...`, y el navegador tampoco pasa. `VtexPage` lo resuelve sola, sin flag por sitio: la primera API que da 403 por `page.request()` (WARN en el log) pasa el resto de la corrida a `fetch` dentro de la página, que `prepararSesion` ya dejó en el origen del sitio, y reintenta esa misma URL. Los 429 de ráfaga se reintentan igual en los dos modos, también en el árbol y en los conteos por categoría. Un 403 que el `fetch` también recibe se propaga como error (`BloqueoDeApi`), nunca como catálogo vacío; si ya había productos de particiones anteriores, queda un truncamiento reportado. Para distinguirlo: `curl -sI` al API da 403 sin `cf-mitigated` y el cuerpo dice "Attention Required"; si además el header está, es el Caso 9.
 
 `VtexPage` también persiste el árbol en `sitio_categoria`, en la misma transacción que los productos, y no scrapea los nodos de servicios (`CriterioDeServicio`: "Instalación…", "Armado…") ni las gift cards (en cualquier sitio). Un nodo que no es producto sólo en un sitio (`Bolsas` en `elmundodeljuguete`) se agrega al mapa por sitio de `ServicioPorNombreDeCategoria.para(sitio)`, no a la regla compartida. Un sitio grande y mixto puede sumar una migración que mapee hojas a `categoria`: se consulta cuando el nombre abstiene, antes que `raw`. Excepción: en `elmundodeljuguete` la hoja gana sobre el nombre cuando su categoría es de juguetes (`CategoryGroups.esCategoriaJuguetes`); la lista vive en `NormalizerService.SITIOS_DONDE_LA_HOJA_JUGUETE_GANA` y las hojas no-juguete o sin mapear siguen con el nombre primero. Hoja nueva sin mapear = abstención. Ver `V70` y `V72` en [`DATABASE.md`](./DATABASE.md).
 

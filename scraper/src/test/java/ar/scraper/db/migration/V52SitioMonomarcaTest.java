@@ -35,7 +35,9 @@ class V52SitioMonomarcaTest extends PostgresTestBase {
             // V86 / V87: own-label fashion stores
             "oneplaceworld", "burtonargentina", "kingofthekongo", "equus", "kevingston",
             // V91
-            "laspepas");
+            "laspepas",
+            // V95
+            "underarmour", "nike");
 
     private static final List<String> MULTIMARCA = List.of(
             "zentra", "sporting", "entreno", "morashop", "vaypol", "city", "dcshoes", "maximus", "fullh4rd");
