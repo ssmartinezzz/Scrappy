@@ -468,7 +468,18 @@ mochila/bolso/cartera/riñonera; no pertenece a ningún grupo de rubro (el rubro
 **`Vincha`, `Bandana` y `Traje Deportivo`** (`V94`, canon 282). `vincha`/`bandana` ya no son `Gorra` (`KW_VINCHA`/`KW_BANDANA`, antes de `KW_GORRA` en
 `AccesoriosClassifier`; "Bermuda Bandana" sigue siendo `Bermuda`). `tracksuit`/`catsuit` son `Traje Deportivo` (`TrajeDeportivoClassifier`, antes de
 `ConjuntoClassifier`) salvo una pieza suelta que arranca con campera/pantalón/...; Funko es siempre `Juguete` (primero en `CategoryClassifier`) y las
-`Juguete` con `lego` tienen `sub_categoria = 'lego'`.
+`Juguete` con `lego` tenían `sub_categoria = 'lego'` (desde `V96` son la categoría `LEGO`).
+
+**`Camisaco`, `LEGO`, `TCG` y `Wall Panel`** (`V96`, canon 286). `camisaco` es `Camisaco` (`KW_CAMISACO`, antes de `Saco`; `KW_SACO` ahora usa
+` saco ` con espacio, porque `saco ` terminaba `camisaco `). `blazer` sólo es `Saco` si **lidera** el nombre (`KW_SACO_BLAZER_LIDER`); "Nike Blazer
+Low/Mid" son `Zapatilla Urbana`/`Skate` (`KW_URBANA_MODELO`/`KW_SKATE_MODELO`) y `Trailblazer` una `Mochila`; `mochila`/`backpack` vetan `Saco`.
+`KW_TOP_VETO` (limpia, cepillo, bcaa, cápsula, proteína, whey, creatina) saca de `Top` los no-prenda, que siguen a su familia. `GymratTagger` nunca
+marca `Camisa` ni `Chomba`. `LEGO` es una `Juguete` con la palabra `lego` entera (`KW_LEGO`); `TCG` son los juegos de cartas coleccionables
+(`KW_TCG`: tcg, trading card, booster pack/box, elite trainer box; o `card game`/`starter deck` junto a una franquicia de `KW_TCG_FRANQUICIA`), con
+veto de taza/peluche/figura/consola (`KW_TCG_VETO`); un "Juego de Cartas" de fiesta sigue siendo `Juego de Mesa`. `SubcategoryResolver` da a la `TCG`
+su franquicia (`pokemon`, `dragon ball`, `magic`, `yu-gi-oh`, `one piece`, `lorcana`, `digimon`) y ni `TCG` ni `LEGO` tienen subcategoría de deporte.
+`Wall Panel` (`KW_WALL_PANEL`: wall panel, wallpanel, panel wpc) corre antes de `Placa Decorativa` en `ConstruccionClassifier`; el "panel ranurado" de
+ferretería no es un wall panel.
 
 **Género fijo por sitio.** `NormalizerService.GENERO_FIJO_POR_SITIO` (sitio → género) gana
 sobre todo: `elmundodeljuguete` → `infantil`, `equus` → `hombre`.

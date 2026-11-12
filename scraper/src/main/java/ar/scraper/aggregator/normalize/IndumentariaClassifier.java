@@ -22,7 +22,10 @@ final class IndumentariaClassifier implements FamiliaClassifier {
         if (texto.contiene(GarmentTaxonomy.KW_PUFFER))   return "Puffer";
         if (texto.contiene(GarmentTaxonomy.KW_PILOTO) && !texto.contiene(GarmentTaxonomy.KW_PILOTO_VETO)) return "Piloto";
         if (texto.contiene(GarmentTaxonomy.KW_TRAJE) && !texto.contiene(GarmentTaxonomy.KW_TRAJE_VETO)) return "Traje";
-        if (texto.contiene(GarmentTaxonomy.KW_SACO) && !texto.contiene(GarmentTaxonomy.KW_SACO_VETO)) return "Saco";
+        if (texto.contiene(GarmentTaxonomy.KW_CAMISACO)) return "Camisaco";
+        if ((texto.contiene(GarmentTaxonomy.KW_SACO)
+                || texto.sinPrefijoDeVentaEmpiezaCon(GarmentTaxonomy.KW_SACO_BLAZER_LIDER))
+                && !texto.contiene(GarmentTaxonomy.KW_SACO_VETO)) return "Saco";
         if (texto.contiene(GarmentTaxonomy.KW_CHALECO))  return "Chaleco";
         if (texto.contiene(GarmentTaxonomy.KW_CAMPERA))  return "Campera";
         if (texto.contiene(GarmentTaxonomy.KW_SWEATER) && !texto.contiene(GarmentTaxonomy.KW_SWEATER_VETO)) return "Sweater";
@@ -66,7 +69,8 @@ final class IndumentariaClassifier implements FamiliaClassifier {
      * tank's qualifier) stays a Musculosa, and "Top Cuello Alto" is a Remera.
      */
     private static String clasificarTop(TextoClasificable texto) {
-        if (!texto.contiene(GarmentTaxonomy.KW_TOP) || texto.contiene("top cuello")) return "";
+        if (!texto.contiene(GarmentTaxonomy.KW_TOP) || texto.contiene("top cuello")
+                || texto.contiene(GarmentTaxonomy.KW_TOP_VETO)) return "";
         boolean lidera = texto.sinPrefijoDeVentaEmpiezaCon(GarmentTaxonomy.KW_TOP);
         if (!lidera && texto.contiene(GarmentTaxonomy.KW_MUSCULOSA)) return "";
         if (texto.contiene(GarmentTaxonomy.KW_TOP_LENCERIA)) return "Corpino";

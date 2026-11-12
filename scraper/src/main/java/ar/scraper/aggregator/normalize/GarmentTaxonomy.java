@@ -46,7 +46,7 @@ public final class GarmentTaxonomy {
     public static final String[] KW_SKATE_MODELO = {
         "old skool","sk8-hi","era vans","authentic vans",
         "pure dc","dc court","etnies","emerica",
-        "half cab","full cab"
+        "half cab","full cab"," sb blazer"," sb zoom blazer"
     };
 
     // "patinaje" es GENERICO, no MODELO, y la distinción importa: dcshoes lo usa como prefijo de
@@ -63,7 +63,7 @@ public final class GarmentTaxonomy {
         "chuck taylor","all star","converse",
         "suede puma","basket puma","cali puma","rs-x",
         "classic leather","aztrek",
-        "cortez","waffle"
+        "cortez","waffle"," blazer mid"," blazer low"
     };
 
     public static final String[] KW_URBANA_GENERICO = {
@@ -194,11 +194,14 @@ public final class GarmentTaxonomy {
         "chaleco tejido","chaleco cuero"
     };
 
+    // " saco " is a whole word: "camisaco " ends in "saco " and is a Camisaco. "blazer" is not here on purpose:
+    // it is a Saco only as the leading noun (KW_SACO_BLAZER_LIDER); anywhere else it is a shoe model or a pack.
     public static final String[] KW_SACO = {
-        "saco ","sacos ","blazer","americana","sport coat",
-        "tuxedo","saco de vestir","saco formal","saco lino",
-        "saco tweed","saco sastre"
+        " saco "," sacos ","americana","sport coat","tuxedo"
     };
+    public static final String[] KW_SACO_BLAZER_LIDER = { " blazer "," blazers " };
+
+    public static final String[] KW_CAMISACO = { "camisaco" };
 
     // Intencionalmente excluido de la detección de combos — los trajes siempre resuelven a "Traje",
     // ver ADR-4 / tasks.md 0.1 (confirmado por el product owner).
@@ -233,6 +236,11 @@ public final class GarmentTaxonomy {
 
     /** A bare "top", whole word. Lingerie, sport or neither decides Corpino / Top Deportivo / Top. */
     public static final String[] KW_TOP = {" top "};
+
+    /** Cleaning and supplement words: "Cepillo Limpia Transmision Top Mega", "BCAA Top 120 Capsulas" are not tops. */
+    public static final String[] KW_TOP_VETO = {
+        " limpia"," limpiador"," cepillo"," bcaa"," capsula"," proteina"," whey"," creatina"," suplemento"
+    };
 
     /** A bare top that also names lingerie is a Corpino. */
     public static final String[] KW_TOP_LENCERIA = {" encaje"," lencer"," puntilla"," interior"," bralette"};
@@ -521,10 +529,11 @@ public final class GarmentTaxonomy {
         " deck de exterior"," deck antideslizante"," deck modular"," deck flotante"
     };
     public static final String[] KW_PLACA_DECORATIVA = {
-        " placa decorativa"," placas decorativas"," wall panel"," paneles acusticos",
+        " placa decorativa"," placas decorativas"," paneles acusticos",
         " panel acustico"," panel marmol"," azulejo"," mosaico autoadhesivo"," mosaico sticker",
         " piedra de pvc"," rollo piedra"," rollo de piedra"
     };
+    public static final String[] KW_WALL_PANEL = { " wall panel"," wallpanel"," panel wpc"," paneles wpc" };
     public static final String[] KW_PLACA = { " placa "," placas " };
     public static final String[] KW_PLACA_CALIFICADOR = {
         " marmol"," autoadhesiv"," espejo"," simil "," piedra"
@@ -2064,6 +2073,9 @@ public final class GarmentTaxonomy {
         " luni "," chichess "," juguete"," infantil"," bestway fun"
     };
 
+    // Whole-word LEGO ("Legolas" is not one); the colon form is a real title ("LEGO: Star Wars").
+    public static final String[] KW_LEGO = { " lego "," lego:" };
+
     // Coleccionables. Bare " figura " is NOT a leader: in a home-center it is a garden ornament (Jardin).
     public static final String[] KW_JUEGO_DE_MESA_LIDER = {
         " juego de mesa"," juegos de mesa"," board game"," boardgame"," juego de cartas"," juegos de cartas",
@@ -2073,6 +2085,24 @@ public final class GarmentTaxonomy {
     public static final String[] KW_JUEGO_DE_MESA_CALIFICADOR = {
         " tcg "," tcg:"," tcg,"," tcg-"," trading card"," card game"," booster pack"," booster box"," booster bundle",
         " booster display"," board game"," booster)"," elite trainer box"," etb)"," cartas coleccionables"
+    };
+    /** Words that make a trading card game by themselves. Trailing delimiters are separate entries: the space is the word boundary. */
+    public static final String[] KW_TCG = {
+        " tcg "," tcg:"," tcg,"," tcg-"," tcg)"," trading card"," booster pack"," booster box"," booster bundle",
+        " booster display"," elite trainer box"," etb)"
+    };
+    /** "Card Game" / "Starter Deck" make a TCG only next to one of these franchises ("Uno Card Game" is a party game). */
+    public static final String[] KW_TCG_CON_FRANQUICIA_CALIFICADOR = {
+        " card game "," card game:"," starter deck"," structure deck"," booster"," carddass"
+    };
+    public static final String[] KW_TCG_FRANQUICIA = {
+        " pokemon"," dragon ball"," magic the gathering"," magic:"," mtg "," lorcana"," yu-gi-oh"," yugioh"," yu gi oh",
+        " one piece"," digimon"
+    };
+    /** A mug, a plush or a game console is not a card, whatever franchise or "magic" word it carries. */
+    public static final String[] KW_TCG_VETO = {
+        " taza "," mug "," llavero"," keychain"," funda "," remera"," camiseta"," mochila"," peluche"," plush"," figura"," figure",
+        " nintendo switch"," playstation"," xbox"," ps4 "," ps5 "
     };
     public static final String[] KW_PELUCHE_LIDER = {
         " peluche "," peluches "," peluchito"," plush "," plush,"," plushie"," plushies "
@@ -2237,7 +2267,7 @@ public final class GarmentTaxonomy {
     public static final String[] KW_CAMISA_VETO = { " tela oxford"," funda "," costado "," banquito " };
     public static final String[] KW_PANTALON_VETO = { "pantalonero" };
     public static final String[] KW_TRAJE_VETO = { " funda "," tracksuit"," catsuit" };
-    public static final String[] KW_SACO_VETO = { " inflable"," dormir"," hidroquimica" };
+    public static final String[] KW_SACO_VETO = { " inflable"," dormir"," hidroquimica"," mochila"," backpack" };
     public static final String[] KW_ACCESORIO_DEPORTIVO_VETO = { " combustible"," tapa de seguridad"," pico vertedor" };
     public static final String[] KW_MOCHILA_SANITARIA_CALIFICADOR = {
         " inodoro"," valvula"," fuelle"," obturador"," flapper"," conexion"," deposito"," brazo"," tirador"," fijacion"
