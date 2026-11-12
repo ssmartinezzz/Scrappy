@@ -15,10 +15,11 @@ describe('serieEnRango', () => {
     expect(RANGOS.map(r => r.id)).toEqual(['1D', '1S', '1M', '3M', '6M', '1A', 'Todo']);
   });
 
-  it('Todo muestra al menos 12 meses: la vista arranca antes que los datos', () => {
+  it('Todo arranca en el primer registro con un margen del 10% de la historia', () => {
     const s = serieEnRango(PUNTOS, 'Todo', HOY);
 
-    expect(s.desde).toBe(dia('2025-10-10'));
+    // 273 días de datos: 27 de margen, no un año vacío a la izquierda.
+    expect(s.desde).toBe(dia('2025-12-14'));
     expect(s.desdeDatos).toBe(dia('2026-01-10'));
     expect(s.hasta).toBe(dia(HOY));
     expect(s.puntos.map(p => [p.t, p.precio, p.real])).toEqual([
@@ -64,10 +65,17 @@ describe('serieEnRango', () => {
     expect(s.stats.registros).toBe(2);
   });
 
-  it('Todo con más de 12 meses de historia arranca en el primer registro', () => {
+  it('Todo sobre un producto de una semana no deja la curva pegada a la derecha', () => {
+    const s = serieEnRango([{ fecha: '2026-10-03', precio: 1 }, { fecha: '2026-10-06', precio: 2 }], 'Todo', HOY);
+    expect(s.desdeDatos).toBe(dia('2026-10-03'));
+    expect(s.desde).toBe(dia('2026-10-02'));
+  });
+
+  it('Todo con historia vieja también deja el margen proporcional', () => {
     const viejos = [{ fecha: '2024-03-01', precio: 1 }, ...PUNTOS];
     const s = serieEnRango(viejos, 'Todo', HOY);
-    expect(s.desde).toBe(dia('2024-03-01'));
+    // 953 días de datos: 95 de margen.
+    expect(s.desde).toBe(dia('2023-11-27'));
     expect(s.desdeDatos).toBe(dia('2024-03-01'));
   });
 });
