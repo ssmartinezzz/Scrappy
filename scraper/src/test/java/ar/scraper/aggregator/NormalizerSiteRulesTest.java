@@ -42,7 +42,8 @@ class NormalizerSiteRulesTest {
                 "oneplaceworld", new Sitio("Oneplaceworld", "oneplaceworld", "tiendanube", false, null, "config", true),
                 "kingofthekongo", new Sitio("Kingofthekongo", "kingofthekongo", "tiendanube", false, null, "config", true),
                 "midway", new Sitio("Midway", "midway", "tiendanube", false, null, "config", false),
-                "laspepas", new Sitio("Laspepas", "laspepas", "magento", false, null, "config", true)));
+                "laspepas", new Sitio("Laspepas", "laspepas", "magento", false, null, "config", true),
+                "ayrun", new Sitio("Ayrun", "ayrun", "tiendanube", false, null, "config", true)));
         return new NormalizerService(new PackQuantityDetector(), new CategoryClassifier(), new BrandExtractor(),
                 new GenderResolver(), new SizeNormalizer(), new SubcategoryResolver(),
                 new RubroResolver(registry), new GymratTagger(), new SportResolver(), registry,
@@ -86,6 +87,14 @@ class NormalizerSiteRulesTest {
     void laspepasIsMujer(String nombre) {
         assertThat(normalizar("Laspepas", nombre, "mujer").genero()).isEqualTo("mujer");
         assertThat(normalizar("Laspepas", nombre, "").genero()).isEqualTo("mujer");
+    }
+
+    @ParameterizedTest(name = "[{index}] {0}")
+    @ValueSource(strings = {"Musculosa Seamless Animal Rbrn (Rosa)", "Pack Full Pink", "Short Hombre Liso"})
+    @DisplayName("every Ayrun product is mujer: its names carry no gender word")
+    void ayrunIsMujer(String nombre) {
+        assertThat(normalizar("Ayrun", nombre, "").genero()).isEqualTo("mujer");
+        assertThat(normalizar("Ayrun", nombre, "unisex").genero()).isEqualTo("mujer");
     }
 
     @Test

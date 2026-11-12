@@ -40,7 +40,7 @@ final class IndumentariaClassifier implements FamiliaClassifier {
         if (texto.contiene(GarmentTaxonomy.KW_CAMISA) && !texto.contiene(GarmentTaxonomy.KW_CAMISA_VETO)) return "Camisa";
         if (texto.contiene(GarmentTaxonomy.KW_REMERA) && !texto.contiene(GarmentTaxonomy.KW_REMERA_VETO)) return "Remera";
 
-        if (texto.contiene(GarmentTaxonomy.KW_CALZA))    return "Calza";
+        if (texto.contiene(GarmentTaxonomy.KW_CALZA) || texto.contiene(GarmentTaxonomy.KW_CALZA_BIKER)) return "Calza";
         if (texto.contiene(GarmentTaxonomy.KW_BAGGY))    return "Baggy";
         if (texto.contiene(GarmentTaxonomy.KW_JEAN))     return "Jean";
         if (texto.contiene(GarmentTaxonomy.KW_JOGGING))  return "Jogging";

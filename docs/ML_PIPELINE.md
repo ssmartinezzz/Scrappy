@@ -482,7 +482,7 @@ su franquicia (`pokemon`, `dragon ball`, `magic`, `yu-gi-oh`, `one piece`, `lorc
 ferretería no es un wall panel.
 
 **Género fijo por sitio.** `NormalizerService.GENERO_FIJO_POR_SITIO` (sitio → género) gana
-sobre todo: `elmundodeljuguete` → `infantil`, `equus` → `hombre`.
+sobre todo: `elmundodeljuguete` → `infantil`, `equus` → `hombre`, `laspepas` y `ayrun` → `mujer`.
 
 **Ruido a `Otros` por sitio.** `NormalizerService.PALABRAS_OTROS_POR_SITIO` manda a `Otros`, antes
 del clasificador, los nombres con ciertas palabras completas sólo en ese sitio: `oneplaceworld`

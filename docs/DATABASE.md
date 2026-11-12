@@ -172,6 +172,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V95` | Seed de Under Armour y Nike (VTEX), las dos `monomarca` con su fila en `marca`; Nike devuelve 403 a `page.request()` y `VtexPage` lee su API con `fetch` dentro de la página |
 | `V96` | Categorías `Camisaco` (indumentaria), `LEGO` y `TCG` (juguetes) y `Wall Panel` (construcción); los `blazer` que no lideran el nombre salen de `Saco`, los `Top` con palabra de limpieza/suplemento se corrigen, ninguna `Camisa`/`Chomba` es `gymrat`, y las `Juguete` LEGO, los juegos de cartas coleccionables y los wall panel pasan a su categoría |
 | `V97` | Las `Juguete` LEGO de Elmundodeljuguete (hoja `Lego` / `Sets de Ladrillos y Bloques` → `Juguete`, que ganaba al nombre) pasan a `LEGO`; los libros de LEGO siguen `Libro` |
+| `V98` | Seed de Ayrun (Tiendanube, gym de mujer, marca propia): fila en `sitio` con `monomarca` y su fila en `marca` |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -5026,4 +5027,26 @@ UPDATE productos SET categoria = 'Juguete' WHERE categoria = 'LEGO' AND sitio = 
 ```
 
 Sólo devuelve las de Elmundodeljuguete (no se guardó qué filas movió la migración); pierden el `fútbol` que algunas traían, que el clasificador
-no vuelve a poner. Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V96`.
+no vuelve a poner. Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V98` y antes que el de `V96`.
+
+---
+
+## `V98` — seed de Ayrun
+
+Ayrun es ropa de gym de mujer, marca propia, sobre Tiendanube: sólo seed, `'tiendanube'` ya era válido. Como es monomarca, la misma
+migración inserta `'Ayrun'` en `marca` (el upsert no crea filas ahí, ver `V52`). Ni el tag `gymrat` ni el género son dato de la base:
+salen de `SiteClassification.GYM_SITIOS` y `NormalizerService.GENERO_FIJO_POR_SITIO` (`ayrun` → `mujer`; sus nombres no dicen género).
+
+### Rollback
+
+```sql
+-- >>> rollback:V98
+DELETE FROM sitio s WHERE s.sitio_key = 'ayrun'
+  AND NOT EXISTS (SELECT 1 FROM productos p WHERE p.sitio_key = s.sitio_key);
+DELETE FROM marca m WHERE m.nombre = 'Ayrun'
+  AND NOT EXISTS (SELECT 1 FROM productos p WHERE p.marca = m.nombre);
+-- <<< rollback:V98
+```
+
+Con productos ya scrapeados no borra nada: esas filas referencian el sitio y la marca. Es el bloque más nuevo: en una cadena de rollbacks
+corre PRIMERO, antes que el de `V97`.
