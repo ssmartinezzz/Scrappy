@@ -474,7 +474,7 @@ mochila/bolso/cartera/riñonera; no pertenece a ningún grupo de rubro (el rubro
 ` saco ` con espacio, porque `saco ` terminaba `camisaco `). `blazer` sólo es `Saco` si **lidera** el nombre (`KW_SACO_BLAZER_LIDER`); "Nike Blazer
 Low/Mid" son `Zapatilla Urbana`/`Skate` (`KW_URBANA_MODELO`/`KW_SKATE_MODELO`) y `Trailblazer` una `Mochila`; `mochila`/`backpack` vetan `Saco`.
 `KW_TOP_VETO` (limpia, cepillo, bcaa, cápsula, proteína, whey, creatina) saca de `Top` los no-prenda, que siguen a su familia. `GymratTagger` nunca
-marca `Camisa` ni `Chomba`. `LEGO` es una `Juguete` con la palabra `lego` entera (`KW_LEGO`); `TCG` son los juegos de cartas coleccionables
+marca `Camisa` ni `Chomba`. `LEGO` es una `Juguete` con la palabra `lego` entera (`KW_LEGO`), también cuando la `Juguete` viene de la hoja curada de Elmundodeljuguete (`CategoryClassifier.separarLego`, `V97`); `TCG` son los juegos de cartas coleccionables
 (`KW_TCG`: tcg, trading card, booster pack/box, elite trainer box; o `card game`/`starter deck` junto a una franquicia de `KW_TCG_FRANQUICIA`), con
 veto de taza/peluche/figura/consola (`KW_TCG_VETO`); un "Juego de Cartas" de fiesta sigue siendo `Juego de Mesa`. `SubcategoryResolver` da a la `TCG`
 su franquicia (`pokemon`, `dragon ball`, `magic`, `yu-gi-oh`, `one piece`, `lorcana`, `digimon`) y ni `TCG` ni `LEGO` tienen subcategoría de deporte.
