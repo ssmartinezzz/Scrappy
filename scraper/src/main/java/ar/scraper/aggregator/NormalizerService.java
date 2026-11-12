@@ -41,9 +41,10 @@ public class NormalizerService {
      */
     private static final Set<String> SITIOS_DONDE_LA_HOJA_JUGUETE_GANA = Set.of("elmundodeljuguete");
     // Sites whose whole catalogue is one gender, whatever the name says. A toy store sells to kids: its
-    // backpacks, shoes and dolls' dresses are not adult picks. Equus is a men's-only shop.
+    // backpacks, shoes and dolls' dresses are not adult picks. Equus is a men's-only shop. Ayrun is women's
+    // gymwear whose names carry no gender word ("Musculosa Seamless Animal").
     private static final Map<String, String> GENERO_FIJO_POR_SITIO =
-            Map.of("elmundodeljuguete", "infantil", "equus", "hombre", "laspepas", "mujer");
+            Map.of("elmundodeljuguete", "infantil", "equus", "hombre", "laspepas", "mujer", "ayrun", "mujer");
     // Fixed-gender sites whose scraper tags a kids line apart: that tag outranks the fixed gender.
     private static final Set<String> SITIOS_CON_LINEA_INFANTIL = Set.of("laspepas");
 

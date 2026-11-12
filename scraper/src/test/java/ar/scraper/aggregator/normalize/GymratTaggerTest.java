@@ -52,6 +52,15 @@ class GymratTaggerTest {
     }
 
     @Test
+    void ropaDeAyrunEsGymrat() {
+        Allure.parameter("nombre", "Musculosa Seamless Animal Rbrn (Rosa)");
+        Allure.parameter("sitioKey", "ayrun");
+        Allure.parameter("cat", "Musculosa");
+        assertThat(tagger.esGymrat("Musculosa Seamless Animal Rbrn (Rosa)", "ayrun", "Musculosa", "", null))
+                .isTrue();
+    }
+
+    @Test
     void calzadoDeSitioGymNoEsGymrat() {
         // Hard guard: gymrat is clothing only — footwear never gets the tag,
         // even when the store is in GYM_SITIOS.
