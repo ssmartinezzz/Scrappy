@@ -59,6 +59,20 @@ mapa marca → archivo en `src/lib/brandLogos.js`, fuentes y licencias en el
 (NXDOMAIN, 2026-10-22). Una marca sin entrada cae al badge de iniciales; un
 logo blanco va en `LOGOS_SOBRE_OSCURO` para que se dibuje sobre placa oscura.
 
+**Un solo header fijo** (`.app-header` en `AppLayout`): Topbar + nav, `position: fixed`
+con el safe-area de iPhone, y `.app-shell` reserva su alto con `padding-top:
+var(--sticky-offset)` (medido por ResizeObserver sobre el header entero). No es
+`sticky` a propósito: el catálogo scrollea un contenedor interno (`.grid-wrap`) y el
+detalle de picks scrollea la ventana; dentro de un shell de `100dvh` un header sticky
+se iba con la ventana. Toda barra sticky de página va a `top: var(--sticky-offset)`.
+En mobile el nav es la **misma fila** que en escritorio, scrolleable de costado
+(`.primary-nav-scroll`, lleva el destino activo a la vista), más el ☰ con la lista entera.
+
+**La marca es Scrappy** y vive en un solo archivo: `public/favicon.svg` es la pestaña y
+lo que dibujan `BrandMark`/`BrandLockup` (`components/brand/Brand.jsx`) en Topbar,
+splash y login. `public/apple-touch-icon.png` (180×180, iOS no acepta SVG) se renderiza
+desde ese SVG sin esquinas redondeadas; si cambia el SVG, se regenera.
+
 **El Topbar es una sola fila** (logo · rubros · ML/IPC · usuario). La fila de
 chips por sitio se sacó (2026-10-22): ya nada setea `sitioFiltro` (queda en
 `''`); una tienda de marca propia se filtra por marca.

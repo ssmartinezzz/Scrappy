@@ -19,9 +19,9 @@ import { useAuth } from '../../auth/AuthProvider';
 // so direct links and grouped triggers read as one consistent row.
 const directLinkClass = ({ isActive }) =>
   cn(
-    'flex cursor-pointer select-none items-center gap-1.5 rounded-btn px-3 py-1.5 text-sm font-medium outline-none transition-colors',
+    'flex min-h-[40px] shrink-0 cursor-pointer select-none items-center gap-1.5 whitespace-nowrap rounded-full px-3 text-sm font-medium outline-none transition-colors md:min-h-[34px]',
     'hover:bg-s2 hover:text-primary2 focus-visible:bg-s2 focus-visible:text-primary2',
-    isActive && 'text-primary2'
+    isActive ? 'bg-[color-mix(in_srgb,var(--p)_12%,transparent)] font-semibold text-primary2' : 'text-t2'
   );
 
 export default function NavMenubar({ className }) {
@@ -34,7 +34,7 @@ export default function NavMenubar({ className }) {
   const menus = config.filter(node => node.kind === 'menu');
 
   return (
-    <div className={cn('flex items-center gap-1', className)}>
+    <div className={cn('flex w-max items-center gap-1', className)}>
       {links.map(node => {
         const Icon = node.icon;
         return (
@@ -50,7 +50,8 @@ export default function NavMenubar({ className }) {
           const Icon = node.icon;
           return (
             <MenubarMenu key={node.label}>
-              <MenubarTrigger data-active={active ? 'true' : undefined} className="gap-1.5">
+              <MenubarTrigger data-active={active ? 'true' : undefined}
+                className="min-h-[40px] shrink-0 gap-1.5 whitespace-nowrap rounded-full md:min-h-[34px] data-[active=true]:bg-[color-mix(in_srgb,var(--p)_12%,transparent)]">
                 <Icon size={16} aria-hidden="true" />
                 {node.label}
               </MenubarTrigger>
