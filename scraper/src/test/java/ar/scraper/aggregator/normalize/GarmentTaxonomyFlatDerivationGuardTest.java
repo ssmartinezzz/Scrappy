@@ -34,7 +34,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class GarmentTaxonomyFlatDerivationGuardTest {
 
     // Frozen snapshot — mirrors NormalizerService's pre-extraction
-    // TORSO_KEYWORDS_FLAT = concatKeywords(KW_PUFFER, KW_PILOTO, KW_SACO,
+    // TORSO_KEYWORDS_FLAT = concatKeywords(KW_PUFFER, KW_PILOTO, KW_SACO, KW_SACO_BLAZER_LIDER,
     // KW_CHALECO, KW_CAMPERA, KW_SWEATER, KW_BUZO, KW_CASACA, KW_CHOMBA,
     // KW_MUSCULOSA, KW_CAMISA, KW_REMERA; since picks-taxonomia-top KW_TOP_DEPORTIVO and KW_TOP follow KW_MUSCULOSA) — transcribed independently of
     // GarmentTaxonomy's own derivation.
@@ -44,9 +44,8 @@ class GarmentTaxonomyFlatDerivationGuardTest {
          "acolchada","acolchado","anorak termico"},
         {"piloto","impermeable","lluvia","rain jacket","waterproof jacket",
          "chubasquero","k-way","kway","raincoat"},
-        {"saco ","sacos ","blazer","americana","sport coat",
-         "tuxedo","saco de vestir","saco formal","saco lino",
-         "saco tweed","saco sastre"},
+        {" saco "," sacos ","americana","sport coat","tuxedo"},
+        {" blazer "," blazers "},
         {"chaleco","gilet"," vest ","waistcoat","chaleco de abrigo",
          "chaleco inflable","chaleco pluma","chaleco polar",
          "chaleco tejido","chaleco cuero"},

@@ -38,7 +38,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * every {@link CategoryGroups#canonicalCategories()} category (274 desde V84 Bombacha; 273 desde V82; 272 desde hadriatica-gaming-juguetes; era 266 desde easy-com-ar-site; eran 257, 207, 180, 159, 145, 119 desde rubros-construccion-hogar; 106 desde
  * pc-builder-homelab; eran 105 desde V32, 103 desde richer-category-taxonomy,
  * 88, y 81 antes de eso) × every {@code rubroExistente} in {@code {null, "",
- * "tecnologia", "suplementos", "indumentaria"}} — 23 × 282 × 5 triples.
+ * "tecnologia", "suplementos", "indumentaria"}} — 23 × 286 × 5 triples.
  *
  * <p>Any disagreement fails with the exact {@code (sitio, categoria,
  * rubroPrevio)} triple — the "set of affected products" made enumerable
@@ -132,7 +132,8 @@ class RubroResolverEqualityParityTest {
         // V92 (Bijouterie): 276 -> 277. Accesorio de indumentaria, como Bufanda y Lentes: ninguno de los 23 sitios de V18 la nombra.
         // V93 (Desodorante, Llavero): 277 -> 279. Desodorante joins Perfume in perfumeria; Llavero is in no group (the rubro follows the site).
         // V94 (Vincha, Bandana, Traje Deportivo): 279 -> 282. Indumentaria, like Gorra and Traje.
-        assertThat(cats).as("CategoryGroups.canonicalCategories()").hasSize(282);
+        // V96 (Camisaco, LEGO, TCG, Wall Panel): 282 -> 286. Indumentaria, juguetes, juguetes, construccion.
+        assertThat(cats).as("CategoryGroups.canonicalCategories()").hasSize(286);
 
         List<String> rubrosExistentes = Arrays.asList(null, "", "tecnologia", "suplementos", "indumentaria");
 
@@ -161,7 +162,7 @@ class RubroResolverEqualityParityTest {
             }
         }
 
-        assertThat(total).isEqualTo(23L * 282 * 5);
+        assertThat(total).isEqualTo(23L * 286 * 5);
         assertThat(mismatches)
                 .as("old substring oracle vs new equality — mismatched (sitio, categoria, rubroPrevio) triples")
                 .isEmpty();

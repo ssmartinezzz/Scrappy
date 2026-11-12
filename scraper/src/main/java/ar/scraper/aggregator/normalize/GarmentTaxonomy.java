@@ -2222,7 +2222,7 @@ public final class GarmentTaxonomy {
     };
 
     public static final String[] TORSO_KEYWORDS_FLAT = concatKeywords(
-        KW_PUFFER, KW_PILOTO, KW_SACO, KW_CHALECO, KW_CAMPERA, KW_SWEATER,
+        KW_PUFFER, KW_PILOTO, KW_SACO, KW_SACO_BLAZER_LIDER, KW_CHALECO, KW_CAMPERA, KW_SWEATER,
         KW_BUZO, KW_CASACA, KW_CHOMBA, KW_MUSCULOSA, KW_TOP_DEPORTIVO, KW_TOP, KW_CAMISA, KW_REMERA);
     public static final String[] PIERNAS_KEYWORDS_FLAT = concatKeywords(
         KW_CALZA, KW_BAGGY, KW_JEAN, KW_JOGGING, KW_BERMUDA, KW_SHORT,

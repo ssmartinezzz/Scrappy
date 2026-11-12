@@ -104,7 +104,7 @@ class ConstruccionHogarCategoryClassifierTest {
     @DisplayName("the new categories are canonical and grouped by rubro")
     void newCategoriesAreCanonical() {
         assertThat(CategoryGroups.categoriasConstruccion()).containsExactlyInAnyOrder(
-                "Placa Decorativa", "Vinilo Decorativo", "Piso", "Césped Sintético",
+                "Placa Decorativa", "Wall Panel", "Vinilo Decorativo", "Piso", "Césped Sintético",
                 "Adhesivo", "Moldura", "Planta Artificial",
                 "Cemento", "Ladrillo", "Árido", "Hierro", "Impermeabilizante", "Madera", "Tablero",
                 "Chapa", "Aislante", "Placa de Yeso", "Perfilería", "Pintura", "Enduido", "Diluyente",
