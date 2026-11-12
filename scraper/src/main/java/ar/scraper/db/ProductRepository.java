@@ -10,12 +10,12 @@ import ar.scraper.catalog.SitioCategoriaPort;
 import ar.scraper.model.SitioCategoriaNodo;
 import ar.scraper.catalog.UpsertStats;
 import ar.scraper.model.Product;
+import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -26,6 +26,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import javax.sql.DataSource;
+import java.io.IOException;
+import java.io.StringWriter;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -44,6 +46,8 @@ class ProductRepository implements ProductPort {
     private static final Logger LOG = LoggerFactory.getLogger(ProductRepository.class);
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final int MAX_HIST_DAYS = 90;
+    /** Rows per {@code sp_upsert_run} call: the peak of the serialised payload is one batch, not the catalogue. */
+    static final int FILAS_POR_LOTE = 2000;
     private static final DateTimeFormatter DT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
@@ -52,9 +56,19 @@ class ProductRepository implements ProductPort {
     private final SiteRegistry siteRegistry;
     private final TransactionTemplate tx;
     private final SitioCategoriaPort sitioCategorias;
+    private final int filasPorLote;
 
+    /** {@code @Autowired}: with two constructors Spring would otherwise look for a default one. */
+    @Autowired
     ProductRepository(DataSource dataSource, SiteRegistry siteRegistry, RubroResolver rubroResolver,
                       PlatformTransactionManager txManager, SitioCategoriaPort sitioCategorias) {
+        this(dataSource, siteRegistry, rubroResolver, txManager, sitioCategorias, FILAS_POR_LOTE);
+    }
+
+    ProductRepository(DataSource dataSource, SiteRegistry siteRegistry, RubroResolver rubroResolver,
+                      PlatformTransactionManager txManager, SitioCategoriaPort sitioCategorias,
+                      int filasPorLote) {
+        this.filasPorLote = filasPorLote;
         this.sitioCategorias = sitioCategorias;
         this.tx = new TransactionTemplate(txManager);
         this.jdbc = new JdbcTemplate(dataSource);
@@ -96,9 +110,7 @@ class ProductRepository implements ProductPort {
         String today = LocalDate.now().format(DATE);
 
         try {
-            String rowsJson = buildRowsJson(productos, now, today, true);
-
-            UpsertStats upsert = upsertRun(rowsJson, true, conCategoriaDelSitio(productos));
+            UpsertStats upsert = upsertEnLotes(productos, now, today, true);
 
             // El alcance del soft-delete NO sale de la lista de sitios pedidos: un sitio cuyo
             // scraper se rompió llega con 0 productos, y no hay que confundir "se rompió" con "se
@@ -123,55 +135,97 @@ class ProductRepository implements ProductPort {
         }
     }
 
-    private static boolean conCategoriaDelSitio(List<Product> productos) {
-        return productos.stream().anyMatch(p -> p.sitioCategoriaOrigenId() != null);
-    }
-
-    private String buildRowsJson(List<Product> productos, String now, String fecha, boolean includeVisual)
+    /**
+     * Serialises and sends the rows in batches of {@link #filasPorLote}, inside the caller's
+     * transaction. Each batch is streamed straight into a reused buffer, so what is held at once is
+     * one batch, never the catalogue: run 26 died on a 69k-row String built from a full Jackson tree.
+     *
+     * <p>{@code sp_upsert_run} and {@code sp_vincular_sitio_categoria} are row-by-row, so splitting
+     * changes no result; a duplicate URL across batches resolves in the same order as within one.
+     */
+    private UpsertStats upsertEnLotes(List<Product> productos, String now, String fecha, boolean includeVisual)
             throws Exception {
-        ArrayNode arr = MAPPER.createArrayNode();
+        StringWriter buffer = new StringWriter();
+        UpsertStats total = UpsertStats.CERO;
+        JsonGenerator g = null;
+        int enLote = 0;
+        boolean conCategoria = false;
         for (Product p : productos) {
             if (StringUtils.isBlank(p.url())) continue;
-            ObjectNode row = arr.addObject();
-            row.put("url", p.url());
-            row.put("sitio", p.sitio());
-            row.put("nombre", p.nombre());
-            row.put("precio", p.precio());
-            row.put("precioOrig", p.precioOriginal());
-            row.put("imagenUrl", p.imagenUrl());
-            row.put("categoria", p.categoria());
-            row.put("genero", p.genero());
-            ArrayNode tallesJson = row.putArray("talles");
-            if (p.talles() != null) p.talles().forEach(tallesJson::add);
-            MlColumnas ml = MlColumnas.de(p);
-            ArrayNode badgesJson = row.putArray("mlBadges");
-            ml.badges().forEach(badgesJson::add);
-            row.put("mlScore", ml.score());
-            row.put("mlOferta", ml.oferta());
-            row.put("mlTendencia", ml.tendencia());
-            row.put("mlSegment", ml.segment());
-            row.put("mlZscore", ml.zscore());
-            row.put("rubro", p.rubro() != null ? p.rubro() : "indumentaria");
-            row.put("marca", p.marca() != null ? p.marca() : "");
-            row.put("gymrat", p.gymrat());
-            row.put("marcaPremium", p.marcaPremium());
-            row.put("cantidadUnidades", p.cantidadUnidades());
-            row.put("subCategoria", p.subCategoria() != null ? p.subCategoria() : "");
-            row.put("deporte", p.deporte() != null ? p.deporte() : "");
-            if (p.sitioCategoriaOrigenId() != null) row.put("sitioCategoriaOrigenId", p.sitioCategoriaOrigenId());
-
-            if (includeVisual) {
-                Product.VisualAttrs visual = p.visual() != null ? p.visual() : Product.VisualAttrs.EMPTY;
-                row.put("fit", visual.fit() != null ? visual.fit() : "");
-                row.put("estampado", visual.estampado() != null ? visual.estampado() : "");
-                row.put("escote", visual.escote() != null ? visual.escote() : "");
-                row.put("colorDominante", visual.colorDominante() != null ? visual.colorDominante() : "");
+            if (g == null) {
+                buffer.getBuffer().setLength(0);
+                g = MAPPER.getFactory().createGenerator(buffer);
+                g.writeStartArray();
+                enLote = 0;
+                conCategoria = false;
             }
-
-            row.put("now", now);
-            row.put("fecha", fecha);
+            escribirFila(g, p, now, fecha, includeVisual);
+            conCategoria |= p.sitioCategoriaOrigenId() != null;
+            if (++enLote == filasPorLote) {
+                total = sumar(total, enviarLote(g, buffer, includeVisual, conCategoria));
+                g = null;
+            }
         }
-        return MAPPER.writeValueAsString(arr);
+        if (g != null) total = sumar(total, enviarLote(g, buffer, includeVisual, conCategoria));
+        return total;
+    }
+
+    private UpsertStats enviarLote(JsonGenerator g, StringWriter buffer, boolean includeVisual,
+                                   boolean conCategoria) throws Exception {
+        g.writeEndArray();
+        g.close();
+        return upsertRun(buffer.toString(), includeVisual, conCategoria);
+    }
+
+    private static UpsertStats sumar(UpsertStats a, UpsertStats b) {
+        return new UpsertStats(a.nuevos() + b.nuevos(), a.actualizados() + b.actualizados(),
+                a.sinCambios() + b.sinCambios(), 0);
+    }
+
+    private static void escribirFila(JsonGenerator g, Product p, String now, String fecha, boolean includeVisual)
+            throws IOException {
+        g.writeStartObject();
+        g.writeStringField("url", p.url());
+        g.writeStringField("sitio", p.sitio());
+        g.writeStringField("nombre", p.nombre());
+        g.writeNumberField("precio", p.precio());
+        if (p.precioOriginal() != null) g.writeNumberField("precioOrig", p.precioOriginal());
+        else g.writeNullField("precioOrig");
+        g.writeStringField("imagenUrl", p.imagenUrl());
+        g.writeStringField("categoria", p.categoria());
+        g.writeStringField("genero", p.genero());
+        g.writeArrayFieldStart("talles");
+        if (p.talles() != null) for (String t : p.talles()) g.writeString(t);
+        g.writeEndArray();
+        MlColumnas ml = MlColumnas.de(p);
+        g.writeArrayFieldStart("mlBadges");
+        for (String b : ml.badges()) g.writeString(b);
+        g.writeEndArray();
+        g.writeNumberField("mlScore", ml.score());
+        g.writeBooleanField("mlOferta", ml.oferta());
+        g.writeStringField("mlTendencia", ml.tendencia());
+        g.writeStringField("mlSegment", ml.segment());
+        g.writeNumberField("mlZscore", ml.zscore());
+        g.writeStringField("rubro", p.rubro() != null ? p.rubro() : "indumentaria");
+        g.writeStringField("marca", p.marca() != null ? p.marca() : "");
+        g.writeBooleanField("gymrat", p.gymrat());
+        g.writeBooleanField("marcaPremium", p.marcaPremium());
+        g.writeNumberField("cantidadUnidades", p.cantidadUnidades());
+        g.writeStringField("subCategoria", p.subCategoria() != null ? p.subCategoria() : "");
+        g.writeStringField("deporte", p.deporte() != null ? p.deporte() : "");
+        if (p.sitioCategoriaOrigenId() != null) g.writeNumberField("sitioCategoriaOrigenId", p.sitioCategoriaOrigenId());
+
+        if (includeVisual) {
+            Product.VisualAttrs visual = p.visual() != null ? p.visual() : Product.VisualAttrs.EMPTY;
+            g.writeStringField("fit", visual.fit() != null ? visual.fit() : "");
+            g.writeStringField("estampado", visual.estampado() != null ? visual.estampado() : "");
+            g.writeStringField("escote", visual.escote() != null ? visual.escote() : "");
+            g.writeStringField("colorDominante", visual.colorDominante() != null ? visual.colorDominante() : "");
+        }
+
+        g.writeStringField("now", now);
+        g.writeStringField("fecha", fecha);
+        g.writeEndObject();
     }
 
     /**
@@ -269,7 +323,7 @@ class ProductRepository implements ProductPort {
         String today = LocalDate.now().format(DATE);
         try {
             sitioCategorias.upsertArbol(sitio, arbolDeCategorias);
-            return upsertRun(buildRowsJson(productos, now, today, false), false, conCategoriaDelSitio(productos));
+            return upsertEnLotes(productos, now, today, false);
         } catch (Exception e) {
             LOG.warn("[DB] Error en upsertParcial: {}", e.getMessage());
             status.setRollbackOnly();

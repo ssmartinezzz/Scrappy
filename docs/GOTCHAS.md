@@ -21,6 +21,18 @@
 
 ### Corridas parciales y retomas
 
+⚠️ **El hilo de la corrida atrapaba `Exception`, y un `OutOfMemoryError` no lo es: la corrida 26
+quedó RUNNING para siempre.** Los 49 sitios terminaron y el ML también (69.276
+productos); después el upsert final armó el catálogo entero como un único `String` JSON
+dentro de `-Xmx768m` y reventó el heap. El `Error` salió del hilo virtual sin pasar por
+`cerrarRun` ni `transition`: `scrape_run` y `ScraperStatus` se quedaron en RUNNING y el
+splash no salía sin reiniciar el backend. Hoy los tres hilos de corrida
+(`iniciarScraping`, `reanudar`, `soloPasadaFinal`) atrapan `Throwable` y llaman a
+`ScraperService.cerrarPorFallo`: cierra la corrida como ERROR y pasa el estado a ERROR
+en un `finally` (el estado ES el turno de `tomarElTurno`, así que se libera), y relanza
+el `VirtualMachineError` para que siga visible. Un hilo nuevo que lance una corrida
+tiene que usar el mismo `catch`.
+
 ⚠️ **`agregar` sólo conoce los sitios que le pasaron, así que su lista de
 productos ES el subconjunto — y asignarla a `lastResult` borraba el catálogo.**
 Era correcto mientras toda corrida cubriera los 29 sitios y falso en cuanto

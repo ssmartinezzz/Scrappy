@@ -388,11 +388,7 @@ public class ScraperService implements CatalogSnapshotPort {
         anunciar("Iniciando scrapers...");
         Thread.ofVirtual().start(() -> {
             try { ejecutarScraping(sitiosSeleccionados); }
-            catch (Exception e) {
-                RUN_LOG.error("[ERROR FATAL] {}", e.getMessage());
-                cerrarRun("ERROR", 0);
-                transition(ScraperStatus.ERROR, "Error: " + e.getMessage());
-            }
+            catch (Throwable t) { cerrarPorFallo(t, "Error: "); }
         });
         return true;
     }
@@ -762,11 +758,7 @@ public class ScraperService implements CatalogSnapshotPort {
                 Set<String> pendientes = new HashSet<>(actualizada.pendientes());
                 Thread.ofVirtual().start(() -> {
                     try { ejecutarScraping(pendientes, adoptada); }
-                    catch (Exception e) {
-                        RUN_LOG.error("[ERROR FATAL] al retomar: {}", e.getMessage());
-                        cerrarRun("ERROR", 0);
-                        transition(ScraperStatus.ERROR, "Error al retomar: " + e.getMessage());
-                    }
+                    catch (Throwable t) { cerrarPorFallo(t, "Error al retomar: "); }
                 });
             }
             return true;
@@ -810,11 +802,30 @@ public class ScraperService implements CatalogSnapshotPort {
             cerrarRun("COMPLETED", prods.size());
             transition(ScraperStatus.DONE, "Corrida retomada y cerrada: " + prods.size() + " productos");
             RUN_LOG.info("[RETOMA]  pasada final completada, {} productos", prods.size());
-        } catch (Exception e) {
-            RUN_LOG.error("[ERROR FATAL] en la pasada final: {}", e.getMessage());
-            cerrarRun("ERROR", 0);
-            transition(ScraperStatus.ERROR, "Error en la pasada final: " + e.getMessage());
+        } catch (Throwable t) {
+            cerrarPorFallo(t, "Error en la pasada final: ");
         }
+    }
+
+    /**
+     * Ends a run thread that died. Catches {@link Throwable}, not {@link Exception}: an
+     * {@code OutOfMemoryError} in the final upsert used to escape, leaving {@code scrape_run} and
+     * the status RUNNING for good. The status flip is the turn release ({@code tomarElTurno}), so
+     * it sits in a {@code finally}: a failing close cannot skip it.
+     *
+     * <p>A {@link VirtualMachineError} is rethrown afterwards so it stays visible.
+     */
+    private void cerrarPorFallo(Throwable t, String prefijo) {
+        String detalle = t.getMessage() != null ? t.getMessage() : t.getClass().getSimpleName();
+        try {
+            RUN_LOG.error("[ERROR FATAL] {}", detalle, t);
+            cerrarRun("ERROR", 0);
+        } catch (Throwable segundo) {
+            LOG.warn("[RUN] el cierre de la corrida falló: {}", segundo.toString());
+        } finally {
+            transition(ScraperStatus.ERROR, prefijo + detalle);
+        }
+        if (t instanceof VirtualMachineError vme) throw vme;
     }
 
     /** Idempotent; a no-op when nothing runs.. */
