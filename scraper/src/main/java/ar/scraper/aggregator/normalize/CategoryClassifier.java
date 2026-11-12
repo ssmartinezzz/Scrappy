@@ -56,6 +56,14 @@ public class CategoryClassifier {
     }
 
     public String normalizarCategoria(String raw, String nombre, String categoriaDelArbol) {
+        String categoria = resolverCategoria(raw, nombre, categoriaDelArbol);
+        // A tree or raw "Juguete" never passes through JuguetesClassifier, so the LEGO split is applied here too.
+        if ("Juguete".equals(categoria) && StringUtils.isNotBlank(nombre)
+                && TextoClasificable.de(nombre).contiene(GarmentTaxonomy.KW_LEGO)) return "LEGO";
+        return categoria;
+    }
+
+    private String resolverCategoria(String raw, String nombre, String categoriaDelArbol) {
         String fromName = clasificar(nombre);
         if (!fromName.isEmpty()) return fromName;
 

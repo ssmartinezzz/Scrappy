@@ -5,10 +5,18 @@ final class ColeccionablesClassifier implements FamiliaClassifier {
 
     @Override
     public String clasificar(TextoClasificable texto) {
+        if (esTcg(texto)) return "TCG";
         if (esJuegoDeMesa(texto)) return "Juego de Mesa";
         if (esPeluche(texto)) return "Peluche";
         if (esFigura(texto)) return "Figura Coleccionable";
         return "";
+    }
+
+    private boolean esTcg(TextoClasificable texto) {
+        if (texto.contiene(GarmentTaxonomy.KW_TCG_VETO)) return false;
+        return texto.contiene(GarmentTaxonomy.KW_TCG)
+                || (texto.contiene(GarmentTaxonomy.KW_TCG_FRANQUICIA)
+                    && texto.contiene(GarmentTaxonomy.KW_TCG_CON_FRANQUICIA_CALIFICADOR));
     }
 
     private boolean esJuegoDeMesa(TextoClasificable texto) {

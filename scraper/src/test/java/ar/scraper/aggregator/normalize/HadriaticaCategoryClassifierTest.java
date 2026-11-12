@@ -214,22 +214,22 @@ class HadriaticaCategoryClassifierTest {
         assertThat(cat(nombre)).isNotEqualTo("Peluche");
     }
 
-    @ParameterizedTest(name = "[{index}] \"{0}\" -> Juego de Mesa")
-    @ValueSource(strings = {
-        "Pokémon TCG: Mega Evolution - Chaos Rising Booster Pack (10 Cards)",
-        "POKEMON TCG - POKEMON 151 - BOOSTER PACK - 10 CARTAS",
-        "Pokemon TCG: Scarlet &amp; Violet 10.5 Black Bolt Elite Trainer Box",
-        "Pokémon TCG: 30th Celebration - Expansion Pack (1 BOOSTER) JAPAN",
-        "BANDAI DRAGON BALL TCG SUPER CARD GAME - FUSION WORLD - BEYOND GENERATIONS Booster Pack (B24) ENGLISH",
-        "BANDAI Digimon TCG: Versus Monsters (EX-09)",
-        "One Piece Card Game: Carrying On His Will (OP-13) One Piece TCG English",
-        "Juego de Mesa Catan Edicion Clasica",
-        "Exploding Kittens Board Game",
-        "Juego de Cartas UNO Original"
-    })
-    @DisplayName("board games and trading cards are a Juego de Mesa")
-    void boardAndCardGames(String nombre) {
-        assertThat(cat(nombre)).isEqualTo("Juego de Mesa");
+    @ParameterizedTest(name = "[{index}] \"{0}\" -> {1}")
+    @CsvSource(delimiterString = " => ", textBlock = """
+        Pokémon TCG: Mega Evolution - Chaos Rising Booster Pack (10 Cards) => TCG
+        POKEMON TCG - POKEMON 151 - BOOSTER PACK - 10 CARTAS => TCG
+        Pokemon TCG: Scarlet &amp; Violet 10.5 Black Bolt Elite Trainer Box => TCG
+        Pokémon TCG: 30th Celebration - Expansion Pack (1 BOOSTER) JAPAN => TCG
+        BANDAI DRAGON BALL TCG SUPER CARD GAME - FUSION WORLD - BEYOND GENERATIONS Booster Pack (B24) ENGLISH => TCG
+        BANDAI Digimon TCG: Versus Monsters (EX-09) => TCG
+        One Piece Card Game: Carrying On His Will (OP-13) One Piece TCG English => TCG
+        Juego de Mesa Catan Edicion Clasica => Juego de Mesa
+        Exploding Kittens Board Game => Juego de Mesa
+        Juego de Cartas UNO Original => Juego de Mesa
+        """)
+    @DisplayName("trading cards are a TCG; board and party card games are a Juego de Mesa")
+    void boardAndCardGames(String nombre, String esperado) {
+        assertThat(cat(nombre)).isEqualTo(esperado);
     }
 
     @ParameterizedTest(name = "[{index}] \"{0}\" -> not Juego de Mesa")
@@ -246,7 +246,7 @@ class HadriaticaCategoryClassifierTest {
     @ParameterizedTest(name = "[{index}] \"{0}\" -> {1}")
     @CsvSource(delimiterString = " => ", textBlock = """
         Puzzle Super Mario - 250 piezas - Jigsaw Puzzle - Viene con lata! => Juguete
-        LEGO Harry Potter Dobby The House-Elf Building Toy Set => Juguete
+        LEGO Harry Potter Dobby The House-Elf Building Toy Set => LEGO
         Hot Wheels Mario Kart Glider Bowser Diecast Car [Standard Kart + Bowser Kite] => Juguete
         MousePad Sanrio Retro => Mousepad
         RELOJ CASIO VINTAGE CA-53WF-8B => Reloj

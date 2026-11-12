@@ -5,10 +5,11 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@DisplayName("Taxonomy fix: Vincha, Bandana, Traje Deportivo, Funko is always Juguete, LEGO subcategory")
+@DisplayName("Taxonomy fix: Vincha, Bandana, Traje Deportivo, Funko is always Juguete, LEGO category")
 class TaxonomiaGymratJuguetesTest {
 
     private final CategoryClassifier classifier = new CategoryClassifier();
@@ -76,16 +77,21 @@ class TaxonomiaGymratJuguetesTest {
         assertThat(CategoryGroups.esIndumentariaOCalzado("Vincha")).isTrue();
     }
 
-    @ParameterizedTest(name = "{0} -> {1}")
-    @CsvSource(delimiter = '|', value = {
-        "LEGO Classic Caja Creativa 10696|lego",
-        "Lego Futbol Equipo Barcelona|lego",
-        "LEGO: Cuentos Fantasticos Sobre Dragones|lego",
-        "Juguete Lego City Runner|lego",
-        "Legolas Figura Hobbit|",
+    @ParameterizedTest(name = "{0} -> LEGO")
+    @ValueSource(strings = {
+        "LEGO Classic Caja Creativa 10696",
+        "Lego Futbol Equipo Barcelona",
+        "LEGO: Cuentos Fantasticos Sobre Dragones",
+        "Juguete Lego City Runner",
     })
-    void legoEsSubcategoriaDeJuguete(String nombre, String esperada) {
-        assertThat(subcategorias.resolver(nombre, "Juguete")).isEqualTo(esperada == null ? "" : esperada);
+    void legoEsSuPropiaCategoria(String nombre) {
+        // Through the tree path too: a site's "Juguete" leaf must not keep a LEGO set out of LEGO.
+        assertThat(classifier.normalizarCategoria(null, nombre, "Juguete")).isEqualTo("LEGO");
+    }
+
+    @Test
+    void legolasNoEsLego() {
+        assertThat(cat("Legolas Figura Hobbit")).isNotEqualTo("LEGO");
     }
 
     @Test

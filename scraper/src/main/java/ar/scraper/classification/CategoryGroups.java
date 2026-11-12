@@ -9,7 +9,7 @@ public final class CategoryGroups {
 
     private static final Set<String> INDUMENTARIA_O_CALZADO_EXTRA = Set.of(
         "Puffer","Campera","Sweater","Buzo","Musculosa","Camisa","Remera",
-        "Chomba","Casaca","Chaleco","Saco","Traje","Piloto",
+        "Chomba","Casaca","Chaleco","Saco","Camisaco","Traje","Piloto",
         "Calza","Baggy","Jean","Jogging","Short","Bermuda","Pollera",
         "Vestido","Enterito","Pantalón",
         "Calzoncillos","Bombacha","Corpino","Top","Top Deportivo","Malla",
@@ -61,7 +61,7 @@ public final class CategoryGroups {
 
     private static final Set<String> CATEGORIAS_JUGUETES = Set.of(
         "Juguete","Cama Elástica",
-        "Figura Coleccionable","Peluche","Juego de Mesa"
+        "Figura Coleccionable","Peluche","Juego de Mesa","LEGO","TCG"
     );
 
     private static final Set<String> CATEGORIAS_LIBROS = Set.of("Libro");
@@ -72,7 +72,7 @@ public final class CategoryGroups {
     );
 
     private static final Set<String> CATEGORIAS_CONSTRUCCION = Set.of(
-        "Placa Decorativa", "Vinilo Decorativo", "Piso", "Césped Sintético",
+        "Placa Decorativa", "Wall Panel", "Vinilo Decorativo", "Piso", "Césped Sintético",
         "Adhesivo", "Moldura", "Planta Artificial",
         "Cemento", "Ladrillo", "Árido", "Hierro", "Impermeabilizante", "Madera", "Tablero",
         "Chapa", "Aislante", "Placa de Yeso", "Perfilería", "Pintura", "Enduido", "Diluyente",

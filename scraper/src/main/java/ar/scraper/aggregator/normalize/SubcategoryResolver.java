@@ -195,9 +195,15 @@ public class SubcategoryResolver {
             new String[]{"snapback", "snapback"},
             new String[]{"visera",   "visera"}
         ));
-        // Matched as a whole word: "Legolas" is not a LEGO. Tier 1 wins over the sport tier ("Lego Futbol").
-        SUBCATEG_TIER1.put("Juguete", Arrays.<String[]>asList(
-            new String[]{"lego", "lego", "lego:"}
+        // The franchise of a trading card game; the first match wins. Sub-categories are lowercase, like the chips.
+        SUBCATEG_TIER1.put("TCG", Arrays.<String[]>asList(
+            new String[]{"pokemon",     "pokemon"},
+            new String[]{"dragon ball", "dragon ball"},
+            new String[]{"magic",       "magic the gathering", "magic:", "mtg"},
+            new String[]{"yu-gi-oh",    "yu-gi-oh", "yu-gi-oh!", "yugioh", "yu gi oh"},
+            new String[]{"one piece",   "one piece"},
+            new String[]{"lorcana",     "lorcana"},
+            new String[]{"digimon",     "digimon"}
         ));
         SUBCATEG_TIER1.put("Vestido", Arrays.<String[]>asList(
             new String[]{"largo",  "largo", "maxi"},
@@ -264,8 +270,8 @@ public class SubcategoryResolver {
         // Same for a Funko: "Funko Pop! Alien 3 - Ripley & The Runner" is not a running product.
         if ("Juguete".equals(categoria) && n.contains(" funko")) return "";
 
-        // The sport tier is for garments; "Perfume Hockey Club" is not a hockey product.
-        if ("Perfume".equals(categoria)) return "";
+        // The sport tier is for garments; "Perfume Hockey Club" is not a hockey product, nor is a card or a LEGO set.
+        if ("Perfume".equals(categoria) || "TCG".equals(categoria) || "LEGO".equals(categoria)) return "";
 
         String catNorm = normalizarAcentos(categoria);
         for (String[] entry : SUBCATEG_TIER2) {

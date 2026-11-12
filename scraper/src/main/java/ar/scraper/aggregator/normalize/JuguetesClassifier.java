@@ -5,7 +5,7 @@ final class JuguetesClassifier implements FamiliaClassifier {
     @Override
     public String clasificar(TextoClasificable texto) {
         if (texto.sinPrefijoDeVentaEmpiezaCon(GarmentTaxonomy.KW_CAMA_ELASTICA_LIDER)) return "Cama Elástica";
-        if (esJuguete(texto)) return "Juguete";
+        if (esJuguete(texto)) return texto.contiene(GarmentTaxonomy.KW_LEGO) ? "LEGO" : "Juguete";
         return "";
     }
 

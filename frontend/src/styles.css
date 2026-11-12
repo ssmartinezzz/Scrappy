@@ -734,6 +734,29 @@ body { overflow-x: hidden; }
 .picks-catdetail { padding: 1rem 1.25rem; max-width: 1400px; margin: 0 auto; }
 .picks-back-btn { background: none; border: none; cursor: pointer; color: var(--p2);
   font-size: .8rem; margin-bottom: 12px; padding: 0; display: flex; align-items: center; gap: 5px; }
+/* Sticky bar of the category detail: back + breadcrumb, reachable while the list scrolls. The detail is not its own
+   scroll container (.picks-scroll--detalle), so the bar sticks to the top of the page scroll (the nav and topbar scroll away with the page). */
+.picks-scroll--detalle { overflow: visible; }
+/* Mobile first: 44px touch targets (Apple HIG minimum) and phone-readable text; desktop tightens at 900px. */
+.picks-crumbbar { position: sticky; top: 0; z-index: var(--z-chrome-sub);
+  display: flex; flex-wrap: wrap; align-items: center; gap: 2px 16px; min-height: 56px;
+  margin: -1rem -1.25rem .9rem; padding: .4rem 1.25rem;
+  padding-left: max(1.25rem, env(safe-area-inset-left)); padding-right: max(1.25rem, env(safe-area-inset-right));
+  background: var(--s1); border-bottom: 1px solid var(--bd); box-shadow: 0 2px 8px rgb(0 0 0 / .12); }
+.picks-crumbbar .picks-back-btn { margin-bottom: 0; font-weight: 700; font-size: 1rem; min-height: 44px; padding: 0 4px; }
+.picks-crumbs { display: flex; flex-wrap: wrap; align-items: center; list-style: none; font-size: .95rem; color: var(--t4); }
+.picks-crumbs li { display: flex; align-items: center; }
+.picks-crumbs li + li::before { content: '›'; margin: 0 8px; color: var(--t4); }
+.picks-crumb { background: none; border: none; padding: 0 2px; min-height: 44px; cursor: pointer; font: inherit; color: var(--t3); }
+@media (min-width: 900px) {
+  .picks-crumbbar { min-height: 48px; }
+  .picks-crumbbar .picks-back-btn { font-size: .9rem; min-height: 36px; }
+  .picks-crumbs { font-size: .85rem; }
+  .picks-crumb { min-height: 36px; }
+}
+.picks-crumb:hover { color: var(--p2); text-decoration: underline; }
+.picks-crumb:focus-visible, .picks-crumbbar .picks-back-btn:focus-visible { outline: 2px solid var(--p); outline-offset: 2px; }
+.picks-crumb-actual { color: var(--t1); font-weight: 700; }
 .picks-catdetail-title { font-size: 1.1rem; font-weight: 900; color: var(--t1); margin-bottom: 2px; }
 .picks-catdetail-meta { font-size: .72rem; color: var(--t4); margin-bottom: 4px; }
 .picks-catdetail-tagline { font-size: .78rem; color: var(--p2); margin-bottom: 1.2rem; font-style: italic; }

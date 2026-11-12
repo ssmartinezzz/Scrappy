@@ -22,6 +22,7 @@ final class ConstruccionClassifier implements FamiliaClassifier {
         if (!abertura.isEmpty()) return abertura;
         if (texto.sinPrefijoDeVentaEmpiezaCon(GarmentTaxonomy.KW_PISO_LIDER)
                 || texto.contiene(GarmentTaxonomy.KW_PISO))                       return "Piso";
+        if (texto.contiene(GarmentTaxonomy.KW_WALL_PANEL))                        return "Wall Panel";
         if (texto.contiene(GarmentTaxonomy.KW_PLACA_DECORATIVA)
                 || (texto.contiene(GarmentTaxonomy.KW_PLACA)
                     && texto.contiene(GarmentTaxonomy.KW_PLACA_CALIFICADOR)

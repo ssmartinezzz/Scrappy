@@ -170,6 +170,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V93` | Categorías `Desodorante` (rubro `perfumeria`) y `Llavero` (en ningún grupo de rubro); los desodorantes guardados como `Perfume` se mueven y las `Perfume` sin palabra de fragancia (juguetes `Splash`, `Teja Colonial`) se realinean |
 | `V94` | Categorías `Vincha`, `Bandana` y `Traje Deportivo` (indumentaria); las `Gorra` con vincha/bandana, los `tracksuit`/`catsuit` guardados como `Traje`/`Conjunto`, todo Funko (a `Juguete`/`juguetes`, sin subcategoría de deporte) y las `Juguete` LEGO (`sub_categoria = 'lego'`) se realinean |
 | `V95` | Seed de Under Armour y Nike (VTEX), las dos `monomarca` con su fila en `marca`; Nike devuelve 403 a `page.request()` y `VtexPage` lee su API con `fetch` dentro de la página |
+| `V96` | Categorías `Camisaco` (indumentaria), `LEGO` y `TCG` (juguetes) y `Wall Panel` (construcción); los `blazer` que no lideran el nombre salen de `Saco`, los `Top` con palabra de limpieza/suplemento se corrigen, ninguna `Camisa`/`Chomba` es `gymrat`, y las `Juguete` LEGO, los juegos de cartas coleccionables y los wall panel pasan a su categoría |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -4953,5 +4954,42 @@ DELETE FROM sitio WHERE sitio_key IN ('underarmour', 'nike');
 ```
 
 No se borra de `marca`: `V21` ya traía `'Under Armour'` y `'Nike'` y otras filas las usan. Si ya hay productos de esos sitios,
-`fk_productos_sitio` frena el `DELETE`: borrá antes sus filas de `productos`. Es el bloque más nuevo: en una cadena de rollbacks
-corre PRIMERO, antes que el de `V94`.
+`fk_productos_sitio` frena el `DELETE`: borrá antes sus filas de `productos`. Ya no es el bloque más nuevo: en una cadena de rollbacks
+corre después del de `V96` y antes que el de `V94`.
+
+---
+
+## `V96` — categorías `Camisaco`, `LEGO`, `TCG` y `Wall Panel`; `Saco`, `Top` y gymrat
+
+Cuatro categorías nuevas, cada una con sus **dos** cambios (keyword + `INSERT` en `categoria`): `Camisaco` (`KW_CAMISACO`, antes de `Saco` en
+`IndumentariaClassifier`; `saco ` ya no matchea dentro de `camisaco `), `LEGO` (`KW_LEGO` dentro de `JuguetesClassifier`), `TCG`
+(`KW_TCG` + franquicia, primero en `ColeccionablesClassifier`; la franquicia es la `sub_categoria`: `pokemon`, `dragon ball`, `magic`,
+`yu-gi-oh`, `one piece`, `lorcana`, `digimon`, o vacía) y `Wall Panel` (`KW_WALL_PANEL` en `ConstruccionClassifier`; el panel ranurado de
+ferretería no lo es). `blazer` es `Saco` sólo si **lidera** el nombre (`KW_SACO_BLAZER_LIDER`): "Nike Blazer" es zapatilla, "Trailblazer"
+es mochila. `KW_TOP_VETO` saca de `Top` los nombres con limpia/cepillo/bcaa/cápsula/proteína/whey/creatina. `GymratTagger` nunca marca `Camisa` ni
+`Chomba`. Canon 286.
+
+El `UPDATE` pasa a `Camisaco` las `Saco`/`Camisa` con la palabra; devuelve cada `blazer` no líder a su familia (`Mochila`, `Cinturón`, `Buzo`,
+`Zapatilla Skate`/`Urbana`, o `Otros`); manda las `Top` con palabra de limpieza a `Otros` y la de suplemento a `BCAA`/`suplementos`; pone
+`gymrat = false` a toda `Camisa`/`Chomba`; mueve las `Juguete` con ` lego ` (sin Funko) a `LEGO`/`juguetes` sin subcategoría; las `Juego de Mesa`/`Conjunto`
+de cartas coleccionables a `TCG`/`juguetes` con su franquicia; y las `Placa Decorativa`/`Vinilo Decorativo` con `wall panel` a `Wall Panel`/`construccion`.
+El rubro se escribe acá porque `renormalizar` no lo persiste. Nunca toca filas bloqueadas (`bloqueado_por`) y cada `UPDATE` es idempotente.
+
+### Rollback
+
+```sql
+-- >>> rollback:V96
+UPDATE productos SET categoria = 'Saco' WHERE categoria = 'Camisaco';
+UPDATE productos SET categoria = 'Juguete', sub_categoria = 'lego' WHERE categoria = 'LEGO';
+UPDATE productos SET categoria = 'Juego de Mesa', sub_categoria = '' WHERE categoria = 'TCG';
+UPDATE productos SET categoria = 'Placa Decorativa' WHERE categoria = 'Wall Panel';
+UPDATE sitio_categoria SET categoria = NULL WHERE categoria IN ('Camisaco', 'LEGO', 'TCG', 'Wall Panel');
+DELETE FROM categoria_stats WHERE categoria IN ('Camisaco', 'LEGO', 'TCG', 'Wall Panel');
+DELETE FROM categoria WHERE nombre IN ('Camisaco', 'LEGO', 'TCG', 'Wall Panel');
+-- <<< rollback:V96
+```
+
+**El orden es obligatorio** (FK de `productos`, `sitio_categoria` y `categoria_stats` hacia `categoria`). No se revierten los pasos de `blazer`, `Top` ni
+gymrat (no se guardó el estado anterior y el clasificador nuevo los volvería a mover); los `Wall Panel` vuelven a `Placa Decorativa` aunque algunos
+fueran `Vinilo Decorativo`, y los `Camisaco` a `Saco` aunque algunos fueran `Camisa`. Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO,
+antes que el de `V95`.

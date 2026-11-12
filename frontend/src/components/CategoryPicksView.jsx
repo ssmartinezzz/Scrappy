@@ -41,7 +41,9 @@ function leerModo() {
 // as one list, never both. The mode is a per-viewer preference kept in localStorage, like /favoritos. `pickFilters` must be the same
 // rubro/gymrat/genero the summary `cat` was fetched with, so the pages describe the same set.
 // `subChips` (optional) lists sub-categories to filter by; picks carry `subCategoria` when the product has one.
-export default function CategoryPicksView({ cat, onBack, onProductClick, pickFilters, subChips }) {
+// `migas` (optional) are the breadcrumb segments before the category, `{ label, onClick }` each: Picks › Rubro › Categoría.
+// The bar holding them and the back control is sticky, so the way out stays reachable while the list scrolls.
+export default function CategoryPicksView({ cat, onBack, onProductClick, pickFilters, subChips, migas }) {
   const [sub, setSub] = useState('');
   const delFiltro = lista => (sub ? lista.filter(p => p.subCategoria === sub) : lista);
   const firstPick = delFiltro(cat.picks || [])[0];
@@ -106,9 +108,19 @@ export default function CategoryPicksView({ cat, onBack, onProductClick, pickFil
 
   return (
     <div className="picks-catdetail">
-      <button onClick={onBack} className="picks-back-btn">
-        ← Volver
-      </button>
+      <nav className="picks-crumbbar" aria-label="Ubicación">
+        <button onClick={onBack} className="picks-back-btn">
+          ← Volver
+        </button>
+        <ol className="picks-crumbs">
+          {(migas || []).map(m => (
+            <li key={m.label}>
+              <button type="button" className="picks-crumb" onClick={m.onClick}>{m.label}</button>
+            </li>
+          ))}
+          <li aria-current="page" className="picks-crumb-actual">{cat.categoria}</li>
+        </ol>
+      </nav>
 
       <h2 className="picks-catdetail-title">
         {cat.categoria}
@@ -125,11 +137,14 @@ export default function CategoryPicksView({ cat, onBack, onProductClick, pickFil
       <div className="picks-catdetail-toolbar">
         {subChips?.length > 0 && (
           <fieldset className="picks-subchips" aria-label="Subcategoría">
-            {['', ...subChips].map(s => (
-              <button key={s || 'todos'} type="button" onClick={() => setSub(s)}
-                className={`picks-rubro-btn${sub === s ? ' active' : ''}`}
-              >{s || 'Todos'}</button>
-            ))}
+            {['', ...subChips].map(chip => {
+              const valor = chip.value ?? chip;
+              return (
+                <button key={valor || 'todos'} type="button" onClick={() => setSub(valor)}
+                  className={`picks-rubro-btn${sub === valor ? ' active' : ''}`}
+                >{valor ? (chip.label ?? chip) : 'Todos'}</button>
+              );
+            })}
           </fieldset>
         )}
         <fieldset className="picks-view-toggle" aria-label="Modo de vista">
