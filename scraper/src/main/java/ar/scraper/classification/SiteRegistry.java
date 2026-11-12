@@ -57,6 +57,12 @@ public final class SiteRegistry {
         return new Sitio(sitioKey, sitioKey, ABSTENCION_PLATAFORMA, false, null, "historico", false, null);
     }
 
+    /** The run's site name: sitio.nombre when the site is registered, the fallback otherwise. */
+    public String nombreVisible(String sitioKey, String fallback) {
+        Sitio found = porSitioKey.get(sitioKey);
+        return found != null ? found.nombre() : fallback;
+    }
+
     public String plataforma(String sitioKey) {
         return porKey(sitioKey).plataforma();
     }

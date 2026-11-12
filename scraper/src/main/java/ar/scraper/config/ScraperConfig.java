@@ -1,5 +1,6 @@
 package ar.scraper.config;
 
+import ar.scraper.classification.SiteClassification;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -62,7 +63,7 @@ public class ScraperConfig {
     }
 
     public boolean requiereBypassCloudflare(String nombreSitio) {
-        String key = (nombreSitio != null ? nombreSitio : "").toLowerCase();
+        String key = SiteClassification.sitioKey(nombreSitio);
         return Boolean.parseBoolean(props.getProperty("sitio." + key + ".cloudflare", "false"));
     }
 
@@ -83,7 +84,7 @@ public class ScraperConfig {
 
     /** Opcional: casi ningún sitio lo define y el {@code fallback} alcanza. */
     public int getMaxPaginas(String nombreSitio, int fallback) {
-        String key = (nombreSitio != null ? nombreSitio : "").toLowerCase();
+        String key = SiteClassification.sitioKey(nombreSitio);
         String raw = props.getProperty("sitio." + key + ".max_paginas");
         if (StringUtils.isBlank(raw)) return fallback;
         try {
