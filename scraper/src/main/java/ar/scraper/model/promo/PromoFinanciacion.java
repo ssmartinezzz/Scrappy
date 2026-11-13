@@ -1,4 +1,4 @@
-package ar.scraper.promos;
+package ar.scraper.model.promo;
 
 import org.apache.commons.lang3.StringUtils;
 

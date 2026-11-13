@@ -10,6 +10,9 @@ import ar.scraper.catalog.SitioCategoriaPort;
 import ar.scraper.model.SitioCategoriaNodo;
 import ar.scraper.catalog.UpsertStats;
 import ar.scraper.model.Product;
+import ar.scraper.promos.FilasDePromo;
+import ar.scraper.model.promo.PromoFinanciacion;
+import ar.scraper.model.promo.PromosDeCorrida;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -92,10 +95,17 @@ class ProductRepository implements ProductPort {
     public UpsertStats upsertProductos(List<Product> productos,
                                        ar.scraper.scrape.CorridaEnCurso corrida,
                                        Set<String> sitiosParciales) {
+        return upsertProductos(productos, corrida, sitiosParciales, PromosDeCorrida.VACIO);
+    }
+
+    @Override
+    public UpsertStats upsertProductos(List<Product> productos,
+                                       ar.scraper.scrape.CorridaEnCurso corrida,
+                                       Set<String> sitiosParciales, PromosDeCorrida promos) {
         // The transaction is opened here, programmatically, so a failure to open (or close) one is
         // caught by this try.
         try {
-            return tx.execute(status -> upsertEnTransaccion(productos, corrida, sitiosParciales, status));
+            return tx.execute(status -> upsertEnTransaccion(productos, corrida, sitiosParciales, promos, status));
         } catch (RuntimeException e) {
             LOG.warn("[DB] Upsert sin transacción: {}", e.getMessage());
             return new UpsertStats(0, 0, 0, 0);
@@ -105,12 +115,17 @@ class ProductRepository implements ProductPort {
     private UpsertStats upsertEnTransaccion(List<Product> productos,
                                             ar.scraper.scrape.CorridaEnCurso corrida,
                                             Set<String> sitiosParciales,
+                                            PromosDeCorrida promos,
                                             TransactionStatus status) {
         String now   = LocalDateTime.now().format(DT);
         String today = LocalDate.now().format(DATE);
 
         try {
             UpsertStats upsert = upsertEnLotes(productos, now, today, true);
+            // After every product batch and once: the function stamps with clock_timestamp, so a
+            // per-batch call would deactivate the promos an earlier batch just wrote. An exception
+            // here lands in the catch below and rolls the products back with it.
+            upsertPromos(productos, promos);
 
             // El alcance del soft-delete NO sale de la lista de sitios pedidos: un sitio cuyo
             // scraper se rompió llega con 0 productos, y no hay que confundir "se rompió" con "se
@@ -168,6 +183,44 @@ class ProductRepository implements ProductPort {
         }
         if (g != null) total = sumar(total, enviarLote(g, buffer, includeVisual, conCategoria));
         return total;
+    }
+
+    private void upsertPromos(List<Product> productos, PromosDeCorrida promos) throws IOException {
+        List<FilasDePromo.Fila> filas = FilasDePromo.agrupar(productos, promos);
+        if (filas.isEmpty() && promos.sitiosLeidos().isEmpty()) return;
+        StringWriter out = new StringWriter();
+        try (JsonGenerator g = MAPPER.getFactory().createGenerator(out)) {
+            g.writeStartArray();
+            for (FilasDePromo.Fila f : filas) escribirPromo(g, f);
+            g.writeEndArray();
+        }
+        jdbc.query("SELECT sp_upsert_promos(?::jsonb, ?)", ps -> {
+            ps.setString(1, out.toString());
+            ps.setArray(2, ps.getConnection().createArrayOf("text", promos.sitiosLeidos().toArray()));
+        }, rs -> {
+            // The count is not used: the sweep is the function's own business.
+        });
+    }
+
+    private static void escribirPromo(JsonGenerator g, FilasDePromo.Fila f) throws IOException {
+        PromoFinanciacion p = f.promo();
+        g.writeStartObject();
+        g.writeStringField("sitio", f.sitio());
+        g.writeStringField("medioPago", p.medioPago());
+        g.writeStringField("tipoMedio", p.tipoMedio().sql());
+        g.writeStringField("tipo", p.tipo().sql());
+        if (p.cuotas() != null) g.writeNumberField("cuotas", p.cuotas());
+        else g.writeNullField("cuotas");
+        if (p.pct() != null) g.writeNumberField("pct", p.pct());
+        else g.writeNullField("pct");
+        g.writeStringField("alcance", p.alcance().sql());
+        g.writeStringField("vigenciaDesde", p.vigenciaDesde() != null ? p.vigenciaDesde().toString() : null);
+        g.writeStringField("vigenciaHasta", p.vigenciaHasta() != null ? p.vigenciaHasta().toString() : null);
+        g.writeStringField("textoFuente", p.textoFuente());
+        g.writeArrayFieldStart("urls");
+        for (String url : f.urls()) g.writeString(url);
+        g.writeEndArray();
+        g.writeEndObject();
     }
 
     private UpsertStats enviarLote(JsonGenerator g, StringWriter buffer, boolean includeVisual,

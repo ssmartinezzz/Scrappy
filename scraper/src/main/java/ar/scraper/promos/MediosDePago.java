@@ -1,5 +1,6 @@
 package ar.scraper.promos;
 
+import ar.scraper.model.promo.TipoMedio;
 import ar.scraper.aggregator.text.AccentStripper;
 
 import java.util.ArrayList;

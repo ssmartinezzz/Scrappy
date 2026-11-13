@@ -1,5 +1,9 @@
 package ar.scraper.promos;
 
+import ar.scraper.model.promo.PromoFinanciacion;
+import ar.scraper.model.promo.Alcance;
+import ar.scraper.model.promo.TipoMedio;
+import ar.scraper.model.promo.TipoPromo;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

@@ -1,4 +1,4 @@
-package ar.scraper.promos;
+package ar.scraper.model.promo;
 
 import java.util.Arrays;
 import java.util.Optional;

@@ -11,6 +11,9 @@ import ar.scraper.ml.PythonRunner;
 import ar.scraper.ml.SenalEnricher;
 import ar.scraper.model.Product;
 import ar.scraper.model.ScrapeResult;
+import ar.scraper.model.promo.PromoFinanciacion;
+import ar.scraper.model.promo.PromosDeCorrida;
+import ar.scraper.model.promo.PromosDelSitio;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -100,6 +103,33 @@ public class ResultAggregator {
                 .collect(Collectors.toSet());
     }
 
+    /**
+     * A site is promo-read only if its scraper flagged a successful read AND it ended clean: a failed
+     * fetch must leave its stored promos alone, and wiping on doubt is the destructive direction.
+     */
+    static PromosDeCorrida promosDe(List<ScrapeResult> resultados) {
+        Map<String, List<PromoFinanciacion>> delSitio = new LinkedHashMap<>();
+        Set<String> leidos = new LinkedHashSet<>();
+        for (ScrapeResult r : resultados) {
+            PromosDelSitio p = r.promosDelSitio();
+            if (!p.leido() || StringUtils.isNotBlank(r.error())) continue;
+            leidos.add(r.sitio());
+            if (!p.promos().isEmpty()) delSitio.put(r.sitio(), p.promos());
+        }
+        return new PromosDeCorrida(delSitio, leidos);
+    }
+
+    /** The 3-arg port call stays the path of a run with no promo signal, so that path is unchanged. */
+    private void persistirProductos(List<Product> enriquecidos, ar.scraper.scrape.CorridaEnCurso corrida,
+                                    List<ScrapeResult> resultados) {
+        PromosDeCorrida promos = promosDe(resultados);
+        if (promos.esVacio() && enriquecidos.stream().allMatch(p -> p.promos().isEmpty())) {
+            productos.upsertProductos(enriquecidos, corrida, sitiosParciales(resultados));
+        } else {
+            productos.upsertProductos(enriquecidos, corrida, sitiosParciales(resultados), promos);
+        }
+    }
+
     public AggregatedResult agregar(List<ScrapeResult> resultados, boolean forceRetrain) {
         return agregar(resultados, forceRetrain, null);
     }
@@ -117,7 +147,7 @@ public class ResultAggregator {
 
         persistirCategoriasRefinadas(pipeline.normalizados(), pipeline.enriquecidos());
 
-        productos.upsertProductos(pipeline.enriquecidos(), corrida, sitiosParciales(resultados));
+        persistirProductos(pipeline.enriquecidos(), corrida, resultados);
         mlOutput.guardarMlOutput(pipeline.mlOut());
         if (pipeline.mlOut() != null && !pipeline.mlOut().path("categoriaStats").isMissingNode())
             categoriaStats.guardarCategoriaStats(pipeline.mlOut().path("categoriaStats"));

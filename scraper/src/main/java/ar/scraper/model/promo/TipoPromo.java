@@ -1,4 +1,4 @@
-package ar.scraper.promos;
+package ar.scraper.model.promo;
 
 /** Mirrors the {@code promo_financiacion.tipo} CHECK. */
 public enum TipoPromo {

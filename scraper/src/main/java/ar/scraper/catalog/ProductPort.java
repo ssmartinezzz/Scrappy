@@ -35,6 +35,15 @@ public interface ProductPort {
     UpsertStats upsertProductos(List<Product> productos, ar.scraper.scrape.CorridaEnCurso corrida,
                                 java.util.Set<String> sitiosParciales);
 
+    /**
+     * Same, and the run's promos (product-scoped ones ride on the products) commit in the same
+     * transaction through one {@code sp_upsert_promos} call: if it fails, the products roll back too.
+     * Promos are deactivated only for {@code promos.sitiosLeidos()}.
+     */
+    UpsertStats upsertProductos(List<Product> productos, ar.scraper.scrape.CorridaEnCurso corrida,
+                                java.util.Set<String> sitiosParciales,
+                                ar.scraper.model.promo.PromosDeCorrida promos);
+
     UpsertStats upsertParcial(List<Product> productos);
 
     UpsertStats upsertParcial(String sitio, List<Product> productos,

@@ -1,5 +1,9 @@
 package ar.scraper.promos;
 
+import ar.scraper.model.promo.PromoFinanciacion;
+import ar.scraper.model.promo.Alcance;
+import ar.scraper.model.promo.TipoMedio;
+import ar.scraper.model.promo.TipoPromo;
 import ar.scraper.aggregator.text.AccentStripper;
 import org.apache.commons.lang3.StringUtils;
 

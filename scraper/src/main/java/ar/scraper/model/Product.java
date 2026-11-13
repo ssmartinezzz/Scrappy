@@ -2,6 +2,7 @@ package ar.scraper.model;
 
 import java.time.Instant;
 import java.util.List;
+import ar.scraper.model.promo.PromoFinanciacion;
 import lombok.Builder;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.Validate;
@@ -35,12 +36,26 @@ public record Product(
         Integer sitioCategoriaOrigenId,
         Boolean enStock,           // null = unknown: the platform gives no stock signal (never "in stock")
         Instant vistoEnStockAt,    // last run that saw it in stock; read-only, set by sp_upsert_run
-        Instant stockChequeadoAt   // last run that knew its stock (true or false); read-only, same
+        Instant stockChequeadoAt,  // last run that knew its stock (true or false); read-only, same
+        List<PromoFinanciacion> promos // product-scoped payment promos seen this run; never null, not persisted by sp_upsert_run
 ) implements Comparable<Product> {
 
     public Product {
         Validate.notBlank(sitio, "sitio must not be blank");
         Validate.notBlank(nombre, "nombre must not be blank");
+        promos = promos == null ? List.of() : List.copyOf(promos);
+    }
+
+    /** Source-compatible with call sites that predate the promos: none. */
+    public Product(String sitio, String nombre, double precio, Double precioOriginal, String url,
+                   String imagenUrl, String categoria, String genero, List<String> talles, MlScore ml,
+                   String marca, String rubro, boolean gymrat, boolean marcaPremium, SenalCompra senal,
+                   SenalFinanciacion finan, int cantidadUnidades, String subCategoria, String deporte,
+                   VisualAttrs visual, Integer sitioCategoriaOrigenId, Boolean enStock,
+                   Instant vistoEnStockAt, Instant stockChequeadoAt) {
+        this(sitio, nombre, precio, precioOriginal, url, imagenUrl, categoria, genero, talles, ml, marca,
+             rubro, gymrat, marcaPremium, senal, finan, cantidadUnidades, subCategoria, deporte, visual,
+             sitioCategoriaOrigenId, enStock, vistoEnStockAt, stockChequeadoAt, List.of());
     }
 
     /** Source-compatible with call sites that predate the stock columns: stock unknown. */
@@ -51,7 +66,7 @@ public record Product(
                    VisualAttrs visual, Integer sitioCategoriaOrigenId) {
         this(sitio, nombre, precio, precioOriginal, url, imagenUrl, categoria, genero, talles, ml, marca,
              rubro, gymrat, marcaPremium, senal, finan, cantidadUnidades, subCategoria, deporte, visual,
-             sitioCategoriaOrigenId, null, null, null);
+             sitioCategoriaOrigenId, null, null, null, List.of());
     }
 
     public static ProductBuilder builder() {
