@@ -1,0 +1,19 @@
+[project]
+name = "scrappy-catalog-mcp"
+version = "0.1.0"
+description = "MCP server that exposes the Scrappy REST API to an MCP host (Claude Code)."
+requires-python = ">=3.11"
+dependencies = [
+    "mcp==2.3.0",
+    "httpx>=0.27",
+]
+
+[dependency-groups]
+dev = [
+    "pytest==8.3.4",
+    "anyio>=4",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

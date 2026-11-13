@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "scrappy": {
+      "command": "uv",
+      "args": ["--directory", "catalog-mcp", "run", "--frozen", "python", "-m", "scrappy_mcp.server"],
+      "env": {
+        "SCRAPPY_API_URL": "${SCRAPPY_API_URL:-http://localhost:3000}",
+        "SCRAPPY_API_USER": "${SCRAPPY_API_USER}",
+        "SCRAPPY_API_PASSWORD": "${SCRAPPY_API_PASSWORD}"
+      }
+    }
+  }
+}
