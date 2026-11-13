@@ -1727,12 +1727,16 @@ paths:
       summary: Add a favorite. Own rows only.
       x-access: AUTHENTICATED
       requestBody:
+        required: true
         content:
           application/json:
             schema:
               type: object
+              required: [url, sitio]
               properties:
                 url: { type: string }
+                sitio: { type: string, description: "Site display name, e.g. `Venex`." }
+                nombre: { type: string, description: "Optional. Stored as the favorite's fallback name." }
       responses:
         "200":
           description: Favorite added.
@@ -1740,6 +1744,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiResponse"
+        "400":
+          description: "`url` or `sitio` missing or blank (`solicitud_invalida`)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
     delete:
       tags: [Favoritos]
       summary: Remove a favorite. Own rows only.
