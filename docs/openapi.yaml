@@ -241,6 +241,14 @@ components:
         `desconocido` rows stay (unknown is not sold out), and a stock check
         older than `STOCK_VIGENCIA_DIAS` counts as `desconocido`. Any other
         value is a 400 `solicitud_invalida`.
+    IncluirSinStock:
+      name: incluirSinStock
+      in: query
+      schema: { type: boolean, default: false }
+      description: >-
+        Builders skip candidates with a fresh confirmed `sin_stock` by default
+        (they assemble something to buy); `true` lets them back in. Candidates
+        with `desconocido` stock are always eligible.
     RefreshCsrf:
       name: X-Refresh-CSRF
       in: header
@@ -1214,6 +1222,7 @@ paths:
         - name: presupuestoSuplementos
           in: query
           schema: { type: number, default: 0 }
+        - $ref: "#/components/parameters/IncluirSinStock"
       responses:
         "200":
           description: Assembled outfit.
@@ -1258,6 +1267,7 @@ paths:
         - name: estilo
           in: query
           schema: { type: string, default: gym }
+        - $ref: "#/components/parameters/IncluirSinStock"
       responses:
         "200":
           description: Assembled outfit under budget.
@@ -1306,6 +1316,7 @@ paths:
         - name: excluir
           in: query
           schema: { type: string, default: "" }
+        - $ref: "#/components/parameters/IncluirSinStock"
       responses:
         "200":
           description: Assembled combo.
@@ -1411,6 +1422,7 @@ paths:
             other pick still compatible, total never above presupuesto) and demotes OUTLET boards.
             No effect without presupuesto. Any other value is a 400.
           schema: { type: string, enum: [ahorrar, gastar], default: ahorrar }
+        - $ref: "#/components/parameters/IncluirSinStock"
       responses:
         "200":
           description: >-

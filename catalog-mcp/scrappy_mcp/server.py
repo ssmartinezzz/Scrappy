@@ -128,7 +128,8 @@ def build_server(api: ApiClient) -> MCPServer:
     def armar_pc(presupuesto: float, opciones: dict[str, Any] | None = None) -> dict:
         """Compatible PC build for a budget in ARS (GET /api/pcs/builder). opciones takes any of:
         conGpu, gama, ddr, marcaCpu, marcaGpu, tipoAlmacenamiento, ramDual, wifi, capacidadMinimaGb,
-        tamanioGabinete, tipoCooler, wattsMinimos, ramMinimaGb, uso, modo, excluir."""
+        tamanioGabinete, tipoCooler, wattsMinimos, ramMinimaGb, uso, modo, excluir, incluirSinStock.
+        Sold-out parts are skipped unless incluirSinStock is true; unknown stock stays eligible."""
         return call("GET", "/api/pcs/builder", {"presupuesto": presupuesto, **(opciones or {})})
 
     @mcp.tool()
@@ -137,17 +138,21 @@ def build_server(api: ApiClient) -> MCPServer:
                      opciones: dict[str, Any] | None = None) -> dict:
         """Budget-optimal outfit (GET /api/outfits/builder). categorias: one pick per category, e.g.
         ["Remera", "Short", "Zapatilla"]. presupuesto must be > 0. estilo defaults to gym.
-        excluir: product urls to leave out. opciones: pin, greedy."""
+        excluir: product urls to leave out. opciones: pin, greedy, incluirSinStock (sold-out items are
+        skipped by default)."""
         return call("GET", "/api/outfits/builder", {
             "presupuesto": presupuesto, "categorias": ",".join(categorias), "genero": genero,
             "estilo": estilo, "excluir": _csv(excluir), **(opciones or {})})
 
     @mcp.tool()
-    def armar_suplementos(tipos: list[str], presupuesto: float = 0, excluir: list[str] | None = None) -> dict:
+    def armar_suplementos(tipos: list[str], presupuesto: float = 0, excluir: list[str] | None = None,
+                          incluir_sin_stock: bool | None = None) -> dict:
         """Supplement combo (GET /api/suplementos/builder). tipos e.g. ["Creatina", "Proteína en Polvo"];
-        valid values: api_call GET /api/suplementos/tipos. presupuesto 0 = no cap."""
+        valid values: api_call GET /api/suplementos/tipos. presupuesto 0 = no cap.
+        Sold-out products are skipped unless incluir_sin_stock is true."""
         return call("GET", "/api/suplementos/builder", {"tipos": ",".join(tipos), "presupuesto": presupuesto,
-                                                        "excluir": _csv(excluir)})
+                                                        "excluir": _csv(excluir),
+                                                        "incluirSinStock": incluir_sin_stock})
 
     # ── Actions (real, shared effects) ───────────────────────────────────
 

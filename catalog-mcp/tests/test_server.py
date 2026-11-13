@@ -136,6 +136,27 @@ async def test_armar_pc_passes_preferences_through(server, backend):
     assert dict(req.url.params) == {"presupuesto": "1000000.0", "gama": "media", "conGpu": "true"}
 
 
+async def test_armar_pc_forwards_incluir_sin_stock(server, backend):
+    await call(server, "armar_pc", {"presupuesto": 1_000_000, "opciones": {"incluirSinStock": True}})
+
+    assert sent(backend).url.params["incluirSinStock"] == "true"
+
+
+async def test_armar_suplementos_forwards_incluir_sin_stock_only_when_asked(server, backend):
+    await call(server, "armar_suplementos", {"tipos": ["Creatina"]})
+    assert "incluirSinStock" not in sent(backend).url.params
+
+    await call(server, "armar_suplementos", {"tipos": ["Creatina"], "incluir_sin_stock": True})
+    assert sent(backend).url.params["incluirSinStock"] == "true"
+
+
+async def test_armar_outfit_forwards_incluir_sin_stock(server, backend):
+    await call(server, "armar_outfit", {"presupuesto": 100000, "categorias": ["Short"],
+                                        "opciones": {"incluirSinStock": True}})
+
+    assert sent(backend).url.params["incluirSinStock"] == "true"
+
+
 async def test_lanzar_scrape_posts_the_selected_sites(server, backend):
     await call(server, "lanzar_scrape", {"sitios": ["Vaypol", "Easy"]})
 
