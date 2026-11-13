@@ -46,7 +46,15 @@ abstract class StorePage extends BasePage {
     protected Product producto(String nombre, double precio, Double precioOriginal, String url,
                                String imagenUrl, String categoria, String genero, List<String> talles,
                                Integer sitioCategoriaOrigenId) {
+        return producto(nombre, precio, precioOriginal, url, imagenUrl, categoria, genero, talles,
+                sitioCategoriaOrigenId, null);
+    }
+
+    protected Product producto(String nombre, double precio, Double precioOriginal, String url,
+                               String imagenUrl, String categoria, String genero, List<String> talles,
+                               Integer sitioCategoriaOrigenId, Boolean enStock) {
         return Product.builder()
+                .enStock(enStock)
                 .sitioCategoriaOrigenId(sitioCategoriaOrigenId)
                 .sitio(sitio)
                 .nombre(nombre)

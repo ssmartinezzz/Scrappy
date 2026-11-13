@@ -200,8 +200,30 @@ public class TiendanubePage extends StorePage implements CatalogPage {
             }
 
             return Optional.of(producto(nombre, precio.get(), CatalogJson.precioComparado(v), url, img,
-                    categoria, detectarGeneroApi(prod, nombre), extraerTallesApi(prod, variants)));
+                    categoria, detectarGeneroApi(prod, nombre), extraerTallesApi(prod, variants),
+                    null, enStock(variants)));
         } catch (Exception e) { return Optional.empty(); }
+    }
+
+    /**
+     * Tiendanube variant stock: a number is tracked stock; null is unlimited only when stock_management
+     * is explicitly false (API docs, resources/product-variant). Any positive or unlimited variant means
+     * in stock; sold out only when every variant is tracked at 0; anything else is unknown.
+     */
+    private static Boolean enStock(JsonNode variants) {
+        boolean todasAgotadas = true;
+        for (JsonNode var : variants) {
+            JsonNode stock = var.path("stock");
+            if (stock.isNumber()) {
+                if (stock.asDouble() > 0) return true;
+            } else if (stock.isNull() && var.path("stock_management").isBoolean()
+                    && !var.path("stock_management").asBoolean()) {
+                return true;
+            } else {
+                todasAgotadas = false;
+            }
+        }
+        return todasAgotadas ? Boolean.FALSE : null;
     }
 
     private List<String> extraerTallesApi(JsonNode prod, JsonNode variants) {

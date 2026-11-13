@@ -135,4 +135,23 @@ class ShopifyPageMappingTest {
         String json = "{\"title\":\"" + title + "\"," + extra + ",\"variants\":[{\"price\":\"500\"}]}";
         return map(json).orElseThrow().genero();
     }
+
+    private static String variants(String... flags) {
+        StringBuilder b = new StringBuilder("\"variants\":[");
+        for (int i = 0; i < flags.length; i++) {
+            if (i > 0) b.append(',');
+            b.append("{\"price\":\"5.000,00\"").append(flags[i].isEmpty() ? "" : ",\"available\":" + flags[i]).append('}');
+        }
+        return b.append(']').toString();
+    }
+
+    @Test
+    @DisplayName("stock: any available variant is in stock, all unavailable is kept out of stock, no flag is unknown")
+    void stockFromAvailable() throws Exception {
+        assertThat(map(product(variants("false", "true"))).orElseThrow().enStock()).isTrue();
+        assertThat(map(product(variants("true"))).orElseThrow().enStock()).isTrue();
+        assertThat(map(product(variants("false", "false"))).orElseThrow().enStock()).isFalse();
+        assertThat(map(product(variants(""))).orElseThrow().enStock()).isNull();
+        assertThat(map(product(variants("false", ""))).orElseThrow().enStock()).isNull();
+    }
 }

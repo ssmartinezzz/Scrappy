@@ -199,4 +199,45 @@ class TiendanubePageApiMappingTest {
                 .isPresent();
         assertThat(fromJs("{\"nombre\":\"" + nombre + "\",\"precio\":\"$ 5.000\",\"url\":\"/productos/g\"}")).isPresent();
     }
+
+    private static String tnVariants(String... fields) {
+        StringBuilder b = new StringBuilder("\"variants\":[");
+        for (int i = 0; i < fields.length; i++) {
+            if (i > 0) b.append(',');
+            b.append("{\"price\":\"5.000,00\"").append(fields[i].isEmpty() ? "" : "," + fields[i]).append('}');
+        }
+        return b.append(']').toString();
+    }
+
+    private Boolean stockOf(String... variantFields) throws Exception {
+        return fromApi(product(tnVariants(variantFields))).orElseThrow().enStock();
+    }
+
+    @Test
+    @DisplayName("stock: a variant with stock > 0 is in stock")
+    void positiveStockIsInStock() throws Exception {
+        assertThat(stockOf("\"stock\":0,\"stock_management\":true", "\"stock\":4,\"stock_management\":true")).isTrue();
+    }
+
+    @Test
+    @DisplayName("stock: every tracked variant at 0 is kept out of stock")
+    void zeroStockEverywhereIsOutOfStock() throws Exception {
+        assertThat(stockOf("\"stock\":0,\"stock_management\":true")).isFalse();
+        assertThat(stockOf("\"stock\":0", "\"stock\":0")).isFalse();
+    }
+
+    @Test
+    @DisplayName("stock: null with stock_management=false is documented unlimited stock, so in stock")
+    void untrackedStockIsUnlimited() throws Exception {
+        assertThat(stockOf("\"stock\":null,\"stock_management\":false")).isTrue();
+        assertThat(stockOf("\"stock\":0,\"stock_management\":true", "\"stock\":null,\"stock_management\":false")).isTrue();
+    }
+
+    @Test
+    @DisplayName("stock: null without the stock_management marker, or mixed with zeros, stays unknown")
+    void nullWithoutMarkerIsUnknown() throws Exception {
+        assertThat(stockOf("\"stock\":null")).isNull();
+        assertThat(stockOf("")).isNull();
+        assertThat(stockOf("\"stock\":0", "\"stock\":null")).isNull();
+    }
 }

@@ -65,8 +65,19 @@ public class ShopifyPage extends StorePage implements CatalogPage {
 
             return Optional.of(producto(nombre, precio.get(), CatalogJson.precioComparado(v), url, img,
                     prod.path("product_type").asText("").trim(), detectarGenero(prod, nombre),
-                    extraerTalles(prod, variants)));
+                    extraerTalles(prod, variants), null, enStock(variants)));
         } catch (Exception e) { return Optional.empty(); }
+    }
+
+    /** Any variant available: in stock. Every variant explicitly unavailable: sold out. Otherwise unknown. */
+    private static Boolean enStock(JsonNode variants) {
+        boolean todasConFlag = true;
+        for (JsonNode var : variants) {
+            JsonNode available = var.path("available");
+            if (!available.isBoolean()) { todasConFlag = false; continue; }
+            if (available.asBoolean()) return true;
+        }
+        return todasConFlag ? Boolean.FALSE : null;
     }
 
     private List<String> extraerTalles(JsonNode prod, JsonNode variants) {

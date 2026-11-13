@@ -97,9 +97,15 @@ public class GamerFactoryPage extends StorePage implements CatalogPage {
                     // the API brand is not a seeded marca and breaks fk_productos_marca; BrandExtractor fills it
                     .marca("")
                     .rubro("tecnologia")
+                    .enStock(enStock(n.path("stock")))
                     .build());
         }
         return new Search(productos, total, data.size());
+    }
+
+    /** stock > 0 in stock, <= 0 sold out (row kept), missing or non-numeric unknown. */
+    private static Boolean enStock(JsonNode stock) {
+        return stock.isNumber() ? stock.asDouble() > 0 : null;
     }
 
     private static String prefijo(String s) {
