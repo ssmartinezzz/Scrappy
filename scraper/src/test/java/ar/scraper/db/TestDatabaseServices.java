@@ -39,6 +39,11 @@ public final class TestDatabaseServices {
                 tx(new PreciosExternosRepository(dataSource), tm));
     }
 
+    /** The real promo read side, for tests outside this package (the repository is package-private). */
+    public static ar.scraper.catalog.PromoQueryPort promoQuery(DataSource raw) {
+        return new PromoQueryRepository(TestTransactions.aware(raw));
+    }
+
     private static <T> T tx(T repository, PlatformTransactionManager tm) {
         return TestTransactions.proxy(repository, tm);
     }

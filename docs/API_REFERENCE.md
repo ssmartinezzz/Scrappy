@@ -693,6 +693,13 @@ el menos barato primero; no son lo mismo que `mercado_asc`.
 (`precio_historico`): un producto de $100 que cayó 90% va antes que uno de $900 que cayó 10%. Sin
 historial va al final. Sólo ese orden toca `precio_historico`; el total no cambia.
 
+**Promos de pago (`medios`, `mejorPromo`).** Cada fila trae `medios`: los medios de pago canónicos que aceptan las
+promos vigentes de la fila (las suyas más las de su sitio), con Mercado Pago, Transferencia y Santander primero y el resto
+en orden alfabético (`[]` si no tiene), y, sólo si hay una, `mejorPromo` `{ medio, red, tipo, cuotas, pct }`. La mejor es
+la primera del orden de utilidad de `ResumenDePromos` (único dueño): descuento por `pct` mayor, después cuotas sin interés
+por `cuotas` mayor, desempate por medio prioritario y nombre; un recargo nunca es la mejor. Una página lee todas sus promos
+en dos consultas (por sitio y por URL), sin consulta por fila. Detalle del modelo: [`DATABASE.md`](./DATABASE.md) § `V101`/`V102`.
+
 **Modo cursor (`cursor`).** `page` + `size` pagina con `LIMIT/OFFSET`: bien para el catálogo, pero cada página profunda
 vuelve a recorrer todo lo anterior. Con el parámetro `cursor` (vacío = desde el principio) el endpoint pagina por
 claves: `WHERE <filtros> AND (precio, url) > (?, ?) ORDER BY precio, url LIMIT size` (`<` y `DESC` para `precio_desc`), sin
@@ -810,10 +817,38 @@ Se lee de la **base**, no del snapshot en memoria: la página es deep-linkeable 
 un producto soft-deleted tiene que seguir siendo inspeccionable, que es justo
 cuando su historial es interesante.
 
+**`data.promos`.** Las promos de pago vigentes del producto: las propias (`alcance: producto`) más las de su sitio
+(`alcance: sitio`), de la más útil a la menos (descuentos por `pct`, cuotas sin interés por `cuotas`, recargos al final),
+con la forma de [`GET /promos`](#get-promos). `[]` si no tiene.
+
 - **`404`** — el producto no existe.
 - **`200` con `puntos: []`** — el producto existe pero todavía no tiene serie.
   Deliberadamente **no** es un `204`: la página tiene que renderizar el producto
   igual y decir que la serie no está.
+
+---
+
+## GET /promos
+
+Las promos de pago vigentes de las tiendas (cuotas sin interés, descuentos y recargos por medio de pago), leídas de
+`promo_financiacion`. Requiere sesión (`AUTHENTICATED`), como `/data`.
+
+**Query params:** `sitio` (nombre del sitio, como el `sitio` de una fila), `medio` (nombre canónico, sin distinguir
+mayúsculas; coincide con el medio **o** con la red de tarjeta que exige la promo, así `Visa` encuentra "12 sin interés con
+Macro (Visa)"), `page` (base 0, por defecto 0) y `size` (por defecto 50, acotado a 1..200). Ausente o vacío no filtra.
+
+**Respuesta:** `data` es un array de `{ sitio, medio: {nombre, tipo}, red: {nombre} | null, tipo, cuotas, pct, alcance,
+vigenciaDesde, vigenciaHasta, textoFuente, vistoAt }` más el `page` habitual (`total` real, `OFFSET`: son cientos de filas,
+no el catálogo).
+
+- `tipo` es `cuotas_sin_interes` (`cuotas` con valor, `pct` `null`) o `descuento` / `recargo` (`pct` con valor, `cuotas` `null`).
+- `medio.tipo`: `banco | billetera | tarjeta | pasarela | medio`. `red` es la red de tarjeta exigida además del medio
+  (`null` = cualquier tarjeta del medio).
+- `alcance`: `sitio` o `producto` (las de producto se ven en el detalle del producto).
+- `vigenciaDesde` / `vigenciaHasta`: `YYYY-MM-DD` o `null`. `vistoAt`: UTC ISO-8601, la última corrida que vio la promo.
+- Vigente = `activo` y hoy (hora de Buenos Aires) dentro de la ventana de vigencia; una promo sin fechas siempre lo está.
+  Una promo vencida pero todavía `activo` (la corrida no la desactivó aún) no se lista.
+- Orden: sitio, descuentos, cuotas sin interés, recargos (dentro de cada grupo, mayor `pct` / `cuotas` primero).
 
 ---
 

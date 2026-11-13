@@ -65,6 +65,7 @@ GET /api/pcs/saved
 DELETE /api/pcs/saved/{id}
 PATCH /api/pcs/saved/{id}/nombre
 GET /api/producto/{key}
+GET /api/promos
 GET /api/recomendacion
 GET /api/recomendados
 DELETE /api/recomendados/dismiss-categoria

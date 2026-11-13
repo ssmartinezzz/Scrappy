@@ -24,6 +24,10 @@ import ar.scraper.api.ApiResponse;
 import ar.scraper.api.PageMeta;
 import ar.scraper.web.dto.CatalogoDtos;
 import ar.scraper.web.dto.OpResult;
+import ar.scraper.web.dto.PromoDtos;
+import ar.scraper.catalog.ProductoRef;
+import ar.scraper.model.promo.PromoVigente;
+import ar.scraper.promos.ResumenDePromos;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -50,6 +54,7 @@ public class CatalogoController {
     private final ar.scraper.ml.SenalEnricher senalEnricher;
     private final ar.scraper.ml.FinanciacionEnricher financiacionEnricher;
     private final PoliticaStock politicaStock;
+    private final ar.scraper.catalog.PromoQueryPort promos;
 
     /** Default stock policy (7 days, system clock): for callers that build the controller by hand. */
     public CatalogoController(ScraperService service,
@@ -62,7 +67,7 @@ public class CatalogoController {
         this(service, presets, historial, catalogQuery, productos, config, indiceService, PoliticaStock.porDefecto());
     }
 
-    @org.springframework.beans.factory.annotation.Autowired
+    /** No promos: for callers that build the controller by hand and do not care about them. */
     public CatalogoController(ScraperService service,
                       ar.scraper.financiacion.PresetPort presets,
                       ar.scraper.catalog.HistorialPort historial,
@@ -71,7 +76,22 @@ public class CatalogoController {
                       ScraperConfig config,
                       IndiceService indiceService,
                       PoliticaStock politicaStock) {
+        this(service, presets, historial, catalogQuery, productos, config, indiceService, politicaStock,
+                ar.scraper.catalog.PromoQueryPort.VACIO);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public CatalogoController(ScraperService service,
+                      ar.scraper.financiacion.PresetPort presets,
+                      ar.scraper.catalog.HistorialPort historial,
+                      CatalogQueryPort catalogQuery,
+                      ProductPort productos,
+                      ScraperConfig config,
+                      IndiceService indiceService,
+                      PoliticaStock politicaStock,
+                      ar.scraper.catalog.PromoQueryPort promos) {
         this.politicaStock = politicaStock;
+        this.promos = promos;
         this.service = service;
         this.catalogQuery = catalogQuery;
         this.productos = productos;
@@ -241,8 +261,12 @@ public class CatalogoController {
                 LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")),
                 CatalogoDtos.FacetsDto.of(facets, resumen.rubros(), resumen.gymrat(), resumen.packs()),
                 resumen.porSitio(), errores);
+        // One set-based read for the whole page, whatever its size.
+        Map<String, List<PromoVigente>> promosPorUrl = promos.paraProductos(
+                pagina.stream().map(p -> new ProductoRef(p.url(), p.sitio())).toList());
         List<CatalogoDtos.ProductoRow> filas = pagina.stream()
-                .map(p -> CatalogoDtos.ProductoRow.of(p, presetActivoLabel, politicaStock)).toList();
+                .map(p -> CatalogoDtos.ProductoRow.of(p, presetActivoLabel, politicaStock,
+                        promosPorUrl.getOrDefault(p.url(), List.of()))).toList();
 
         return ResponseEntity.ok(new ApiResponse<>(new CatalogoDtos.Catalogo(meta, filas, siguiente), page));
     }
@@ -264,8 +288,11 @@ public class CatalogoController {
         ObjectNode prod = JsonNodeFactory.instance.objectNode();
         prod.put("url", url);
         ProductJson.escribir(prod, encontrado.get(), politicaStock);
+        List<PromoDtos.Promo> promosDelProducto = ResumenDePromos.ordenar(
+                promos.paraProductos(List.of(new ProductoRef(url, encontrado.get().sitio()))).getOrDefault(url, List.of()))
+                .stream().map(PromoDtos.Promo::of).toList();
         return ResponseEntity.ok(ApiResponse.ok(new CatalogoDtos.ProductoDetalle(
-                prod, HistorialJson.construir(historial.cargarHistorial(url)))));
+                prod, HistorialJson.construir(historial.cargarHistorial(url)), promosDelProducto)));
     }
 
     // --------------------------------------------------------------- Facets sueltos (para cargar
