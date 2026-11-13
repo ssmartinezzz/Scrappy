@@ -2,6 +2,8 @@ package ar.scraper.pages;
 
 import ar.scraper.aggregator.text.PrecioParser;
 import ar.scraper.model.Product;
+import ar.scraper.promos.ProductPromoExtractor;
+import ar.scraper.promos.VaypolPromoExtractor;
 import ar.scraper.security.egress.EgressProxy;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -13,6 +15,7 @@ import org.apache.commons.lang3.StringUtils;
 public class VaypolPage extends StorePage implements CatalogPage {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ProductPromoExtractor PROMOS = new VaypolPromoExtractor();
     private static final int MAX_PAGES = 250;
     private static final int WAIT_MS   = 400;
 
@@ -100,6 +103,10 @@ public class VaypolPage extends StorePage implements CatalogPage {
                 .build();
     }
 
+    static Product conImagen(Product p, String img) {
+        return p.toBuilder().imagenUrl(img).build();
+    }
+
     private List<Product> enricherImagenesHttp(List<Product> productos) {
         var client = imageClient(EgressProxy.shared().address());
 
@@ -141,20 +148,7 @@ public class VaypolPage extends StorePage implements CatalogPage {
 
         return productos.stream().map(p -> {
             String img = imgMap.get(p.url());
-            if (StringUtils.isNotBlank(img))
-                return Product.builder()
-                        .sitio(p.sitio())
-                        .nombre(p.nombre())
-                        .precio(p.precio())
-                        .precioOriginal(p.precioOriginal())
-                        .url(p.url())
-                        .imagenUrl(img)
-                        .categoria(p.categoria())
-                        .genero(p.genero())
-                        .talles(p.talles())
-                        .enStock(p.enStock())
-                        .build();
-            return p;
+            return StringUtils.isNotBlank(img) ? conImagen(p, img) : p;
         }).collect(java.util.stream.Collectors.toList());
     }
 
@@ -426,6 +420,7 @@ public class VaypolPage extends StorePage implements CatalogPage {
                     .genero(genero)
                     .talles(talles)
                     .enStock(p.path("sizes_on_stock").isNumber() ? p.path("sizes_on_stock").asInt() > 0 : null)
+                    .promos(PROMOS.extraer(p, java.time.LocalDate.now()))
                     .build());
 
         } catch (Exception e) {

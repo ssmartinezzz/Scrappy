@@ -1,11 +1,14 @@
 package ar.scraper.pages;
 
 import ar.scraper.model.Product;
+import ar.scraper.promos.KevingstonPromoExtractor;
+import ar.scraper.promos.ProductPromoExtractor;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.microsoft.playwright.Page;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -24,6 +27,7 @@ import java.util.regex.Pattern;
 public class KevingstonPage extends StorePage implements CatalogPage {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ProductPromoExtractor PROMOS = new KevingstonPromoExtractor();
     private static final String API_PATH = "/api/v1/products";
     private static final int MAX_PAGINAS = 100;
     private static final String FETCH_POST = """
@@ -112,6 +116,7 @@ public class KevingstonPage extends StorePage implements CatalogPage {
                     .genero(genero(n.path("idcategory").asText("")))
                     .talles(List.of())
                     .enStock(enStock(n))
+                    .promos(PROMOS.extraer(n, LocalDate.now()))
                     .build());
         }
         return new Listado(productos, total, filas.size(), paginas);

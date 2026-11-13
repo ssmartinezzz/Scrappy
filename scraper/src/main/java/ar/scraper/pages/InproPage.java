@@ -1,12 +1,15 @@
 package ar.scraper.pages;
 
 import ar.scraper.model.Product;
+import ar.scraper.promos.InproPromoExtractor;
+import ar.scraper.promos.ProductPromoExtractor;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.microsoft.playwright.Page;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.time.LocalDate;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -29,6 +32,7 @@ public class InproPage extends BasePage implements CatalogPage {
 
     private static final Logger log = LoggerFactory.getLogger(InproPage.class);
     private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ProductPromoExtractor PROMOS = new InproPromoExtractor();
 
     private final String sitio;
     private final String baseUrl;
@@ -287,6 +291,7 @@ public class InproPage extends BasePage implements CatalogPage {
                 .rubro("oficina")
                 .gymrat(false)
                 .enStock(enStock(n.path("variants")))
+                .promos(PROMOS.extraer(n, LocalDate.now()))
                 .build());
     }
 
