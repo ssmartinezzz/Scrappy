@@ -62,7 +62,13 @@ abstract class StorePage extends BasePage {
 
     static Product tecnologia(String sitio, String nombre, double precio, Double precioOriginal,
                               String url, String imagenUrl, String categoria) {
+        return tecnologia(sitio, nombre, precio, precioOriginal, url, imagenUrl, categoria, null);
+    }
+
+    static Product tecnologia(String sitio, String nombre, double precio, Double precioOriginal,
+                              String url, String imagenUrl, String categoria, Boolean enStock) {
         return Product.builder()
+                .enStock(enStock)
                 .sitio(sitio)
                 .nombre(nombre)
                 .precio(precio)

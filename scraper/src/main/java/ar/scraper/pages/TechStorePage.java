@@ -371,10 +371,6 @@ public class TechStorePage extends StorePage implements CatalogPage {
             JsonNode item, Map<Integer, String> categorias, String sitio, String baseUrl,
             double precioMin, double precioMax) {
 
-        boolean vendible = item.path("vendible").asInt(0) != 0;
-        int stock = item.path("stock").asInt(0);
-        if (!vendible || stock <= 0) return Optional.empty();
-
         String nombre = item.path("nombre").asText("").trim();
         if (nombre.isBlank()) return Optional.empty();
 
@@ -421,7 +417,19 @@ public class TechStorePage extends StorePage implements CatalogPage {
         String base = baseUrl == null ? "" : baseUrl.replaceAll("/+$", "");
         String url = base + "/producto/" + slugCompraGamer(nombre) + "_" + idProducto;
 
-        return Optional.of(tecnologia(sitio, nombre, precio, precioOriginal, url, img, categoria));
+        return Optional.of(tecnologia(sitio, nombre, precio, precioOriginal, url, img, categoria,
+                enStockCompraGamer(item)));
+    }
+
+    /** Either {@code vendible=0} or {@code stock<=0} is out; both present and positive is in; otherwise unknown. */
+    private static Boolean enStockCompraGamer(JsonNode item) {
+        JsonNode vendible = item.path("vendible");
+        JsonNode stock = item.path("stock");
+        boolean hayVendible = !vendible.isMissingNode() && !vendible.isNull();
+        boolean hayStock = !stock.isMissingNode() && !stock.isNull();
+        if (hayVendible && vendible.asInt(0) == 0) return false;
+        if (hayStock && stock.asInt(0) <= 0) return false;
+        return hayVendible && hayStock ? Boolean.TRUE : null;
     }
 
     /**

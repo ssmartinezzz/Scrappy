@@ -181,7 +181,9 @@ public class OsCommercePage extends StorePage implements CatalogPage {
 
             String categoria = !categoriaJson.isBlank() ? categoriaJson : categoriaHint;
 
-            result.add(tecnologia(sitio, nombre, precio, null, url, img, categoria));
+            // The label is the only stock signal in the listing; its absence is not proof of stock.
+            Boolean enStock = card.contains(SIN_STOCK) ? Boolean.FALSE : null;
+            result.add(tecnologia(sitio, nombre, precio, null, url, img, categoria, enStock));
         }
         return result;
     }
