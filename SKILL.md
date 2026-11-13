@@ -29,6 +29,7 @@ cuarto** — ni `CLAUDE.md` ni `ARCHITECTURE.md` guardan una segunda copia.
 | [`docs/ML_PIPELINE.md`](./docs/ML_PIPELINE.md) | Pipeline ML: scoring, badges, clustering, stage 1b visual | Al modificar scoring, badges o atributos visuales |
 | [`docs/LLM_EMBED.md`](./docs/LLM_EMBED.md) | El agente desde Java: costura `ChatProvider`, loop acotado, tools, y las 8 reglas que lo gobiernan | Al tocar `ar.scraper.agent`, el write path de reclasificación o la UI del chat |
 | [`docs/LLM_AGENT_SETUP.md`](./docs/LLM_AGENT_SETUP.md) | Instalar Ollama y configurar las variables `LLM_*` | Al levantar el agente por primera vez o cambiar de proveedor |
+| [`docs/MCP.md`](./docs/MCP.md) | Server MCP (`catalog-mcp/`) que expone la API a Claude Code: tools, qué rechaza (nada que borre datos), credenciales | Al usar el catálogo desde Claude Code o tocar `catalog-mcp/` |
 | [`docs/LAN_HTTPS_SETUP.md`](./docs/LAN_HTTPS_SETUP.md) | Servir el dashboard a un celular u otro dispositivo de la red, por HTTPS: certificado, proxy que termina TLS, los **dos** `.env` de orígenes | Al probar desde otro dispositivo, o antes de armar el TLS de un deploy real |
 | [`docs/EMAIL_ALERTS.md`](./docs/EMAIL_ALERTS.md) | Puesta en marcha de los avisos de baja de precio por mail: proveedores y contraseñas de aplicación, qué hace cada `NOTIFICACIONES_*`, cómo verificar con el mail de prueba y qué hacer según la línea de log | Al activar los avisos, al cambiar de proveedor SMTP o cuando un aviso no llega |
 | [`docs/STRUCTURE.md`](./docs/STRUCTURE.md) | Árbol comentado de archivos y paquetes | Al ubicar dónde vive algo |
@@ -62,6 +63,7 @@ cuarto** — ni `CLAUDE.md` ni `ARCHITECTURE.md` guardan una segunda copia.
 | [`tests/observability/`](./tests/observability/) | Provisioning de Grafana: cada query de panel y alerta corre como `grafana_ro` contra el esquema real; `grafana_ro` no lee datos personales ni escribe. Sin `OBS_TEST_DSN` corre sólo la mitad estática. No corre en CI | `OBS_TEST_DSN=postgresql://postgres:postgres@localhost:5432/scraper uv run --no-project --with pytest --with psycopg2-binary --with pyyaml pytest tests/observability` |
 | [`tests/perf/outbox/`](./tests/perf/outbox/README.md) | Performance del outbox de avisos de baja: costo de `sp_upsert_run` (ABBA) y ráfaga del relay contra Mailpit (p50/p95/p99). Base descartable; no corre en CI | `tests/perf/outbox/abba.sh A.sql B.sql` · `tests/perf/outbox/rafaga-abba.sh a.jar b.jar` |
 | [`tests/perf/micro/`](./tests/perf/micro/README.md) | Micro-benchmarks JMH de los caminos calientes del scraper (clasificador, `RubroResolver`, normalizador, `VtexPage`, agrupación, `AccentStripper`) sobre un payload capturado de Easy (1.987 productos). Sin backend ni base | `tests/perf/micro/run.sh all` |
+| [`catalog-mcp/tests/`](./catalog-mcp/tests/) | Server MCP: mapeo tool → endpoint, guard anti-borrado, re-login, backend caído. Sin backend | `cd catalog-mcp && uv run pytest` |
 | `frontend/src/**/*.test.jsx` | Componentes React (Vitest) | `cd frontend && npm test` |
 
 ## Instalación y despliegue
