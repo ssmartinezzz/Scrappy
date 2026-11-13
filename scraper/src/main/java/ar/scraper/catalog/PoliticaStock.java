@@ -5,6 +5,7 @@ import ar.scraper.model.Product;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -41,6 +42,23 @@ public final class PoliticaStock {
     /** Candidates for something meant for buying: confirmed sold-out rows leave, unknown ones stay (CODE-5). */
     public List<Product> candidatos(List<Product> productos, boolean incluirSinStock) {
         if (incluirSinStock) return productos;
-        return productos.stream().filter(p -> estado(p) != EstadoStock.SIN_STOCK).toList();
+        // Builders pass the whole catalog per request: read the clock once, and only copy when a row leaves.
+        Instant ahora = clock.instant();
+        int primero = -1;
+        for (int i = 0; i < productos.size(); i++) {
+            if (sinStock(productos.get(i), ahora)) { primero = i; break; }
+        }
+        if (primero < 0) return productos;
+        List<Product> quedan = new ArrayList<>(productos.subList(0, primero));
+        for (int i = primero + 1; i < productos.size(); i++) {
+            Product p = productos.get(i);
+            if (!sinStock(p, ahora)) quedan.add(p);
+        }
+        return quedan;
+    }
+
+    private boolean sinStock(Product p, Instant ahora) {
+        return Boolean.FALSE.equals(p.enStock())
+                && EstadoStock.de(p.enStock(), p.stockChequeadoAt(), ahora, vigencia) == EstadoStock.SIN_STOCK;
     }
 }

@@ -50,6 +50,22 @@ class PoliticaStockTest {
     }
 
     @Test
+    @DisplayName("candidatos returns the same list when nothing is sold out (builders call it per request on the whole catalog)")
+    void candidatosDoesNotCopyWhenNothingLeaves() {
+        List<Product> catalogo = List.of(producto("en", true, AHORA.minusSeconds(60)),
+                producto("sin-viejo", false, AHORA.minus(Duration.ofDays(30))), producto("desc", null, null));
+        assertThat(politica.candidatos(catalogo, false)).isSameAs(catalogo);
+    }
+
+    @Test
+    @DisplayName("candidatos keeps the boundary: a check exactly at the cutoff is still fresh")
+    void candidatosBoundary() {
+        Product enCorte = producto("corte", false, AHORA.minus(Duration.ofDays(7)));
+        assertThat(politica.estado(enCorte)).isEqualTo(EstadoStock.SIN_STOCK);
+        assertThat(politica.candidatos(List.of(enCorte), false)).isEmpty();
+    }
+
+    @Test
     @DisplayName("candidatos with incluirSinStock keeps everything")
     void candidatosOptIn() {
         Product sin = producto("sin", false, AHORA.minusSeconds(60));
