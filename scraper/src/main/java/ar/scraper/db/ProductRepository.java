@@ -214,6 +214,9 @@ class ProductRepository implements ProductPort {
         g.writeStringField("subCategoria", p.subCategoria() != null ? p.subCategoria() : "");
         g.writeStringField("deporte", p.deporte() != null ? p.deporte() : "");
         if (p.sitioCategoriaOrigenId() != null) g.writeNumberField("sitioCategoriaOrigenId", p.sitioCategoriaOrigenId());
+        // JSON null = the platform gave no stock signal; sp_upsert_run then keeps the prior state.
+        if (p.enStock() != null) g.writeBooleanField("enStock", p.enStock());
+        else g.writeNullField("enStock");
 
         if (includeVisual) {
             Product.VisualAttrs visual = p.visual() != null ? p.visual() : Product.VisualAttrs.EMPTY;

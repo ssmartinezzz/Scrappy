@@ -45,7 +45,8 @@ class SpUpsertRunColumnCoverageTest extends PostgresTestBase {
             "gymrat", "cantidad_unidades", "activo", "touched_at");
 
     private static final Set<String> FILL_ONLY = Set.of(
-            "fit", "estampado", "escote", "color_dominante");
+            "fit", "estampado", "escote", "color_dominante",
+            "en_stock", "visto_en_stock_at", "stock_chequeado_at");
 
     private static final Set<String> LOCKED = Set.of(
             "categoria", "sub_categoria", "marca", "genero", "rubro", "deporte");

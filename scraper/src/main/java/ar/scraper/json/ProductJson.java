@@ -5,6 +5,8 @@ import ar.scraper.model.Product;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
+import java.time.temporal.ChronoUnit;
+
 /**
  * Like {@link FeedbackModels}, it lives on its own because several bounded contexts share it —
  * {@code /api/recomendados} and {@code /api/favoritos} both write the full row, and {@code safe} is
@@ -43,6 +45,12 @@ public final class ProductJson {
         n.put("cantidadUnidades", p.cantidadUnidades());
         n.put("esPack",     p.esPack());
         n.put("precioUnitario", precioUnitario(p));
+        // null = unknown. Raw stored state: reading a stale check as unknown is the exposure layer's job.
+        if (p.enStock() != null) n.put("enStock", p.enStock()); else n.putNull("enStock");
+        if (p.vistoEnStockAt() != null) n.put("vistoEnStockAt", p.vistoEnStockAt().truncatedTo(ChronoUnit.SECONDS).toString());
+        else n.putNull("vistoEnStockAt");
+        if (p.stockChequeadoAt() != null) n.put("stockChequeadoAt", p.stockChequeadoAt().truncatedTo(ChronoUnit.SECONDS).toString());
+        else n.putNull("stockChequeadoAt");
         ArrayNode tallesArr = n.putArray("talles");
         if (p.talles() != null) p.talles().forEach(tallesArr::add);
         if (p.ml() != null) {

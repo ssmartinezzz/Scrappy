@@ -6,6 +6,7 @@ import ar.scraper.model.Product;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.time.OffsetDateTime;
 import java.util.List;
 import org.apache.commons.lang3.StringUtils;
 
@@ -22,7 +23,7 @@ final class ProductRowMapper {
             "SELECT url,sitio,nombre,precio,precio_orig,imagen_url," +
             "categoria,genero,ml_score,ml_oferta,ml_tendencia," +
             "ml_segment,ml_zscore,rubro,marca,gymrat,cantidad_unidades,sub_categoria,deporte," +
-            "fit,estampado,escote,color_dominante FROM productos";
+            "fit,estampado,escote,color_dominante,en_stock,visto_en_stock_at,stock_chequeado_at FROM productos";
 
     private ProductRowMapper() {
     }
@@ -61,6 +62,10 @@ final class ProductRowMapper {
 
         Double precioOrig = rs.getObject("precio_orig", Double.class);
 
+        Boolean enStock = rs.getObject("en_stock", Boolean.class);
+        OffsetDateTime visto = rs.getObject("visto_en_stock_at", OffsetDateTime.class);
+        OffsetDateTime chequeado = rs.getObject("stock_chequeado_at", OffsetDateTime.class);
+
         return Product.builder()
                 .sitio(sitio)
                 .nombre(rs.getString("nombre"))
@@ -82,6 +87,9 @@ final class ProductRowMapper {
                 .subCategoria(subCategoria != null ? subCategoria : "")
                 .deporte(deporte != null ? deporte : "")
                 .visual(visual)
+                .enStock(enStock)
+                .vistoEnStockAt(visto != null ? visto.toInstant() : null)
+                .stockChequeadoAt(chequeado != null ? chequeado.toInstant() : null)
                 .build();
     }
 }

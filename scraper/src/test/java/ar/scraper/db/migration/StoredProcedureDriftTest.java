@@ -343,6 +343,32 @@ class StoredProcedureDriftTest {
                                     + "ELSE productos.deporte END, ")),
                     ""));
 
+    /**
+     * V99 (stock-por-tienda): en_stock, visto_en_stock_at and stock_chequeado_at join the INSERT, the
+     * VALUES and the ON CONFLICT SET, where NULL incoming keeps the stored value. Declared as three
+     * pieces for the same reason as V22 and deporte: a half-applied edit leaves the INSERT with a
+     * different number of columns and values, which {@code ProductRepository} reports as "0 nuevos".
+     */
+    private static final List<Substitution> SP_UPSERT_RUN_R_STOCK = List.of(
+            new Substitution(
+                    "INSERT column list: the three stock columns",
+                    Pattern.compile(Pattern.quote(
+                            "touched_at, created_at, en_stock, visto_en_stock_at, stock_chequeado_at )")),
+                    "touched_at, created_at )"),
+            new Substitution(
+                    "INSERT VALUES: the three stock expressions",
+                    Pattern.compile(Pattern.quote(
+                            "(r->>'now')::timestamptz, (r->>'enStock')::boolean, "
+                                    + "CASE WHEN (r->>'enStock')::boolean THEN (r->>'now')::timestamptz END, "
+                                    + "CASE WHEN r->>'enStock' IS NOT NULL THEN (r->>'now')::timestamptz END )")),
+                    "(r->>'now')::timestamptz )"),
+            new Substitution(
+                    "ON CONFLICT SET: the three stock columns, COALESCE-d so NULL keeps the stored value",
+                    Pattern.compile("touched_at = EXCLUDED\\.touched_at, -- Sin señal .*?"
+                            + "stock_chequeado_at = COALESCE\\(EXCLUDED\\.stock_chequeado_at, "
+                            + "productos\\.stock_chequeado_at\\);"),
+                    "touched_at = EXCLUDED.touched_at;"));
+
     private static final List<Hop> CHAIN = List.of(
             new Hop(SP_UPSERT_RUN_START, V1, V3, List.of(UNGUARD_LOCKED_COLUMNS)),
             new Hop(SP_UPSERT_RUN_START, V3, V5, SP_UPSERT_RUN_V5_CASTS),
@@ -365,11 +391,12 @@ class StoredProcedureDriftTest {
             // — que es como debería haber funcionado desde el principio, en
             // vez de con siete copias y una tabla de sustituciones.
             new Hop(SP_UPSERT_RUN_START, V22, R_UPSERT,
-                    concat(concat(concat(concat(List.of(SP_UPSERT_RUN_E7_SITIO_GET_OR_CREATE),
+                    concat(concat(concat(concat(concat(List.of(SP_UPSERT_RUN_E7_SITIO_GET_OR_CREATE),
                                     SP_UPSERT_RUN_R_REACTIVATION_IS_NOT_NEW),
                             SP_UPSERT_RUN_R_PRICE_DROP_OUTBOX),
                             SP_UPSERT_RUN_R_SAME_DAY_LAST_PRICE),
-                    SP_UPSERT_RUN_R_DEPORTE)),
+                    SP_UPSERT_RUN_R_DEPORTE),
+                    SP_UPSERT_RUN_R_STOCK)),
             new Hop(SP_SOFT_DELETE_AUSENTES_START, V5, R_SOFT_DELETE,
                     SP_SOFT_DELETE_AUSENTES_R_SITE_SCOPE)
     );
