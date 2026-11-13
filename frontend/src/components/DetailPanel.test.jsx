@@ -122,3 +122,23 @@ describe('DetailPanel — sparkline del historial', () => {
     expect(await screen.findByText('Sin historial aún')).toBeInTheDocument();
   });
 });
+
+describe('DetailPanel — badge de stock (mismo componente que la card)', () => {
+  beforeEach(() => {
+    fetchHistorial.mockResolvedValue(null);
+  });
+
+  const base = { url: 'https://tienda.test/p/1', nombre: 'SSD 1TB', sitio: 'Tienda', precio: 100000, categoria: 'SSD' };
+
+  it('sin_stock muestra "Sin stock · visto el 3/11"', () => {
+    renderPanel({ ...base, stock: 'sin_stock', vistoEnStockAt: '2026-11-03T15:00:00Z' }, {});
+
+    expect(screen.getByText('Sin stock · visto el 3/11')).toBeInTheDocument();
+  });
+
+  it('en_stock no muestra badge', () => {
+    renderPanel({ ...base, stock: 'en_stock' }, {});
+
+    expect(screen.queryByText(/Sin stock/)).not.toBeInTheDocument();
+  });
+});

@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { fetchHistorial, fetchProductoDetalle, fmt, BADGE_LABELS, buscarExterno, EXTERNAL_SEARCH } from '../api';
 import BuySignal from './BuySignal';
+import StockBadge from './StockBadge';
 import { Dialog, DialogOverlay, DialogTitle } from './ui/dialog';
 import { SEG_COLORS, SEMANTIC, gaugeColor } from '../lib/colors';
 import { highlightPrices } from '../lib/richText';
@@ -507,8 +508,9 @@ export default function DetailPanel({ product, catStats, onClose }) {
           {/* Detail view shows ALL badges the product holds (spec "Multi-Badge
               Display Rules" — card shows principal+1, detail shows the full set).
               Falls back to [ml.badge] when 'badges' is absent (older cached data). */}
-          {badgeList.length > 0 && (
+          {(badgeList.length > 0 || p.stock === 'sin_stock') && (
             <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
+              <StockBadge product={p} />
               {badgeList.map(b => (
                 BADGE_LABELS[b] && (
                   <span key={b} className={`badge-ml badge-${b}`}>{BADGE_LABELS[b]}</span>
