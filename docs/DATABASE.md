@@ -82,6 +82,9 @@ marca_chip / chipset_tier / tipo_cooler
                              -- Lookups sembrados más para preferencia_armador/producto_tech_specs (V36)
 tamanio_gabinete            -- Lookup sembrado: MINI/MID/FULL, tamaño de torre (V37)
 uso                         -- Lookup sembrado: GAMING/HOMELAB (V39)
+medio_pago                  -- Banco/billetera/tarjeta/pasarela/medio de pago, nombre canónico UNIQUE, sembrado (V101)
+promo_financiacion          -- Promo de un sitio con un medio de pago: cuotas sin interés, descuento o recargo (V101)
+promo_financiacion_producto -- Vínculo promo -> producto, sólo para promos de alcance 'producto' (V101)
 ```
 
 ### Migraciones
@@ -1255,6 +1258,7 @@ como una optimización aparte.
 ALTER TABLE productos       DROP CONSTRAINT IF EXISTS fk_productos_sitio;
 ALTER TABLE scrape_run_site DROP CONSTRAINT IF EXISTS fk_scrape_run_site_sitio;
 ALTER TABLE IF EXISTS sitio_categoria DROP CONSTRAINT IF EXISTS fk_sitio_categoria_sitio;
+ALTER TABLE IF EXISTS promo_financiacion DROP CONSTRAINT IF EXISTS fk_promo_financiacion_sitio;
 DROP TABLE sitio;
 -- <<< rollback:V18
 ```
@@ -1281,6 +1285,7 @@ documento que un test ejecuta.
 
 `V63` es la tercera FK entrante (`fk_sitio_categoria_sitio`, desde `sitio_categoria`) y también está bautizada; el
 `ALTER TABLE IF EXISTS` es porque en una cadena de rollbacks el de `V63` corre antes y la tabla ya no está.
+`V101` es la cuarta (`fk_promo_financiacion_sitio`, desde `promo_financiacion`), con el mismo `IF EXISTS`.
 
 Que esto se haya detectado es mérito de `V18RollbackRoundTripTest`, que
 **ejecuta** el bloque en vez de sólo mostrarlo: un rollback documentado que ya
@@ -5096,7 +5101,7 @@ cualquier upsert falla (y el upsert se traga el error: síntoma `"0 nuevos"`). A
 su cuerpo previo al stock (`git show <commit anterior a V99>:scraper/src/main/resources/db/migration/R__sp_upsert_run.sql`); como es
 repetible, Flyway lo reaplica solo al cambiar su checksum. Además hay que borrar la fila de `V99` de `flyway_schema_history`
 (`DELETE FROM flyway_schema_history WHERE version = '99'`), que ningún otro bloque de este archivo hace: sin eso Flyway cree que la
-migración sigue aplicada. Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V100` y antes que el de `V98`.
+migración sigue aplicada. Ya no es el bloque más nuevo: en una cadena de rollbacks corre después de los de `V101` y `V100` y antes que el de `V98`.
 
 ---
 
@@ -5124,5 +5129,40 @@ DROP INDEX IF EXISTS idx_productos_sin_stock;
 ```
 
 No pierde datos: sólo vuelven los planes lentos del filtro de stock y de la página por defecto. Hay que borrar la fila de `V100` de
-`flyway_schema_history` (`DELETE FROM flyway_schema_history WHERE version = '100'`), que ningún otro bloque de este archivo hace. Es el
-bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V99`.
+`flyway_schema_history` (`DELETE FROM flyway_schema_history WHERE version = '100'`), que ningún otro bloque de este archivo hace. Ya no es
+el bloque más nuevo: en una cadena de rollbacks corre después del de `V101` y antes que el de `V99`.
+
+---
+
+## `V101` — promos de financiación
+
+**Decisión**: tres tablas en 3FN. `medio_pago` es el lookup (nombre canónico `UNIQUE`, `tipo` en
+`banco/billetera/tarjeta/pasarela/medio`) y viene sembrado con los medios argentinos comunes; `promo_financiacion` guarda una promo por
+`(sitio_key, medio_pago_id, tipo, alcance, cuotas, pct)` sin copiar nombre de sitio, de banco ni de producto;
+`promo_financiacion_producto (promo_id, url)` existe sólo para `alcance = 'producto'` y cae en cascada con la promo o el producto.
+
+- La FK de sitio va sobre `sitio_key` (como `productos`, ver `V23`) y la del producto sobre `productos.url` (su PK).
+- Los CHECK de fila exigen `cuotas` en `cuotas_sin_interes` y `pct` en `descuento`/`recargo`; `cuotas`/`pct` quedan `NULL` cuando no
+  aplican (nunca un `0` centinela). La unicidad es un índice sobre expresiones con `COALESCE(...,0)` sólo como clave.
+- `sp_upsert_promos(p_promos jsonb, p_sitios text[])` vive en `R__sp_upsert_promos.sql`, es set-based y corre dentro de la transacción
+  del llamador: **no traga errores** (un CHECK o FK violado hace rollback de la corrida). Inserta medios desconocidos por nombre (la
+  canonicalización es del lado Java), hace upsert por la clave natural (reactiva y avanza `visto_at`) y vincula sólo las urls que existen.
+  Desactiva promos no vistas y borra vínculos no vistos **únicamente de los sitios de `p_sitios`**; un array vacío no toca nada.
+- `medio_pago` no está en `PostgresTestBase.truncateAll` (es seed, como `rol`); las otras dos sí.
+
+### Rollback
+
+```sql
+-- >>> rollback:V101
+DROP FUNCTION IF EXISTS sp_upsert_promos(jsonb, text[]);
+DROP TABLE IF EXISTS promo_financiacion_producto;
+DROP TABLE IF EXISTS promo_financiacion;
+DROP TABLE IF EXISTS medio_pago;
+DELETE FROM flyway_schema_history WHERE version = '101';
+DELETE FROM flyway_schema_history WHERE version IS NULL AND description = 'sp upsert promos';
+-- <<< rollback:V101
+```
+
+Pierde todas las promos guardadas. Hay que borrar las dos filas de `flyway_schema_history` (la de `V101` y la de la repetible
+`sp_upsert_promos`): sin la segunda, Flyway se queja de una migración aplicada que ya no existe en el jar. Es el bloque más nuevo: en
+una cadena de rollbacks corre PRIMERO, antes que el de `V100`.
