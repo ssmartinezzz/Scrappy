@@ -40,11 +40,12 @@ public final class PromoTextParser {
     private static final Set<String> GENERICOS_DE_TARJETA = Set.of("Tarjeta de crédito", "Tarjeta de débito");
     private static final Set<String> NO_FINANCIABLES = Set.of("Transferencia", "Efectivo");
 
-    private static final Pattern SEGMENTOS = Pattern.compile("\\s*(?:[;|\\n\\r!]+|\\.(?=\\s|$))\\s*");
+    private static final Pattern SEGMENTOS = Pattern.compile(
+            "\\s*(?:[;|\\n\\r!]+|\\.(?=\\s|$)|\"[^\"]*\"|\u201C[^\u201D]*\u201D)\\s*");
     private static final Pattern ESPACIOS = Pattern.compile("\\s+");
 
     private static final Pattern CUOTAS = Pattern.compile(
-            "(?<![\\d/.,$%])(\\d{1,2}(?:\\s*(?:,|y|e)\\s*\\d{1,2})*)\\s*(?:cuotas?|ctas?)\\s+(?:fijas\\s+)?"
+            "(?<![\\d/.,$%])(\\d{1,2}(?:\\s*(?:,|y(?:\\s+hasta)?|e)\\s*\\d{1,2})*)\\s*(?:cuotas?|ctas?)\\s+(?:fijas\\s+)?"
                     + "(?:sin\\s+inter(?:es)?\\b|s/\\s*inter(?:es)?\\b|sin\\s+int\\b)");
 
     private static final String NUM = "(\\d{1,3}(?:[.,]\\d{1,2})?)";

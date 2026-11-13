@@ -56,7 +56,8 @@ public final class MediosDePago {
             e("Naranja X", TipoMedio.BANCO, "naranjax", "naranja equis"),
             e("Mercado Pago", TipoMedio.BILLETERA, "mercadopago", "mercadopagopro", "mercadopagooff",
                     "mercado pago pro", "mercado pago off"),
-            e("Modo", TipoMedio.BILLETERA, "modo payment", "modo pay"),
+            e("Modo", TipoMedio.BILLETERA, false, "modo payment", "modo pay", "con modo", "app modo", "billetera modo",
+                    "desde modo", "via modo", "modo app"),
             e("Ualá", TipoMedio.BILLETERA, "uala bis"),
             e("Cuenta DNI", TipoMedio.BILLETERA),
             e("Personal Pay", TipoMedio.BILLETERA, "personalpay"),
@@ -123,12 +124,21 @@ public final class MediosDePago {
         return Optional.ofNullable(POR_ALIAS.get(normalizar(raw)));
     }
 
+    /** "con modo de pago" is the Spanish noun, not the wallet: the bare word is only a medio after "con", "app"... */
+    private static boolean esModoDePago(MedioPago medio, String texto, int fin) {
+        return "Modo".equals(medio.nombre()) && texto.startsWith(" de ", fin);
+    }
+
     /** Every distinct medio named in running text, in order of appearance; longest alias wins. */
     public static List<MedioPago> encontrarEn(String texto) {
         if (texto == null || texto.isBlank()) return List.of();
-        Matcher m = BUSCADOR.matcher(normalizar(texto));
+        String normalizado = normalizar(texto);
+        Matcher m = BUSCADOR.matcher(normalizado);
         Set<MedioPago> out = new LinkedHashSet<>();
-        while (m.find()) out.add(EN_TEXTO.get(m.group()));
+        while (m.find()) {
+            MedioPago medio = EN_TEXTO.get(m.group());
+            if (!esModoDePago(medio, normalizado, m.end())) out.add(medio);
+        }
         return List.copyOf(out);
     }
 }

@@ -211,4 +211,47 @@ class PromoTextParserTest {
     void laMismaPromoRepetidaSeColapsa() {
         assertThat(parse("3 cuotas sin interés. 3 CUOTAS SIN INTERES")).hasSize(1);
     }
+
+    // Real strings captured 2026-11-13 from sporting.com.ar/medios-de-pagos and batuk.com.ar / dcshoes.com.ar.
+
+    @Test
+    void modoSoloCuentaCuandoElTextoLoNombraComoBilletera() {
+        assertThat(resumenes("30% de reintegro (tope $15.000 por compra) con MODO, los jueves."))
+                .containsExactly("Modo|DESCUENTO|null|30.00");
+        assertThat(resumenes("20% de reintegro (tope $10.000 por compra) con MODO (Visa, Mastercard y American Express), los martes, jueves y domingos."))
+                .contains("Modo|DESCUENTO|null|20.00");
+    }
+
+    @Test
+    void modoComoSustantivoNoEsLaBilletera() {
+        assertThat(resumenes("Elegí el modo de pago al final: 10% de descuento con transferencia"))
+                .containsExactly("Transferencia|DESCUENTO|null|10.00");
+        assertThat(resumenes("De este modo ahorrás: 3 cuotas sin interés"))
+                .containsExactly("Tarjeta de crédito|CUOTAS_SIN_INTERES|3|null");
+        assertThat(resumenes("20% de descuento con modo de pago")).isEmpty();
+    }
+
+    @Test
+    void elCuponDeUnaBarraNoTapaElDescuentoQueLeSigue() {
+        assertThat(resumenes("HASTA 3 CUOTAS SIN INTERÉS. 10% OFF EN TU PRIMERA COMPRA CON EL CODIGO \"BATUK10\" 10% DESCUENTO CON TRANSFERENCIA"))
+                .containsExactlyInAnyOrder("Tarjeta de crédito|CUOTAS_SIN_INTERES|3|null",
+                        "Transferencia|DESCUENTO|null|10.00");
+    }
+
+    @Test
+    void listaDeCuotasConHastaEnElUltimoValor() {
+        assertThat(resumenes("3, 6, 9 Y HASTA 12 CUOTAS SIN INTERÉS!"))
+                .containsExactlyInAnyOrder("Tarjeta de crédito|CUOTAS_SIN_INTERES|3|null",
+                        "Tarjeta de crédito|CUOTAS_SIN_INTERES|6|null",
+                        "Tarjeta de crédito|CUOTAS_SIN_INTERES|9|null",
+                        "Tarjeta de crédito|CUOTAS_SIN_INTERES|12|null");
+    }
+
+    @Test
+    void cuotasDeUnBancoConSuTarjeta() {
+        assertThat(resumenes("12 cuotas sin interés con Santander (Visa)."))
+                .containsExactly("Santander|CUOTAS_SIN_INTERES|12|null", "Visa|CUOTAS_SIN_INTERES|12|null");
+        assertThat(resumenes("Hasta 12 Cuotas sin interés Visa Y Mastercard"))
+                .containsExactly("Visa|CUOTAS_SIN_INTERES|12|null", "Mastercard|CUOTAS_SIN_INTERES|12|null");
+    }
 }
