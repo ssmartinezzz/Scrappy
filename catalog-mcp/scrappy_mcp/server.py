@@ -18,7 +18,7 @@ from .client import ApiClient, ApiError, ForbiddenOperation
 # Enough to answer and to chain into ver_producto / reclasificar; the full row
 # carries ML internals and size lists that only burn context.
 COMPACT_FIELDS = ("key", "nombre", "precio", "precioOrig", "descuento", "sitio", "marca",
-                  "categoria", "subCategoria", "genero", "rubro", "badge", "url")
+                  "categoria", "sub_categoria", "genero", "rubro", "url")
 
 INSTRUCTIONS = """Scrappy: catalog of Argentine online stores (clothing, gym, supplements, PC hardware,
 home). Prices are ARS. Search with buscar_productos, then use a row's `key` with ver_producto.
@@ -44,20 +44,24 @@ def build_server(api: ApiClient) -> MCPServer:
                          talle: list[str] | None = None, precio_min: float | None = None,
                          precio_max: float | None = None, orden: str | None = None,
                          badge: str | None = None, gymrat: bool | None = None,
-                         page: int = 0, size: int = 24, completo: bool = False) -> dict:
+                         page: int = 0, size: int = 24, cursor: str | None = None,
+                         completo: bool = False) -> dict:
         """Search active products (GET /api/data). Filters combine with AND; list filters are OR within.
         orden: precio_asc | precio_desc | nombre | composite | ml_score | desc_pct | mercado_asc | baja_historica.
         genero: hombre | mujer | unisex. Valid categoria/rubro/sitio values come from facetas.
-        completo=True returns full rows instead of the compact ones."""
+        Next page: pass the returned nextCursor as cursor. completo=True returns full rows.
+        Facets are left out here; use facetas."""
         body = call("GET", "/api/data", {
             "q": q, "categoria": categoria, "subCategoria": sub_categoria, "marca": marca,
             "sitio": sitio, "rubro": rubro, "genero": genero, "talle": talle,
             "precioMin": precio_min, "precioMax": precio_max, "orden": orden, "badge": badge,
-            "gymrat": gymrat, "page": page, "size": size,
+            "gymrat": gymrat, "page": page, "size": size, "cursor": cursor,
         })
-        if not completo and isinstance(body, dict) and isinstance(body.get("data"), list):
-            body["data"] = [{k: row[k] for k in COMPACT_FIELDS if k in row} for row in body["data"]]
-        return body
+        # The page also carries every facet of the catalog (tens of KB); facetas serves those.
+        data = body["data"]
+        productos = data["productos"] if completo else [
+            {k: row[k] for k in COMPACT_FIELDS if k in row} for row in data["productos"]]
+        return {"productos": productos, "nextCursor": data.get("nextCursor"), "page": body.get("page")}
 
     @mcp.tool()
     def ver_producto(key: str) -> dict:
@@ -80,12 +84,15 @@ def build_server(api: ApiClient) -> MCPServer:
     @mcp.tool()
     def mejores(categoria: str | None = None, rubro: str | None = None, genero: str | None = None,
                 gymrat: bool | None = None, cursor: str | None = None, limit: int = 20) -> dict:
-        """Best picks. Without categoria: top picks per category. With categoria: that category
-        ranked best first, keyset-paged with `cursor`."""
+        """Best picks. Without categoria: an index of categories (count, median price), no picks.
+        With categoria: that category's products ranked best first, keyset-paged with `cursor`."""
         if categoria:
             return call("GET", "/api/mejores/picks", {"categoria": categoria, "rubro": rubro, "genero": genero,
                                                       "gymrat": gymrat, "cursor": cursor, "limit": limit})
-        return call("GET", "/api/mejores", {"rubro": rubro, "gymrat": gymrat, "genero": genero})
+        # The raw answer is every pick of ~280 categories (~4 MB); even 3 picks each is
+        # 225 KB. The index is what fits a turn; picks come from the categoria branch.
+        body = call("GET", "/api/mejores", {"rubro": rubro, "gymrat": gymrat, "genero": genero})
+        return {"data": [{k: c.get(k) for k in ("categoria", "count", "rubro", "mediana")} for c in body["data"]]}
 
     @mcp.tool()
     def oportunidades_cuotas(url: str) -> dict:
@@ -121,17 +128,22 @@ def build_server(api: ApiClient) -> MCPServer:
         return call("GET", "/api/pcs/builder", {"presupuesto": presupuesto, **(opciones or {})})
 
     @mcp.tool()
-    def armar_outfit(presupuesto: float, opciones: dict[str, Any] | None = None) -> dict:
-        """Budget-optimal outfit (GET /api/outfits/builder). opciones: categorias, genero, excluir,
-        pin, greedy, estilo."""
-        return call("GET", "/api/outfits/builder", {"presupuesto": presupuesto, **(opciones or {})})
+    def armar_outfit(presupuesto: float, categorias: list[str], genero: str | None = None,
+                     estilo: str | None = None, excluir: list[str] | None = None,
+                     opciones: dict[str, Any] | None = None) -> dict:
+        """Budget-optimal outfit (GET /api/outfits/builder). categorias: one pick per category, e.g.
+        ["Remera", "Short", "Zapatilla"]. presupuesto must be > 0. estilo defaults to gym.
+        excluir: product urls to leave out. opciones: pin, greedy."""
+        return call("GET", "/api/outfits/builder", {
+            "presupuesto": presupuesto, "categorias": ",".join(categorias), "genero": genero,
+            "estilo": estilo, "excluir": _csv(excluir), **(opciones or {})})
 
     @mcp.tool()
-    def armar_suplementos(presupuesto: float, tipos: list[str] | None = None,
-                          excluir: list[str] | None = None) -> dict:
-        """Supplement combo for a budget (GET /api/suplementos/builder). Valid tipos: GET /api/suplementos/tipos."""
-        return call("GET", "/api/suplementos/builder", {"presupuesto": presupuesto, "tipos": tipos,
-                                                        "excluir": excluir})
+    def armar_suplementos(tipos: list[str], presupuesto: float = 0, excluir: list[str] | None = None) -> dict:
+        """Supplement combo (GET /api/suplementos/builder). tipos e.g. ["Creatina", "Proteína en Polvo"];
+        valid values: api_call GET /api/suplementos/tipos. presupuesto 0 = no cap."""
+        return call("GET", "/api/suplementos/builder", {"tipos": ",".join(tipos), "presupuesto": presupuesto,
+                                                        "excluir": _csv(excluir)})
 
     # ── Actions (real, shared effects) ───────────────────────────────────
 
@@ -179,6 +191,11 @@ def build_server(api: ApiClient) -> MCPServer:
         return call(method, path, params, body)
 
     return mcp
+
+
+def _csv(values: list[str] | None) -> str | None:
+    """The builders take comma-separated lists, not repeated query params."""
+    return ",".join(values) if values else None
 
 
 def main() -> None:

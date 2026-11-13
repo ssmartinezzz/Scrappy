@@ -52,16 +52,43 @@ async def test_buscar_productos_maps_filters_to_the_api_names(server, backend):
                                     "sitio": "Vaypol", "size": "5", "page": "0"}
 
 
-async def test_buscar_productos_compacts_each_row(server, backend):
-    full = {"key": "abc", "nombre": "Buzo", "precio": 100.0, "sitio": "X", "url": "u",
-            "img": "i", "ml": {"scoreP": 1}, "talles": ["S"], "senal": {}}
-    backend.reply = {"data": [full], "page": {"number": 0, "totalElements": 1}}
+REAL_DATA_SHAPE = {  # captured from GET /api/data on 2026-11-13, trimmed
+    "data": {
+        "meta": {"moneda": "ARS", "facets": {"talles": {"S": 5893}}, "marcas": ["Nike"]},
+        "productos": [{"key": "abc", "nombre": "Buzo", "precio": 100.0, "sitio": "X", "url": "u",
+                       "sub_categoria": "Canguro", "img": "i", "ml": {"scoreP": 1}, "talles": ["S"],
+                       "senal": {}}],
+        "nextCursor": "CUR",
+    },
+    "page": {"number": 0, "totalElements": 1},
+}
+
+
+async def test_buscar_productos_compacts_rows_and_drops_the_facets(server, backend):
+    backend.reply = REAL_DATA_SHAPE
 
     _, text = await call(server, "buscar_productos", {"q": "buzo"})
 
-    body = json.loads(text)
-    assert body["data"] == [{"key": "abc", "nombre": "Buzo", "precio": 100.0, "sitio": "X", "url": "u"}]
-    assert body["page"]["totalElements"] == 1
+    assert json.loads(text) == {
+        "productos": [{"key": "abc", "nombre": "Buzo", "precio": 100.0, "sitio": "X",
+                       "sub_categoria": "Canguro", "url": "u"}],
+        "nextCursor": "CUR",
+        "page": {"number": 0, "totalElements": 1},
+    }
+
+
+async def test_buscar_productos_completo_keeps_full_rows(server, backend):
+    backend.reply = REAL_DATA_SHAPE
+
+    _, text = await call(server, "buscar_productos", {"q": "buzo", "completo": True})
+
+    assert json.loads(text)["productos"][0]["talles"] == ["S"]
+
+
+async def test_buscar_productos_forwards_the_cursor(server, backend):
+    await call(server, "buscar_productos", {"cursor": "CUR"})
+
+    assert sent(backend).url.params["cursor"] == "CUR"
 
 
 async def test_ver_producto_hits_the_detail_endpoint(server, backend):
@@ -132,3 +159,35 @@ async def test_unreachable_backend_says_so():
 
     assert result.is_error
     assert "http://api.test" in text and "not reachable" in text
+
+
+async def test_armar_outfit_requires_categorias_and_sends_them_comma_separated(server, backend):
+    result, _ = await call(server, "armar_outfit", {"presupuesto": 150000})
+    assert result.is_error and backend.requests == []
+
+    await call(server, "armar_outfit", {"presupuesto": 150000, "categorias": ["Remera", "Short"],
+                                        "excluir": ["u1", "u2"], "estilo": "gym"})
+
+    assert dict(sent(backend).url.params) == {"presupuesto": "150000.0", "categorias": "Remera,Short",
+                                              "excluir": "u1,u2", "estilo": "gym"}
+
+
+async def test_armar_suplementos_requires_tipos_and_sends_them_comma_separated(server, backend):
+    result, _ = await call(server, "armar_suplementos", {"presupuesto": 80000})
+    assert result.is_error and backend.requests == []
+
+    await call(server, "armar_suplementos", {"tipos": ["Creatina", "Proteína en Polvo"]})
+
+    assert dict(sent(backend).url.params) == {"tipos": "Creatina,Proteína en Polvo", "presupuesto": "0"}
+
+
+async def test_mejores_without_category_is_a_summary_not_every_pick(server, backend):
+    pick = {"tipo": "top", "label": "Buena compra", "nombre": "N", "precio": 1.0, "sitio": "S",
+            "key": "k", "url": "u", "img": "i", "scoreP": 9, "badge": "b"}
+    backend.reply = {"data": [{"categoria": "Remera", "count": 4242, "rubro": "indumentaria",
+                               "imgCat": "x", "mediana": 48999, "picks": [pick] * 30}]}
+
+    _, text = await call(server, "mejores")
+
+    row = json.loads(text)["data"][0]
+    assert row == {"categoria": "Remera", "count": 4242, "rubro": "indumentaria", "mediana": 48999}
