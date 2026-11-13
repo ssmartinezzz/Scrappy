@@ -146,4 +146,23 @@ class BannerSitePromoSourceTest {
                     .as(html).isEqualTo(PromosDelSitio.NO_LEIDO);
         }
     }
+
+    @Test
+    @DisplayName("a real store page that embeds an invisible reCAPTCHA or Cloudflare's script is read, not a block")
+    void widgetsEnPaginaReal() {
+        // Rendered sporting.com.ar home, 2026-11-13: reCAPTCHA v3 for the newsletter form; Cloudflare
+        // also injects its challenge-platform script into ordinary pages.
+        String widgets = "<script src=\"/cdn-cgi/challenge-platform/scripts/jsd/main.js\"></script>"
+                + "<div class=\"grecaptcha-badge\"><textarea id=\"g-recaptcha-response-100000\" "
+                + "name=\"g-recaptcha-response\" style=\"display:none\"></textarea></div>";
+        String contenido = "<p>Zapatillas, ropa deportiva y accesorios de running, training, fútbol y outdoor. "
+                + "Envíos a todo el país y retiro gratis en sucursal. Cambios sin cargo dentro de los 30 días. "
+                + "Las mejores marcas: adidas, Nike, Puma, Topper, Reebok, New Balance y Under Armour.</p>"
+                + "<p>Hasta 12 cuotas sin interés con Visa</p>";
+
+        PromosDelSitio r = fuente.leer("https://x.test", new Web(Map.of("https://x.test", pagina(widgets + contenido))), HOY);
+
+        assertThat(r.leido()).isTrue();
+        assertThat(r.promos()).extracting(SitePromoFixtures::resumen).contains("Visa|CUOTAS_SIN_INTERES|12|null");
+    }
 }
