@@ -90,6 +90,35 @@ async def test_buscar_productos_compact_rows_keep_the_stock_state(server, backen
     assert "enStock" not in row
 
 
+async def test_buscar_productos_compact_rows_keep_the_promos(server, backend):
+    backend.reply = {"data": {"productos": [{"key": "k", "nombre": "SSD", "precio": 1.0, "talles": ["S"],
+                                             "medios": ["Mercado Pago", "Santander"],
+                                             "mejorPromo": {"medio": "Mercado Pago", "red": None,
+                                                            "tipo": "descuento", "cuotas": None, "pct": 15.0}}]},
+                     "page": {}}
+
+    _, text = await call(server, "buscar_productos", {"q": "ssd"})
+
+    row = json.loads(text)["productos"][0]
+    assert row["medios"] == ["Mercado Pago", "Santander"]
+    assert row["mejorPromo"]["pct"] == 15.0
+    assert "talles" not in row
+
+
+async def test_promos_lists_by_site_and_medio(server, backend):
+    await call(server, "promos", {"sitio": "Sporting", "medio": "Visa", "size": 10})
+
+    req = sent(backend)
+    assert req.method == "GET" and req.url.path == "/api/promos"
+    assert dict(req.url.params) == {"sitio": "Sporting", "medio": "Visa", "size": "10", "page": "0"}
+
+
+async def test_promos_without_filters_sends_only_the_paging(server, backend):
+    await call(server, "promos")
+
+    assert dict(sent(backend).url.params) == {"page": "0", "size": "50"}
+
+
 async def test_buscar_productos_forwards_the_stock_filter(server, backend):
     await call(server, "buscar_productos", {"q": "ssd", "stock": "excluir_sin_stock"})
 
