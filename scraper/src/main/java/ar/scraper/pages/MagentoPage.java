@@ -39,6 +39,10 @@ public class MagentoPage extends StorePage implements CatalogPage {
     // "perro" on a blouse is a human item.
     private static final Pattern MASCOTA = Pattern.compile("(?iu)\\bguau\\b|\\bpara perros?\\b");
     private static final Pattern PARA_NINOS = Pattern.compile("(?iu)\\bpara ni(?:ñ|n)(?:a|o)s\\b");
+    // Magento's listing template shows this block instead of the add-to-cart form when the product is not
+    // saleable. The reverse (a form on the card) is not read as "in stock": the theme's quick-buy form is not
+    // known to disappear on a sold-out card, so a card without the marker stays unknown.
+    private static final Pattern NO_DISPONIBLE = Pattern.compile("class=\"[^\"]*\\bstock\\b[^\"]*\\bunavailable\\b");
     private static final String RUTA_MASCOTAS = "/shop/pets/";
     private static final String RUTA_INFANTIL = "/pepas-mini/";
 
@@ -127,6 +131,7 @@ public class MagentoPage extends StorePage implements CatalogPage {
                     .categoria("")
                     .genero(esInfantil(url, nombre) ? "infantil" : "mujer")
                     .talles(List.of())
+                    .enStock(NO_DISPONIBLE.matcher(card).find() ? Boolean.FALSE : null)
                     .build());
         }
         return new Listado(productos, tarjetas.size());

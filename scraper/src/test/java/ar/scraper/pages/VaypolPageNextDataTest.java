@@ -59,4 +59,19 @@ class VaypolPageNextDataTest {
         assertThat(productos.get(1).precio()).isEqualTo(116999.0);
         assertThat(productos.get(1).precioOriginal()).isEqualTo(179999.0);
     }
+
+    @Test
+    @DisplayName("stock: sizes_on_stock > 0 is in stock, 0 keeps the row flagged out of stock, absent is unknown")
+    void stockFromSizesOnStock() throws Exception {
+        String json = Files.readString(Path.of(
+                VaypolPageNextDataTest.class.getResource("/fixtures/vaypol/next-data-listado.json").toURI()));
+        VaypolPage page = new VaypolPage(Mockito.mock(Page.class), 1000, "Vaypol", BASE, 0, 5_000_000);
+
+        assertThat(page.productosDeNextData(json, BASE)).extracting(Product::enStock).containsExactly(true, true);
+
+        List<Product> agotados = page.productosDeNextData(
+                json.replace("\"sizes_on_stock\": 95", "\"sizes_on_stock\": 0")
+                    .replace("\"sizes_on_stock\": 54", "\"sizes_on_stock\": null"), BASE);
+        assertThat(agotados).extracting(Product::enStock).containsExactly(false, null);
+    }
 }

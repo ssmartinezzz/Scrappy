@@ -242,4 +242,11 @@ class FullH4rdPageTest {
         assertThat(FullH4rdPage.contarCards(challenge)).isZero();
         assertThat(FullH4rdPage.totalDisponibles(challenge)).isEmpty();
     }
+
+    @Test
+    @DisplayName("stock: the results-card markup has no stock marker, so it stays unknown")
+    void stockIsUnknown() {
+        assertThat(FullH4rdPage.parseListing(fixtureHtml(), "FullH4rd", BASE_URL, 0, 100_000_000))
+                .isNotEmpty().allSatisfy(p -> assertThat(p.enStock()).isNull());
+    }
 }
