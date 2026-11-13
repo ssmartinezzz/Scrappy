@@ -225,4 +225,78 @@ class SpUpsertPromosTest extends PostgresTestBase {
         assertThat(count("SELECT count(*) FROM promo_financiacion")).isZero();
         assertThat(count("SELECT count(*) FROM medio_pago WHERE nombre = 'Banco Test Roto'")).isZero();
     }
+
+    private static String conRed(String sitio, String medio, String red, int cuotas, String urls) {
+        String base = cuotas(sitio, medio, cuotas, urls);
+        return base.substring(0, base.length() - 1) + ",\"red\":" + (red == null ? "null" : "\"" + red + "\"") + "}";
+    }
+
+    private long conRedCount(String medio, String red) throws SQLException {
+        return count("SELECT count(*) FROM promo_financiacion p JOIN medio_pago m ON m.id = p.medio_pago_id"
+                + " JOIN medio_pago r ON r.id = p.red_medio_pago_id WHERE m.nombre = '" + medio + "' AND r.nombre = '" + red + "'");
+    }
+
+    @Test
+    @DisplayName("la red entra en la clave natural: Macro+Visa 12 y Macro+Mastercard 12 conviven")
+    void redIsPartOfTheNaturalKey() throws Exception {
+        assertThat(call(arr(conRed(A, "Macro", "Visa", 12, null), conRed(A, "Macro", "Mastercard", 12, null)), A)).isEqualTo(2);
+        assertThat(conRedCount("Macro", "Visa")).isEqualTo(1);
+        assertThat(conRedCount("Macro", "Mastercard")).isEqualTo(1);
+        assertThat(call(arr(conRed(A, "Macro", "Visa", 12, null), conRed(A, "Macro", "Mastercard", 12, null)), A)).isEqualTo(2);
+        assertThat(count("SELECT count(*) FROM promo_financiacion")).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("red NULL y red informada son promos distintas, y un payload sin campo red es red NULL")
+    void nullRedIsDistinctFromARed() throws Exception {
+        call(arr(conRed(A, "Macro", "Visa", 12, null), conRed(A, "Macro", null, 12, null),
+                cuotas(A, "Macro", 12, null)), A);
+        assertThat(count("SELECT count(*) FROM promo_financiacion")).isEqualTo(2);
+        assertThat(count("SELECT count(*) FROM promo_financiacion WHERE red_medio_pago_id IS NULL")).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("una red de cadena vacía es red NULL, no un valor de FK")
+    void emptyRedIsNull() throws Exception {
+        call(arr(conRed(A, "Macro", "", 12, null)), A);
+        assertThat(count("SELECT count(*) FROM promo_financiacion WHERE red_medio_pago_id IS NULL")).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("la desactivación por corrida distingue la red: la que no vuelve se apaga, la otra sigue")
+    void deactivationIsPerRed() throws Exception {
+        call(arr(conRed(A, "Macro", "Visa", 12, null), conRed(A, "Macro", "Mastercard", 12, null)), A);
+        call(arr(conRed(A, "Macro", "Visa", 12, null)), A);
+        assertThat(count("SELECT count(*) FROM promo_financiacion p JOIN medio_pago r ON r.id = p.red_medio_pago_id"
+                + " WHERE p.activo AND r.nombre = 'Visa'")).isEqualTo(1);
+        assertThat(count("SELECT count(*) FROM promo_financiacion p JOIN medio_pago r ON r.id = p.red_medio_pago_id"
+                + " WHERE NOT p.activo AND r.nombre = 'Mastercard'")).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("el vínculo de producto sigue a la promo con su red, no a la hermana con otra red")
+    void productLinkFollowsTheRedRow() throws Exception {
+        call(arr(conRed(A, "Macro", "Visa", 12, "[\"" + URL_A1 + "\"]"),
+                conRed(A, "Macro", "Mastercard", 12, "[\"" + URL_A2 + "\"]")), A);
+        assertThat(count("SELECT count(*) FROM promo_financiacion_producto l JOIN promo_financiacion p ON p.id = l.promo_id"
+                + " JOIN medio_pago r ON r.id = p.red_medio_pago_id WHERE r.nombre = 'Visa' AND l.url = '" + URL_A1 + "'"))
+                .isEqualTo(1);
+        assertThat(count("SELECT count(*) FROM promo_financiacion_producto")).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("una red que no es tarjeta raisea y no escribe nada")
+    void nonTarjetaRedRaises() {
+        assertThatThrownBy(() -> call(arr(conRed(A, "Macro", "Santander", 12, null)), A))
+                .hasMessageContaining("red");
+        assertThatThrownBy(() -> call(arr(conRed(A, "Macro", "Red Inexistente", 12, null)), A))
+                .hasMessageContaining("red");
+    }
+
+    @Test
+    @DisplayName("un medio no puede ser su propia red")
+    void redCannotBeTheMedioItself() {
+        assertThatThrownBy(() -> call(arr(conRed(A, "Visa", "Visa", 12, null)), A))
+                .isInstanceOf(SQLException.class);
+    }
 }

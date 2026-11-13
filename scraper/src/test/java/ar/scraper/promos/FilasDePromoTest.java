@@ -105,4 +105,16 @@ class FilasDePromoTest {
     void noPromosNoRows() {
         assertThat(FilasDePromo.agrupar(List.of(producto("A", "u1")), PromosDeCorrida.VACIO)).isEmpty();
     }
+
+    @Test
+    @DisplayName("the same bank with two networks is two rows, not one")
+    void laRedSeparaFilas() {
+        PromoFinanciacion macroVisa = new PromoFinanciacion("Macro", TipoMedio.BANCO, "Visa",
+                TipoPromo.CUOTAS_SIN_INTERES, 12, null, Alcance.SITIO, null, null, "t");
+        PromoFinanciacion macroMc = new PromoFinanciacion("Macro", TipoMedio.BANCO, "Mastercard",
+                TipoPromo.CUOTAS_SIN_INTERES, 12, null, Alcance.SITIO, null, null, "t");
+        PromosDeCorrida promos = new PromosDeCorrida(Map.of("S", List.of(macroVisa, macroMc)), Set.of("S"));
+
+        assertThat(FilasDePromo.agrupar(List.of(), promos)).hasSize(2);
+    }
 }

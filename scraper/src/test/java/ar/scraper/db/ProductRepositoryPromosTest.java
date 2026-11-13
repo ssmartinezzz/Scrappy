@@ -140,4 +140,20 @@ class ProductRepositoryPromosTest extends PostgresTestBase {
         assertThat(stats.sinCambios()).isEqualTo(1);
         assertThat(activas(A)).isEqualTo(1);
     }
+
+    @Test
+    @DisplayName("the card network of a promo survives the repository's JSON to the stored row")
+    void redTravelsToTheRow() throws Exception {
+        PromoFinanciacion macroVisa = new PromoFinanciacion("Macro", TipoMedio.BANCO, "Visa",
+                TipoPromo.CUOTAS_SIN_INTERES, 12, null, Alcance.SITIO, null, null, "texto");
+        PromoFinanciacion macroSola = new PromoFinanciacion("Macro", TipoMedio.BANCO, null,
+                TipoPromo.CUOTAS_SIN_INTERES, 12, null, Alcance.SITIO, null, null, "texto");
+
+        correr(List.of(producto(A, "https://a.example/1")),
+                new PromosDeCorrida(Map.of(A, List.of(macroVisa, macroSola)), Set.of(A)));
+
+        assertThat(count("SELECT count(*) FROM promo_financiacion p JOIN medio_pago r ON r.id = p.red_medio_pago_id"
+                + " WHERE r.nombre = 'Visa'")).isEqualTo(1);
+        assertThat(count("SELECT count(*) FROM promo_financiacion WHERE red_medio_pago_id IS NULL")).isEqualTo(1);
+    }
 }

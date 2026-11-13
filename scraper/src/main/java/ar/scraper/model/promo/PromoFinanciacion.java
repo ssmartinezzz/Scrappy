@@ -11,16 +11,33 @@ import java.util.Objects;
  * One payment promo. The site is not part of it: the caller carries it. Invariants are the ones of
  * the {@code promo_financiacion} CHECKs, so an invalid promo never reaches the database. Equality is
  * the natural key of {@code uq_promo_financiacion_natural}; vigencia and source text do not count.
+ *
+ * <p>{@code redMedioPago} is the card network the promo requires on top of {@code medioPago}: "12 sin
+ * interés con Macro (Visa)" is Macro + Visa, valid for a Macro Visa and for no other card. Null means
+ * any card of the medio. The database accepts only a {@code tarjeta} network there.
  */
-public record PromoFinanciacion(String medioPago, TipoMedio tipoMedio, TipoPromo tipo, Integer cuotas,
-                                BigDecimal pct, Alcance alcance, LocalDate vigenciaDesde,
+public record PromoFinanciacion(String medioPago, TipoMedio tipoMedio, String redMedioPago, TipoPromo tipo,
+                                Integer cuotas, BigDecimal pct, Alcance alcance, LocalDate vigenciaDesde,
                                 LocalDate vigenciaHasta, String textoFuente) {
 
     private static final BigDecimal CIEN = BigDecimal.valueOf(100);
 
+    /** A promo with no card-network requirement ({@code redMedioPago} null). */
+    public PromoFinanciacion(String medioPago, TipoMedio tipoMedio, TipoPromo tipo, Integer cuotas,
+                             BigDecimal pct, Alcance alcance, LocalDate vigenciaDesde,
+                             LocalDate vigenciaHasta, String textoFuente) {
+        this(medioPago, tipoMedio, null, tipo, cuotas, pct, alcance, vigenciaDesde, vigenciaHasta, textoFuente);
+    }
+
     public PromoFinanciacion {
         if (StringUtils.isBlank(medioPago)) throw new IllegalArgumentException("medioPago is required");
         Objects.requireNonNull(tipoMedio, "tipoMedio");
+        if (redMedioPago != null) {
+            if (StringUtils.isBlank(redMedioPago)) throw new IllegalArgumentException("redMedioPago must not be blank");
+            if (tipoMedio == TipoMedio.TARJETA) {
+                throw new IllegalArgumentException("a tarjeta cannot require another network: " + medioPago);
+            }
+        }
         Objects.requireNonNull(tipo, "tipo");
         Objects.requireNonNull(alcance, "alcance");
         if (cuotas != null && cuotas <= 0) throw new IllegalArgumentException("cuotas must be > 0: " + cuotas);
@@ -38,12 +55,12 @@ public record PromoFinanciacion(String medioPago, TipoMedio tipoMedio, TipoPromo
     @Override
     public boolean equals(Object o) {
         return o instanceof PromoFinanciacion p
-                && medioPago.equals(p.medioPago) && tipo == p.tipo && alcance == p.alcance
+                && medioPago.equals(p.medioPago) && Objects.equals(redMedioPago, p.redMedioPago) && tipo == p.tipo && alcance == p.alcance
                 && Objects.equals(cuotas, p.cuotas) && Objects.equals(pct, p.pct);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(medioPago, tipo, alcance, cuotas, pct);
+        return Objects.hash(medioPago, redMedioPago, tipo, alcance, cuotas, pct);
     }
 }

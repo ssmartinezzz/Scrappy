@@ -3,8 +3,12 @@
 -- Persists the payment promos of one batch, set-based, inside the caller's transaction (no COMMIT).
 -- It does NOT swallow errors: a CHECK or FK violation raises so the run's transaction rolls back.
 --
--- p_promos: [{sitio, medioPago, tipoMedio, tipo, cuotas, pct, alcance, vigenciaDesde, vigenciaHasta,
+-- p_promos: [{sitio, medioPago, tipoMedio, red, tipo, cuotas, pct, alcance, vigenciaDesde, vigenciaHasta,
 --             textoFuente, urls}]  (sitio = sitio.nombre; urls only for alcance 'producto').
+-- red: canonical name of the card network the promo requires on top of medioPago (V102), absent/null/''
+--      when the promo holds for any card. It must name an existing medio_pago of tipo 'tarjeta' and
+--      differ from medioPago: anything else raises (a promo filed under the wrong network would
+--      read as valid for cards it is not), so the run's transaction rolls back.
 -- p_sitios: the sitio.nombre values the run actually looked at. Not-seen promos are deactivated only
 --           inside that scope; a site outside it is untouched. An empty/NULL array deactivates nothing.
 -- Unknown sites and unknown product urls are ignored; medio_pago names are stored as given (the Java
@@ -16,6 +20,13 @@ DECLARE
     v_promos    INTEGER := 0;
 BEGIN
     IF p_promos IS NOT NULL AND jsonb_array_length(p_promos) > 0 THEN
+        IF EXISTS (SELECT 1
+                   FROM jsonb_to_recordset(p_promos) AS r(red text)
+                   LEFT JOIN medio_pago mr ON mr.nombre = r.red
+                   WHERE COALESCE(r.red, '') <> '' AND mr.tipo IS DISTINCT FROM 'tarjeta') THEN
+            RAISE EXCEPTION 'red must name a medio_pago of tipo tarjeta';
+        END IF;
+
         INSERT INTO medio_pago (nombre, tipo)
         SELECT DISTINCT ON (r."medioPago") r."medioPago", COALESCE(r."tipoMedio", 'medio')
         FROM jsonb_to_recordset(p_promos) AS r("medioPago" text, "tipoMedio" text)
@@ -24,17 +35,18 @@ BEGIN
         ON CONFLICT (nombre) DO NOTHING;
 
         INSERT INTO promo_financiacion
-            (sitio_key, medio_pago_id, tipo, cuotas, pct, alcance,
+            (sitio_key, medio_pago_id, red_medio_pago_id, tipo, cuotas, pct, alcance,
              vigencia_desde, vigencia_hasta, texto_fuente, activo, primer_visto_at, visto_at)
-        SELECT DISTINCT ON (s.sitio_key, m.id, r.tipo, r.alcance, COALESCE(r.cuotas, 0), COALESCE(r.pct, 0))
-               s.sitio_key, m.id, r.tipo, r.cuotas, r.pct, r.alcance,
+        SELECT DISTINCT ON (s.sitio_key, m.id, COALESCE(mr.id, 0), r.tipo, r.alcance, COALESCE(r.cuotas, 0), COALESCE(r.pct, 0))
+               s.sitio_key, m.id, mr.id, r.tipo, r.cuotas, r.pct, r.alcance,
                r."vigenciaDesde", r."vigenciaHasta", r."textoFuente", true, v_now, v_now
-        FROM jsonb_to_recordset(p_promos) AS r(sitio text, "medioPago" text, tipo text, cuotas smallint,
+        FROM jsonb_to_recordset(p_promos) AS r(sitio text, "medioPago" text, red text, tipo text, cuotas smallint,
              pct numeric, alcance text, "vigenciaDesde" date, "vigenciaHasta" date, "textoFuente" text)
         JOIN sitio s      ON s.nombre = r.sitio
         JOIN medio_pago m ON m.nombre = r."medioPago"
-        ORDER BY s.sitio_key, m.id, r.tipo, r.alcance, COALESCE(r.cuotas, 0), COALESCE(r.pct, 0)
-        ON CONFLICT (sitio_key, medio_pago_id, tipo, alcance, COALESCE(cuotas, 0), COALESCE(pct, 0))
+        LEFT JOIN medio_pago mr ON mr.nombre = NULLIF(r.red, '')
+        ORDER BY s.sitio_key, m.id, COALESCE(mr.id, 0), r.tipo, r.alcance, COALESCE(r.cuotas, 0), COALESCE(r.pct, 0)
+        ON CONFLICT (sitio_key, medio_pago_id, COALESCE(red_medio_pago_id, 0), tipo, alcance, COALESCE(cuotas, 0), COALESCE(pct, 0))
         DO UPDATE SET activo = true,
                       visto_at = EXCLUDED.visto_at,
                       vigencia_desde = EXCLUDED.vigencia_desde,
@@ -44,12 +56,14 @@ BEGIN
 
         INSERT INTO promo_financiacion_producto (promo_id, url, visto_at)
         SELECT DISTINCT p.id, u.url, v_now
-        FROM jsonb_to_recordset(p_promos) AS r(sitio text, "medioPago" text, tipo text, cuotas smallint,
+        FROM jsonb_to_recordset(p_promos) AS r(sitio text, "medioPago" text, red text, tipo text, cuotas smallint,
              pct numeric, alcance text, urls jsonb)
         JOIN sitio s      ON s.nombre = r.sitio
         JOIN medio_pago m ON m.nombre = r."medioPago"
+        LEFT JOIN medio_pago mr ON mr.nombre = NULLIF(r.red, '')
         JOIN promo_financiacion p
-          ON p.sitio_key = s.sitio_key AND p.medio_pago_id = m.id AND p.tipo = r.tipo
+          ON p.sitio_key = s.sitio_key AND p.medio_pago_id = m.id
+         AND COALESCE(p.red_medio_pago_id, 0) = COALESCE(mr.id, 0) AND p.tipo = r.tipo
          AND p.alcance = r.alcance
          AND COALESCE(p.cuotas, 0) = COALESCE(r.cuotas, 0) AND COALESCE(p.pct, 0) = COALESCE(r.pct, 0)
         CROSS JOIN LATERAL jsonb_array_elements_text(COALESCE(r.urls, '[]'::jsonb)) AS u(url)

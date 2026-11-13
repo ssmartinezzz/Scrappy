@@ -178,6 +178,8 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V98` | Seed de Ayrun (Tiendanube, gym de mujer, marca propia): fila en `sitio` con `monomarca` y su fila en `marca` |
 | `V99` | Estado de stock por producto: `en_stock`, `visto_en_stock_at`, `stock_chequeado_at` en `productos` y el CHECK `ck_productos_stock_chequeado` |
 | `V100` | Dos índices parciales de `productos` para el filtro de stock de `/api/data`: `idx_productos_sin_stock` (el conjunto excluido) e `idx_productos_activo_precio` (el orden por defecto) |
+| `V101` | Promos de financiación: `medio_pago` (lookup sembrado), `promo_financiacion` y `promo_financiacion_producto`; `sp_upsert_promos` vive en `R__sp_upsert_promos.sql` |
+| `V102` | `promo_financiacion.red_medio_pago_id`: la red de tarjeta que la promo exige además del banco o billetera; entra en la clave natural |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -5101,7 +5103,7 @@ cualquier upsert falla (y el upsert se traga el error: síntoma `"0 nuevos"`). A
 su cuerpo previo al stock (`git show <commit anterior a V99>:scraper/src/main/resources/db/migration/R__sp_upsert_run.sql`); como es
 repetible, Flyway lo reaplica solo al cambiar su checksum. Además hay que borrar la fila de `V99` de `flyway_schema_history`
 (`DELETE FROM flyway_schema_history WHERE version = '99'`), que ningún otro bloque de este archivo hace: sin eso Flyway cree que la
-migración sigue aplicada. Ya no es el bloque más nuevo: en una cadena de rollbacks corre después de los de `V101` y `V100` y antes que el de `V98`.
+migración sigue aplicada. Ya no es el bloque más nuevo: en una cadena de rollbacks corre después de los de `V102`, `V101` y `V100` y antes que el de `V98`.
 
 ---
 
@@ -5130,7 +5132,7 @@ DROP INDEX IF EXISTS idx_productos_sin_stock;
 
 No pierde datos: sólo vuelven los planes lentos del filtro de stock y de la página por defecto. Hay que borrar la fila de `V100` de
 `flyway_schema_history` (`DELETE FROM flyway_schema_history WHERE version = '100'`), que ningún otro bloque de este archivo hace. Ya no es
-el bloque más nuevo: en una cadena de rollbacks corre después del de `V101` y antes que el de `V99`.
+el bloque más nuevo: en una cadena de rollbacks corre después de los de `V102` y `V101` y antes que el de `V99`.
 
 ---
 
@@ -5164,5 +5166,58 @@ DELETE FROM flyway_schema_history WHERE version IS NULL AND description = 'sp up
 ```
 
 Pierde todas las promos guardadas. Hay que borrar las dos filas de `flyway_schema_history` (la de `V101` y la de la repetible
-`sp_upsert_promos`): sin la segunda, Flyway se queja de una migración aplicada que ya no existe en el jar. Es el bloque más nuevo: en
-una cadena de rollbacks corre PRIMERO, antes que el de `V100`.
+`sp_upsert_promos`): sin la segunda, Flyway se queja de una migración aplicada que ya no existe en el jar. Ya no es el bloque más nuevo: en
+una cadena de rollbacks corre después del de `V102` y antes que el de `V100`.
+
+---
+
+## `V102` — red de tarjeta en la promo
+
+**Problema**: una promo tiene un solo medio, así que "12 cuotas sin interés con Macro (Visa, Mastercard y American Express)" se guardaba
+como una fila de Macro **y** filas de Visa, Mastercard y American Express a secas. Una promo sólo de Macro se leía como válida para
+cualquier tarjeta de esas redes (el caso real: planificar con una Santander Visa).
+
+**Decisión**: `promo_financiacion.red_medio_pago_id SMALLINT NULL REFERENCES medio_pago(id)` es la red que la promo exige además del
+medio. Entra en la clave natural (`uq_promo_financiacion_natural` se rehace con `COALESCE(red_medio_pago_id, 0)`, como `cuotas` y `pct`):
+un banco con tres redes son tres filas. 1FN/3FN intactas: la red es una FK al mismo lookup, sin copiar el nombre.
+
+| La línea dice | Filas |
+|---|---|
+| banco o billetera con redes entre paréntesis | una por red: `medio` = banco, `red` = la red; **ninguna** fila de la red suelta |
+| banco o billetera sin redes | `medio` = banco, `red` NULL |
+| sólo redes ("Hasta 12 cuotas sin interés Visa y Mastercard") | `medio` = la red, `red` NULL |
+| banco desconocido con redes conocidas ("Banco del Sol (Mastercard)") | ninguna: se descarta la línea (abstención, CODE-5) |
+| red desconocida entre paréntesis ("Macro (Visa y Diners)") | se omite esa red; las conocidas siguen |
+
+El banco desconocido se descarta en vez de archivarse sin banco porque la alternativa es la fila de la red suelta o una de "Tarjeta de
+crédito": las dos dicen "vale con cualquiera", que es lo falso que esta migración existe para evitar.
+
+- Que `red` sea una `tarjeta` no puede ser un CHECK (lee otra tabla). Lo impone `sp_upsert_promos`, el único escritor: una red que no
+  existe en `medio_pago`, que no es de tipo `tarjeta`, hace `RAISE EXCEPTION` y la transacción de la corrida se revierte (no se ignora:
+  una promo guardada bajo otra red se leería como válida para tarjetas que no son). Una red `''` o ausente es NULL, nunca una FK.
+- `ck_promo_red_no_es_el_medio` impide que un medio sea su propia red. El modelo Java (`PromoFinanciacion`) rechaza además una `tarjeta`
+  con otra red.
+- La desactivación por corrida, el upsert y el vínculo con productos usan la red en su clave; las promos de producto (VTEX y
+  similares) siguen con `red` NULL.
+- Límite conocido: `Macro (Diners)`, con una red que no está en el seed y sin ninguna conocida, no se distingue de un paréntesis
+  cualquiera y queda como `Macro` con `red` NULL.
+
+### Rollback
+
+```sql
+-- >>> rollback:V102
+DROP FUNCTION IF EXISTS sp_upsert_promos(jsonb, text[]);
+DELETE FROM promo_financiacion WHERE red_medio_pago_id IS NOT NULL;
+DROP INDEX IF EXISTS uq_promo_financiacion_natural;
+ALTER TABLE promo_financiacion DROP COLUMN red_medio_pago_id;
+CREATE UNIQUE INDEX uq_promo_financiacion_natural
+    ON promo_financiacion (sitio_key, medio_pago_id, tipo, alcance, COALESCE(cuotas, 0), COALESCE(pct, 0));
+DELETE FROM flyway_schema_history WHERE version = '102';
+DELETE FROM flyway_schema_history WHERE version IS NULL AND description = 'sp upsert promos';
+-- <<< rollback:V102
+```
+
+Borra las promos con red (sin la columna, `Macro+Visa 12` y `Macro+Mastercard 12` chocarían en la clave de `V101`) y deja las demás.
+La función se tira y se borra la fila de la repetible: sin eso quedaría la versión con `red` apuntando a una columna que ya no existe;
+con la fila borrada, el jar anterior la recrea sola al arrancar. Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO,
+antes que el de `V101`.

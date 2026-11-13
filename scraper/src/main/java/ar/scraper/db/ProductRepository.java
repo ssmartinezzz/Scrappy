@@ -208,6 +208,7 @@ class ProductRepository implements ProductPort {
         g.writeStringField("sitio", f.sitio());
         g.writeStringField("medioPago", p.medioPago());
         g.writeStringField("tipoMedio", p.tipoMedio().sql());
+        if (p.redMedioPago() != null) g.writeStringField("red", p.redMedioPago());
         g.writeStringField("tipo", p.tipo().sql());
         if (p.cuotas() != null) g.writeNumberField("cuotas", p.cuotas());
         else g.writeNullField("cuotas");

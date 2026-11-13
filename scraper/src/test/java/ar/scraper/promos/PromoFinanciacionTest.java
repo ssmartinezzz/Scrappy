@@ -87,4 +87,25 @@ class PromoFinanciacionTest {
         assertThat(Alcance.SITIO.sql()).isEqualTo("sitio");
         assertThat(Alcance.PRODUCTO.sql()).isEqualTo("producto");
     }
+
+    private static PromoFinanciacion conRed(String medio, TipoMedio tipoMedio, String red) {
+        return new PromoFinanciacion(medio, tipoMedio, red, TipoPromo.CUOTAS_SIN_INTERES, 12, null,
+                Alcance.SITIO, null, null, null);
+    }
+
+    @Test
+    void laRedFormaParteDeLaClaveNatural() {
+        assertThat(conRed("Macro", TipoMedio.BANCO, "Visa")).isEqualTo(conRed("Macro", TipoMedio.BANCO, "Visa"));
+        assertThat(conRed("Macro", TipoMedio.BANCO, "Visa")).isNotEqualTo(conRed("Macro", TipoMedio.BANCO, "Mastercard"));
+        assertThat(conRed("Macro", TipoMedio.BANCO, "Visa")).isNotEqualTo(conRed("Macro", TipoMedio.BANCO, null));
+        assertThat(conRed("Macro", TipoMedio.BANCO, "Visa").hashCode())
+                .isNotEqualTo(conRed("Macro", TipoMedio.BANCO, null).hashCode());
+    }
+
+    @Test
+    void unaTarjetaNoPuedeExigirOtraRedNiUnaRedPuedeSerSuPropioMedio() {
+        assertThatThrownBy(() -> conRed("Visa", TipoMedio.TARJETA, "Mastercard"))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> conRed("Macro", TipoMedio.BANCO, " ")).isInstanceOf(IllegalArgumentException.class);
+    }
 }
