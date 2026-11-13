@@ -188,7 +188,7 @@ public class TiendanubePage extends StorePage implements CatalogPage {
 
             JsonNode variants = prod.path("variants");
             if (!variants.isArray() || variants.isEmpty()) return Optional.empty();
-            JsonNode v = variants.get(0);
+            JsonNode v = variantePrecio(variants);
 
             Optional<Double> precio = precioEnRango(v.path("price").asText(""));
             if (precio.isEmpty()) return Optional.empty();
@@ -203,6 +203,27 @@ public class TiendanubePage extends StorePage implements CatalogPage {
                     categoria, detectarGeneroApi(prod, nombre), extraerTallesApi(prod, variants),
                     null, enStock(variants)));
         } catch (Exception e) { return Optional.empty(); }
+    }
+
+    /**
+     * The variant that sets the price: the cheapest one in stock (a sold-out variants[0] must not price a
+     * product another variant can still sell), or variants[0] when none is known to be in stock.
+     */
+    private JsonNode variantePrecio(JsonNode variants) {
+        JsonNode elegida = variants.get(0);
+        double mejor = Double.MAX_VALUE;
+        for (JsonNode var : variants) {
+            if (!variantEnStock(var)) continue;
+            Optional<Double> p = precioEnRango(var.path("price").asText(""));
+            if (p.isPresent() && p.get() < mejor) { mejor = p.get(); elegida = var; }
+        }
+        return elegida;
+    }
+
+    private static boolean variantEnStock(JsonNode var) {
+        JsonNode stock = var.path("stock");
+        if (stock.isNumber()) return stock.asDouble() > 0;
+        return stock.isNull() && var.path("stock_management").isBoolean() && !var.path("stock_management").asBoolean();
     }
 
     /**

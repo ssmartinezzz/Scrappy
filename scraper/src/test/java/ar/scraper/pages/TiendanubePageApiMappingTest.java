@@ -240,4 +240,32 @@ class TiendanubePageApiMappingTest {
         assertThat(stockOf("")).isNull();
         assertThat(stockOf("\"stock\":0", "\"stock\":null")).isNull();
     }
+
+    private static String tnVariant(String price, String compareAt, String stockFields) {
+        return "{\"price\":\"" + price + "\"" + (compareAt.isEmpty() ? "" : ",\"compare_at_price\":\"" + compareAt + "\"")
+                + (stockFields.isEmpty() ? "" : "," + stockFields) + "}";
+    }
+
+    @Test
+    @DisplayName("price: a sold-out first variant does not set the price while another variant has stock")
+    void priceComesFromCheapestInStockVariant() throws Exception {
+        String json = product("\"variants\":[" + tnVariant("1.000,00", "", "\"stock\":0,\"stock_management\":true") + ","
+                + tnVariant("9.000,00", "12.000,00", "\"stock\":3,\"stock_management\":true") + ","
+                + tnVariant("7.000,00", "10.000,00", "\"stock\":null,\"stock_management\":false") + "]");
+
+        Product p = fromApi(json).orElseThrow();
+
+        assertThat(p.precio()).isEqualTo(7000);
+        assertThat(p.precioOriginal()).isEqualTo(10000.0);
+        assertThat(p.enStock()).isTrue();
+    }
+
+    @Test
+    @DisplayName("price: with no variant known in stock, variants[0] still sets the price")
+    void priceFallsBackToFirstVariant() throws Exception {
+        assertThat(fromApi(product("\"variants\":[" + tnVariant("1.000,00", "", "\"stock\":0") + ","
+                + tnVariant("9.000,00", "", "\"stock\":0") + "]")).orElseThrow().precio()).isEqualTo(1000);
+        assertThat(fromApi(product("\"variants\":[" + tnVariant("1.000,00", "", "") + ","
+                + tnVariant("9.000,00", "", "\"stock\":null") + "]")).orElseThrow().precio()).isEqualTo(1000);
+    }
 }

@@ -154,4 +154,40 @@ class ShopifyPageMappingTest {
         assertThat(map(product(variants(""))).orElseThrow().enStock()).isNull();
         assertThat(map(product(variants("false", ""))).orElseThrow().enStock()).isNull();
     }
+
+    private static String variantAt(String price, String compareAt, String available) {
+        return "{\"price\":\"" + price + "\"" + (compareAt.isEmpty() ? "" : ",\"compare_at_price\":\"" + compareAt + "\"")
+                + (available.isEmpty() ? "" : ",\"available\":" + available) + "}";
+    }
+
+    @Test
+    @DisplayName("price: a sold-out first variant does not set the price while another variant is in stock")
+    void priceComesFromCheapestInStockVariant() throws Exception {
+        String json = product("\"variants\":[" + variantAt("1.000,00", "", "false") + ","
+                + variantAt("9.000,00", "12.000,00", "true") + "," + variantAt("7.000,00", "10.000,00", "true") + "]");
+
+        Product p = map(json).orElseThrow();
+
+        assertThat(p.precio()).isEqualTo(7000);
+        assertThat(p.precioOriginal()).isEqualTo(10000.0);
+        assertThat(p.enStock()).isTrue();
+    }
+
+    @Test
+    @DisplayName("price: with no variant in stock, or no flag at all, variants[0] still sets the price")
+    void priceFallsBackToFirstVariant() throws Exception {
+        assertThat(map(product("\"variants\":[" + variantAt("1.000,00", "", "false") + "," + variantAt("9.000,00", "", "false") + "]"))
+                .orElseThrow().precio()).isEqualTo(1000);
+        assertThat(map(product("\"variants\":[" + variantAt("1.000,00", "", "") + "," + variantAt("9.000,00", "", "") + "]"))
+                .orElseThrow().precio()).isEqualTo(1000);
+    }
+
+    @Test
+    @DisplayName("price: an in-stock variant with an unparseable price is skipped, not chosen")
+    void priceSkipsUnparseableInStockVariant() throws Exception {
+        String json = product("\"variants\":[" + variantAt("1.000,00", "", "false") + ","
+                + variantAt("", "", "true") + "," + variantAt("9.000,00", "", "true") + "]");
+
+        assertThat(map(json).orElseThrow().precio()).isEqualTo(9000);
+    }
 }
