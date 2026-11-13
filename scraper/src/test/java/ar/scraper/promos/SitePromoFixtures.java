@@ -44,7 +44,8 @@ final class SitePromoFixtures {
         }
     }
 
+    /** medio[|red]|tipo|cuotas|pct; the red segment is absent when the promo names no network. */
     static String resumen(PromoFinanciacion p) {
-        return p.medioPago() + "|" + p.tipo() + "|" + p.cuotas() + "|" + p.pct();
+        return p.medioPago() + (p.redMedioPago() == null ? "" : "|" + p.redMedioPago()) + "|" + p.tipo() + "|" + p.cuotas() + "|" + p.pct();
     }
 }

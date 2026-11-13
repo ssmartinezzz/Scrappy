@@ -219,7 +219,8 @@ class PromoTextParserTest {
         assertThat(resumenes("30% de reintegro (tope $15.000 por compra) con MODO, los jueves."))
                 .containsExactly("Modo|DESCUENTO|null|30.00");
         assertThat(resumenes("20% de reintegro (tope $10.000 por compra) con MODO (Visa, Mastercard y American Express), los martes, jueves y domingos."))
-                .contains("Modo|DESCUENTO|null|20.00");
+                .containsExactlyInAnyOrder("Modo|DESCUENTO|null|20.00", "Modo|DESCUENTO|null|20.00",
+                        "Modo|DESCUENTO|null|20.00");
     }
 
     @Test
@@ -247,11 +248,73 @@ class PromoTextParserTest {
                         "Tarjeta de crédito|CUOTAS_SIN_INTERES|12|null");
     }
 
+    private static List<String> conRed(String texto) {
+        return parse(texto).stream()
+                .map(p -> p.medioPago() + "|" + p.redMedioPago() + "|" + p.tipo() + "|" + p.cuotas() + "|" + p.pct())
+                .toList();
+    }
+
     @Test
-    void cuotasDeUnBancoConSuTarjeta() {
-        assertThat(resumenes("12 cuotas sin interés con Santander (Visa)."))
-                .containsExactly("Santander|CUOTAS_SIN_INTERES|12|null", "Visa|CUOTAS_SIN_INTERES|12|null");
+    void unBancoConSuTarjetaEsUnaSolaPromoDeEsaRed() {
+        assertThat(conRed("12 cuotas sin interés con Santander (Visa)."))
+                .containsExactly("Santander|Visa|CUOTAS_SIN_INTERES|12|null");
+    }
+
+    @Test
+    void sinBancoLaRedEsElMedio() {
         assertThat(resumenes("Hasta 12 Cuotas sin interés Visa Y Mastercard"))
                 .containsExactly("Visa|CUOTAS_SIN_INTERES|12|null", "Mastercard|CUOTAS_SIN_INTERES|12|null");
+        assertThat(conRed("Hasta 12 Cuotas sin interés Visa Y Mastercard"))
+                .containsExactly("Visa|null|CUOTAS_SIN_INTERES|12|null", "Mastercard|null|CUOTAS_SIN_INTERES|12|null");
+    }
+
+    @Test
+    void unBancoSinRedesNoExigeNinguna() {
+        assertThat(conRed("6 cuotas sin interés con Galicia"))
+                .containsExactly("Galicia|null|CUOTAS_SIN_INTERES|6|null");
+    }
+
+    @Test
+    void lineaRealDeSportingNoDejaUnaPromoDeAmexSuelta() {
+        // Captured 2026-11-13 from sporting.com.ar/medios-de-pagos: a Macro-only promo.
+        String linea = "12 cuotas sin interés con Macro (Visa, Mastercard y American Express), los miércoles y sábados.";
+        assertThat(conRed(linea)).containsExactlyInAnyOrder(
+                "Macro|Visa|CUOTAS_SIN_INTERES|12|null",
+                "Macro|Mastercard|CUOTAS_SIN_INTERES|12|null",
+                "Macro|American Express|CUOTAS_SIN_INTERES|12|null");
+    }
+
+    @Test
+    void unDescuentoDeBilleteraConRedesTambienSeAtaALaRed() {
+        assertThat(conRed("20% de reintegro (tope $10.000 por compra) con MODO (Visa, Mastercard y American Express), los martes."))
+                .containsExactlyInAnyOrder(
+                        "Modo|Visa|DESCUENTO|null|20.00",
+                        "Modo|Mastercard|DESCUENTO|null|20.00",
+                        "Modo|American Express|DESCUENTO|null|20.00");
+    }
+
+    @Test
+    void unaRedDesconocidaEntreParentesisSeOmite() {
+        assertThat(conRed("12 cuotas sin interés con Macro (Visa y Diners)"))
+                .containsExactly("Macro|Visa|CUOTAS_SIN_INTERES|12|null");
+    }
+
+    @Test
+    void unBancoDesconocidoConRedesConocidasNoSeArchivaComoPromoDeLaTarjeta() {
+        // The bank is not in the seed: filing the line card-wide would claim every Mastercard qualifies.
+        assertThat(conRed("12 cuotas sin interés con Banco del Sol (Mastercard)")).isEmpty();
+        assertThat(conRed("10% de descuento con Banco del Sol (Visa y Mastercard)")).isEmpty();
+    }
+
+    @Test
+    void elBancoDesconocidoNoTapaAlConocidoDeLaMismaLinea() {
+        assertThat(conRed("6 cuotas sin interés con Galicia y con Banco del Sol (Mastercard)"))
+                .containsExactly("Galicia|null|CUOTAS_SIN_INTERES|6|null");
+    }
+
+    @Test
+    void unaListaDeRedesSinDuenoSigueSiendoDeLaTarjeta() {
+        assertThat(conRed("12 cuotas sin interés (Visa y Mastercard)"))
+                .containsExactly("Visa|null|CUOTAS_SIN_INTERES|12|null", "Mastercard|null|CUOTAS_SIN_INTERES|12|null");
     }
 }

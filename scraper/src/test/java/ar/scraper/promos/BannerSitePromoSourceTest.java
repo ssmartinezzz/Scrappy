@@ -37,13 +37,25 @@ class BannerSitePromoSourceTest {
                 "Visa|CUOTAS_SIN_INTERES|12|null",
                 "Mastercard|CUOTAS_SIN_INTERES|12|null",
                 "Modo|DESCUENTO|null|30.00",
-                "Modo|DESCUENTO|null|20.00",
+                "Modo|Visa|DESCUENTO|null|20.00",
+                "Modo|Mastercard|DESCUENTO|null|20.00",
+                "Modo|American Express|DESCUENTO|null|20.00",
                 "Naranja X|DESCUENTO|null|10.00",
                 "Naranja X|CUOTAS_SIN_INTERES|6|null",
-                "Santander|CUOTAS_SIN_INTERES|12|null",
-                "Santander|CUOTAS_SIN_INTERES|6|null",
-                "Macro|CUOTAS_SIN_INTERES|12|null",
-                "Galicia|CUOTAS_SIN_INTERES|6|null");
+                "Santander|Visa|CUOTAS_SIN_INTERES|12|null",
+                "Santander|Visa|CUOTAS_SIN_INTERES|6|null",
+                "Santander|Mastercard|CUOTAS_SIN_INTERES|6|null",
+                "Santander|American Express|CUOTAS_SIN_INTERES|6|null",
+                "Macro|Visa|CUOTAS_SIN_INTERES|12|null",
+                "Macro|Mastercard|CUOTAS_SIN_INTERES|12|null",
+                "Macro|American Express|CUOTAS_SIN_INTERES|12|null",
+                "Galicia|Visa|CUOTAS_SIN_INTERES|6|null",
+                "Galicia|Mastercard|CUOTAS_SIN_INTERES|6|null",
+                "Galicia|American Express|CUOTAS_SIN_INTERES|6|null");
+        // "12 sin interés con Macro (Visa, Mastercard y Amex)" is a Macro promo: no card-wide Amex 12 from it
+        assertThat(r.promos()).extracting(SitePromoFixtures::resumen)
+                .doesNotContain("American Express|CUOTAS_SIN_INTERES|12|null", "Macro|CUOTAS_SIN_INTERES|12|null",
+                        "Santander|CUOTAS_SIN_INTERES|6|null", "Modo|DESCUENTO|null|20.00");
         // bare lines under a bank heading ("3 y 6 cuotas sin interés") name no medio: abstention, not "tarjeta"
         assertThat(r.promos()).extracting(SitePromoFixtures::resumen)
                 .doesNotContain("Tarjeta de crédito|CUOTAS_SIN_INTERES|12|null");

@@ -27,7 +27,8 @@ import java.util.regex.Pattern;
  *
  * <p>Rules worth knowing: installments count only in 2..36; each event takes the media named after
  * it up to the next event (else the ones before it); installments without a named medium are
- * "Tarjeta de crédito"; vigencia is read from the whole text and its year defaults to the reference
+ * "Tarjeta de crédito"; a bank or wallet followed by a parenthesised network list ("Macro (Visa y
+ * Mastercard)") yields one bank+network promo per network, never a card-wide one; vigencia is read from the whole text and its year defaults to the reference
  * year (a date already past is never rolled forward; only an end date earlier than its start is).
  */
 public final class PromoTextParser {
@@ -84,14 +85,16 @@ public final class PromoTextParser {
             List<Evento> eventos = eventos(segmento);
             for (int i = 0; i < eventos.size(); i++) {
                 Evento ev = eventos.get(i);
-                for (MedioPago medio : medios(segmento, eventos, i)) {
+                for (Par par : medios(segmento, eventos, i, ev.tipo() == TipoPromo.CUOTAS_SIN_INTERES)) {
+                    MedioPago medio = par.medio();
+                    String red = par.red() == null ? null : par.red().nombre();
                     if (ev.tipo() == TipoPromo.CUOTAS_SIN_INTERES) {
                         for (int c : ev.cuotas()) {
-                            out.add(new PromoFinanciacion(medio.nombre(), medio.tipo(), ev.tipo(), c, null,
+                            out.add(new PromoFinanciacion(medio.nombre(), medio.tipo(), red, ev.tipo(), c, null,
                                     alcance, vigencia[0], vigencia[1], fuente));
                         }
                     } else {
-                        out.add(new PromoFinanciacion(medio.nombre(), medio.tipo(), ev.tipo(), null, ev.pct(),
+                        out.add(new PromoFinanciacion(medio.nombre(), medio.tipo(), red, ev.tipo(), null, ev.pct(),
                                 alcance, vigencia[0], vigencia[1], fuente));
                     }
                 }
@@ -132,22 +135,96 @@ public final class PromoTextParser {
         }
     }
 
-    private static List<MedioPago> medios(String seg, List<Evento> eventos, int i) {
+    /** A medio and, when the promo is that medio's AND one card network's only, the network. */
+    private record Par(MedioPago medio, MedioPago red) {}
+
+    /** {@code omitio}: the window named a network of a bank we do not know, so it must not become card-wide. */
+    private record Resolucion(List<Par> pares, boolean omitio) {
+        boolean vacia() {
+            return pares.isEmpty() && !omitio;
+        }
+    }
+
+    private static final Pattern PARENTESIS = Pattern.compile("\\(([^)]*)\\)");
+    private static final Set<String> CONECTORES = Set.of(
+            "con", "de", "en", "para", "y", "e", "las", "los", "el", "la", "todas", "tarjeta", "tarjetas");
+
+    private static List<Par> medios(String seg, List<Evento> eventos, int i, boolean cuotas) {
         Evento ev = eventos.get(i);
         int finVentana = i + 1 < eventos.size() ? eventos.get(i + 1).ini() : seg.length();
-        List<MedioPago> medios = MediosDePago.encontrarEn(seg.substring(ev.fin(), Math.max(ev.fin(), finVentana)));
-        if (medios.isEmpty()) {
+        Resolucion r = resolver(seg.substring(ev.fin(), Math.max(ev.fin(), finVentana)));
+        if (r.vacia()) {
             int iniVentana = i > 0 ? eventos.get(i - 1).fin() : 0;
-            medios = MediosDePago.encontrarEn(seg.substring(Math.min(iniVentana, ev.ini()), ev.ini()));
+            r = resolver(seg.substring(Math.min(iniVentana, ev.ini()), ev.ini()));
         }
-        boolean cuotas = ev.tipo() == TipoPromo.CUOTAS_SIN_INTERES;
-        List<MedioPago> utiles = new ArrayList<>(medios);
-        if (cuotas) utiles.removeIf(m -> NO_FINANCIABLES.contains(m.nombre()));
-        if (utiles.stream().anyMatch(m -> m.tipo() != TipoMedio.MEDIO)) {
-            utiles.removeIf(m -> GENERICOS_DE_TARJETA.contains(m.nombre()));
+        List<Par> utiles = new ArrayList<>(r.pares());
+        if (cuotas) utiles.removeIf(p -> NO_FINANCIABLES.contains(p.medio().nombre()));
+        if (utiles.stream().anyMatch(p -> p.medio().tipo() != TipoMedio.MEDIO)) {
+            utiles.removeIf(p -> GENERICOS_DE_TARJETA.contains(p.medio().nombre()));
         }
-        if (utiles.isEmpty() && cuotas) utiles.add(TARJETA_CREDITO);
+        if (utiles.isEmpty() && cuotas && !r.omitio()) utiles.add(new Par(TARJETA_CREDITO, null));
         return utiles;
+    }
+
+    /**
+     * Media named in one window. A network list in parentheses right after a bank / wallet belongs to
+     * it ("Macro (Visa, Mastercard y American Express)" is Macro+Visa, Macro+Mastercard, Macro+Amex).
+     * After an owner we cannot resolve ("Banco del Sol (Mastercard)") the networks are dropped: the bank
+     * is unknown, and filing the line card-wide would claim every Mastercard qualifies (CODE-5).
+     * With no owner at all ("12 cuotas sin interés (Visa y Mastercard)") the networks are the media.
+     */
+    private static Resolucion resolver(String ventana) {
+        List<MediosDePago.Mencion> menciones = MediosDePago.mencionesEn(ventana);
+        boolean[] consumida = new boolean[menciones.size()];
+        Set<Par> pares = new LinkedHashSet<>();
+        boolean omitio = false;
+        Matcher g = PARENTESIS.matcher(ventana);
+        while (g.find()) {
+            List<Integer> redes = new ArrayList<>();
+            for (int k = 0; k < menciones.size(); k++) {
+                MediosDePago.Mencion m = menciones.get(k);
+                if (m.medio().tipo() == TipoMedio.TARJETA && m.ini() >= g.start(1) && m.fin() <= g.end(1)) redes.add(k);
+            }
+            if (redes.isEmpty()) continue;
+            String antes = ventana.substring(0, g.start());
+            int dueno = duenoDe(menciones, antes);
+            if (dueno >= 0) {
+                consumida[dueno] = true;
+                for (int k : redes) {
+                    consumida[k] = true;
+                    pares.add(new Par(menciones.get(dueno).medio(), menciones.get(k).medio()));
+                }
+            } else if (!sinDueno(menciones, antes)) {
+                omitio = true;
+                for (int k : redes) consumida[k] = true;
+            }
+        }
+        for (int k = 0; k < menciones.size(); k++) {
+            if (!consumida[k]) pares.add(new Par(menciones.get(k).medio(), null));
+        }
+        return new Resolucion(List.copyOf(pares), omitio);
+    }
+
+    /** The bank / wallet / gateway mention that ends right where the parenthesis opens, or -1. */
+    private static int duenoDe(List<MediosDePago.Mencion> menciones, String antes) {
+        int fin = StringUtils.stripEnd(antes, null).length();
+        for (int k = 0; k < menciones.size(); k++) {
+            MediosDePago.Mencion m = menciones.get(k);
+            TipoMedio t = m.medio().tipo();
+            boolean puedeSerDueno = t == TipoMedio.BANCO || t == TipoMedio.BILLETERA || t == TipoMedio.PASARELA;
+            if (puedeSerDueno && m.fin() == fin) return k;
+        }
+        return -1;
+    }
+
+    /** True when what precedes the parenthesis names no owner: nothing, a connector, or a generic medio. */
+    private static boolean sinDueno(List<MediosDePago.Mencion> menciones, String antes) {
+        String recortado = StringUtils.stripEnd(antes, null);
+        if (recortado.isBlank()) return true;
+        int ultimoEspacio = recortado.lastIndexOf(' ');
+        String ultima = recortado.substring(ultimoEspacio + 1).replaceAll("[^a-z0-9]", "");
+        if (CONECTORES.contains(ultima)) return true;
+        return menciones.stream().anyMatch(m -> m.medio().tipo() == TipoMedio.MEDIO && m.fin() == recortado.length());
     }
 
     /** {desde, hasta}, either possibly null. */

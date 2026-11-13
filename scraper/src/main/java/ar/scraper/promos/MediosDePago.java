@@ -80,6 +80,8 @@ public final class MediosDePago {
 
     private static final Pattern NO_ALFANUMERICO = Pattern.compile("[^a-z0-9]+");
 
+    private static final Pattern NO_ALFANUMERICO_UNO = Pattern.compile("[^a-z0-9]");
+
     private static final Map<String, MedioPago> POR_ALIAS = new HashMap<>();
     private static final Map<String, MedioPago> EN_TEXTO = new HashMap<>();
     private static final Pattern BUSCADOR;
@@ -129,16 +131,30 @@ public final class MediosDePago {
         return "Modo".equals(medio.nombre()) && texto.startsWith(" de ", fin);
     }
 
+    /** A medio found in text, with the span it occupies in the text the search ran on. */
+    record Mencion(MedioPago medio, int ini, int fin) {}
+
     /** Every distinct medio named in running text, in order of appearance; longest alias wins. */
     public static List<MedioPago> encontrarEn(String texto) {
         if (texto == null || texto.isBlank()) return List.of();
-        String normalizado = normalizar(texto);
-        Matcher m = BUSCADOR.matcher(normalizado);
         Set<MedioPago> out = new LinkedHashSet<>();
+        for (Mencion m : mencionesEn(normalizar(texto))) out.add(m.medio());
+        return List.copyOf(out);
+    }
+
+    /**
+     * Every mention, repeats included, with offsets into {@code texto}, which the caller has already
+     * lower-cased and accent-stripped. Punctuation is masked one character for one, never collapsed,
+     * so the offsets stay valid and the caller can still read the parentheses around a mention.
+     */
+    static List<Mencion> mencionesEn(String texto) {
+        String enmascarado = NO_ALFANUMERICO_UNO.matcher(texto).replaceAll(" ");
+        Matcher m = BUSCADOR.matcher(enmascarado);
+        List<Mencion> out = new ArrayList<>();
         while (m.find()) {
             MedioPago medio = EN_TEXTO.get(m.group());
-            if (!esModoDePago(medio, normalizado, m.end())) out.add(medio);
+            if (!esModoDePago(medio, enmascarado, m.end())) out.add(new Mencion(medio, m.start(), m.end()));
         }
-        return List.copyOf(out);
+        return out;
     }
 }
