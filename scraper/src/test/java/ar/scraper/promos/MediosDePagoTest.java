@@ -45,6 +45,18 @@ class MediosDePagoTest {
     }
 
     @Test
+    @DisplayName("every card network Java can emit as a promo's red is seeded as tarjeta (else sp_upsert_promos aborts the run)")
+    void todaRedDeJavaEstaSembradaComoTarjeta() throws IOException {
+        String fuente = Files.readString(Path.of("src/main/java/ar/scraper/promos/MediosDePago.java"));
+        Matcher m = Pattern.compile("e\\(\"([^\"]+)\",\\s*TipoMedio\\.TARJETA").matcher(fuente);
+        List<MedioPago> redesDeJava = new ArrayList<>();
+        while (m.find()) redesDeJava.add(medio(m.group(1), TipoMedio.TARJETA));
+
+        assertThat(redesDeJava).isNotEmpty();
+        assertThat(semillaDeV101()).containsAll(redesDeJava);
+    }
+
+    @Test
     void esInsensibleAMayusculasYAcentos() {
         assertThat(MediosDePago.resolver("NACION")).contains(medio("Nación", TipoMedio.BANCO));
         assertThat(MediosDePago.resolver("  mercado credito ")).contains(medio("Mercado Crédito", TipoMedio.PASARELA));
