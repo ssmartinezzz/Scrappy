@@ -62,6 +62,18 @@ public class ScraperConfig {
         return env.isEmpty() ? props.getProperty("scraper.flaresolverr.url", "") : env;
     }
 
+    /** Kill switch for the extra home (+ payments page) request per site. {@code PROMOS_SITIO_HABILITADO}
+     *  pisa la property; an unrecognised value leaves the default (on), never silently off. */
+    public boolean isPromosSitioHabilitado() {
+        return isPromosSitioHabilitado(System.getenv("PROMOS_SITIO_HABILITADO"));
+    }
+
+    boolean isPromosSitioHabilitado(String envOverride) {
+        String valor = StringUtils.defaultIfBlank(StringUtils.trim(envOverride),
+                props.getProperty("promos.sitio.habilitado", "true"));
+        return !"false".equalsIgnoreCase(valor.trim());
+    }
+
     public boolean requiereBypassCloudflare(String nombreSitio) {
         String key = SiteClassification.sitioKey(nombreSitio);
         return Boolean.parseBoolean(props.getProperty("sitio." + key + ".cloudflare", "false"));
