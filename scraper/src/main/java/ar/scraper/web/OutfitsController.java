@@ -83,7 +83,7 @@ public class OutfitsController {
         // Gym surface: gym feedback + shared feed signal ("catalog"), never casual.
         var feedbackModel = feedbackModel(r, "gym");
 
-        OutfitService.Outfit outfit = outfitService.armar(politicaStock.candidatos(r.productos(), incluirSinStock),
+        OutfitService.Outfit outfit = outfitService.armar(politicaStock.candidatosDelCatalogo(r.productos(), incluirSinStock),
                 genero, "gym", feedbackModel,
                 presupuesto, excluirUrls);
 
@@ -96,7 +96,7 @@ public class OutfitsController {
         // would silently add a card to this grid. Here the stack is a fixed suggestion; choosing is
         // /suplementos' job.
         var suplementosList = outfitService.armarComboSuplementos(
-                politicaStock.candidatos(r.productos(), incluirSinStock), presupuestoSuplementos, SupplementCombo.TIPOS_COMBO_OUTFIT);
+                politicaStock.candidatosDelCatalogo(r.productos(), incluirSinStock), presupuestoSuplementos, SupplementCombo.TIPOS_COMBO_OUTFIT);
         double totalSuplementos = suplementosList.stream()
                 .mapToDouble(OutfitService.SupplementPick::precio).sum();
 
@@ -177,7 +177,7 @@ public class OutfitsController {
         }
 
         OutfitService.OutfitBuilderResult result = outfitService.armarPorCategorias(
-                politicaStock.candidatos(r.productos(), incluirSinStock), catList, presupuesto, genero, feedbackModel,
+                politicaStock.candidatosDelCatalogo(r.productos(), incluirSinStock), catList, presupuesto, genero, feedbackModel,
                 excluirUrls, greedy, pinned, estilo);
 
         String status;

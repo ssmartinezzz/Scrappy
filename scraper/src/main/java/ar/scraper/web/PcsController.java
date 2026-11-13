@@ -153,7 +153,7 @@ public class PcsController {
 
         Set<String> excluirUrls = Params.setOrEmpty(excluir);
         // A build is something to buy: confirmed sold-out parts are not candidates unless asked for.
-        List<ar.scraper.model.Product> candidatos = politicaStock.candidatos(r.productos(), incluirSinStock);
+        List<ar.scraper.model.Product> candidatos = politicaStock.candidatosDelCatalogo(r.productos(), incluirSinStock);
 
         // AHORRAR keeps the 7-arg call: it is the pinned default path (CsvQueryParamsTest mocks it).
         PcBuild build = modoPedido == ModoPresupuesto.AHORRAR

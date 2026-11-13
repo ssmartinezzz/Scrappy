@@ -18,6 +18,8 @@ public final class PoliticaStock {
 
     private final Clock clock;
     private final Duration vigencia;
+    /** Last snapshot filtered by {@link #candidatosDelCatalogo}; a racing writer only recomputes the same value. */
+    private volatile Filtrado filtrado;
 
     public PoliticaStock(Clock clock, Duration vigencia) {
         this.clock = clock;
@@ -42,7 +44,7 @@ public final class PoliticaStock {
     /** Candidates for something meant for buying: confirmed sold-out rows leave, unknown ones stay (CODE-5). */
     public List<Product> candidatos(List<Product> productos, boolean incluirSinStock) {
         if (incluirSinStock) return productos;
-        // Builders pass the whole catalog per request: read the clock once, and only copy when a row leaves.
+        // Read the clock once, and only copy when a row leaves.
         Instant ahora = clock.instant();
         int primero = -1;
         for (int i = 0; i < productos.size(); i++) {
@@ -56,6 +58,34 @@ public final class PoliticaStock {
         }
         return quedan;
     }
+
+    /**
+     * {@link #candidatos} for the in-memory snapshot, filtered once instead of per request. The snapshot is
+     * replaced on load, never mutated, so identity keys it; time can only turn a sold-out row stale (never the
+     * reverse), so the result holds until the earliest sold-out check expires.
+     */
+    public List<Product> candidatosDelCatalogo(List<Product> catalogo, boolean incluirSinStock) {
+        if (incluirSinStock) return catalogo;
+        Instant ahora = clock.instant();
+        Filtrado f = filtrado;
+        if (f != null && f.origen == catalogo && !ahora.isBefore(f.calculadoEn) && !ahora.isAfter(f.validoHasta)) {
+            return f.candidatos;
+        }
+        List<Product> candidatos = candidatos(catalogo, false);
+        Instant validoHasta = Instant.MAX;
+        if (candidatos != catalogo) {
+            for (Product p : catalogo) {
+                if (sinStock(p, ahora)) {
+                    Instant vence = p.stockChequeadoAt().plus(vigencia);
+                    if (vence.isBefore(validoHasta)) validoHasta = vence;
+                }
+            }
+        }
+        filtrado = new Filtrado(catalogo, candidatos, ahora, validoHasta);
+        return candidatos;
+    }
+
+    private record Filtrado(List<Product> origen, List<Product> candidatos, Instant calculadoEn, Instant validoHasta) {}
 
     private boolean sinStock(Product p, Instant ahora) {
         return Boolean.FALSE.equals(p.enStock())

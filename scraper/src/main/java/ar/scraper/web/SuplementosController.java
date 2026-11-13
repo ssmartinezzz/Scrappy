@@ -74,7 +74,7 @@ public class SuplementosController {
         Set<String> excluirUrls = Params.setOrEmpty(excluir);
 
         List<OutfitService.SupplementPick> picks =
-                outfitService.armarComboSuplementos(politicaStock.candidatos(r.productos(), incluirSinStock),
+                outfitService.armarComboSuplementos(politicaStock.candidatosDelCatalogo(r.productos(), incluirSinStock),
                         presupuesto, tiposSet, excluirUrls);
 
         Set<String> foundTipos = picks.stream()

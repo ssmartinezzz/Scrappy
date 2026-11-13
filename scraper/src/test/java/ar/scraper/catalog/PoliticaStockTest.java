@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.List;
 
@@ -70,5 +71,57 @@ class PoliticaStockTest {
     void candidatosOptIn() {
         Product sin = producto("sin", false, AHORA.minusSeconds(60));
         assertThat(politica.candidatos(List.of(sin), true)).containsExactly(sin);
+    }
+
+    /** A clock the test moves forward. */
+    private static final class RelojMovil extends Clock {
+        private Instant ahora;
+        RelojMovil(Instant ahora) { this.ahora = ahora; }
+        void avanzar(Duration d) { ahora = ahora.plus(d); }
+        @Override public ZoneId getZone() { return ZoneOffset.UTC; }
+        @Override public Clock withZone(ZoneId zone) { return this; }
+        @Override public Instant instant() { return ahora; }
+    }
+
+    @Test
+    @DisplayName("candidatosDelCatalogo filters a snapshot once: the second request reuses the first result")
+    void catalogoMemoizesPerSnapshot() {
+        List<Product> catalogo = List.of(producto("en", true, AHORA.minusSeconds(60)),
+                producto("sin", false, AHORA.minusSeconds(60)));
+        List<Product> primero = politica.candidatosDelCatalogo(catalogo, false);
+        assertThat(primero).extracting(Product::url).containsExactly("en");
+        assertThat(politica.candidatosDelCatalogo(catalogo, false)).isSameAs(primero);
+    }
+
+    @Test
+    @DisplayName("candidatosDelCatalogo drops the memo when a sold-out check expires: the row reads as unknown again")
+    void catalogoMemoExpiresWithTheFirstSoldOutCheck() {
+        RelojMovil reloj = new RelojMovil(AHORA);
+        PoliticaStock movil = new PoliticaStock(reloj, Duration.ofDays(7));
+        Product pronto = producto("pronto", false, AHORA.minus(Duration.ofDays(6)));
+        Product tarde = producto("tarde", false, AHORA.minus(Duration.ofDays(1)));
+        List<Product> catalogo = List.of(pronto, tarde);
+
+        assertThat(movil.candidatosDelCatalogo(catalogo, false)).isEmpty();
+        reloj.avanzar(Duration.ofDays(1));
+        assertThat(movil.candidatosDelCatalogo(catalogo, false)).as("exactly at the cutoff it is still fresh").isEmpty();
+        reloj.avanzar(Duration.ofSeconds(1));
+        assertThat(movil.candidatosDelCatalogo(catalogo, false)).containsExactly(pronto);
+    }
+
+    @Test
+    @DisplayName("candidatosDelCatalogo recomputes for a new snapshot")
+    void catalogoRecomputesForANewSnapshot() {
+        Product sin = producto("sin", false, AHORA.minusSeconds(60));
+        Product en = producto("en", true, AHORA.minusSeconds(60));
+        assertThat(politica.candidatosDelCatalogo(List.of(sin, en), false)).containsExactly(en);
+        assertThat(politica.candidatosDelCatalogo(List.of(en, sin, en), false)).containsExactly(en, en);
+    }
+
+    @Test
+    @DisplayName("candidatosDelCatalogo with incluirSinStock returns the snapshot untouched")
+    void catalogoOptIn() {
+        List<Product> catalogo = List.of(producto("sin", false, AHORA.minusSeconds(60)));
+        assertThat(politica.candidatosDelCatalogo(catalogo, true)).isSameAs(catalogo);
     }
 }
