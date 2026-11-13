@@ -1,6 +1,7 @@
 package ar.scraper.web.dto;
 
 import ar.scraper.catalog.Facets;
+import ar.scraper.catalog.PoliticaStock;
 import ar.scraper.json.ProductJson;
 import ar.scraper.catalog.ProductKey;
 import ar.scraper.model.Product;
@@ -98,6 +99,12 @@ public final class CatalogoDtos {
         private int cantidadUnidades;
         private boolean esPack;
         private double precioUnitario;
+        /** {@code en_stock} | {@code sin_stock} | {@code desconocido}, derived at read time (stale reads unknown). */
+        private String stock;
+        /** UTC ISO-8601; null when the row was never seen in stock. */
+        private String vistoEnStockAt;
+        /** UTC ISO-8601; null when no run ever knew the row's stock. */
+        private String stockChequeadoAt;
         @JsonProperty("sub_categoria")
         private String subCategoria;
         private List<String> talles;
@@ -107,6 +114,10 @@ public final class CatalogoDtos {
         private SenalFinanciacion senalFinanciacion;
 
         public static ProductoRow of(Product p, String presetActivoLabel) {
+            return of(p, presetActivoLabel, PoliticaStock.porDefecto());
+        }
+
+        public static ProductoRow of(Product p, String presetActivoLabel, PoliticaStock politica) {
             String img = ProductJson.safe(p.imagenUrl());
             if (img.startsWith("//")) img = "https:" + img;
             var r = new ProductoRow();
@@ -128,6 +139,9 @@ public final class CatalogoDtos {
             r.cantidadUnidades = p.cantidadUnidades();
             r.esPack = p.esPack();
             r.precioUnitario = ProductJson.precioUnitario(p);
+            r.stock = politica.estado(p).wire();
+            r.vistoEnStockAt = ProductJson.iso(p.vistoEnStockAt());
+            r.stockChequeadoAt = ProductJson.iso(p.stockChequeadoAt());
             r.subCategoria = ProductJson.safe(p.subCategoria());
             r.talles = p.talles() != null ? p.talles() : List.of();
             if (p.ml() != null) {

@@ -1,5 +1,6 @@
 package ar.scraper.web.cache;
 
+import ar.scraper.catalog.PoliticaStock;
 import ar.scraper.catalog.ProductKey;
 import ar.scraper.classification.SiteClassification;
 import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
@@ -178,6 +179,11 @@ final class MarcasPicksView {
     /** {@code genero} is {@code hombre}, {@code mujer} or blank; unisex and unlabelled products fit both. */
     static List<MarcasPicksDtos.MejoresCategoria> mejores(AggregatedResult r, String rubro, boolean gymrat,
                                                           String genero) {
+        return mejores(r, rubro, gymrat, genero, PoliticaStock.porDefecto());
+    }
+
+    static List<MarcasPicksDtos.MejoresCategoria> mejores(AggregatedResult r, String rubro, boolean gymrat,
+                                                          String genero, PoliticaStock politica) {
         java.util.Map<String, java.util.List<Product>> byCat = elegibles(r, rubro, gymrat, genero)
             .collect(java.util.stream.Collectors.groupingBy(p -> etiquetaDeCategoria(p, gymrat)));
 
@@ -203,13 +209,13 @@ final class MarcasPicksView {
                 java.util.Set<String> incluidos = new java.util.HashSet<>();
                 // Curated highlights first (they keep their label), then fill with the next best by
                 // scoreP so packs with a good unit price are not shut out of "valor".
-                addMejorPickDedup(picks, mejor,        "valor",    "Mejor precio/calidad", incluidos);
-                addMejorPickDedup(picks, sel.premium,  "premium",  "Premium accesible",    incluidos);
-                addMejorPickDedup(picks, sel.histLow,  "histLow",  "Mínimo histórico",     incluidos);
-                addMejorPickDedup(picks, sel.oferta,   "oferta",   "Oferta real",          incluidos);
+                addMejorPickDedup(picks, mejor,        "valor",    "Mejor precio/calidad", incluidos, politica);
+                addMejorPickDedup(picks, sel.premium,  "premium",  "Premium accesible",    incluidos, politica);
+                addMejorPickDedup(picks, sel.histLow,  "histLow",  "Mínimo histórico",     incluidos, politica);
+                addMejorPickDedup(picks, sel.oferta,   "oferta",   "Oferta real",          incluidos, politica);
                 for (Product p : sel.mejoresPorScore()) {
                     if (picks.size() >= MAX_PICKS_POR_CATEGORIA) break;
-                    addMejorPickDedup(picks, p, "top", "Buena compra", incluidos);
+                    addMejorPickDedup(picks, p, "top", "Buena compra", incluidos, politica);
                 }
                 result.add(new MarcasPicksDtos.MejoresCategoria(cat, prods.size(), rubroVal, imgCat,
                         Math.round(mediana), picks));
@@ -267,11 +273,15 @@ final class MarcasPicksView {
      * by binary search, never by skipping N rows). {@code nextCursor} is null on the last page.
      */
     static MarcasPicksDtos.PicksPagina pagina(List<Ranked> ranking, String cursor, int limit) {
+        return pagina(ranking, cursor, limit, PoliticaStock.porDefecto());
+    }
+
+    static MarcasPicksDtos.PicksPagina pagina(List<Ranked> ranking, String cursor, int limit, PoliticaStock politica) {
         int n = Math.max(1, Math.min(limit, PAGINA_MAXIMA));
         int desde = StringUtils.isBlank(cursor) ? 0 : despuesDe(ranking, decodificar(cursor), ORDEN_RANKING);
         int hasta = Math.min(ranking.size(), desde + n);
         List<MarcasPicksDtos.Pick> picks = new ArrayList<>(hasta - desde);
-        for (int i = desde; i < hasta; i++) picks.add(toPick(ranking.get(i).producto(), "top", "Buena compra"));
+        for (int i = desde; i < hasta; i++) picks.add(toPick(ranking.get(i).producto(), "top", "Buena compra", politica));
         String siguiente = hasta < ranking.size() && hasta > desde ? codificar(ranking.get(hasta - 1)) : null;
         return new MarcasPicksDtos.PicksPagina(picks, siguiente, ranking.size());
     }
@@ -416,14 +426,14 @@ final class MarcasPicksView {
 
     private static void addMejorPickDedup(List<MarcasPicksDtos.Pick> picks,
                                    Product p, String tipo, String label,
-                                   java.util.Set<String> incluidos) {
+                                   java.util.Set<String> incluidos, PoliticaStock politica) {
         if (p == null) return;
         String url = StringUtils.defaultString(p.url());
         if (!url.isBlank() && !incluidos.add(url)) return;
-        picks.add(toPick(p, tipo, label));
+        picks.add(toPick(p, tipo, label, politica));
     }
 
-    private static MarcasPicksDtos.Pick toPick(Product p, String tipo, String label) {
+    private static MarcasPicksDtos.Pick toPick(Product p, String tipo, String label, PoliticaStock politica) {
         String img = safe(p.imagenUrl());
         if (img.startsWith("//")) img = "https:" + img;
         var n = new MarcasPicksDtos.Pick();
@@ -446,6 +456,9 @@ final class MarcasPicksView {
             n.setPctil(p.ml().pctilCategoria());
         }
         n.setPrecioOrig(p.precioOriginal());
+        n.setStock(politica.estado(p).wire());
+        n.setVistoEnStockAt(ProductJson.iso(p.vistoEnStockAt()));
+        n.setStockChequeadoAt(ProductJson.iso(p.stockChequeadoAt()));
         n.setSubCategoria(StringUtils.trimToNull(p.subCategoria()));
         return n;
     }

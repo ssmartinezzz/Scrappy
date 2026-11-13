@@ -82,6 +82,10 @@ public final class MarcasPicksDtos {
         private Integer pctil;
         private Double precioOrig;
         private String subCategoria;
+        /** {@code en_stock} | {@code sin_stock} | {@code desconocido}, derived when the view is built. */
+        private String stock;
+        private String vistoEnStockAt;
+        private String stockChequeadoAt;
         /** The product's short handle ({@code ProductKey.of(url)}): the detail panel hydrates and links /historial by it. */
         private String key;
     }

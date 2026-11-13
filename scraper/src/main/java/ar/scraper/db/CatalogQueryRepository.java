@@ -380,6 +380,12 @@ class CatalogQueryRepository implements CatalogQueryPort {
         if (Boolean.TRUE.equals(f.gymrat())) {
             cond.add("p.gymrat");
         }
+        if (f.excluirSinStockDesde() != null) {
+            // Only a FRESH confirmed "no" leaves. NULL (unknown) and a check older than the cutoff (stale, so
+            // unknown) stay: abstention is not a veto (CODE-5). IS DISTINCT FROM keeps the NULL arm.
+            cond.add("(p.en_stock IS DISTINCT FROM FALSE OR p.stock_chequeado_at IS NULL OR p.stock_chequeado_at < ?)");
+            params.add(f.excluirSinStockDesde().atOffset(ZoneOffset.UTC));
+        }
         if (noVacio(f.deporte())) {
             cond.add("p.deporte = ?");
             params.add(f.deporte().trim());

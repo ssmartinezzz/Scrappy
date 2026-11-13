@@ -44,6 +44,7 @@ class CatalogoDerivadoCacheTest {
                 producto("Sitio A", "Remera Lisa", "Remera", "indumentaria")));
         ctx = new AnnotationConfigApplicationContext();
         ctx.registerBean(CatalogSnapshotPort.class, () -> foto::get);
+        ctx.registerBean(ar.scraper.catalog.PoliticaStock.class, ar.scraper.catalog.PoliticaStock::porDefecto);
         ctx.registerBean(GroupingService.class, () -> grouping);
         ctx.register(CacheConfig.class, CatalogoDerivadoCache.class, CatalogCacheEvictor.class);
         ctx.refresh();

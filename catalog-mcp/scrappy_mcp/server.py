@@ -18,7 +18,7 @@ from .client import ApiClient, ApiError, ForbiddenOperation
 # Enough to answer and to chain into ver_producto / reclasificar; the full row
 # carries ML internals and size lists that only burn context.
 COMPACT_FIELDS = ("key", "nombre", "precio", "precioOrig", "descuento", "sitio", "marca",
-                  "categoria", "sub_categoria", "genero", "rubro", "url")
+                  "categoria", "sub_categoria", "genero", "rubro", "url", "stock", "vistoEnStockAt")
 
 INSTRUCTIONS = """Scrappy: catalog of Argentine online stores (clothing, gym, supplements, PC hardware,
 home). Prices are ARS. Search with buscar_productos, then use a row's `key` with ver_producto.
@@ -45,17 +45,18 @@ def build_server(api: ApiClient) -> MCPServer:
                          precio_max: float | None = None, orden: str | None = None,
                          badge: str | None = None, gymrat: bool | None = None,
                          page: int = 0, size: int = 24, cursor: str | None = None,
-                         completo: bool = False) -> dict:
+                         completo: bool = False, stock: str | None = None) -> dict:
         """Search active products (GET /api/data). Filters combine with AND; list filters are OR within.
         orden: precio_asc | precio_desc | nombre | composite | ml_score | desc_pct | mercado_asc | baja_historica.
         genero: hombre | mujer | unisex. Valid categoria/rubro/sitio values come from facetas.
         Next page: pass the returned nextCursor as cursor. completo=True returns full rows.
+        stock: todos (default, sold-out rows are flagged in each row's `stock`) | excluir_sin_stock.
         Facets are left out here; use facetas."""
         body = call("GET", "/api/data", {
             "q": q, "categoria": categoria, "subCategoria": sub_categoria, "marca": marca,
             "sitio": sitio, "rubro": rubro, "genero": genero, "talle": talle,
             "precioMin": precio_min, "precioMax": precio_max, "orden": orden, "badge": badge,
-            "gymrat": gymrat, "page": page, "size": size, "cursor": cursor,
+            "gymrat": gymrat, "page": page, "size": size, "cursor": cursor, "stock": stock,
         })
         # The page also carries every facet of the catalog (tens of KB); facetas serves those.
         data = body["data"]
@@ -76,10 +77,13 @@ def build_server(api: ApiClient) -> MCPServer:
     @mcp.tool()
     def comparar_entre_sitios(q: str | None = None, categoria: str | None = None,
                               rubro: str | None = None, sitio: str | None = None,
-                              min_sitios: int = 2, page: int = 0, size: int = 20) -> dict:
-        """The same product grouped across stores, to compare prices (GET /api/grupos)."""
+                              min_sitios: int = 2, page: int = 0, size: int = 20,
+                              stock: str | None = None) -> dict:
+        """The same product grouped across stores, to compare prices (GET /api/grupos).
+        stock: todos (default) | excluir_sin_stock (drops sold-out offers; each offer has `stock`)."""
         return call("GET", "/api/grupos", {"q": q, "categoria": categoria, "rubro": rubro, "sitio": sitio,
-                                           "minSitios": min_sitios, "page": page, "size": size})
+                                           "minSitios": min_sitios, "page": page, "size": size,
+                                           "stock": stock})
 
     @mcp.tool()
     def mejores(categoria: str | None = None, rubro: str | None = None, genero: str | None = None,

@@ -176,7 +176,8 @@ class ApiEnvelopeSerializationTest {
         assertThat(keysDe(fila)).containsExactlyInAnyOrder(
                 "key", "sitio", "nombre", "precio", "precioOrig", "descuento", "url", "img", "categoria",
                 "genero", "marca", "rubro", "deporte", "gymrat", "marcaPremium", "cantidadUnidades", "esPack",
-                "precioUnitario", "sub_categoria", "talles", "ml", "senal", "senalFinanciacion");
+                "precioUnitario", "stock", "vistoEnStockAt", "stockChequeadoAt", "sub_categoria", "talles", "ml", "senal",
+                "senalFinanciacion");
         assertThat(keysDe(fila.get("ml"))).containsExactlyInAnyOrder(
                 "badge", "badges", "scoreP", "ofertaReal", "tendencia", "pctil", "zScore", "segment");
         assertThat(fila.get("ml").get("zScore").asDouble()).isEqualTo(0.5);

@@ -673,6 +673,19 @@ dejan afuera, igual que a las `infantil`. `GET /api/facets` (y `meta.facets` de
 `/api/data`) trae `deportes`: `{codigo: conteo}` sobre filas activas, sin las que no
 tienen deporte; es lo que alimenta los chips del catálogo.
 
+**Stock (`stock`).** Cada fila (y cada oferta de `/grupos`, pick de `/mejores`, fila de `/recomendados`,
+`/favoritos` y `/producto/{key}`) trae `stock` — `en_stock` | `sin_stock` | `desconocido` —, `vistoEnStockAt`
+(la última corrida que lo vio en stock) y `stockChequeadoAt` (la última que supo su stock, sea cual sea), ambos
+UTC ISO-8601 o `null`. `stock` se **deriva al leer** (`PoliticaStock`): un chequeo más viejo que
+`STOCK_VIGENCIA_DIAS` (7 por defecto) es `desconocido` aunque lo guardado diga `true`, nunca `en_stock`; no
+hay barredor. `/producto/{key}`, `/recomendados` y `/favoritos` conservan además `enStock` crudo (`true` | `false` |
+`null`). El parámetro `stock` de `/data` y `/grupos` vale `todos` (por defecto: se marca, no se oculta) o
+`excluir_sin_stock`, que saca **sólo** las filas con un `sin_stock` fresco: `desconocido` se queda (CODE-5), y
+otro valor es 400 `solicitud_invalida`. Va en el `WHERE` de `/data` (también en modo cursor) y en `/grupos`
+reconstruye cada grupo sin las ofertas agotadas, de modo que `precioMin` y `ahorroPct` describen ofertas
+comprables y un grupo que queda con menos sitios que `minSitios` desaparece. Los armadores excluyen por defecto
+los `sin_stock` y aceptan `incluirSinStock=true`.
+
 `orden` acepta además `mercado_asc` (el más barato contra su mercado primero: `ml_score`
 ascendente, donde 0 es el más barato). `composite`/`ml_score` ordenan el mismo score DESC, o sea
 el menos barato primero; no son lo mismo que `mercado_asc`.

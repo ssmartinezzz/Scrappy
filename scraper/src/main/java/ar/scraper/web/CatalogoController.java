@@ -11,6 +11,7 @@ import ar.scraper.catalog.CatalogPage;
 import ar.scraper.catalog.CatalogQueryPort;
 import ar.scraper.catalog.CatalogResumen;
 import ar.scraper.catalog.Facets;
+import ar.scraper.catalog.PoliticaStock;
 import ar.scraper.json.HistorialJson;
 import ar.scraper.json.ProductJson;
 import ar.scraper.catalog.ProductPort;
@@ -48,7 +49,9 @@ public class CatalogoController {
     private final ScraperConfig config;
     private final ar.scraper.ml.SenalEnricher senalEnricher;
     private final ar.scraper.ml.FinanciacionEnricher financiacionEnricher;
+    private final PoliticaStock politicaStock;
 
+    /** Default stock policy (7 days, system clock): for callers that build the controller by hand. */
     public CatalogoController(ScraperService service,
                       ar.scraper.financiacion.PresetPort presets,
                       ar.scraper.catalog.HistorialPort historial,
@@ -56,6 +59,19 @@ public class CatalogoController {
                       ProductPort productos,
                       ScraperConfig config,
                       IndiceService indiceService) {
+        this(service, presets, historial, catalogQuery, productos, config, indiceService, PoliticaStock.porDefecto());
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public CatalogoController(ScraperService service,
+                      ar.scraper.financiacion.PresetPort presets,
+                      ar.scraper.catalog.HistorialPort historial,
+                      CatalogQueryPort catalogQuery,
+                      ProductPort productos,
+                      ScraperConfig config,
+                      IndiceService indiceService,
+                      PoliticaStock politicaStock) {
+        this.politicaStock = politicaStock;
         this.service = service;
         this.catalogQuery = catalogQuery;
         this.productos = productos;
@@ -77,6 +93,17 @@ public class CatalogoController {
         return codigo;
     }
 
+    /** {@code stock}: absent/blank/{@code todos} = flag only, {@code excluir_sin_stock} = drop confirmed sold-out rows. */
+    private CatalogFilter conStock(CatalogFilter filtro, String stock) {
+        if (StringUtils.isBlank(stock)) return filtro;
+        return switch (stock.trim().toLowerCase(Locale.ROOT)) {
+            case "todos" -> filtro;
+            case "excluir_sin_stock" -> filtro.conExcluirSinStock(politicaStock.corte());
+            default -> throw new ApiException(HttpStatus.BAD_REQUEST, "solicitud_invalida",
+                    "stock desconocido: " + stock.trim() + ". Válidos: todos, excluir_sin_stock");
+        };
+    }
+
     /** Page-number mode: the same read as {@link #data} with no cursor. */
     public ResponseEntity<ApiResponse<CatalogoDtos.Catalogo>> data(int page, int size, List<String> talle, String genero,
             List<String> categoria, String q, String sitio, List<String> marca, String badge, String segment,
@@ -84,7 +111,18 @@ public class CatalogoController {
             List<String> subCategoria, String fit, String estampado, String escote, String colorDominante,
             List<String> excluirCategoria, String deporte) {
         return data(page, size, talle, genero, categoria, q, sitio, marca, badge, segment, rubro, gymrat, orden, pack,
-                precioMin, precioMax, subCategoria, fit, estampado, escote, colorDominante, excluirCategoria, deporte, null);
+                precioMin, precioMax, subCategoria, fit, estampado, escote, colorDominante, excluirCategoria, deporte, null, null);
+    }
+
+    /** Keyset-aware read with no stock filter. */
+    public ResponseEntity<ApiResponse<CatalogoDtos.Catalogo>> data(int page, int size, List<String> talle, String genero,
+            List<String> categoria, String q, String sitio, List<String> marca, String badge, String segment,
+            String rubro, Boolean gymrat, String orden, Boolean pack, Double precioMin, Double precioMax,
+            List<String> subCategoria, String fit, String estampado, String escote, String colorDominante,
+            List<String> excluirCategoria, String deporte, String cursor) {
+        return data(page, size, talle, genero, categoria, q, sitio, marca, badge, segment, rubro, gymrat, orden, pack,
+                precioMin, precioMax, subCategoria, fit, estampado, escote, colorDominante, excluirCategoria, deporte,
+                cursor, null);
     }
 
     /**
@@ -115,11 +153,13 @@ public class CatalogoController {
             @RequestParam(required = false)     String colorDominante,
             @RequestParam(required = false)     List<String> excluirCategoria,
             @RequestParam(required = false)     String deporte,
-            @RequestParam(required = false)     String cursor) {
+            @RequestParam(required = false)     String cursor,
+            @RequestParam(required = false)     String stock) {
         CatalogFilter filtro = new CatalogFilter(
                 talle, genero, categoria, q, sitio, marca, badge, segment, rubro,
                 gymrat, pack, precioMin, precioMax, subCategoria,
                 fit, estampado, escote, colorDominante, excluirCategoria, deporteConocido(deporte));
+        filtro = conStock(filtro, stock);
         if (cursor != null) return dataPorCursor(filtro, size, cursor, orden);
 
         // Summary and page share one bound: an unbounded summary next to a bounded page would offer
@@ -202,7 +242,7 @@ public class CatalogoController {
                 CatalogoDtos.FacetsDto.of(facets, resumen.rubros(), resumen.gymrat(), resumen.packs()),
                 resumen.porSitio(), errores);
         List<CatalogoDtos.ProductoRow> filas = pagina.stream()
-                .map(p -> CatalogoDtos.ProductoRow.of(p, presetActivoLabel)).toList();
+                .map(p -> CatalogoDtos.ProductoRow.of(p, presetActivoLabel, politicaStock)).toList();
 
         return ResponseEntity.ok(new ApiResponse<>(new CatalogoDtos.Catalogo(meta, filas, siguiente), page));
     }
@@ -223,7 +263,7 @@ public class CatalogoController {
         String url = encontrado.get().url();
         ObjectNode prod = JsonNodeFactory.instance.objectNode();
         prod.put("url", url);
-        ProductJson.escribir(prod, encontrado.get());
+        ProductJson.escribir(prod, encontrado.get(), politicaStock);
         return ResponseEntity.ok(ApiResponse.ok(new CatalogoDtos.ProductoDetalle(
                 prod, HistorialJson.construir(historial.cargarHistorial(url)))));
     }

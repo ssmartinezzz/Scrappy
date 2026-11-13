@@ -77,6 +77,37 @@ async def test_buscar_productos_compacts_rows_and_drops_the_facets(server, backe
     }
 
 
+async def test_buscar_productos_compact_rows_keep_the_stock_state(server, backend):
+    backend.reply = {"data": {"productos": [{"key": "k", "nombre": "SSD", "precio": 1.0, "stock": "sin_stock",
+                                             "vistoEnStockAt": "2026-11-10T12:00:00Z",
+                                             "stockChequeadoAt": "2026-11-13T08:00:00Z", "enStock": False}]},
+                     "page": {}}
+
+    _, text = await call(server, "buscar_productos", {"q": "ssd"})
+
+    row = json.loads(text)["productos"][0]
+    assert row["stock"] == "sin_stock" and row["vistoEnStockAt"] == "2026-11-10T12:00:00Z"
+    assert "enStock" not in row
+
+
+async def test_buscar_productos_forwards_the_stock_filter(server, backend):
+    await call(server, "buscar_productos", {"q": "ssd", "stock": "excluir_sin_stock"})
+
+    assert sent(backend).url.params["stock"] == "excluir_sin_stock"
+
+
+async def test_buscar_productos_omits_stock_when_not_asked(server, backend):
+    await call(server, "buscar_productos", {"q": "ssd"})
+
+    assert "stock" not in sent(backend).url.params
+
+
+async def test_comparar_entre_sitios_forwards_the_stock_filter(server, backend):
+    await call(server, "comparar_entre_sitios", {"q": "ssd", "stock": "excluir_sin_stock"})
+
+    assert sent(backend).url.params["stock"] == "excluir_sin_stock"
+
+
 async def test_buscar_productos_completo_keeps_full_rows(server, backend):
     backend.reply = REAL_DATA_SHAPE
 
