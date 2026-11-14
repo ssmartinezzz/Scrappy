@@ -768,7 +768,7 @@ El aislamiento tiene **dos mitades** porque hay dos familias de lectores:
 | | Qué lee | Cómo se aísla |
 |---|---|---|
 | `/api/data`, `/api/facets` | SQL contra `productos` | Cota `touched_at < started_at` en los cinco predicados `activo` |
-| `/api/mejores`, `/api/grupos`, outfits, agente | El snapshot en memoria | `servedResult`: la referencia a `lastResult` tal como estaba al arrancar |
+| `/api/mejores`, `/api/grupos`, `/api/producto/{key}/comparado`, outfits, agente | El snapshot en memoria | `servedResult`: la referencia a `lastResult` tal como estaba al arrancar |
 
 **Por qué en memoria es una referencia y no una cota**: acotar el snapshot
 significa re-filtrar ~20k productos en cada request, y `/api/grupos` ya reagrupa

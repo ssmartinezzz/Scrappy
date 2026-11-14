@@ -34,7 +34,7 @@ cuarto** — ni `CLAUDE.md` ni `ARCHITECTURE.md` guardan una segunda copia.
 | [`docs/EMAIL_ALERTS.md`](./docs/EMAIL_ALERTS.md) | Puesta en marcha de los avisos de baja de precio por mail: proveedores y contraseñas de aplicación, qué hace cada `NOTIFICACIONES_*`, cómo verificar con el mail de prueba y qué hacer según la línea de log | Al activar los avisos, al cambiar de proveedor SMTP o cuando un aviso no llega |
 | [`docs/STRUCTURE.md`](./docs/STRUCTURE.md) | Árbol comentado de archivos y paquetes | Al ubicar dónde vive algo |
 | [`docs/SITES.md`](./docs/SITES.md) | Sitios configurados, plataformas, rubros, detección de plataforma | Al tocar un sitio o scraper |
-| [`docs/GROUPING.md`](./docs/GROUPING.md) | Agrupado de `/api/grupos`: criterio de mismo producto, guardas, medición | Al tocar `ar.scraper.aggregator.grouping` |
+| [`docs/GROUPING.md`](./docs/GROUPING.md) | Agrupado de `/api/grupos` y `/api/producto/{key}/comparado`: criterio de mismo producto, guardas, medición | Al tocar `ar.scraper.aggregator.grouping` |
 | [`docs/OUTFITS.md`](./docs/OUTFITS.md) | Armadores de outfits: pesos, MCKP, coherencia visual, vetos | Al tocar `OutfitService`, `OutfitBudgetBuilder` o `OutfitRules` |
 | [`docs/SUPPLEMENTS.md`](./docs/SUPPLEMENTS.md) | Combo de suplementos: subtipos, marca preferida, rotación de "Regenerar" | Al tocar `SupplementCombo` |
 | [`docs/PC_BUILDER.md`](./docs/PC_BUILDER.md) | Armador de PCs, fases 1–12 | Al tocar `ar.scraper.pcs` |
