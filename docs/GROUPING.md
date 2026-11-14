@@ -28,6 +28,8 @@ Se extraen del nombre en minúsculas y sin tildes. Una spec veta el par sólo si
 | Dimensiones con unidad (`900x400x3mm`) | mousepad L vs XL | algún par de lados coincide |
 | Talle en letra (`s`…`xxxl`), en palabra (`small`, `medium`, `large`, `xlarge`) y `talle N` | mousepad **S** vs **XL**, Gigantus **Large** vs **XXL** | algún valor coincide |
 | Género (`hombre`, `mujer`, `dama`, `caballero`, `men`, `women`…; `unisex` abstiene). Si el nombre calla, decide el campo `genero` (sólo `hombre`/`mujer`) | Charged Assert 10 **de Hombre** vs **para Mujer** | algún valor coincide |
+| Variante de modelo (lista curada: `hi`/`high`, `mid`, `lo`/`low`, `og`, `sl`, `rc`, `rs`, `xl`, `lx`, `cs`, `st`, `tr`, `ss`, `ls`, `classic`), comparada junto con la suela | Duramo **SL** vs **RC**, Kakari **SG** vs **RS**, Suede **XL** vs **Classic**, Dunk **Low** vs **Hi** | algún valor coincide |
+| Luz (`rgb`, `lcd`) | Titan 240 RX **RGB** vs **LCD** | algún valor coincide |
 | Certificación 80 Plus (`bronze`…`titanium`), sólo si el nombre dice "80 plus"/"80+" | Smart BX3 **Bronze** vs **Gold** | algún valor coincide |
 | Línea de hardware (`tuf`, `strix`, `ryuo`, `prime`, `dual`, `aorus`, `eagle`, `ventus`…; sin `rog` ni `gaming`, que cruzan líneas) | ASUS **TUF** LC III vs ROG **Strix** LC III | algún valor coincide |
 | Número de modelo suelto de 3–5 dígitos | RTX **5060** vs **5080**, Elite **301** vs **600** | un conjunto incluye al otro (`860` ≈ `860 2280`) |
@@ -53,6 +55,9 @@ ambiguos): 3224 → 3260 grupos, 10 367 → 9 911 productos agrupados; grupos co
 Quinta ronda, medida con el propio Java sobre el catálogo con `genero` (talla en palabra, unidad pegada a un código,
 género, 80 Plus, línea de hardware): 3272 → 3435 grupos multi-sitio, 9903 → 9786 productos agrupados, grupos con
 precio máx/mín ≥ 1.6: 425 → 409. El género parte grupos que Sporting armaba con su versión Hombre y la Mujer a la vez.
+Sexta ronda (variante de modelo, luz): 3435 → 3434 grupos, 9786 → 9777 productos; los 15 grupos que cambian son cortes
+correctos (también separó gabinetes Corsair 4500X RS-R y 5400 LX-R mezclados). Las palabras de dos letras son una lista
+curada a propósito: la mayoría de las que aparecen en los nombres es ruido (`de`, `cm`, `un`, `oc`, `tg`, `pc`).
 
 ## Medición (dev, 33.5k activos, 2026-10-13)
 
@@ -73,6 +78,7 @@ quedan más semillas. Se paga una vez por clave cacheada.
   efecto deja afuera `3200mhz` vs `3200 MHz` o `1kg` vs `1000 g`: sacar las unidades de los códigos sumaría 49
   grupos, pero junta memorias de marcas distintas cuando la tienda deja `marca` vacía. No se hizo.
 - `NameBrands` es independiente de `BrandExtractor.MARCAS` (ésa es la de preferencias de armadores e indumentaria).
+- Una variante en un solo lado abstiene: "Puma Suede XL" sigue agrupando con un "Puma Suede" a secas.
 - "8500G" (Ryzen) se lee como 8500 g: inofensivo, los dos lados lo leen igual.
 - El sitio de Nike repite "Nike Sportswear Club" para decenas de productos distintos: el nombre es idéntico, no hay qué comparar.
 - Ropa con nombre genérico ("Remera adidas Boca Juniors") sigue mezclando: el nombre no alcanza.
