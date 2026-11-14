@@ -152,6 +152,7 @@ public class VaypolPage extends StorePage implements CatalogPage {
                         .categoria(p.categoria())
                         .genero(p.genero())
                         .talles(p.talles())
+                        .enStock(p.enStock())
                         .build();
             return p;
         }).collect(java.util.stream.Collectors.toList());
@@ -424,6 +425,7 @@ public class VaypolPage extends StorePage implements CatalogPage {
                     .categoria(categoria)
                     .genero(genero)
                     .talles(talles)
+                    .enStock(p.path("sizes_on_stock").isNumber() ? p.path("sizes_on_stock").asInt() > 0 : null)
                     .build());
 
         } catch (Exception e) {

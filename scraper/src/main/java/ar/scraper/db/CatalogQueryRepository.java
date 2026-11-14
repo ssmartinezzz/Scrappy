@@ -55,7 +55,7 @@ class CatalogQueryRepository implements CatalogQueryPort {
     public CatalogPage buscar(CatalogFilter filtro, String orden, int page, int size, Optional<Instant> desde) {
         Where where = construirWhere(filtro, cotaDe(desde));
         try {
-            int total = contar(where);
+            int total = contarTotal(filtro, cotaDe(desde), where);
             int paginaClamped = Math.max(page, 1);
             int offset = (int) Math.min((long) (paginaClamped - 1) * size, Math.max(total, 0));
 
@@ -380,6 +380,12 @@ class CatalogQueryRepository implements CatalogQueryPort {
         if (Boolean.TRUE.equals(f.gymrat())) {
             cond.add("p.gymrat");
         }
+        if (f.excluirSinStockDesde() != null) {
+            // Only a FRESH confirmed "no" leaves. NULL (unknown) and a check older than the cutoff (stale, so
+            // unknown) stay: abstention is not a veto (CODE-5). IS DISTINCT FROM keeps the NULL arm.
+            cond.add("(p.en_stock IS DISTINCT FROM FALSE OR p.stock_chequeado_at IS NULL OR p.stock_chequeado_at < ?)");
+            params.add(f.excluirSinStockDesde().atOffset(ZoneOffset.UTC));
+        }
         if (noVacio(f.deporte())) {
             cond.add("p.deporte = ?");
             params.add(f.deporte().trim());
@@ -477,6 +483,24 @@ class CatalogQueryRepository implements CatalogQueryPort {
     }
 
     private static final String PCT_DESCUENTO = "((p.precio_orig - p.precio) / p.precio_orig)";
+
+    /**
+     * The page total. With the stock filter on, the row-level predicate turns the COUNT into a seq scan, so it is
+     * computed as COUNT(rest) - COUNT(rest AND a fresh confirmed "no"): exactly the rows the predicate removes,
+     * and the second term is a tiny index-only scan of {@code idx_productos_sin_stock} (V100).
+     */
+    private int contarTotal(CatalogFilter filtro, Cota cota, Where where) {
+        Instant corte = filtro.excluirSinStockDesde();
+        if (corte == null) return contar(where);
+        Where resto = construirWhere(filtro.conExcluirSinStock(null), cota);
+        // Subtraction only wins while both counts are index-only. With any other filter the excluded set is
+        // scanned and re-tested row by row (marca + stock measured +4.7 ms), so one direct COUNT is cheaper.
+        if (!resto.sql().equals(construirWhere(CatalogFilter.todo(), cota).sql())) return contar(where);
+        List<Object> params = new ArrayList<>(resto.params());
+        params.add(corte.atOffset(ZoneOffset.UTC));
+        Where excluidas = new Where(resto.sql() + "\n  AND p.en_stock = false AND p.stock_chequeado_at >= ?", params);
+        return contar(resto) - contar(excluidas);
+    }
 
     private int contar(Where where) {
         String sql = "SELECT COUNT(*) FROM productos p WHERE " + where.sql();

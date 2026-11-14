@@ -1,5 +1,7 @@
 package ar.scraper.web;
 
+import ar.scraper.catalog.PoliticaStock;
+
 import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
 import ar.scraper.model.Product;
 import ar.scraper.json.ProductJson;
@@ -22,7 +24,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
-import lombok.RequiredArgsConstructor;
 
 /**
  * The shared taste signal lives in the outfit_feedback_item table (slot="catalog" here), which
@@ -31,13 +32,31 @@ import lombok.RequiredArgsConstructor;
  */
 @RestController
 @RequestMapping("/api")
-@RequiredArgsConstructor
 public class RecomendadosController {
 
     private final ScraperService service;
     private final ar.scraper.feedback.FeedbackPort feedback;
     private final RecommendationService recommendationService;
     private final ar.scraper.security.ActorResolver actorResolver;
+    private final PoliticaStock politicaStock;
+
+    /** Default stock policy (7 days, system clock): for callers that build the controller by hand. */
+    public RecomendadosController(ScraperService service, ar.scraper.feedback.FeedbackPort feedback,
+                                  RecommendationService recommendationService,
+                                  ar.scraper.security.ActorResolver actorResolver) {
+        this(service, feedback, recommendationService, actorResolver, PoliticaStock.porDefecto());
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public RecomendadosController(ScraperService service, ar.scraper.feedback.FeedbackPort feedback,
+                                  RecommendationService recommendationService,
+                                  ar.scraper.security.ActorResolver actorResolver, PoliticaStock politicaStock) {
+        this.service = service;
+        this.feedback = feedback;
+        this.recommendationService = recommendationService;
+        this.actorResolver = actorResolver;
+        this.politicaStock = politicaStock;
+    }
 
     /**
      * Duplicates the unisex-bridge + relaxation SHAPE of OutfitService.armar()/generoElegible() on
@@ -119,7 +138,7 @@ public class RecomendadosController {
         List<ObjectNode> items = new ArrayList<>();
         for (Product p : pagina) {
             ObjectNode n = JsonNodeFactory.instance.objectNode();
-            ProductJson.escribir(n, p);
+            ProductJson.escribir(n, p, politicaStock);
             items.add(n);
         }
         // Echoes what was SERVED, not what was requested.

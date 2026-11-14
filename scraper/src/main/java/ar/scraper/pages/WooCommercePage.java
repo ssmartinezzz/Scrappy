@@ -124,6 +124,11 @@ public class WooCommercePage extends StorePage implements CatalogPage {
             String img       = n.path("img").asText("");
             String genero    = normalizarGenero(n.path("genero").asText(""));
             String categoria = n.path("categoria").asText("");
+            Boolean enStock = switch (n.path("stock").asText("")) {
+                case "instock" -> Boolean.TRUE;
+                case "outofstock" -> Boolean.FALSE;
+                default -> null; // onbackorder is buyable but not in stock; no class is no opinion
+            };
 
             Optional<Double> precio = parsePrecioWC(priceStr);
             if (precio.isEmpty() || precio.get() < precioMin || precio.get() > precioMax)
@@ -148,6 +153,7 @@ public class WooCommercePage extends StorePage implements CatalogPage {
                     .categoria(categoria)
                     .genero(genero)
                     .talles(List.of())
+                    .enStock(enStock)
                     .build());
 
         } catch (Exception e) {
@@ -255,9 +261,15 @@ public class WooCommercePage extends StorePage implements CatalogPage {
             "      .product-category, .posted_in a');" +
             "    if (catEl) categoria = catEl.textContent.trim();" +
 
+            // WooCommerce puts the stock status on the card's post class
+            "    var stock = card.classList.contains('outofstock') ? 'outofstock'" +
+            "      : card.classList.contains('instock') ? 'instock'" +
+            "      : card.classList.contains('onbackorder') ? 'onbackorder' : '';" +
+
             "    results.push({" +
             "      nombre: nombre, precio: precio, precioOrig: precioOrig," +
-            "      url: url, img: img, categoria: categoria, genero: ''" +
+            "      url: url, img: img, categoria: categoria, genero: ''," +
+            "      stock: stock" +
             "    });" +
             "  } catch(e) {}" +
             "});" +

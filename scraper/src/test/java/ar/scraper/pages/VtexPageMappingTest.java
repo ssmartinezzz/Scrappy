@@ -188,4 +188,55 @@ class VtexPageMappingTest {
         assertThat(map("fromVtex", "[]")).isEmpty();
         assertThat(map("fromVtexIO", "{\"productName\":\"X\",\"items\":{}}")).isEmpty();
     }
+
+    private static String offerItem(String... offers) {
+        return "[{\"images\":[],\"sellers\":[" + String.join(",", offers) + "]}]";
+    }
+
+    private static String offer(String price, String availability) {
+        return "{\"commertialOffer\":{\"Price\":" + price + ",\"ListPrice\":" + price
+                + (availability.isEmpty() ? "" : "," + availability) + "}}";
+    }
+
+    private Boolean stockOf(String method, String items) throws Exception {
+        return map(method, product("\"productName\":\"X\",\"linkText\":\"x\"", items, "")).orElseThrow().enStock();
+    }
+
+    @Test
+    @DisplayName("stock: an offer with AvailableQuantity > 0 is in stock, on both paths")
+    void stockFromAvailableQuantity() throws Exception {
+        for (String m : List.of("fromVtex", "fromVtexIO")) {
+            assertThat(stockOf(m, offerItem(offer("5000", "\"AvailableQuantity\":0"),
+                    offer("5000", "\"AvailableQuantity\":3")))).as(m).isTrue();
+        }
+    }
+
+    @Test
+    @DisplayName("stock: every offer at AvailableQuantity 0 keeps the row, flagged out of stock")
+    void soldOutRowIsKeptAndFlagged() throws Exception {
+        for (String m : List.of("fromVtex", "fromVtexIO")) {
+            assertThat(stockOf(m, offerItem(offer("5000", "\"AvailableQuantity\":0")))).as(m).isFalse();
+        }
+    }
+
+    @Test
+    @DisplayName("stock: IsAvailable decides when AvailableQuantity is absent; no field at all is unknown")
+    void stockFromIsAvailableOrUnknown() throws Exception {
+        assertThat(stockOf("fromVtex", offerItem(offer("5000", "\"IsAvailable\":true")))).isTrue();
+        assertThat(stockOf("fromVtex", offerItem(offer("5000", "\"IsAvailable\":false")))).isFalse();
+        assertThat(stockOf("fromVtex", offerItem(offer("5000", "")))).isNull();
+        assertThat(stockOf("fromVtex", offerItem(offer("5000", "\"AvailableQuantity\":0"), offer("4000", "")))).isNull();
+    }
+
+    @Test
+    @DisplayName("price: an in-stock offer sets the price over an earlier sold-out one; none in stock keeps the first")
+    void priceComesFromAnInStockOffer() throws Exception {
+        Product p = map("fromVtex", product("\"productName\":\"X\",\"linkText\":\"x\"",
+                offerItem(offer("1000", "\"AvailableQuantity\":0"), offer("9000", "\"AvailableQuantity\":2")), "")).orElseThrow();
+        assertThat(p.precio()).isEqualTo(9000);
+
+        Product soldOut = map("fromVtex", product("\"productName\":\"X\",\"linkText\":\"x\"",
+                offerItem(offer("1000", "\"AvailableQuantity\":0"), offer("9000", "\"AvailableQuantity\":0")), "")).orElseThrow();
+        assertThat(soldOut.precio()).isEqualTo(1000);
+    }
 }

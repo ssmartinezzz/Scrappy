@@ -173,6 +173,8 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V96` | Categorías `Camisaco` (indumentaria), `LEGO` y `TCG` (juguetes) y `Wall Panel` (construcción); los `blazer` que no lideran el nombre salen de `Saco`, los `Top` con palabra de limpieza/suplemento se corrigen, ninguna `Camisa`/`Chomba` es `gymrat`, y las `Juguete` LEGO, los juegos de cartas coleccionables y los wall panel pasan a su categoría |
 | `V97` | Las `Juguete` LEGO de Elmundodeljuguete (hoja `Lego` / `Sets de Ladrillos y Bloques` → `Juguete`, que ganaba al nombre) pasan a `LEGO`; los libros de LEGO siguen `Libro` |
 | `V98` | Seed de Ayrun (Tiendanube, gym de mujer, marca propia): fila en `sitio` con `monomarca` y su fila en `marca` |
+| `V99` | Estado de stock por producto: `en_stock`, `visto_en_stock_at`, `stock_chequeado_at` en `productos` y el CHECK `ck_productos_stock_chequeado` |
+| `V100` | Dos índices parciales de `productos` para el filtro de stock de `/api/data`: `idx_productos_sin_stock` (el conjunto excluido) e `idx_productos_activo_precio` (el orden por defecto) |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -5048,5 +5050,79 @@ DELETE FROM marca m WHERE m.nombre = 'Ayrun'
 -- <<< rollback:V98
 ```
 
-Con productos ya scrapeados no borra nada: esas filas referencian el sitio y la marca. Es el bloque más nuevo: en una cadena de rollbacks
-corre PRIMERO, antes que el de `V97`.
+Con productos ya scrapeados no borra nada: esas filas referencian el sitio y la marca. Ya no es el bloque más nuevo: en una cadena de rollbacks
+corre después del de `V99` y antes que el de `V97`.
+
+---
+
+## `V99` — stock por producto
+
+**Decisión**: `productos` gana tres columnas, escritas por `sp_upsert_run` en la **misma transacción** que el precio (sin escrituras
+laterales, sin barredor):
+
+| Columna | Tipo | Semántica |
+|---|---|---|
+| `en_stock` | `BOOLEAN NULL` | `true`/`false` = la plataforma lo informó. **`NULL` = sin señal (desconocido)**; nunca se defaultea a `true` (CODE-5: una abstención no es "hay stock") |
+| `visto_en_stock_at` | `TIMESTAMPTZ NULL` | Última corrida que lo vio **con** stock. Sólo avanza cuando `en_stock` es `true`; un `false` o un `NULL` la dejan como estaba |
+| `stock_chequeado_at` | `TIMESTAMPTZ NULL` | Última corrida que supo el estado (`true` o `false`). Con ella la lectura juzga la vigencia |
+
+`ck_productos_stock_chequeado CHECK (en_stock IS NULL OR stock_chequeado_at IS NOT NULL)`: un estado conocido siempre trae su fecha de
+chequeo. La inversa no se exige (un `NULL` actual puede conservar una fecha vieja).
+
+**Upsert**: en `R__sp_upsert_run.sql` el `INSERT` setea `visto_en_stock_at = now` sólo si `enStock` es `true` y `stock_chequeado_at = now`
+si `enStock` vino informado; el `ON CONFLICT DO UPDATE` usa `COALESCE(EXCLUDED.x, productos.x)` en las tres: **una corrida sin señal
+(`NULL`) conserva lo que una anterior supo**. Un producto sin stock sigue activo (`activo = true`): "agotado" y "descontinuado" ya no
+colapsan en `activo = false`.
+
+**Lectura**: la vigencia no se guarda. `ar.scraper.catalog.EstadoStock.de` degrada a `desconocido` un chequeo más viejo que
+`STOCK_VIGENCIA_DIAS` (`stock.vigencia-dias`, 7 por defecto); el filtro SQL `en_stock` espeja la misma regla. Ver
+[`docs/API_REFERENCE.md`](./API_REFERENCE.md).
+
+### Rollback
+
+```sql
+-- >>> rollback:V99
+ALTER TABLE productos DROP CONSTRAINT IF EXISTS ck_productos_stock_chequeado;
+ALTER TABLE productos
+    DROP COLUMN IF EXISTS en_stock,
+    DROP COLUMN IF EXISTS visto_en_stock_at,
+    DROP COLUMN IF EXISTS stock_chequeado_at;
+-- <<< rollback:V99
+```
+
+Pierde el estado de stock guardado (las tres columnas); el precio y el resto de la fila no se tocan. **Este bloque no restaura
+`sp_upsert_run`, y acá sí importa**: la versión actual de `R__sp_upsert_run.sql` nombra las tres columnas, así que tras soltarlas
+cualquier upsert falla (y el upsert se traga el error: síntoma `"0 nuevos"`). Antes de volver a correr la app hay que devolver el `R__` a
+su cuerpo previo al stock (`git show <commit anterior a V99>:scraper/src/main/resources/db/migration/R__sp_upsert_run.sql`); como es
+repetible, Flyway lo reaplica solo al cambiar su checksum. Además hay que borrar la fila de `V99` de `flyway_schema_history`
+(`DELETE FROM flyway_schema_history WHERE version = '99'`), que ningún otro bloque de este archivo hace: sin eso Flyway cree que la
+migración sigue aplicada. Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V100` y antes que el de `V98`.
+
+---
+
+## `V100` — índices del filtro de stock
+
+**Decisión**: dos índices parciales sobre `productos`, sin cambio de datos ni de columnas. Medido con 82k filas activas, el filtro
+`stock=excluir_sin_stock` costaba +27..33 ms sobre master porque el predicado por fila (`en_stock IS DISTINCT FROM FALSE OR ...`) saca
+al `COUNT(*)` del index-only scan de `idx_prod_activo` (4,5 ms → 24 ms de seq scan), y la página por defecto (`ORDER BY precio, url
+LIMIT n`) recorría la tabla entera y ordenaba (~20-25 ms).
+
+| Índice | Definición | Sirve a |
+|---|---|---|
+| `idx_productos_sin_stock` | `(stock_chequeado_at) WHERE activo AND en_stock = false` | El conjunto que el filtro excluye: `CatalogQueryRepository.contarTotal` calcula el total como `COUNT(resto) - COUNT(resto AND en_stock = false AND stock_chequeado_at >= corte)`, exacto porque el filtro sólo saca un "no" confirmado y vigente (las ramas `NULL` se quedan) |
+| `idx_productos_activo_precio` | `(precio, url) WHERE activo` | La página por defecto `ORDER BY p.precio ASC, p.url ASC`: `LIMIT n` lee n entradas del índice en vez de ordenar el catálogo |
+
+La consulta de la página conserva el predicado original; sólo el `COUNT` se reescribe. El modo keyset no cuenta.
+
+### Rollback
+
+```sql
+-- >>> rollback:V100
+DROP INDEX IF EXISTS idx_productos_activo_precio;
+DROP INDEX IF EXISTS idx_productos_sin_stock;
+-- <<< rollback:V100
+```
+
+No pierde datos: sólo vuelven los planes lentos del filtro de stock y de la página por defecto. Hay que borrar la fila de `V100` de
+`flyway_schema_history` (`DELETE FROM flyway_schema_history WHERE version = '100'`), que ningún otro bloque de este archivo hace. Es el
+bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V99`.

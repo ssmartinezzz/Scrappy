@@ -1,6 +1,7 @@
 package ar.scraper.web.cache;
 
 import ar.scraper.aggregator.CatalogSnapshotPort;
+import ar.scraper.catalog.PoliticaStock;
 import ar.scraper.aggregator.grouping.GroupingService;
 import ar.scraper.aggregator.grouping.ProductGroup;
 import ar.scraper.config.CacheNames;
@@ -11,15 +12,26 @@ import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.Map;
-import lombok.RequiredArgsConstructor;
 
 /** Views derived from the in-memory snapshot, cached per snapshot version. */
 @Component
-@RequiredArgsConstructor
 public class CatalogoDerivadoCache {
 
     private final CatalogSnapshotPort snapshot;
     private final GroupingService grouping;
+    private final PoliticaStock politicaStock;
+
+    /** Default stock policy (7 days, system clock): for callers that build the cache by hand. */
+    public CatalogoDerivadoCache(CatalogSnapshotPort snapshot, GroupingService grouping) {
+        this(snapshot, grouping, PoliticaStock.porDefecto());
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public CatalogoDerivadoCache(CatalogSnapshotPort snapshot, GroupingService grouping, PoliticaStock politicaStock) {
+        this.snapshot = snapshot;
+        this.grouping = grouping;
+        this.politicaStock = politicaStock;
+    }
 
     /**
      * {@code q}, {@code categoria} and {@code rubro} are lower-cased and blank-normalized, not
@@ -90,7 +102,7 @@ public class CatalogoDerivadoCache {
     public List<MarcasPicksDtos.MejoresCategoria> mejores(MejoresKey k) {
         var r = snapshot.getLastResult();
         if (r == null) return List.of();
-        return List.copyOf(MarcasPicksView.mejores(r, k.rubro(), k.gymrat(), k.genero()));
+        return List.copyOf(MarcasPicksView.mejores(r, k.rubro(), k.gymrat(), k.genero(), politicaStock));
     }
 
     /**
@@ -105,7 +117,7 @@ public class CatalogoDerivadoCache {
     }
 
     public MarcasPicksDtos.PicksPagina picks(MejoresKey k, String categoria, String cursor, int limite) {
-        return MarcasPicksView.pagina(rankingPicks(k).getOrDefault(categoria, List.of()), cursor, limite);
+        return MarcasPicksView.pagina(rankingPicks(k).getOrDefault(categoria, List.of()), cursor, limite, politicaStock);
     }
 
     private static String normalizar(String s) {

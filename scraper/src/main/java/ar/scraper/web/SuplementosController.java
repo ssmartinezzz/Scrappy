@@ -2,6 +2,7 @@ package ar.scraper.web;
 
 import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
 import ar.scraper.api.ApiException;
+import ar.scraper.catalog.PoliticaStock;
 import ar.scraper.api.ApiResponse;
 import ar.scraper.outfits.OutfitService;
 import ar.scraper.outfits.SupplementCombo;
@@ -15,15 +16,26 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
-import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api")
-@RequiredArgsConstructor
 public class SuplementosController {
 
     private final ScraperService service;
     private final OutfitService outfitService;
+    private final PoliticaStock politicaStock;
+
+    /** Default stock policy (7 days, system clock): for callers that build the controller by hand. */
+    public SuplementosController(ScraperService service, OutfitService outfitService) {
+        this(service, outfitService, PoliticaStock.porDefecto());
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public SuplementosController(ScraperService service, OutfitService outfitService, PoliticaStock politicaStock) {
+        this.service = service;
+        this.outfitService = outfitService;
+        this.politicaStock = politicaStock;
+    }
 
     /** Supplement subtypes in combo-assembly order. */
     @GetMapping("/suplementos/tipos")
@@ -35,10 +47,17 @@ public class SuplementosController {
         return ResponseEntity.ok(ApiResponse.ok(new OutfitsDtos.SuplementoTipos(tipos)));
     }
 
+    /** Same call without the stock opt-in: sold-out candidates are excluded. */
+    public ResponseEntity<ApiResponse<OutfitsDtos.SuplementosBuilder>> suplementosBuilder(String tipos,
+            double presupuesto, String excluir) {
+        return suplementosBuilder(tipos, presupuesto, excluir, false);
+    }
+
     @GetMapping("/suplementos/builder")
     public ResponseEntity<ApiResponse<OutfitsDtos.SuplementosBuilder>> suplementosBuilder(@RequestParam(required = false) String tipos,
             @RequestParam(defaultValue = "0") double presupuesto,
-            @RequestParam(defaultValue = "") String excluir) {
+            @RequestParam(defaultValue = "") String excluir,
+            @RequestParam(defaultValue = "false") boolean incluirSinStock) {
         if (StringUtils.isBlank(tipos)) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "solicitud_invalida", "tipos is required");
         }
@@ -55,7 +74,8 @@ public class SuplementosController {
         Set<String> excluirUrls = Params.setOrEmpty(excluir);
 
         List<OutfitService.SupplementPick> picks =
-                outfitService.armarComboSuplementos(r.productos(), presupuesto, tiposSet, excluirUrls);
+                outfitService.armarComboSuplementos(politicaStock.candidatosDelCatalogo(r.productos(), incluirSinStock),
+                        presupuesto, tiposSet, excluirUrls);
 
         Set<String> foundTipos = picks.stream()
                 .map(OutfitService.SupplementPick::tipo)

@@ -2,6 +2,7 @@ import { memo } from 'react';
 import { BADGE_LABELS, fmt, addFavorito, removeFavorito } from '../api';
 import { SEÑAL_CONFIG, gaugeColor } from '../lib/colors';
 import FinanBadge from './FinanBadge';
+import StockBadge, { esSinStock } from './StockBadge';
 import { ImageWithFallback } from './ui/image-with-fallback';
 import { thumbSrcSet, thumbUrl } from '../lib/thumb';
 
@@ -144,6 +145,13 @@ const ProductCard = memo(function ProductCard({
     onOpenDetail(p);  // ← pasa el objeto directo, sin URL lookup
   }
 
+  function handleCardKeyDown(e) {
+    // Only keys aimed at the card itself: inner buttons handle their own Enter/Space.
+    if (e.target !== e.currentTarget || (e.key !== 'Enter' && e.key !== ' ')) return;
+    e.preventDefault();
+    onOpenDetail(p);
+  }
+
   function handleCompareClick(e) {
     e.stopPropagation();
     onToggleComparar(p);
@@ -166,7 +174,8 @@ const ProductCard = memo(function ProductCard({
   }
 
   return (
-    <div className="card" onClick={handleCardClick}>
+    <div className={`card${esSinStock(p) ? ' card-sin-stock' : ''}`} role="button" tabIndex={0}
+         onClick={handleCardClick} onKeyDown={handleCardKeyDown}>
       {/* Imagen — fixed aspect-ratio crop (letterbox-safe for inconsistent
           third-party photos); onError fallback keeps a neutral placeholder
           + site-name so the card stays usable even with a broken image. */}
@@ -248,6 +257,7 @@ const ProductCard = memo(function ProductCard({
         <div className="card-badges-footer">
           <span className="badge-sitio">{p.sitio}</span>
           {p.descuento && <span className="badge-oferta">OFERTA</span>}
+          <StockBadge product={p} />
           <BadgeCluster p={p} ml={ml} badge={badge} catStats={catStats} />
         </div>
 

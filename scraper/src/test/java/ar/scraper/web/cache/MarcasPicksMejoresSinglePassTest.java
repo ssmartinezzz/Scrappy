@@ -133,6 +133,9 @@ class MarcasPicksMejoresSinglePassTest {
         n.setImg(img);
         n.setSitio(ProductJson.safe(p.sitio()));
         n.setMarca(ProductJson.safe(p.marca()));
+        n.setStock(ar.scraper.catalog.PoliticaStock.porDefecto().estado(p).wire());
+        n.setVistoEnStockAt(ProductJson.iso(p.vistoEnStockAt()));
+        n.setStockChequeadoAt(ProductJson.iso(p.stockChequeadoAt()));
         if (p.ml() != null) {
             n.setScoreP(p.ml().scoreP());
             n.setBadge(ProductJson.safe(p.ml().badge()));

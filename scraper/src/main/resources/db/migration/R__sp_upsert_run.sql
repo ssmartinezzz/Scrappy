@@ -111,7 +111,8 @@ BEGIN
             url, sitio, nombre, precio, precio_orig, imagen_url, categoria, genero,
             ml_score, ml_oferta, ml_tendencia, ml_segment, ml_zscore,
             rubro, marca, gymrat, cantidad_unidades, sub_categoria, deporte,
-            fit, estampado, escote, color_dominante, activo, touched_at, created_at
+            fit, estampado, escote, color_dominante, activo, touched_at, created_at,
+            en_stock, visto_en_stock_at, stock_chequeado_at
         ) VALUES (
             r->>'url', r->>'sitio', r->>'nombre', v_new_precio, (r->>'precioOrig')::DOUBLE PRECISION, r->>'imagenUrl',
             r->>'categoria', r->>'genero',
@@ -122,7 +123,10 @@ BEGIN
             COALESCE((r->>'gymrat')::boolean, false),
             COALESCE((r->>'cantidadUnidades')::INTEGER, 1), COALESCE(r->>'subCategoria', ''), nullif(r->>'deporte',''),
             v_fit, v_estampado, v_escote, v_color, true,
-            (r->>'now')::timestamptz, (r->>'now')::timestamptz
+            (r->>'now')::timestamptz, (r->>'now')::timestamptz,
+            (r->>'enStock')::boolean,
+            CASE WHEN (r->>'enStock')::boolean THEN (r->>'now')::timestamptz END,
+            CASE WHEN r->>'enStock' IS NOT NULL THEN (r->>'now')::timestamptz END
         )
         ON CONFLICT (url) DO UPDATE SET
             sitio             = EXCLUDED.sitio,
@@ -148,7 +152,12 @@ BEGIN
             escote            = COALESCE(NULLIF(EXCLUDED.escote, ''), productos.escote),
             color_dominante   = COALESCE(NULLIF(EXCLUDED.color_dominante, ''), productos.color_dominante),
             activo            = true,
-            touched_at        = EXCLUDED.touched_at;
+            touched_at        = EXCLUDED.touched_at,
+            -- Sin señal (NULL) no borra lo que una corrida anterior supo: la antigüedad la juzga la
+            -- lectura, por stock_chequeado_at.
+            en_stock           = COALESCE(EXCLUDED.en_stock, productos.en_stock),
+            visto_en_stock_at  = COALESCE(EXCLUDED.visto_en_stock_at, productos.visto_en_stock_at),
+            stock_chequeado_at = COALESCE(EXCLUDED.stock_chequeado_at, productos.stock_chequeado_at);
 
         DELETE FROM producto_talle WHERE url = r->>'url';
         INSERT INTO producto_talle (url, posicion, talle)

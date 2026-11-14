@@ -1,6 +1,7 @@
 package ar.scraper.web;
 
 import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
+import ar.scraper.catalog.PoliticaStock;
 import ar.scraper.model.Product;
 import ar.scraper.outfits.FeedbackModels;
 import ar.scraper.outfits.OutfitService;
@@ -22,13 +23,11 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
-import lombok.RequiredArgsConstructor;
 
 import static org.apache.commons.lang3.StringUtils.defaultString;
 
 @RestController
 @RequestMapping("/api")
-@RequiredArgsConstructor
 public class OutfitsController {
 
     private final ScraperService service;
@@ -36,6 +35,26 @@ public class OutfitsController {
     private final ar.scraper.outfits.SavedOutfitsPort outfitsGuardados;
     private final OutfitService outfitService;
     private final ar.scraper.security.ActorResolver actorResolver;
+    private final PoliticaStock politicaStock;
+
+    /** Default stock policy (7 days, system clock): for callers that build the controller by hand. */
+    public OutfitsController(ScraperService service, ar.scraper.feedback.FeedbackPort feedback,
+                             ar.scraper.outfits.SavedOutfitsPort outfitsGuardados, OutfitService outfitService,
+                             ar.scraper.security.ActorResolver actorResolver) {
+        this(service, feedback, outfitsGuardados, outfitService, actorResolver, PoliticaStock.porDefecto());
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public OutfitsController(ScraperService service, ar.scraper.feedback.FeedbackPort feedback,
+                             ar.scraper.outfits.SavedOutfitsPort outfitsGuardados, OutfitService outfitService,
+                             ar.scraper.security.ActorResolver actorResolver, PoliticaStock politicaStock) {
+        this.service = service;
+        this.feedback = feedback;
+        this.outfitsGuardados = outfitsGuardados;
+        this.outfitService = outfitService;
+        this.actorResolver = actorResolver;
+        this.politicaStock = politicaStock;
+    }
 
     private OutfitService.FeedbackModel feedbackModel(AggregatedResult r, String estilo) {
         java.util.UUID sujeto = Sujeto.de(actorResolver);
@@ -44,11 +63,18 @@ public class OutfitsController {
         return FeedbackModels.build(feedbackRows, r.productos(), dismissCats, Set.of(estilo, "catalog"));
     }
 
+    /** Same call without the stock opt-in: sold-out candidates are excluded. */
+    public ResponseEntity<ApiResponse<OutfitsDtos.Outfit>> outfits(String genero, double presupuesto, String excluir,
+            double presupuestoSuplementos) {
+        return outfits(genero, presupuesto, excluir, presupuestoSuplementos, false);
+    }
+
     @GetMapping("/outfits")
     public ResponseEntity<ApiResponse<OutfitsDtos.Outfit>> outfits(@RequestParam(required = false) String genero,
             @RequestParam(required = false, defaultValue = "0") double presupuesto,
             @RequestParam(required = false, defaultValue = "") String excluir,
-            @RequestParam(defaultValue = "0") double presupuestoSuplementos) {
+            @RequestParam(defaultValue = "0") double presupuestoSuplementos,
+            @RequestParam(defaultValue = "false") boolean incluirSinStock) {
         AggregatedResult r = service.getLastResult();
         if (r == null) return ResponseEntity.noContent().build();
 
@@ -57,7 +83,8 @@ public class OutfitsController {
         // Gym surface: gym feedback + shared feed signal ("catalog"), never casual.
         var feedbackModel = feedbackModel(r, "gym");
 
-        OutfitService.Outfit outfit = outfitService.armar(r.productos(), genero, "gym", feedbackModel,
+        OutfitService.Outfit outfit = outfitService.armar(politicaStock.candidatosDelCatalogo(r.productos(), incluirSinStock),
+                genero, "gym", feedbackModel,
                 presupuesto, excluirUrls);
 
         List<OutfitsDtos.SlotPick> slots = new ArrayList<>();
@@ -69,7 +96,7 @@ public class OutfitsController {
         // would silently add a card to this grid. Here the stack is a fixed suggestion; choosing is
         // /suplementos' job.
         var suplementosList = outfitService.armarComboSuplementos(
-                r.productos(), presupuestoSuplementos, SupplementCombo.TIPOS_COMBO_OUTFIT);
+                politicaStock.candidatosDelCatalogo(r.productos(), incluirSinStock), presupuestoSuplementos, SupplementCombo.TIPOS_COMBO_OUTFIT);
         double totalSuplementos = suplementosList.stream()
                 .mapToDouble(OutfitService.SupplementPick::precio).sum();
 
@@ -84,6 +111,11 @@ public class OutfitsController {
     }
 
     /** No-fit is NOT an error: 200 with {@code noCumplePresupuesto:true} and empty slots. */
+    public ResponseEntity<ApiResponse<OutfitsDtos.Builder>> outfitsBuilder(String categorias, double presupuesto,
+            String genero, String excluir, String pin, boolean greedy, String estilo) {
+        return outfitsBuilder(categorias, presupuesto, genero, excluir, pin, greedy, estilo, false);
+    }
+
     @GetMapping("/outfits/builder")
     public ResponseEntity<ApiResponse<OutfitsDtos.Builder>> outfitsBuilder(@RequestParam(required = false) String categorias,
             @RequestParam(required = false, defaultValue = "0") double presupuesto,
@@ -91,7 +123,8 @@ public class OutfitsController {
             @RequestParam(required = false, defaultValue = "") String excluir,
             @RequestParam(required = false, defaultValue = "") String pin,
             @RequestParam(defaultValue = "false") boolean greedy,
-            @RequestParam(required = false, defaultValue = "gym") String estilo) {
+            @RequestParam(required = false, defaultValue = "gym") String estilo,
+            @RequestParam(defaultValue = "false") boolean incluirSinStock) {
         // Only {gym, casual} are builder surfaces; anything else (blank, "null", the reserved feed
         // bucket "catalog") falls back to "gym".
         estilo = "casual".equalsIgnoreCase(estilo) ? "casual" : "gym";
@@ -144,7 +177,8 @@ public class OutfitsController {
         }
 
         OutfitService.OutfitBuilderResult result = outfitService.armarPorCategorias(
-                r.productos(), catList, presupuesto, genero, feedbackModel, excluirUrls, greedy, pinned, estilo);
+                politicaStock.candidatosDelCatalogo(r.productos(), incluirSinStock), catList, presupuesto, genero, feedbackModel,
+                excluirUrls, greedy, pinned, estilo);
 
         String status;
         if (result.slots().isEmpty()) {

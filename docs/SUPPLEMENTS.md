@@ -9,7 +9,7 @@
 asigna a **exactamente un** subtipo en una pasada por precedencia (específico
 antes que genérico — una barra de proteína es una barra, no un polvo). El nombre
 manda; `p.categoria()` es fallback. Ranking del pick: marca preferida → precio
-por unidad de medida → `baseMlScore` → url.
+por unidad de medida → `baseMlScore` → url. Los candidatos con `sin_stock` fresco se descartan antes del pick (`incluirSinStock=true` los admite; `desconocido` queda): ver `docs/API_REFERENCE.md` → GET /data.
 
 ## Subtipos de comida
 

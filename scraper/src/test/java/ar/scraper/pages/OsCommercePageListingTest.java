@@ -77,6 +77,17 @@ class OsCommercePageListingTest {
                 "Venex", BASE_URL, "Microprocesadores", MIN, MAX);
 
         assertThat(result).extracting(Product::precio).containsExactly(157799.0);
+        assertThat(result).extracting(Product::enStock).containsExactly(false);
+    }
+
+    @Test
+    @DisplayName("una card sin la etiqueta 'Sin stock' no da senal en el listado: enStock queda null")
+    void sinEtiquetaNoHaySenal() {
+        List<Product> result = OsCommercePage.parseListing(
+                cardVenex("18779", "Microprocesador Intel Core i7", "257799", false),
+                "Venex", BASE_URL, "Microprocesadores", MIN, MAX);
+
+        assertThat(result).extracting(Product::enStock).containsExactly((Boolean) null);
     }
 
     @Test

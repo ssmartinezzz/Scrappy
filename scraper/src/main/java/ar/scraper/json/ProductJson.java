@@ -1,9 +1,13 @@
 package ar.scraper.json;
 
+import ar.scraper.catalog.PoliticaStock;
 import ar.scraper.catalog.ProductKey;
 import ar.scraper.model.Product;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 
 /**
  * Like {@link FeedbackModels}, it lives on its own because several bounded contexts share it —
@@ -16,6 +20,11 @@ public final class ProductJson {
 
     public static String safe(String s) { return s != null ? s : ""; }
 
+    /** UTC ISO-8601 to the second, or null: the one format every product timestamp goes out in. */
+    public static String iso(Instant t) {
+        return t != null ? t.truncatedTo(ChronoUnit.SECONDS).toString() : null;
+    }
+
     /**
      * Espeja la fórmula usada en {@code /api/data} (fila del catálogo) para que catálogo, ML y
      * mejores picks compartan una única fuente de verdad. Guard contra división por cero:
@@ -24,7 +33,15 @@ public final class ProductJson {
         return p.cantidadUnidades() > 0 ? p.precio() / p.cantidadUnidades() : p.precio();
     }
 
+    /**
+     * Same row with the default stock policy (7 days, system clock). Production callers pass the configured
+     * {@link PoliticaStock}; this overload serves callers with no configuration of their own.
+     */
     public static void escribir(ObjectNode n, Product p) {
+        escribir(n, p, PoliticaStock.porDefecto());
+    }
+
+    public static void escribir(ObjectNode n, Product p, PoliticaStock politica) {
         // Se manda en cada fila para que un link no tenga que ir a la base a buscarlo.
         n.put("key",        ProductKey.of(p.url()));
         n.put("sitio",      safe(p.sitio()));
@@ -43,6 +60,12 @@ public final class ProductJson {
         n.put("cantidadUnidades", p.cantidadUnidades());
         n.put("esPack",     p.esPack());
         n.put("precioUnitario", precioUnitario(p));
+        // enStock/*At are the raw stored state (null = unknown); `stock` is what a reader may conclude today:
+        // a check older than the vigencia reads as unknown, never as in stock.
+        if (p.enStock() != null) n.put("enStock", p.enStock()); else n.putNull("enStock");
+        n.put("stock", politica.estado(p).wire());
+        n.put("vistoEnStockAt", iso(p.vistoEnStockAt()));
+        n.put("stockChequeadoAt", iso(p.stockChequeadoAt()));
         ArrayNode tallesArr = n.putArray("talles");
         if (p.talles() != null) p.talles().forEach(tallesArr::add);
         if (p.ml() != null) {

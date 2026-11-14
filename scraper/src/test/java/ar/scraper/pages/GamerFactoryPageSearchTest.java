@@ -72,6 +72,33 @@ class GamerFactoryPageSearchTest {
     }
 
     @Test
+    @DisplayName("stock > 0 is in stock; stock <= 0 is kept flagged out of stock; absent or null stock is unknown")
+    void readsStock() {
+        String json = """
+                {"total":4,"data":[
+                 {"name":"Con stock","slug":"a","stock":3,"images":[],"price":{"special":{"ARS":1000}}},
+                 {"name":"Sin stock","slug":"b","stock":0,"images":[],"price":{"special":{"ARS":1000}}},
+                 {"name":"Negativo","slug":"c","stock":-2,"images":[],"price":{"special":{"ARS":1000}}},
+                 {"name":"Nulo","slug":"d","stock":null,"images":[],"price":{"special":{"ARS":1000}}},
+                 {"name":"Ausente","slug":"e","images":[],"price":{"special":{"ARS":1000}}}]}""";
+
+        List<Product> ps = parse(json).productos();
+
+        assertThat(ps).hasSize(5);
+        assertThat(porNombre(ps, "Con stock").enStock()).isTrue();
+        assertThat(porNombre(ps, "Sin stock").enStock()).isFalse();
+        assertThat(porNombre(ps, "Negativo").enStock()).isFalse();
+        assertThat(porNombre(ps, "Nulo").enStock()).isNull();
+        assertThat(porNombre(ps, "Ausente").enStock()).isNull();
+    }
+
+    @Test
+    @DisplayName("the real capture carries a positive stock on every row")
+    void realCaptureIsInStock() {
+        assertThat(parse(SEARCH).productos()).allMatch(p -> Boolean.TRUE.equals(p.enStock()));
+    }
+
+    @Test
     @DisplayName("reads the announced total")
     void readsTotal() {
         assertThat(parse(SEARCH).total()).isEqualTo(828);

@@ -291,4 +291,19 @@ class MagentoPageTest {
         assertThat(page.catalogos()).containsExactly("https://laspepas.com.ar/ar/ss27/ver-todo",
                 "https://laspepas.com.ar/ar/shop/zapatos");
     }
+
+    @Test
+    @DisplayName("stock: the Magento out-of-stock marker flags the card false; a card without it stays unknown")
+    void stockFromTheUnavailableMarker() {
+        String html = fixture("ver-todo-p1.html");
+        assertThat(parse(html)).allSatisfy(p -> assertThat(p.enStock()).isNull());
+
+        String agotada = html.replaceFirst("(<li class=\"item product[^>]*>)",
+                "$1<div class=\"stock unavailable\"><span>Out of stock</span></div>");
+        List<Product> ps = parse(agotada);
+
+        assertThat(ps).hasSize(11);
+        assertThat(ps.get(0).enStock()).isFalse();
+        assertThat(ps.stream().skip(1)).allSatisfy(p -> assertThat(p.enStock()).isNull());
+    }
 }

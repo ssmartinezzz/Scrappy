@@ -33,6 +33,10 @@ public final class ComparadorDtos {
         private String img;
         private Double precioOrig;
         private String badge;
+        /** {@code en_stock} | {@code sin_stock} | {@code desconocido}, derived at read time. */
+        private String stock;
+        private String vistoEnStockAt;
+        private String stockChequeadoAt;
     }
 
     @Getter @Setter @NoArgsConstructor @AllArgsConstructor

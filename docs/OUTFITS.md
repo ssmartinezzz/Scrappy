@@ -12,6 +12,7 @@ Dos algoritmos con objetivos distintos, ambos leyendo el catálogo en memoria
 | Superficie | Gym (`/api/outfits`) | Presupuesto (`/api/outfits/builder`) |
 | Objetivo | Variedad entre recargas | Óptimo global bajo presupuesto duro |
 | Algoritmo | Muestreo aleatorio ponderado | MCKP con branch-and-bound (+ modo greedy) |
+| Candidatos | Ambos reciben el catálogo sin los `sin_stock` frescos (`incluirSinStock=true` los admite; `desconocido` queda). No cambia ningún score | |
 | Slots | torso, piernas, calzado + accesorio best-effort | Sub-slots: torso-base/outer, piernas, calzado, accesorio-head/feet/body |
 
 **Los dos armadores comparten UNA política de pesos, y vive en `OutfitRules`.**

@@ -44,6 +44,7 @@ class SnapshotCacheIntegrationTest {
                 evento -> ctx.publishEvent(evento));
         ctx = new AnnotationConfigApplicationContext();
         ctx.registerBean(CatalogSnapshotPort.class, () -> service);
+        ctx.registerBean(ar.scraper.catalog.PoliticaStock.class, ar.scraper.catalog.PoliticaStock::porDefecto);
         ctx.registerBean(GroupingService.class, () -> new GroupingService(new ProductIdentity(), new JaccardSimilarity()));
         ctx.register(CacheConfig.class, CatalogoDerivadoCache.class, CatalogCacheEvictor.class);
         ctx.refresh();

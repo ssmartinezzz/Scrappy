@@ -1,5 +1,7 @@
 package ar.scraper.web;
 
+import ar.scraper.catalog.PoliticaStock;
+import ar.scraper.aggregator.grouping.ProductGroup;
 import ar.scraper.json.ProductJson;
 import ar.scraper.web.cache.CatalogoDerivadoCache;
 import ar.scraper.web.cache.CatalogoDerivadoCache.GruposKey;
@@ -13,11 +15,9 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.ArrayList;
 import java.util.List;
-import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api")
-@RequiredArgsConstructor
 public class ComparadorController {
 
     private static final org.slf4j.Logger LOG =
@@ -42,6 +42,22 @@ public class ComparadorController {
     private final ScraperService service;
     private final ar.scraper.catalog.PreciosExternosPort preciosExternos;
     private final CatalogoDerivadoCache derivados;
+    private final PoliticaStock politicaStock;
+
+    /** Default stock policy (7 days, system clock): for callers that build the controller by hand. */
+    public ComparadorController(ScraperService service, ar.scraper.catalog.PreciosExternosPort preciosExternos,
+                                CatalogoDerivadoCache derivados) {
+        this(service, preciosExternos, derivados, PoliticaStock.porDefecto());
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public ComparadorController(ScraperService service, ar.scraper.catalog.PreciosExternosPort preciosExternos,
+                                CatalogoDerivadoCache derivados, PoliticaStock politicaStock) {
+        this.service = service;
+        this.preciosExternos = preciosExternos;
+        this.derivados = derivados;
+        this.politicaStock = politicaStock;
+    }
 
     private String safe(String s) { return ProductJson.safe(s); }
 
@@ -59,6 +75,11 @@ public class ComparadorController {
     }
 
     /** {@code page} is 0-based here (unlike /api/data and /api/recomendados). */
+    public ResponseEntity<ApiResponse<List<ComparadorDtos.Grupo>>> grupos(String q, String sitio, String categoria,
+            String rubro, int minSitios, int page, int size) {
+        return grupos(q, sitio, categoria, rubro, minSitios, page, size, null);
+    }
+
     @GetMapping("/grupos")
     public ResponseEntity<ApiResponse<List<ComparadorDtos.Grupo>>> grupos(@RequestParam(required = false) String q,
             @RequestParam(required = false) String sitio,
@@ -66,10 +87,21 @@ public class ComparadorController {
             @RequestParam(required = false) String rubro,
             @RequestParam(defaultValue = "2") int minSitios,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String stock) {
         if (service.getLastResult() == null) return ResponseEntity.noContent().build();
 
         var grupos = derivados.grupos(GruposKey.de(service.snapshotVersion(), q, categoria, rubro, minSitios >= 2));
+
+        // Sold-out offers leave their group (flag by default, drop on request). The group is rebuilt so its
+        // cheapest price and saving describe offers someone can buy; one left with fewer sites than asked for goes.
+        if (excluirSinStock(stock)) {
+            int sitiosMinimos = minSitios >= 2 ? 2 : 1;
+            grupos = grupos.stream()
+                .map(g -> new ProductGroup(politicaStock.candidatos(g.getProductos(), false)))
+                .filter(g -> g.sitiosDistintos() >= sitiosMinimos)
+                .collect(java.util.stream.Collectors.toList());
+        }
 
         // Site filter runs AFTER grouping, unlike q/categoria/rubro: this endpoint compares one
         // article across sites (minSitios=2), so trimming to one site first would empty every
@@ -92,13 +124,26 @@ public class ComparadorController {
             for (var p : grupo.getProductos()) {
                 precios.add(new ComparadorDtos.Precio(safe(p.sitio()), p.precio(), safe(p.url()),
                         safe(p.imagenUrl()), p.precioOriginal(),
-                        p.ml() != null && !p.ml().badge().isBlank() ? p.ml().badge() : null));
+                        p.ml() != null && !p.ml().badge().isBlank() ? p.ml().badge() : null,
+                        politicaStock.estado(p).wire(), ProductJson.iso(p.vistoEnStockAt()),
+                        ProductJson.iso(p.stockChequeadoAt())));
             }
             items.add(new ComparadorDtos.Grupo(grupo.getNombre(), grupo.getCategoria(), grupo.getImg(),
                     grupo.sitiosDistintos(), grupo.precioMinimo(), grupo.precioMaximo(),
                     Math.round(grupo.ahorroPct() * 10.0) / 10.0, precios));
         }
         return ResponseEntity.ok(ApiResponse.page(items, PageMeta.of(page, size, total)));
+    }
+
+    /** {@code stock}: absent/blank/{@code todos} = flag only; {@code excluir_sin_stock} = drop sold-out offers. */
+    private static boolean excluirSinStock(String stock) {
+        if (StringUtils.isBlank(stock)) return false;
+        return switch (stock.trim().toLowerCase(java.util.Locale.ROOT)) {
+            case "todos" -> false;
+            case "excluir_sin_stock" -> true;
+            default -> throw new ar.scraper.api.ApiException(org.springframework.http.HttpStatus.BAD_REQUEST,
+                    "solicitud_invalida", "stock desconocido: " + stock.trim() + ". Válidos: todos, excluir_sin_stock");
+        };
     }
 
     @GetMapping("/buscar-externo")

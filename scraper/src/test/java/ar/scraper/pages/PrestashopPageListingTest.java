@@ -112,4 +112,10 @@ class PrestashopPageListingTest {
             throw new UncheckedIOException(e);
         }
     }
+
+    @Test
+    @DisplayName("stock: the listing JSON carries no stock field (add_to_cart_url is on every row), so it stays unknown")
+    void stockIsUnknown() {
+        assertThat(parse(LISTING).productos()).allSatisfy(p -> assertThat(p.enStock()).isNull());
+    }
 }

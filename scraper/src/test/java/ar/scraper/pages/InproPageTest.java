@@ -153,9 +153,8 @@ class InproPageTest {
         }
 
         @Test
-        @DisplayName("Un producto sin stock en NINGUNA variante igual entra al catálogo")
+        @DisplayName("Un producto sin stock en NINGUNA variante igual entra al catálogo, marcado enStock=false")
         void sinStockEnNingunaVarianteIgualEntra() {
-            // Es deliberado y es distinto de CompraGamer, que descarta sin stock.
             // Acá el objetivo es el historial de precios: si una silla desaparece
             // del catálogo al agotarse, el soft-delete le abre un hueco al
             // historial justo del producto que se está siguiendo.
@@ -165,6 +164,23 @@ class InproPageTest {
             assertThat(ps.get(0).precio())
                     .as("sin stock en ninguna, gana la más barata a secas")
                     .isEqualTo(999_990.0);
+            assertThat(ps.get(0).enStock()).as("ninguna variante con stock").isFalse();
+        }
+
+        @Test
+        @DisplayName("Con alguna variante en stock, enStock=true aunque la más barata esté agotada")
+        void algunaVarianteConStockEsEnStockTrue() {
+            assertThat(porNombre(parse(), "Silla Ergonómica Pro").enStock()).isTrue();
+        }
+
+        @Test
+        @DisplayName("Sin el campo stock en ninguna variante no hay señal: enStock queda null")
+        void sinCampoStockEsDesconocido() {
+            String sinCampo = leer("/inpro/categoria_payload.html")
+                    .replaceAll("\\\\\"stock\\\\\":\\d+,", "");
+            List<Product> ps = InproPage.parsePayload(sinCampo, "Inpro", BASE, 0, 3_000_000);
+            assertThat(ps).isNotEmpty();
+            assertThat(ps).allSatisfy(p -> assertThat(p.enStock()).isNull());
         }
     }
 

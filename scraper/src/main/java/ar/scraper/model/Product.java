@@ -1,5 +1,6 @@
 package ar.scraper.model;
 
+import java.time.Instant;
 import java.util.List;
 import lombok.Builder;
 import org.apache.commons.lang3.StringUtils;
@@ -31,12 +32,26 @@ public record Product(
                                // field when the ML score/upsert value is non-blank, else the prior
                                // value is preserved (RELY-001; never wipe to "" on a run/backfill
                                // that didn't gate this product into image classification)
-        Integer sitioCategoriaOrigenId
+        Integer sitioCategoriaOrigenId,
+        Boolean enStock,           // null = unknown: the platform gives no stock signal (never "in stock")
+        Instant vistoEnStockAt,    // last run that saw it in stock; read-only, set by sp_upsert_run
+        Instant stockChequeadoAt   // last run that knew its stock (true or false); read-only, same
 ) implements Comparable<Product> {
 
     public Product {
         Validate.notBlank(sitio, "sitio must not be blank");
         Validate.notBlank(nombre, "nombre must not be blank");
+    }
+
+    /** Source-compatible with call sites that predate the stock columns: stock unknown. */
+    public Product(String sitio, String nombre, double precio, Double precioOriginal, String url,
+                   String imagenUrl, String categoria, String genero, List<String> talles, MlScore ml,
+                   String marca, String rubro, boolean gymrat, boolean marcaPremium, SenalCompra senal,
+                   SenalFinanciacion finan, int cantidadUnidades, String subCategoria, String deporte,
+                   VisualAttrs visual, Integer sitioCategoriaOrigenId) {
+        this(sitio, nombre, precio, precioOriginal, url, imagenUrl, categoria, genero, talles, ml, marca,
+             rubro, gymrat, marcaPremium, senal, finan, cantidadUnidades, subCategoria, deporte, visual,
+             sitioCategoriaOrigenId, null, null, null);
     }
 
     public static ProductBuilder builder() {

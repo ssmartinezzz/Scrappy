@@ -28,6 +28,12 @@
 | La clasificación 5xx/4xx lee el código SMTP, no el texto | Un proveedor que devuelva un 5xx para un problema pasajero (greylisting mal configurado) archiva el aviso como `FALLIDA` en el primer intento; 530/534/535 y los rechazos a `MAIL FROM` se tratan como transitorios a propósito |
 | Un mail aceptado por el servidor SMTP y rebotado después no deja rastro | El relay marca `ENVIADA` al aceptar el mensaje; nada en este diseño recibe los rebotes (mismo límite que el reseteo de contraseña) |
 | Los cambios de `SMTP_*` no se aplican hasta reiniciar el backend | El backend lee `.env` al arrancar. `mail` (CLI) lo recuerda al terminar; el mail de prueba contra un backend viejo prueba la configuración vieja. Ver [`EMAIL_ALERTS.md`](./EMAIL_ALERTS.md) |
+| `stock=excluir_sin_stock` combinado con otro filtro no usa la cuenta por resta | V100 dejó el filtro solo en ~8 ms (medido 2026-11-13; ver [`DATABASE.md`](./DATABASE.md), V100). Con otro filtro (marca, sitio…) el `COUNT` vuelve a ser directo: restar obligaría a recorrer todo `idx_productos_sin_stock` y re-filtrar cada fila (+4.7 ms medido con `marca`). `/api/grupos` con el mismo filtro: +3 ms, porque no reusa la agrupación memoizada |
+| Los picks de `/mejores` y `/marcas` calculan el `stock` al armar la vista | Quedan cacheados hasta 30 min: un chequeo que vence dentro de esa ventana se sigue sirviendo como `en_stock`. Los demás endpoints lo derivan al leer |
+| El DTO del tool MCP `ViewProductTool` y los picks de los armadores no llevan `stock` | El estado sólo sale en las filas de catálogo, `/producto/{key}`, `/recomendados`, `/favoritos`, `/grupos` y `/mejores`; los armadores ya excluyen lo agotado por defecto, pero el pick devuelto no dice su estado |
+| Constructores viejos de los controllers y `ProductJson.escribir(n, p)` caen a `PoliticaStock.porDefecto()` | Ignoran `STOCK_VIGENCIA_DIAS`. Los usa sólo código de test y de fallback; el cableado de Spring pasa la política configurada |
+| `/recomendados` y `/favoritos` no tienen test del campo `stock` | Lo emiten por el mismo `ProductJson`, probado en otras rutas, pero ningún test de esos dos endpoints lo afirma |
+| Prestashop, Qloud, FullH4rd y la ruta JS/DOM de Tiendanube no leen stock | Sus filas quedan `desconocido`. Leerlo exigiría un request por producto (o un cambio del extractor JS). Ver [`SITES.md`](./SITES.md#señal-de-stock-por-sitio) |
 
 ### Necesitan datos, no código
 

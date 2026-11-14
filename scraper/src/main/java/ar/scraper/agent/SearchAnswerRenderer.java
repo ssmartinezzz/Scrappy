@@ -103,6 +103,7 @@ final class SearchAnswerRenderer {
             sb.append(" — **−").append(r.path("descuentoPct").asInt()).append("%** (antes ")
                     .append(pesos(r.path("precioOrig").asDouble())).append(')');
         }
+        if ("sin_stock".equals(r.path("stock").asText())) sb.append(" — **sin stock**");
         if (flagPartial) {
             List<String> f = new ArrayList<>();
             r.path("terminosFaltantes").forEach(t -> f.add(t.asText()));

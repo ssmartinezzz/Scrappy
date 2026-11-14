@@ -1,6 +1,7 @@
 package ar.scraper.agent;
 
 import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
+import ar.scraper.catalog.PoliticaStock;
 import ar.scraper.classification.CategoryGroups;
 import ar.scraper.aggregator.text.AccentStripper;
 import ar.scraper.model.Product;
@@ -17,7 +18,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.function.Predicate;
-import lombok.RequiredArgsConstructor;
 
 /**
  * {@code search_products(query?, categoria?, genero?, excluir?, precioMin?, precioMax?, enOferta?, limit=10)}
@@ -25,7 +25,6 @@ import lombok.RequiredArgsConstructor;
  * fabricated data.
  */
 @Component
-@RequiredArgsConstructor
 public class SearchProductsTool implements CatalogTool {
 
     public static final String NAME = "search_products";
@@ -42,6 +41,18 @@ public class SearchProductsTool implements CatalogTool {
             "query", "categoria", "genero", "excluir", "precioMin", "precioMax", "enOferta", "limit");
 
     private final CatalogSnapshotPort catalogo;
+    private final PoliticaStock politicaStock;
+
+    /** Default stock policy (7 days, system clock): for callers that build the tool by hand. */
+    public SearchProductsTool(CatalogSnapshotPort catalogo) {
+        this(catalogo, PoliticaStock.porDefecto());
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public SearchProductsTool(CatalogSnapshotPort catalogo, PoliticaStock politicaStock) {
+        this.catalogo = catalogo;
+        this.politicaStock = politicaStock;
+    }
     private final RelevanceRanker ranker = new RelevanceRanker();
 
     @Override
@@ -210,6 +221,7 @@ public class SearchProductsTool implements CatalogTool {
             // puede reportar sobre qué filtró, ni verificar lo que devolvió.
             n.put("genero", p.genero());
             n.put("precio", p.precio());
+            n.put("stock", politicaStock.estado(p).wire());
             if (enDescuento(p)) {
                 n.put("precioOrig", p.precioOriginal());
                 n.put("descuentoPct", (int) Math.round(descuento(p) * 100));

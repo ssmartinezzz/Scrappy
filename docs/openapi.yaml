@@ -227,6 +227,28 @@ components:
         blank applies no filter; an unknown code is a 400 `solicitud_invalida`. Each product row carries `deporte`
         (`""` when it has none); the catalog lists sport rows by default, only
         the builders and feeds leave them out.
+    Stock:
+      name: stock
+      in: query
+      schema:
+        type: string
+        enum: [todos, excluir_sin_stock]
+        default: todos
+      description: >-
+        `todos` (default) hides nothing: every row carries `stock`
+        (`en_stock` | `sin_stock` | `desconocido`) and the UI flags it.
+        `excluir_sin_stock` drops only rows with a fresh confirmed `sin_stock`;
+        `desconocido` rows stay (unknown is not sold out), and a stock check
+        older than `STOCK_VIGENCIA_DIAS` counts as `desconocido`. Any other
+        value is a 400 `solicitud_invalida`.
+    IncluirSinStock:
+      name: incluirSinStock
+      in: query
+      schema: { type: boolean, default: false }
+      description: >-
+        Builders skip candidates with a fresh confirmed `sin_stock` by default
+        (they assemble something to buy); `true` lets them back in. Candidates
+        with `desconocido` stock are always eligible.
     RefreshCsrf:
       name: X-Refresh-CSRF
       in: header
@@ -786,6 +808,7 @@ paths:
         - $ref: "#/components/parameters/ColorDominante"
         - $ref: "#/components/parameters/ExcluirCategoria"
         - $ref: "#/components/parameters/Deporte"
+        - $ref: "#/components/parameters/Stock"
         - name: cursor
           in: query
           description: "Keyset mode: the opaque `data.nextCursor` of the previous page (empty = from the start). Replaces `page`: no OFFSET and no COUNT, so page N costs what page 1 does, and `page.total` is `-1`. Only `orden=precio_asc` / `precio_desc` support it; any other `orden`, or a cursor `nextCursor` did not produce, is a 400. In page-number mode the response already carries `data.nextCursor` for those two orders, so a client switches to cursors without a separate first call."
@@ -1027,6 +1050,7 @@ paths:
         - name: size
           in: query
           schema: { type: integer, default: 20 }
+        - $ref: "#/components/parameters/Stock"
       responses:
         "200":
           description: Grouped products.
@@ -1198,6 +1222,7 @@ paths:
         - name: presupuestoSuplementos
           in: query
           schema: { type: number, default: 0 }
+        - $ref: "#/components/parameters/IncluirSinStock"
       responses:
         "200":
           description: Assembled outfit.
@@ -1242,6 +1267,7 @@ paths:
         - name: estilo
           in: query
           schema: { type: string, default: gym }
+        - $ref: "#/components/parameters/IncluirSinStock"
       responses:
         "200":
           description: Assembled outfit under budget.
@@ -1290,6 +1316,7 @@ paths:
         - name: excluir
           in: query
           schema: { type: string, default: "" }
+        - $ref: "#/components/parameters/IncluirSinStock"
       responses:
         "200":
           description: Assembled combo.
@@ -1395,6 +1422,7 @@ paths:
             other pick still compatible, total never above presupuesto) and demotes OUTLET boards.
             No effect without presupuesto. Any other value is a 400.
           schema: { type: string, enum: [ahorrar, gastar], default: ahorrar }
+        - $ref: "#/components/parameters/IncluirSinStock"
       responses:
         "200":
           description: >-

@@ -312,6 +312,11 @@ body { background: var(--bg); color: var(--t1); font-family: var(--font); font-s
   letter-spacing: .05em; text-transform: uppercase; border: 1px solid var(--bd2); }
 .badge-oferta { display: inline-flex; align-items: center; background: var(--r);
   color: #fff; font: 700 .58rem/1.4 var(--font); padding: 2px 7px; border-radius: 20px; }
+.badge-sin-stock { display: inline-flex; align-items: center; background: var(--s2);
+  color: var(--t3); font: 700 .58rem/1.4 var(--font); padding: 2px 7px; border-radius: 20px;
+  border: 1px solid var(--bd2); }
+/* Sin stock: la card sigue clickeable y legible, sólo se apaga la foto. */
+.card-sin-stock .card-img-wrap { opacity: .55; filter: grayscale(.6); }
 .badge-ml { display: inline-flex; align-items: center; gap: 3px; padding: 2px 7px;
   border-radius: 20px; font: 700 .58rem/1.4 var(--font); white-space: nowrap; margin-bottom: 2px; }
 .badge-all_time_low { background: color-mix(in srgb, var(--sem-warn) 15%, transparent); color: var(--y); border: 1px solid color-mix(in srgb, var(--sem-warn) 30%, transparent); }

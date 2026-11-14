@@ -1,5 +1,7 @@
 package ar.scraper.web;
 
+import ar.scraper.catalog.PoliticaStock;
+
 import ar.scraper.api.ApiException;
 import ar.scraper.api.ApiResponse;
 import ar.scraper.web.dto.OpResult;
@@ -18,16 +20,29 @@ import ar.scraper.security.ActorResolver;
 import ar.scraper.security.Sujeto;
 
 import java.util.Map;
-import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api")
-@RequiredArgsConstructor
 public class FavoritosController {
 
     private final FavoritosPort favoritos;
     private final ProductPort productos;
     private final ActorResolver actorResolver;
+    private final PoliticaStock politicaStock;
+
+    /** Default stock policy (7 days, system clock): for callers that build the controller by hand. */
+    public FavoritosController(FavoritosPort favoritos, ProductPort productos, ActorResolver actorResolver) {
+        this(favoritos, productos, actorResolver, PoliticaStock.porDefecto());
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public FavoritosController(FavoritosPort favoritos, ProductPort productos, ActorResolver actorResolver,
+                               PoliticaStock politicaStock) {
+        this.favoritos = favoritos;
+        this.productos = productos;
+        this.actorResolver = actorResolver;
+        this.politicaStock = politicaStock;
+    }
 
     @GetMapping("/favoritos")
     public ResponseEntity<ApiResponse<List<ObjectNode>>> getFavoritos() {
@@ -36,7 +51,7 @@ public class FavoritosController {
             String url = f.get("url");
             ObjectNode n = JsonNodeFactory.instance.objectNode();
             arr.add(n);
-            productos.obtenerProducto(url).ifPresent(p -> ProductJson.escribir(n, p));
+            productos.obtenerProducto(url).ifPresent(p -> ProductJson.escribir(n, p, politicaStock));
             n.put("url",    url);
             n.put("sitio",  ProductJson.safe(f.get("sitio")));
             n.put("nombre", n.has("nombre") && !n.get("nombre").asText().isBlank()

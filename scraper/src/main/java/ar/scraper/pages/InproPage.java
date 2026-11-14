@@ -286,7 +286,21 @@ public class InproPage extends BasePage implements CatalogPage {
                 .marca("")
                 .rubro("oficina")
                 .gymrat(false)
+                .enStock(enStock(n.path("variants")))
                 .build());
+    }
+
+    /** True when any variant has stock; false when none does; null when no variant reports a stock figure. */
+    private static Boolean enStock(JsonNode variants) {
+        boolean alguna = false;
+        boolean senal = false;
+        for (JsonNode v : variants) {
+            JsonNode stock = v.path("stock");
+            if (stock.isNull() || stock.isMissingNode()) continue;
+            senal = true;
+            if (stock.asInt(0) > 0) alguna = true;
+        }
+        return senal ? alguna : null;
     }
 
     private static JsonNode mejorVariante(JsonNode variants) {

@@ -97,7 +97,7 @@ public class KevingstonPage extends StorePage implements CatalogPage {
             double precio = n.path("precio").asDouble(0);
             String nombre = n.path("nombre").asText("").trim();
             String url = n.path("url_completa").asText("").trim();
-            if (sinStock(n) || precio <= 0 || precio < precioMin || precio > precioMax
+            if (precio <= 0 || precio < precioMin || precio > precioMax
                     || nombre.isEmpty() || url.isEmpty()) continue;
 
             double lista = n.path("preciomax").asDouble(0);
@@ -111,15 +111,20 @@ public class KevingstonPage extends StorePage implements CatalogPage {
                     .categoria("")
                     .genero(genero(n.path("idcategory").asText("")))
                     .talles(List.of())
+                    .enStock(enStock(n))
                     .build());
         }
         return new Listado(productos, total, filas.size(), paginas);
     }
 
-    /** Only an explicit 0 is out of stock: 34 of 1548 rows carry {@code "stock": null} and are for sale. */
-    private static boolean sinStock(JsonNode n) {
+    /**
+     * Only an explicit 0 is out of stock; 34 of 1548 rows carry {@code "stock": null}, which the
+     * site still lists for sale but is no stock signal, so it stays unknown (null).
+     */
+    private static Boolean enStock(JsonNode n) {
         JsonNode stock = n.path("stock");
-        return !stock.isNull() && !stock.isMissingNode() && stock.asInt(0) <= 0;
+        if (stock.isNull() || stock.isMissingNode()) return null;
+        return stock.asInt(0) > 0;
     }
 
     private static String genero(String idCategoria) {

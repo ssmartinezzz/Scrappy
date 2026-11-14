@@ -62,15 +62,47 @@ class CompraGamerFeedTest {
     }
 
     @Test
-    @DisplayName("vendible=0 y stock=0 excluyen el item, cada uno de forma independiente")
-    void excludesUnsellableItemsByEitherCondition() {
+    @DisplayName("vendible=0 y stock=0 NO descartan el item: se guarda con enStock=false, cada uno por separado")
+    void keepsUnsellableItemsFlaggedOutOfStock() {
         List<Product> result = parseFixture();
-        List<String> urls = result.stream().map(Product::url).toList();
 
-        assertThat(urls).as("id_producto=14895 tiene vendible=0")
-                .noneMatch(u -> u.contains("14895"));
-        assertThat(urls).as("id_producto=20001 tiene stock=0")
-                .noneMatch(u -> u.contains("20001"));
+        assertThat(productoPorId(result, 14895).enStock()).as("vendible=0").isFalse();
+        assertThat(productoPorId(result, 20001).enStock()).as("stock=0").isFalse();
+        assertThat(productoPorId(result, 1674).enStock()).as("vendible=1 y stock=10").isTrue();
+    }
+
+    @Test
+    @DisplayName("sin stock ni vendible en el feed no hay senal: enStock queda null, el item se guarda")
+    void missingStockSignalLeavesEnStockNull() {
+        ObjectNode item = MAPPER.createObjectNode();
+        item.put("id_producto", 910001);
+        item.put("nombre", "Producto Sin Senal");
+        item.put("id_categoria", 5);
+        item.put("id_subcategoria", 31);
+        item.put("precioLista", 20000);
+        item.put("precioEspecial", 18000);
+        String feed = "[" + item + "]";
+
+        List<Product> result = TechStorePage.parseCompraGamerFeed(
+                feed, CATEGORIAS_SUB, MARCAS, "Compragamer", BASE_URL, MIN, MAX);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).enStock()).isNull();
+    }
+
+    @Test
+    @DisplayName("un item sin stock y sin precio usable se sigue descartando: no hay nada que guardar")
+    void unsellableWithoutRealPriceIsStillDropped() {
+        ObjectNode item = MAPPER.createObjectNode();
+        item.put("id_producto", 910002);
+        item.put("nombre", "Agotado Sin Precio");
+        item.put("precioLista", 0);
+        item.put("precioEspecial", 0);
+        item.put("stock", 0);
+        item.put("vendible", 0);
+
+        assertThat(TechStorePage.parseCompraGamerFeed(
+                "[" + item + "]", CATEGORIAS_SUB, MARCAS, "Compragamer", BASE_URL, MIN, MAX)).isEmpty();
     }
 
     @Test

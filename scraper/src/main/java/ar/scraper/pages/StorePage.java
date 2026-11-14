@@ -46,7 +46,15 @@ abstract class StorePage extends BasePage {
     protected Product producto(String nombre, double precio, Double precioOriginal, String url,
                                String imagenUrl, String categoria, String genero, List<String> talles,
                                Integer sitioCategoriaOrigenId) {
+        return producto(nombre, precio, precioOriginal, url, imagenUrl, categoria, genero, talles,
+                sitioCategoriaOrigenId, null);
+    }
+
+    protected Product producto(String nombre, double precio, Double precioOriginal, String url,
+                               String imagenUrl, String categoria, String genero, List<String> talles,
+                               Integer sitioCategoriaOrigenId, Boolean enStock) {
         return Product.builder()
+                .enStock(enStock)
                 .sitioCategoriaOrigenId(sitioCategoriaOrigenId)
                 .sitio(sitio)
                 .nombre(nombre)
@@ -62,7 +70,13 @@ abstract class StorePage extends BasePage {
 
     static Product tecnologia(String sitio, String nombre, double precio, Double precioOriginal,
                               String url, String imagenUrl, String categoria) {
+        return tecnologia(sitio, nombre, precio, precioOriginal, url, imagenUrl, categoria, null);
+    }
+
+    static Product tecnologia(String sitio, String nombre, double precio, Double precioOriginal,
+                              String url, String imagenUrl, String categoria, Boolean enStock) {
         return Product.builder()
+                .enStock(enStock)
                 .sitio(sitio)
                 .nombre(nombre)
                 .precio(precio)

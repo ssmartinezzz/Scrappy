@@ -477,7 +477,7 @@ public class VtexPage extends StorePage implements CatalogPage, ArbolDeCategoria
             }
 
             return Optional.of(producto(nombre, p, oferta.get().original(), url, img, categoria,
-                    extraerGeneroVtex(prod, nombre), extraerTallesVtex(prod), hoja));
+                    extraerGeneroVtex(prod, nombre), extraerTallesVtex(prod), hoja, enStock(items)));
         } catch (Exception e) {
             return Optional.empty();
         }
@@ -512,8 +512,10 @@ public class VtexPage extends StorePage implements CatalogPage, ArbolDeCategoria
         return images.get(0).path("imageUrl").asText("");
     }
 
+    /** The first priced offer in stock; when none is known to be in stock, the first priced one. */
     private static Optional<Oferta> primeraOferta(JsonNode items) {
         if (!items.isArray()) return Optional.empty();
+        Optional<Oferta> primera = Optional.empty();
         for (JsonNode item : items) {
             JsonNode sellers = item.path("sellers");
             if (!sellers.isArray()) continue;
@@ -521,10 +523,38 @@ public class VtexPage extends StorePage implements CatalogPage, ArbolDeCategoria
                 JsonNode offer = seller.path("commertialOffer");
                 double p = offer.path("Price").asDouble(0);
                 double pOrig = offer.path("ListPrice").asDouble(0);
-                if (p > 0) return Optional.of(new Oferta(p, pOrig > p ? pOrig : null));
+                if (p <= 0) continue;
+                Oferta oferta = new Oferta(p, pOrig > p ? pOrig : null);
+                if (Boolean.TRUE.equals(ofertaEnStock(offer))) return Optional.of(oferta);
+                if (primera.isEmpty()) primera = Optional.of(oferta);
             }
         }
-        return Optional.empty();
+        return primera;
+    }
+
+    /** AvailableQuantity (> 0) first, IsAvailable when the quantity is missing; neither is unknown. */
+    private static Boolean ofertaEnStock(JsonNode offer) {
+        JsonNode cantidad = offer.path("AvailableQuantity");
+        if (cantidad.isNumber()) return cantidad.asDouble() > 0;
+        JsonNode disponible = offer.path("IsAvailable");
+        return disponible.isBoolean() ? disponible.asBoolean() : null;
+    }
+
+    /** Any offer in stock: in stock. Every offer explicitly out: sold out (row kept). Otherwise unknown. */
+    private static Boolean enStock(JsonNode items) {
+        boolean hayOfertas = false;
+        boolean todasAgotadas = true;
+        if (items.isArray()) {
+            for (JsonNode item : items) {
+                for (JsonNode seller : item.path("sellers")) {
+                    hayOfertas = true;
+                    Boolean enStock = ofertaEnStock(seller.path("commertialOffer"));
+                    if (Boolean.TRUE.equals(enStock)) return true;
+                    if (enStock == null) todasAgotadas = false;
+                }
+            }
+        }
+        return hayOfertas && todasAgotadas ? Boolean.FALSE : null;
     }
 
     private static String segmentoDeLaRutaMasProfunda(JsonNode cats) {

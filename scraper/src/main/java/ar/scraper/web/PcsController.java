@@ -1,6 +1,7 @@
 package ar.scraper.web;
 
 import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
+import ar.scraper.catalog.PoliticaStock;
 import ar.scraper.security.Sujeto;
 import ar.scraper.pcs.Gama;
 import ar.scraper.pcs.GamaWire;
@@ -34,11 +35,9 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import org.apache.commons.lang3.StringUtils;
-import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api")
-@RequiredArgsConstructor
 public class PcsController {
 
     private final ScraperService service;
@@ -46,6 +45,25 @@ public class PcsController {
     private final SavedPcsPort pcsGuardadas;
     private final PreferenciaArmadorPort preferenciaArmador;
     private final ar.scraper.security.ActorResolver actorResolver;
+    private final PoliticaStock politicaStock;
+
+    /** Default stock policy (7 days, system clock): for callers that build the controller by hand. */
+    public PcsController(ScraperService service, PcBuilder pcBuilder, SavedPcsPort pcsGuardadas,
+                         PreferenciaArmadorPort preferenciaArmador, ar.scraper.security.ActorResolver actorResolver) {
+        this(service, pcBuilder, pcsGuardadas, preferenciaArmador, actorResolver, PoliticaStock.porDefecto());
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public PcsController(ScraperService service, PcBuilder pcBuilder, SavedPcsPort pcsGuardadas,
+                         PreferenciaArmadorPort preferenciaArmador, ar.scraper.security.ActorResolver actorResolver,
+                         PoliticaStock politicaStock) {
+        this.service = service;
+        this.pcBuilder = pcBuilder;
+        this.pcsGuardadas = pcsGuardadas;
+        this.preferenciaArmador = preferenciaArmador;
+        this.actorResolver = actorResolver;
+        this.politicaStock = politicaStock;
+    }
 
     ResponseEntity<ApiResponse<ObjectNode>> builder(double presupuesto, boolean conGpu, String excluir, String gama) {
         return builder(presupuesto, conGpu, excluir, gama, "", "", "", "", null, null);
@@ -86,6 +104,17 @@ public class PcsController {
                 ramDual, wifi, capacidadMinimaGb, tamanioGabinete, tipoCooler, wattsMinimos, uso, ramMinimaGb, "");
     }
 
+    /** Same call without the stock opt-in: sold-out candidates are excluded. */
+    public ResponseEntity<ApiResponse<ObjectNode>> builder(double presupuesto, boolean conGpu, String excluir, String gama,
+            String ddr, String marcaCpu, String marcaGpu, String tipoAlmacenamiento,
+            Boolean ramDual, Boolean wifi,
+            Integer capacidadMinimaGb, String tamanioGabinete, String tipoCooler, Integer wattsMinimos,
+            String uso, Integer ramMinimaGb, String modo) {
+        return builder(presupuesto, conGpu, excluir, gama, ddr, marcaCpu, marcaGpu, tipoAlmacenamiento,
+                ramDual, wifi, capacidadMinimaGb, tamanioGabinete, tipoCooler, wattsMinimos, uso, ramMinimaGb, modo,
+                false);
+    }
+
     @GetMapping("/pcs/builder")
     public ResponseEntity<ApiResponse<ObjectNode>> builder(@RequestParam(defaultValue = "0") double presupuesto,
             @RequestParam(defaultValue = "false") boolean conGpu,
@@ -103,7 +132,8 @@ public class PcsController {
             @RequestParam(required = false) Integer wattsMinimos,
             @RequestParam(defaultValue = "") String uso,
             @RequestParam(required = false) Integer ramMinimaGb,
-            @RequestParam(defaultValue = "") String modo) {
+            @RequestParam(defaultValue = "") String modo,
+            @RequestParam(defaultValue = "false") boolean incluirSinStock) {
         Gama gamaPedida;
         PreferenciasDeArmado prefs;
         Uso usoPedido;
@@ -122,11 +152,13 @@ public class PcsController {
         if (r == null) return ResponseEntity.noContent().build();
 
         Set<String> excluirUrls = Params.setOrEmpty(excluir);
+        // A build is something to buy: confirmed sold-out parts are not candidates unless asked for.
+        List<ar.scraper.model.Product> candidatos = politicaStock.candidatosDelCatalogo(r.productos(), incluirSinStock);
 
         // AHORRAR keeps the 7-arg call: it is the pinned default path (CsvQueryParamsTest mocks it).
         PcBuild build = modoPedido == ModoPresupuesto.AHORRAR
-                ? pcBuilder.armar(r.productos(), presupuesto, conGpu, excluirUrls, gamaPedida, prefs, usoPedido)
-                : pcBuilder.armar(r.productos(), presupuesto, conGpu, excluirUrls, gamaPedida, prefs, usoPedido,
+                ? pcBuilder.armar(candidatos, presupuesto, conGpu, excluirUrls, gamaPedida, prefs, usoPedido)
+                : pcBuilder.armar(candidatos, presupuesto, conGpu, excluirUrls, gamaPedida, prefs, usoPedido,
                         modoPedido);
         return ResponseEntity.ok(ApiResponse.ok(PcBuildJson.toJson(build)));
     }

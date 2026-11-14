@@ -153,7 +153,7 @@ class KevingstonPageParseTest {
     // ─── filters ───────────────────────────────────────────────────────────
 
     @Test
-    @DisplayName("stock: only an explicit 0 (or less) is out of stock; null and missing are for sale")
+    @DisplayName("stock: an explicit 0 (or less) is KEPT as out of stock; null and missing are for sale but unknown")
     void stockRules() {
         ObjectNode root = conFilas(5);
         fila(root, 0).put("stock", "0");
@@ -166,9 +166,14 @@ class KevingstonPageParseTest {
 
         assertThat(l.crudos()).as("crudos counts every row the API sent").isEqualTo(5);
         assertThat(l.productos()).extracting(Product::url).containsExactly(
+                fila(root, 0).path("url_completa").asText(),
                 fila(root, 1).path("url_completa").asText(),
                 fila(root, 2).path("url_completa").asText(),
+                fila(root, 3).path("url_completa").asText(),
                 fila(root, 4).path("url_completa").asText());
+        // null/missing stock is no signal (CODE-5): never "in stock", never "out of stock".
+        assertThat(l.productos()).extracting(Product::enStock)
+                .containsExactly(false, null, null, false, true);
     }
 
     @Test

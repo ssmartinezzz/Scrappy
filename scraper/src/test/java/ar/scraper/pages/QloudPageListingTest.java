@@ -134,4 +134,11 @@ class QloudPageListingTest {
             throw new UncheckedIOException(e);
         }
     }
+
+    @Test
+    @DisplayName("stock: the card markup has no stock marker, so it stays unknown")
+    void stockIsUnknown() {
+        assertThat(QloudPage.parseListing(HARDWARE_HTML, "Rockethard", BASE_URL, "Hardware", MIN, MAX))
+                .isNotEmpty().allSatisfy(p -> assertThat(p.enStock()).isNull());
+    }
 }

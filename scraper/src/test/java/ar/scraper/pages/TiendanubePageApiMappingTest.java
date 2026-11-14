@@ -199,4 +199,73 @@ class TiendanubePageApiMappingTest {
                 .isPresent();
         assertThat(fromJs("{\"nombre\":\"" + nombre + "\",\"precio\":\"$ 5.000\",\"url\":\"/productos/g\"}")).isPresent();
     }
+
+    private static String tnVariants(String... fields) {
+        StringBuilder b = new StringBuilder("\"variants\":[");
+        for (int i = 0; i < fields.length; i++) {
+            if (i > 0) b.append(',');
+            b.append("{\"price\":\"5.000,00\"").append(fields[i].isEmpty() ? "" : "," + fields[i]).append('}');
+        }
+        return b.append(']').toString();
+    }
+
+    private Boolean stockOf(String... variantFields) throws Exception {
+        return fromApi(product(tnVariants(variantFields))).orElseThrow().enStock();
+    }
+
+    @Test
+    @DisplayName("stock: a variant with stock > 0 is in stock")
+    void positiveStockIsInStock() throws Exception {
+        assertThat(stockOf("\"stock\":0,\"stock_management\":true", "\"stock\":4,\"stock_management\":true")).isTrue();
+    }
+
+    @Test
+    @DisplayName("stock: every tracked variant at 0 is kept out of stock")
+    void zeroStockEverywhereIsOutOfStock() throws Exception {
+        assertThat(stockOf("\"stock\":0,\"stock_management\":true")).isFalse();
+        assertThat(stockOf("\"stock\":0", "\"stock\":0")).isFalse();
+    }
+
+    @Test
+    @DisplayName("stock: null with stock_management=false is documented unlimited stock, so in stock")
+    void untrackedStockIsUnlimited() throws Exception {
+        assertThat(stockOf("\"stock\":null,\"stock_management\":false")).isTrue();
+        assertThat(stockOf("\"stock\":0,\"stock_management\":true", "\"stock\":null,\"stock_management\":false")).isTrue();
+    }
+
+    @Test
+    @DisplayName("stock: null without the stock_management marker, or mixed with zeros, stays unknown")
+    void nullWithoutMarkerIsUnknown() throws Exception {
+        assertThat(stockOf("\"stock\":null")).isNull();
+        assertThat(stockOf("")).isNull();
+        assertThat(stockOf("\"stock\":0", "\"stock\":null")).isNull();
+    }
+
+    private static String tnVariant(String price, String compareAt, String stockFields) {
+        return "{\"price\":\"" + price + "\"" + (compareAt.isEmpty() ? "" : ",\"compare_at_price\":\"" + compareAt + "\"")
+                + (stockFields.isEmpty() ? "" : "," + stockFields) + "}";
+    }
+
+    @Test
+    @DisplayName("price: a sold-out first variant does not set the price while another variant has stock")
+    void priceComesFromCheapestInStockVariant() throws Exception {
+        String json = product("\"variants\":[" + tnVariant("1.000,00", "", "\"stock\":0,\"stock_management\":true") + ","
+                + tnVariant("9.000,00", "12.000,00", "\"stock\":3,\"stock_management\":true") + ","
+                + tnVariant("7.000,00", "10.000,00", "\"stock\":null,\"stock_management\":false") + "]");
+
+        Product p = fromApi(json).orElseThrow();
+
+        assertThat(p.precio()).isEqualTo(7000);
+        assertThat(p.precioOriginal()).isEqualTo(10000.0);
+        assertThat(p.enStock()).isTrue();
+    }
+
+    @Test
+    @DisplayName("price: with no variant known in stock, variants[0] still sets the price")
+    void priceFallsBackToFirstVariant() throws Exception {
+        assertThat(fromApi(product("\"variants\":[" + tnVariant("1.000,00", "", "\"stock\":0") + ","
+                + tnVariant("9.000,00", "", "\"stock\":0") + "]")).orElseThrow().precio()).isEqualTo(1000);
+        assertThat(fromApi(product("\"variants\":[" + tnVariant("1.000,00", "", "") + ","
+                + tnVariant("9.000,00", "", "\"stock\":null") + "]")).orElseThrow().precio()).isEqualTo(1000);
+    }
 }

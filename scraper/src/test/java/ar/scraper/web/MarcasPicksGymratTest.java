@@ -51,6 +51,7 @@ class MarcasPicksGymratTest {
 
         ctx = new AnnotationConfigApplicationContext();
         ctx.registerBean(CatalogSnapshotPort.class, () -> () -> catalogo);
+        ctx.registerBean(ar.scraper.catalog.PoliticaStock.class, ar.scraper.catalog.PoliticaStock::porDefecto);
         ctx.registerBean(GroupingService.class, () -> new GroupingService(new ProductIdentity(), new JaccardSimilarity()));
         ctx.register(CacheConfig.class, CatalogoDerivadoCache.class);
         ctx.refresh();
