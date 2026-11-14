@@ -828,6 +828,28 @@ con la forma de [`GET /promos`](#get-promos). `[]` si no tiene.
 
 ---
 
+## GET /producto/{key}/comparado
+
+Las **otras** publicaciones del mismo producto en otras tiendas, cada una con su historial. Es
+la lectura detrás de las líneas extra del gráfico de `/historial/:key`.
+
+```json
+{"data":[{"sitio":"B","url":"https://b.com/x","key":"<16hex>","precio":90.0,"img":"…",
+  "stock":"en_stock","historial":{"puntos":[{"fecha":"2026-11-01","precio":95.0}],…}}]}
+```
+
+- "Mismo producto" es el grupo multi-sitio del agrupado de `/grupos`
+  ([`GROUPING.md`](./GROUPING.md)), leído de la entrada cacheada en `CatalogoDerivadoCache`
+  (sin filtros): no reagrupa por request.
+- El historial de todos los hermanos sale de **una** consulta (`url = ANY(?)`), con la forma
+  de `historial` de [`/producto/{key}`](#get-productokey); `puntos: []` si un hermano no tiene serie.
+- Las tiendas sin stock vienen marcadas (`stock`), no se descartan.
+- **`200` con `[]`** — el producto está solo en su grupo, o no está en el snapshot en memoria
+  (soft-deleted: `/producto/{key}` sí lo lee de la base, pero no tiene hermanos).
+- **`404`** — la key no existe, igual que `/producto/{key}`.
+
+---
+
 ## GET /promos
 
 Las promos de pago vigentes de las tiendas (cuotas sin interés, descuentos y recargos por medio de pago), leídas de

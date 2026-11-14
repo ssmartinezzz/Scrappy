@@ -31,7 +31,6 @@ const AgentChatPanel = lazy(() => import('./AgentChatPanel'));
 const TrendsPanel    = lazy(() => import('./TrendsPanel'));
 const OportunidadesPanel = lazy(() => import('./OportunidadesPanel'));
 const OportunidadesBadgePage = lazy(() => import('./OportunidadesBadgePage'));
-const GruposPanel    = lazy(() => import('./GruposPanel'));
 const PicksPanel     = lazy(() => import('./PicksPanel'));
 const MarcasPanel    = lazy(() => import('./MarcasPanel'));
 const FavoritosPanel = lazy(() => import('./FavoritosPanel'));
@@ -351,11 +350,6 @@ function MarcasRoute() {
   return <MarcasPanel onProductClick={prod => dispatch({ type:'OPEN_DETAIL', prod })}/>;
 }
 
-function GruposRoute() {
-  const { dispatch } = useOutletContext();
-  return <GruposPanel onOpenDetail={prod => dispatch({ type:'OPEN_DETAIL', prod })}/>;
-}
-
 // Historial de precios de un producto. No consume el outlet context: se lee
 // entera de `?url=` + la API, para que el deep link funcione sin haber
 // pasado antes por el catálogo.
@@ -490,7 +484,7 @@ function UsuariosAdminRoute() {
 
 export {
   CatalogoRoute as CatalogoPanelRoute, PicksRoute as PicksPanelRoute,
-  MarcasRoute as MarcasPanelRoute, GruposRoute as GruposPanelRoute,
+  MarcasRoute as MarcasPanelRoute,
   RecomendadosRoute as RecomendadosPanelRoute,
   MercadoRoute as MercadoPanelRoute,
   HistorialRoute as HistorialPanelRoute,

@@ -20,7 +20,7 @@ export const SEMANTIC = {
 // tier}. tier drives styling (positive/neutral deal callouts vs. warning for
 // above_market/fake_discount — spec "Negative Badges Visible as Warnings").
 // BADGE_LABELS/BADGE_COLORS below are re-exported/derived so existing
-// consumers (CatalogoFilterBar, ProductCard, GroupCard, TrendsPanel, api.js)
+// consumers (CatalogoFilterBar, ProductCard, TrendsPanel, api.js)
 // need no per-key edits.
 export const BADGE_META = {
   all_time_low:   { label: '🏆 Mínimo histórico',          color: SEMANTIC.warn,     tier: 'positive' },

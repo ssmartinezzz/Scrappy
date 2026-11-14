@@ -2,6 +2,10 @@
 
 Paquete `ar.scraper.aggregator.grouping`. Decide qué publicaciones de distintos sitios son el mismo producto.
 
+**Consumidores:** `GET /api/grupos` (el tool MCP `comparar_entre_sitios` y las suites de perf) y
+`GET /api/producto/{key}/comparado`, que dibuja una línea por tienda en el gráfico de
+`/historial/:key` ([`FRONTEND.md`](./FRONTEND.md)). La página `/grupos` se borró el 2026-11-14.
+
 ## Criterio
 
 | Paso | Regla | Dónde |

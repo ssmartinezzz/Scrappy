@@ -1,5 +1,5 @@
 import { render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import App from './App';
@@ -120,6 +120,21 @@ describe('App — role-aware UI, hidden not disabled (design D6, spec frontend-r
     // CronjobsPage itself never mounted — it would have called GET /api/cron,
     // which authedRouter() doesn't stub, and that would throw. Getting here
     // clean proves RequireRole intercepted before the routed page rendered.
+  });
+
+  // grupos-en-historial: la página /grupos se borró; un link viejo cae en el catálogo.
+  it('an old /grupos link redirects to /catalogo', async () => {
+    global.fetch = authedRouter({ roles: ['VIEWER'] });
+    function Ruta() { return <output data-testid="ruta">{useLocation().pathname}</output>; }
+
+    render(
+      <MemoryRouter initialEntries={['/grupos']}>
+        <App />
+        <Ruta />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(screen.getByTestId('ruta')).toHaveTextContent(/^\/catalogo$/));
   });
 
   it('an ADMIN deep-linking to /cronjobs sees the real page, not AccessDenied', async () => {

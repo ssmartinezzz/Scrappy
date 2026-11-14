@@ -7,9 +7,10 @@
 Catálogo `/catalogo` · Picks `/picks(/:rubro(/:categoria))` · Para ti `/recomendados` ·
 Cronjobs `/cronjobs` · Marcas `/marcas` · Suplementos `/suplementos` ·
 Análisis `/analisis/mercado` · `/analisis/oportunidades(/:badge)` ·
-Comparar `/grupos` · Cuotas `/financiacion` · Favoritos `/favoritos` ·
+Cuotas `/financiacion` · Favoritos `/favoritos` ·
 Outfits `/outfits` · PCs `/pcs` · Historial de precios `/historial/:key`.
-`/tendencias` redirige a `/analisis/mercado`.
+`/tendencias` redirige a `/analisis/mercado`. `/grupos` se borró (2026-11-14) y redirige a
+`/catalogo`: comparar tiendas vive en el gráfico de `/historial/:key` (abajo).
 
 El panel "Más filtros" del catálogo tiene una sección **Deporte** con un chip por deporte
 presente en `facets.deportes` (single-select: otro clic lo desmarca). Manda
@@ -108,6 +109,17 @@ precios **unitarios**, se multiplican por `cantidadUnidades`) — y la mediana s
 mete en la escala sólo si está a menos de un rango propio de la serie; más
 lejos, un aviso "fuera de escala". Sin stats o con `n < 5`, se abstiene.
 Lógica pura en `lib/serieHistorial.js`.
+
+**Si otras tiendas venden el mismo producto, el gráfico suma una línea por tienda.**
+`GET /api/producto/{key}/comparado` trae los otros miembros de su grupo (el agrupado de
+[`GROUPING.md`](./GROUPING.md)) con su historial. Es **aditivo**: con `[]`, con el pedido
+pendiente o fallado, el gráfico es exactamente el de una tienda. Con hermanos, la serie propia
+conserva área, stats, rangos y banda; cada tienda suma una `Line` (`connectNulls`), el eje Y se
+estira para incluirlas, una leyenda (`ul[aria-label="Tiendas"]`) da sitio y precio actual, marca
+"más barato" sólo entre las que tienen stock y punteada/atenuada la "sin stock"; cada tienda abre
+su publicación en pestaña nueva. El tooltip lista el precio que regía en cada tienda ese día
+(`vigentesEn`: último punto ≤ día; una tienda sin precio todavía no aparece). Las stats son sólo
+del producto propio. Lógica pura en `lib/serieComparada.js`.
 
 ⚠️ **`/armadores` NO existe más.** Era la misma idea que `/favoritos` en otra
 ruta, y el reparto no cerraba: los outfits guardados habían salido de

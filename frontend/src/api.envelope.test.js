@@ -9,7 +9,6 @@ import {
   desactivarUsuario,
   fetchCronExecutions,
   fetchData,
-  fetchGrupos,
   fetchRecomendados,
   fetchUsuarios,
   listCronJobs,
@@ -114,14 +113,6 @@ describe('list readers rebuild the shapes the screens consume', () => {
     global.fetch.mockResolvedValue(errResponse(500, { code: 'error_interno', message: 'x' }));
 
     await expect(fetchData({})).resolves.toBeNull();
-  });
-
-  it('fetchGrupos returns { grupos, total, page, size }', async () => {
-    global.fetch.mockResolvedValue(okResponse({
-      data: [{ nombre: 'g' }], page: { number: 1, size: 20, total: 41, totalPages: 3 },
-    }));
-
-    await expect(fetchGrupos({})).resolves.toEqual({ grupos: [{ nombre: 'g' }], total: 41, page: 1, size: 20 });
   });
 
   it('fetchRecomendados returns { items, total, page, size } and asks for page 0 by default', async () => {
