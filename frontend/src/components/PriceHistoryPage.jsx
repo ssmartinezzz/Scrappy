@@ -3,11 +3,12 @@ import { Link, useParams } from 'react-router-dom';
 import { Area, CartesianGrid, ComposedChart, Line, ReferenceArea, ReferenceLine, XAxis, YAxis } from 'recharts';
 import { ChartContainer, ChartTooltip } from './ui/chart';
 import { ImageWithFallback } from './ui/image-with-fallback';
-import { fetchProductoDetalle, fetchTendencias, fmt } from '../api';
+import { fetchComparado, fetchProductoDetalle, fetchTendencias, fmt } from '../api';
 import { cn } from '../lib/utils';
 import {
   RANGOS, contextoCategoria, dominioPrecio, etiquetaDia, etiquetaTiempo, serieDiaria, serieEnRango, ticksTiempo,
 } from '../lib/serieHistorial';
+import { anexarSeries, masBarato, vigentesEn } from '../lib/serieComparada';
 
 /**
  * Vista dedicada del historial de precios de un producto.
@@ -25,13 +26,26 @@ function precioCorto(v) {
   return `$${v}`;
 }
 
-function TooltipPrecio({ active, payload }) {
+export function TooltipPrecio({ active, payload, actual, extras = [] }) {
   if (!active || !payload?.length) return null;
   const d = payload[0].payload;
+  const otros = extras.length ? vigentesEn(extras, d.t) : {};
   return (
     <div className="bg-s2 border border-border rounded-card p-2 shadow-lg">
       <div className="text-[.7rem] text-t4 mb-1">{etiquetaDia(d.t)}</div>
-      <div className="text-sm font-semibold text-t1">ARS ${fmt(d.vigente)}</div>
+      {extras.length === 0
+        ? <div className="text-sm font-semibold text-t1">ARS ${fmt(d.vigente)}</div>
+        : (
+          <ul className="space-y-0.5 text-[.75rem]">
+            <li className="font-semibold text-t1">{actual?.sitio} · ARS ${fmt(d.vigente)}</li>
+            {extras.filter(t => otros[t.id] != null).map(t => (
+              <li key={t.id} className="inline-flex items-center gap-1 text-t2 w-full">
+                <span aria-hidden="true" className="inline-block w-2 h-2 rounded-full" style={{ background: t.color }}/>
+                {t.sitio} · ARS ${fmt(otros[t.id])}
+              </li>
+            ))}
+          </ul>
+        )}
       {!d.real && <div className="text-[.65rem] text-t4">precio vigente, sin cambio ese día</div>}
     </div>
   );
@@ -81,6 +95,7 @@ export default function PriceHistoryPage() {
   const [loading, setLoading] = useState(true);
   const [rango, setRango]     = useState('Todo');
   const [distribucion, setDistribucion] = useState(null);
+  const [hermanos, setHermanos] = useState([]);
 
   // Un solo registro alcanza: un precio que nunca cambió es una recta hasta
   // hoy. Lo único que no se dibuja es una ventana de cero días.
@@ -106,6 +121,17 @@ export default function PriceHistoryPage() {
       .then(r => setDistribucion(r.data?.distribucionCategorias ?? null))
       .catch(() => setDistribucion(null));
   }, []);
+
+  // Optional: a failed or pending comparison leaves the single-store chart.
+  useEffect(() => {
+    setHermanos([]);
+    if (!key) return;
+    let vigente = true;
+    fetchComparado(key)
+      .then(r => { if (vigente) setHermanos(Array.isArray(r) ? r : []); })
+      .catch(() => {});
+    return () => { vigente = false; };
+  }, [key]);
 
   if (loading) return <div className="p-3 text-t4">Cargando historial…</div>;
 
@@ -151,7 +177,8 @@ export default function PriceHistoryPage() {
         </p>
       ) : (
         <GraficoHistorial serie={serie} rango={rango} onRango={setRango}
-                          precioActual={p.precio} categoria={contextoCategoria(distribucion, p)}/>
+                          precioActual={p.precio} categoria={contextoCategoria(distribucion, p)}
+                          actual={p} hermanos={hermanos}/>
       )}
     </div>
   );
@@ -164,16 +191,22 @@ const TONOS = {
   1:    { texto: 'text-danger',  trazo: 'var(--r)' },
 };
 
-function GraficoHistorial({ serie, rango, onRango, precioActual, categoria }) {
+function GraficoHistorial({ serie, rango, onRango, precioActual, categoria, actual, hermanos }) {
   const { desde, hasta, stats } = serie;
-  const { domain, ticks, incluyeReferencia } = dominioPrecio(stats.min, stats.max, categoria?.mediana);
+  const extras = useHermanosEnRango(hermanos, rango);
+  const barato = extras.length
+    ? masBarato([{ id: 'actual', precio: actual.precio, stock: actual.stock }, ...extras])
+    : null;
+  const extremos = extras.flatMap(t => t.puntos.map(q => q.precio));
+  const { domain, ticks, incluyeReferencia } = dominioPrecio(
+    Math.min(stats.min, ...extremos), Math.max(stats.max, ...extremos), categoria?.mediana);
   const bandaVisible = categoria && categoria.q3 >= domain[0] && categoria.q1 <= domain[1];
   const vsMediana = categoria && precioActual > 0
     ? Math.round((precioActual / categoria.mediana - 1) * 100)
     : null;
   const delta = stats.deltaPct;
   const color = TONOS[Math.sign(delta)].trazo;
-  const filas = useMemo(() => serieDiaria(serie), [serie]);
+  const filas = useMemo(() => anexarSeries(serieDiaria(serie), extras), [serie, extras]);
 
   return (
     <>
@@ -234,7 +267,7 @@ function GraficoHistorial({ serie, rango, onRango, precioActual, categoria }) {
                  tick={{ fontSize: 11, fill: 'var(--t4)' }} tickMargin={8} width={56}
                  tickFormatter={precioCorto}/>
 
-          <ChartTooltip content={<TooltipPrecio/>}
+          <ChartTooltip content={<TooltipPrecio actual={actual} extras={extras}/>}
                         cursor={{ strokeDasharray: '3 3', stroke: 'var(--t4)', strokeOpacity: 0.5 }}/>
 
           {/* La curva une los cambios (connectNulls salta los días sin
@@ -245,8 +278,17 @@ function GraficoHistorial({ serie, rango, onRango, precioActual, categoria }) {
           <Line dataKey="vigente" stroke="none" dot={false} legendType="none"
                 activeDot={{ r: 4, fill: color, stroke: 'var(--bg)', strokeWidth: 2 }}
                 isAnimationActive={false}/>
+          {extras.map(t => (
+            <Line key={t.id} dataKey={t.id} type="monotone" connectNulls dot={false}
+                  stroke={t.color} strokeWidth={2} activeDot={false}
+                  strokeDasharray={t.stock === 'sin_stock' ? '5 4' : undefined}
+                  strokeOpacity={t.stock === 'sin_stock' ? 0.5 : 1}
+                  isAnimationActive={false}/>
+          ))}
         </ComposedChart>
       </ChartContainer>
+
+      {extras.length > 0 && <LeyendaTiendas actual={actual} color={color} extras={extras} barato={barato}/>}
 
       {bandaVisible && (
         <div className="flex flex-wrap gap-4 mt-1 text-[.68rem] text-t4">
@@ -264,5 +306,43 @@ function GraficoHistorial({ serie, rango, onRango, precioActual, categoria }) {
         </div>
       )}
     </>
+  );
+}
+
+const COLORES = ['#3B6FB6', 'var(--y)', '#8E5AA8', '#2A9D9D', 'var(--t3)', 'var(--r)', 'var(--g)'];
+
+function useHermanosEnRango(hermanos, rango) {
+  return useMemo(() => hermanos.map((h, i) => ({
+    id: `h${i}`, sitio: h.sitio, url: h.url, precio: h.precio, stock: h.stock,
+    color: COLORES[i % COLORES.length],
+    puntos: h.historial?.puntos?.length ? serieEnRango(h.historial.puntos, rango).puntos : [],
+  })), [hermanos, rango]);
+}
+
+function LeyendaTiendas({ actual, color, extras, barato }) {
+  const tiendas = [{ id: 'actual', sitio: actual.sitio, precio: actual.precio, stock: actual.stock, color }, ...extras];
+  return (
+    <ul aria-label="Tiendas" className="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-[.72rem] text-t3">
+      {tiendas.map(t => {
+        const sinStock = t.stock === 'sin_stock';
+        const contenido = (
+          <>
+            <span aria-hidden="true" className="inline-block w-3 border-t-2"
+                  style={{ borderColor: t.color, borderStyle: sinStock ? 'dashed' : 'solid' }}/>
+            {t.sitio} · ARS ${fmt(t.precio)}
+            {sinStock && <span className="text-t4">sin stock</span>}
+            {t.id === barato && <span className="font-semibold text-success">más barato</span>}
+          </>
+        );
+        return (
+          <li key={t.id} className={cn(sinStock && 'opacity-60')}>
+            {t.id === 'actual'
+              ? <span className="inline-flex items-center gap-1">{contenido}</span>
+              : <a className="inline-flex items-center gap-1 hover:text-t1 hover:underline" href={t.url}
+                   target="_blank" rel="noopener noreferrer">{contenido}</a>}
+          </li>
+        );
+      })}
+    </ul>
   );
 }

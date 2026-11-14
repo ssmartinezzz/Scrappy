@@ -195,6 +195,12 @@ export async function fetchProductoDetalle(key) {
   return softUnwrap(r);
 }
 
+// Otras tiendas que venden el mismo producto, con su serie. [] si está solo.
+export async function fetchComparado(key) {
+  const r = await authedFetch(`${BASE}/api/producto/${encodeURIComponent(key)}/comparado`);
+  return softUnwrap(r);
+}
+
 // { ipc: Resumen, usd: Resumen, actualizado }
 export async function fetchIndices() {
   const r = await authedFetch(`${BASE}/api/indices`);
