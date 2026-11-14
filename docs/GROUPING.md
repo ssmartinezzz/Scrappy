@@ -26,13 +26,19 @@ Se extraen del nombre en minúsculas y sin tildes. Una spec veta el par sólo si
 |---|---|---|
 | Unidades normalizadas: capacidad (TB→GB, `2x8gb`=16), peso (kg/lb→g), volumen (l/oz→ml), W, Hz, MHz, GHz, mAh, DPI, pulgadas, cápsulas, servicios | `2 LB` ≈ `907 gr`, `24 oz` ≈ `700ml`, `1TB` = `1024GB`, `7''` = `7"` | algún valor coincide con tolerancia del 4% |
 | Dimensiones con unidad (`900x400x3mm`) | mousepad L vs XL | algún par de lados coincide |
-| Talle en letra (`s`…`xxxl`) y `talle N` | mousepad **S** vs **XL** | algún valor coincide |
+| Talle en letra (`s`…`xxxl`), en palabra (`small`, `medium`, `large`, `xlarge`) y `talle N` | mousepad **S** vs **XL**, Gigantus **Large** vs **XXL** | algún valor coincide |
+| Género (`hombre`, `mujer`, `dama`, `caballero`, `men`, `women`…; `unisex` abstiene). Si el nombre calla, decide el campo `genero` (sólo `hombre`/`mujer`) | Charged Assert 10 **de Hombre** vs **para Mujer** | algún valor coincide |
+| Certificación 80 Plus (`bronze`…`titanium`), sólo si el nombre dice "80 plus"/"80+" | Smart BX3 **Bronze** vs **Gold** | algún valor coincide |
+| Línea de hardware (`tuf`, `strix`, `ryuo`, `prime`, `dual`, `aorus`, `eagle`, `ventus`…; sin `rog` ni `gaming`, que cruzan líneas) | ASUS **TUF** LC III vs ROG **Strix** LC III | algún valor coincide |
 | Número de modelo suelto de 3–5 dígitos | RTX **5060** vs **5080**, Elite **301** vs **600** | un conjunto incluye al otro (`860` ≈ `860 2280`) |
 | Código corto letra+dígito | Throne **R1** vs **R20**, MWE **V2** vs **V3** | un conjunto incluye al otro |
 | Tier de GPU (`ti`, `super`, `xt`, `xtx`) | 5060 vs 5060 **Ti** | iguales, sólo si los dos tienen número de modelo |
 | Versión de 1–2 dígitos: romanos a número, `3.0` = `3`, `2.5` es un solo valor; ignora `talle N`, SATA III, 80 Plus, USB/PCIe/ATX/Gen x.y, DDR, pulgadas | Caven **2.0** vs **III**, Copa Pure **IV** vs **3** | un conjunto incluye al otro; además versión ∪ número de modelo (New Balance **80** vs **370**) |
 | Suela de botín (`fg`, `tf`, `ag`, `mg`, `sg`, `ic`; "cancha cubierta"/"sala"/"futsal" = ic, "multitapón"/"pasto artificial" = tf, "in" sólo como última palabra) | Predator Club **FG** vs **In**, Copa Pure **FG** vs **TF** | algún valor coincide (`FG/MG` ≈ `FG`) |
 | Edición (`elite`, `pro`, `academy`, `club`, `league`, `lite`, `plus`, `max`, `mini`, `ultra`, `base`, `alpha`, `platform`, `se`) | Mercurial **Elite** vs **Club**, Viper V3 Pro vs Pro **SE** | iguales |
+
+El número de una unidad nunca es la cola de un código: "Gigantus **V2 L**" no son 2 litros (antes la L se perdía y
+el pad L agrupaba con el XXL); "6x500ml" sigue siendo 500 ml.
 
 Ruido descartado a propósito: velocidades (`6000MB/s` no es talle S ni capacidad), `M.2`, separador de miles
 (`20.000 DPI`), cantidad de fans o packs (`x3`, `4x`: las tiendas los informan distinto para el mismo gabinete),
@@ -44,6 +50,9 @@ multi-sitio cambian; revisados a mano, todos cortes correctos (placas de video 5
 grupo, mousepad S con XL, whey 2 lb con 5 lb, RAM 3000 con 3200 MHz, mochila 25 L con 8 L). Segunda ronda (versiones, edición, niños, sólo-marca): 3172 → 3216 grupos
 multi-sitio; recupera procesadores y fuentes que la igualdad estricta separaba. Tercera ronda (marca del nombre, empates
 ambiguos): 3224 → 3260 grupos, 10 367 → 9 911 productos agrupados; grupos con precio máx/mín ≥ 1.6: 482 → 422. Cuarta ronda (suela de botín): 3260 → 3270 grupos.
+Quinta ronda, medida con el propio Java sobre el catálogo con `genero` (talla en palabra, unidad pegada a un código,
+género, 80 Plus, línea de hardware): 3272 → 3435 grupos multi-sitio, 9903 → 9786 productos agrupados, grupos con
+precio máx/mín ≥ 1.6: 425 → 409. El género parte grupos que Sporting armaba con su versión Hombre y la Mujer a la vez.
 
 ## Medición (dev, 33.5k activos, 2026-10-13)
 
