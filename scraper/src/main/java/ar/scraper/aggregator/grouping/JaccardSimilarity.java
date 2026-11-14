@@ -42,6 +42,7 @@ public class JaccardSimilarity {
         final boolean kids;
         private Set<String> codigos;
         private Set<String> versiones;
+        private NameSpecs specs;
 
         Rasgos(Product p, Set<String> firma) {
             this.firma = firma;
@@ -53,6 +54,11 @@ public class JaccardSimilarity {
         Set<String> codigos() {
             if (codigos == null) codigos = codigosModelo(nombre);
             return codigos;
+        }
+
+        NameSpecs specs() {
+            if (specs == null) specs = NameSpecs.of(nombre);
+            return specs;
         }
 
         Set<String> versiones() {
@@ -142,7 +148,8 @@ public class JaccardSimilarity {
         if (a.kids != b.kids) return false;
         if (!a.marca.isEmpty() && !b.marca.isEmpty() && !a.marca.equals(b.marca)) return false;
         if (!a.codigos().isEmpty() && !b.codigos().isEmpty() && !a.codigos().equals(b.codigos())) return false;
-        return a.versiones().isEmpty() || b.versiones().isEmpty() || a.versiones().equals(b.versiones());
+        if (!a.versiones().isEmpty() && !b.versiones().isEmpty() && !a.versiones().equals(b.versiones())) return false;
+        return a.specs().compatibleWith(b.specs());
     }
 
     private Set<String> codigosModelo(String nombre) {
