@@ -141,4 +141,16 @@ class NameSpecsTest {
         assertThat(num("short 7''", "pulg")).containsExactly(7.0);
         assertThat(ok("short launch 6''", "short launch 7''")).isFalse();
     }
+
+    @Test
+    void soleComesFromTokensSynonymsAndTrailingIn() {
+        assertThat(txt("goletto fg/mg", "suela")).containsExactlyInAnyOrder("fg", "mg");
+        assertThat(txt("botin futsal", "suela")).containsExactly("ic");
+        assertThat(txt("botin pasto artificial", "suela")).containsExactly("tf");
+        assertThat(txt("botin multitapon", "suela")).containsExactly("tf");
+        assertThat(txt("predator club in", "suela")).containsExactly("ic");
+        assertThat(txt("short under armour launch 5\" 2 in 1", "suela")).isEmpty();
+        assertThat(ok("copa fg", "copa tf")).isFalse();
+        assertThat(ok("copa fg/mg", "copa fg")).isTrue();
+    }
 }

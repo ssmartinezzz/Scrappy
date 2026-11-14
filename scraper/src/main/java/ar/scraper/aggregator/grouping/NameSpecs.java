@@ -74,6 +74,13 @@ final class NameSpecs {
     private static final Pattern PALABRA = Pattern.compile("[^a-z0-9]+");
     private static final Set<String> EDICIONES = Set.of("elite", "pro", "academy", "club", "league", "lite",
             "plus", "max", "mini", "ultra", "base", "alpha", "platform", "se");
+    private static final Pattern SUELA = Pattern.compile("(?<![a-z0-9])(fg|tf|ag|mg|sg|ic)(?![a-z0-9])");
+    private static final Map<String, String> SUELA_SINONIMOS = Map.of(
+            "cancha cubierta", "ic", "futsal", "ic", "sala", "ic",
+            "pasto artificial", "tf", "pasto sintetico", "tf", "multitapon", "tf");
+    private static final Pattern SUELA_SINONIMO = Pattern.compile("(?<![a-z0-9])("
+            + String.join("|", SUELA_SINONIMOS.keySet()) + ")(?![a-z0-9])");
+    private static final Pattern IN_FINAL = Pattern.compile("(?<![a-z0-9])in\\s*$");
     private static final Pattern TIER = Pattern.compile("(?<![a-z0-9])(ti|super|xt|xtx)(?![a-z0-9])");
 
     final Map<String, Set<Double>> numeric = new HashMap<>();
@@ -132,6 +139,12 @@ final class NameSpecs {
             if (c.charAt(0) == 'x' || (c.endsWith("x") && Character.isDigit(c.charAt(0))) || c.equals("m2")) continue;
             s.addText("cod2", c);
         }
+        m = SUELA.matcher(nombre);
+        while (m.find()) s.addText("suela", m.group(1));
+        m = SUELA_SINONIMO.matcher(nombre);
+        while (m.find()) s.addText("suela", SUELA_SINONIMOS.get(m.group(1)));
+        // A spaced "in" is a sole only when it ends the name; "2 in 1" is not.
+        if (IN_FINAL.matcher(nombre).find()) s.addText("suela", "ic");
         m = TIER.matcher(t);
         Set<String> tier = new HashSet<>();
         while (m.find()) tier.add(m.group(1));

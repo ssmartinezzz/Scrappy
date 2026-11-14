@@ -166,4 +166,24 @@ class GroupingSpecsTest {
         assertGroups("Zapatilla", "Zapatillas adidas Supernova Rise 2", "adidas",
                 "Zapatillas adidas Supernova Rise 2", "adidas");
     }
+
+    @Test
+    void splitsFootballBootSoles() {
+        assertSplit("Botines", "Botines adidas Copa Pure IV Club FG De Hombre", "adidas",
+                "Botines adidas Copa Pure IV Club Tf", "adidas");
+        assertSplit("Botines", "Botines adidas Predator Club FG De Hombre", "adidas",
+                "Botines adidas Predator Club In", "adidas");
+        assertSplit("Botines", "Botines Umbro Speciali Classic FG De Hombre", "Umbro",
+                "Botines Umbro Speciali Classic In", "Umbro");
+        assertSplit("Botines", "Botines adidas F50 Hyperfast Club FG Unisex", "adidas",
+                "Botines Multitapón adidas F50 Hyperfast Club", "adidas");
+    }
+
+    @Test
+    void keepsBootsWithOverlappingOrSynonymSoles() {
+        assertGroups("Botines", "Botines adidas Goletto IX FG/MG de Hombre", "adidas",
+                "Botines adidas Goletto IX Fg", "adidas");
+        assertGroups("Botines", "Botines adidas F50 Messi League Pasto Artificial Unisex", "adidas",
+                "Botines adidas F50 Messi League Tf", "adidas");
+    }
 }
