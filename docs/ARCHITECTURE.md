@@ -256,7 +256,7 @@ qué endpoint (o mecanismo SignalR) entrega los datos antes de poder diseñar
 |---------|------------------|--------|
 | `aggregator` (raíz) | Orquestación de la agregación completa + utility de facets | `ResultAggregator` (orquestador: validar → dedup → pipeline ML → persistir → facets), `FacetCalculator` (cálculo puro y estático de facets) |
 | `aggregator.normalize` | Normalización de un `Product`, orquestada por `NormalizerService` | `PackQuantityDetector`, `CategoryClassifier`, `GenderResolver`, `SizeNormalizer`, `SubcategoryResolver`, `GymratTagger` + holders estáticos de datos/predicados: `GarmentTaxonomy`, `CategoryAliases`, `NonTextileGuard`. `BrandExtractor`, `RubroResolver`, `SiteRegistry`, `SiteClassification` y `CategoryGroups` vivieron acá hasta `decouple-backend-layers`; hoy están en `ar.scraper.classification` (ver la sección de capas más abajo) y `NormalizerService` los sigue inyectando igual |
-| `aggregator.grouping` | Agrupación de productos equivalentes entre sitios, orquestada por `GroupingService` | `ProductIdentity`, `JaccardSimilarity`, `ProductGroup` |
+| `aggregator.grouping` | Agrupación de productos equivalentes entre sitios, orquestada por `GroupingService` | `ProductIdentity`, `JaccardSimilarity`, `NameSpecs`, `ProductGroup` |
 | `aggregator.text` | Utilidades de texto compartidas entre `normalize` y `grouping` | `AccentStripper` |
 
 **Patrones aplicados**:

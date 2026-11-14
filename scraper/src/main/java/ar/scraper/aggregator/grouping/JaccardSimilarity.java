@@ -6,15 +6,14 @@ import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
@@ -27,12 +26,14 @@ import org.apache.commons.lang3.StringUtils;
 public class JaccardSimilarity {
 
     private static final double JACCARD_THRESHOLD = 0.60;
+    private static final double TIE_THRESHOLD = 0.80;
 
-    private static final Set<String> KIDS = Set.of("ninos", "ninas", "nino", "nina", "kids", "junior", "infantil");
+    private static final Set<String> KIDS = Set.of("ninos", "ninas", "nino", "nina", "kids", "junior", "infantil",
+            "bebe", "bebes", "baby", "toddler", "infant", "jr");
+    private static final Set<String> GENEROS_DEL_CAMPO = Set.of("hombre", "mujer");
     private static final Pattern CODIGO_CON_SUFIJO = Pattern.compile("([a-z0-9]*\\d[a-z0-9]*)-([a-z0-9]{1,3})\\b");
     private static final Pattern SEPARADORES_CODIGO = Pattern.compile("[\\s/.,()_]+");
-    private static final Pattern TALLE = Pattern.compile("talle\\s*\\d+");
-    private static final Pattern VERSION = Pattern.compile("(?<![a-z0-9])(\\d{1,2})(?![a-z0-9])");
+    private static final Pattern PALABRA = Pattern.compile("[^a-z0-9]+");
 
     /** Per-product features. The regex-heavy guards are lazy: only pairs above the threshold need them. */
     private final class Rasgos {
@@ -40,14 +41,33 @@ public class JaccardSimilarity {
         final String marca;
         final String nombre;
         final boolean kids;
+        final boolean unisex;
+        final String generoCampo;
         private Set<String> codigos;
-        private Set<String> versiones;
+        private Set<String> generos;
+        private NameSpecs specs;
+        private Boolean soloMarca;
+        private Set<String> marcas;
 
         Rasgos(Product p, Set<String> firma) {
             this.firma = firma;
             this.marca = AccentStripper.strip(StringUtils.defaultString(p.marca()).toLowerCase()).trim();
             this.nombre = AccentStripper.strip(StringUtils.defaultString(p.nombre()).toLowerCase());
-            this.kids = firma.stream().anyMatch(KIDS::contains);
+            String[] palabras = PALABRA.split(nombre);
+            this.kids = Arrays.stream(palabras).anyMatch(KIDS::contains);
+            this.unisex = Arrays.asList(palabras).contains("unisex");
+            this.generoCampo = StringUtils.defaultString(p.genero()).toLowerCase();
+        }
+
+        /** The gender the name states; when it is silent, the genero field. "Unisex" abstains. */
+        Set<String> generos() {
+            if (generos == null) {
+                Set<String> delNombre = specs().text.getOrDefault("genero", Set.of());
+                if (unisex) generos = Set.of();
+                else if (!delNombre.isEmpty()) generos = delNombre;
+                else generos = GENEROS_DEL_CAMPO.contains(generoCampo) ? Set.of(generoCampo) : Set.of();
+            }
+            return generos;
         }
 
         Set<String> codigos() {
@@ -55,15 +75,30 @@ public class JaccardSimilarity {
             return codigos;
         }
 
-        Set<String> versiones() {
-            if (versiones == null) versiones = numerosDeVersion(nombre);
-            return versiones;
+        NameSpecs specs() {
+            if (specs == null) specs = NameSpecs.of(nombre);
+            return specs;
+        }
+
+        /** Its marca when filled, else every known brand named in the title. */
+        Set<String> marcas() {
+            if (marcas == null) marcas = marca.isEmpty() ? NameBrands.of(nombre) : Set.of(marca);
+            return marcas;
+        }
+
+        /** Brand + category only ("Buzo Lacoste"): nothing identifies a model. */
+        boolean soloMarca() {
+            if (soloMarca == null) {
+                Set<String> tokens = Set.copyOf(Arrays.asList(PALABRA.split(marca)));
+                soloMarca = firma.stream().allMatch(tokens::contains) && codigos().isEmpty() && !specs().hasModel();
+            }
+            return soloMarca;
         }
     }
 
     /**
      * Greedy clustering of a block: each unassigned product seeds a group and absorbs, for every
-     * other site, only its best-scoring candidates (ties are colour variants and all stay).
+     * other site, only its best-scoring candidates (ties stay together only when near-identical).
      */
     List<List<Product>> subAgruparPorJaccard(List<Product> productos) {
         int n = productos.size();
@@ -122,6 +157,7 @@ public class JaccardSimilarity {
                 }
             }
             for (List<Integer> js : mejores.values()) {
+                if (!empateSinAmbiguedad(js, rasgos)) continue;
                 for (int j : js) {
                     grupo.add(productos.get(j));
                     asignado[j] = true;
@@ -130,6 +166,17 @@ public class JaccardSimilarity {
             grupos.add(grupo);
         }
         return grupos;
+    }
+
+    /** Several equally good candidates on one site are colour variants only if they are near-identical. */
+    private boolean empateSinAmbiguedad(List<Integer> js, List<Rasgos> rasgos) {
+        for (int x = 0; x < js.size(); x++) {
+            for (int y = x + 1; y < js.size(); y++) {
+                Rasgos a = rasgos.get(js.get(x)), b = rasgos.get(js.get(y));
+                if (jaccardSimilarity(a.firma, b.firma) < TIE_THRESHOLD || !compatibles(a, b)) return false;
+            }
+        }
+        return true;
     }
 
     private static int largoPrefijo(int tamanio) {
@@ -142,7 +189,10 @@ public class JaccardSimilarity {
         if (a.kids != b.kids) return false;
         if (!a.marca.isEmpty() && !b.marca.isEmpty() && !a.marca.equals(b.marca)) return false;
         if (!a.codigos().isEmpty() && !b.codigos().isEmpty() && !a.codigos().equals(b.codigos())) return false;
-        return a.versiones().isEmpty() || b.versiones().isEmpty() || a.versiones().equals(b.versiones());
+        if (a.soloMarca() || b.soloMarca()) return false;
+        if (!a.marcas().isEmpty() && !b.marcas().isEmpty() && Collections.disjoint(a.marcas(), b.marcas())) return false;
+        if (!a.specs().compatibleWith(b.specs())) return false;
+        return a.generos().isEmpty() || b.generos().isEmpty() || !Collections.disjoint(a.generos(), b.generos());
     }
 
     private Set<String> codigosModelo(String nombre) {
@@ -151,13 +201,6 @@ public class JaccardSimilarity {
                 .filter(t -> t.length() >= 3)
                 .filter(t -> t.chars().anyMatch(Character::isDigit) && t.chars().anyMatch(Character::isLetter))
                 .collect(Collectors.toSet());
-    }
-
-    private Set<String> numerosDeVersion(String nombre) {
-        Matcher m = VERSION.matcher(TALLE.matcher(nombre).replaceAll(" "));
-        Set<String> out = new HashSet<>();
-        while (m.find()) out.add(m.group(1));
-        return out;
     }
 
     /** Mismo valor exacto — son enteros, no hay redondeo de por medio. */
