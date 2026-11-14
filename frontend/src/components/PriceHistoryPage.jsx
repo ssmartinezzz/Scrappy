@@ -8,7 +8,7 @@ import { cn } from '../lib/utils';
 import {
   RANGOS, contextoCategoria, dominioPrecio, etiquetaDia, etiquetaTiempo, serieDiaria, serieEnRango, ticksTiempo,
 } from '../lib/serieHistorial';
-import { anexarSeries, masBarato, vigentesEn } from '../lib/serieComparada';
+import { anexarSeries, masBarato, recortarAVentana, vigentesEn } from '../lib/serieComparada';
 
 /**
  * Vista dedicada del historial de precios de un producto.
@@ -26,7 +26,7 @@ function precioCorto(v) {
   return `$${v}`;
 }
 
-export function TooltipPrecio({ active, payload, actual, extras = [] }) {
+export function TooltipPrecio({ active, payload, actual, color, extras = [] }) {
   if (!active || !payload?.length) return null;
   const d = payload[0].payload;
   const otros = extras.length ? vigentesEn(extras, d.t) : {};
@@ -37,11 +37,12 @@ export function TooltipPrecio({ active, payload, actual, extras = [] }) {
         ? <div className="text-sm font-semibold text-t1">ARS ${fmt(d.vigente)}</div>
         : (
           <ul className="space-y-0.5 text-[.75rem]">
-            <li className="font-semibold text-t1">{actual?.sitio} · ARS ${fmt(d.vigente)}</li>
+            <li className="flex items-center gap-1.5 font-semibold text-t1">
+              <Punto color={color}/>{actual?.sitio} · ARS ${fmt(d.vigente)}
+            </li>
             {extras.filter(t => otros[t.id] != null).map(t => (
-              <li key={t.id} className="inline-flex items-center gap-1 text-t2 w-full">
-                <span aria-hidden="true" className="inline-block w-2 h-2 rounded-full" style={{ background: t.color }}/>
-                {t.sitio} · ARS ${fmt(otros[t.id])}
+              <li key={t.id} className="flex items-center gap-1.5 text-t2">
+                <Punto color={t.color}/>{t.sitio} · ARS ${fmt(otros[t.id])}
               </li>
             ))}
           </ul>
@@ -49,6 +50,10 @@ export function TooltipPrecio({ active, payload, actual, extras = [] }) {
       {!d.real && <div className="text-[.65rem] text-t4">precio vigente, sin cambio ese día</div>}
     </div>
   );
+}
+
+function Punto({ color }) {
+  return <span aria-hidden="true" className="shrink-0 rounded-full" style={{ width: 8, height: 8, background: color }}/>;
 }
 
 function PuntoReal({ cx, cy, index, payload, stroke }) {
@@ -193,7 +198,10 @@ const TONOS = {
 
 function GraficoHistorial({ serie, rango, onRango, precioActual, categoria, actual, hermanos }) {
   const { desde, hasta, stats } = serie;
-  const extras = useHermanosEnRango(hermanos, rango);
+  const enRango = useHermanosEnRango(hermanos, rango);
+  const extras = useMemo(
+    () => enRango.map(t => ({ ...t, puntos: recortarAVentana(t.puntos, desde, hasta) })),
+    [enRango, desde, hasta]);
   const barato = extras.length
     ? masBarato([{ id: 'actual', precio: actual.precio, stock: actual.stock }, ...extras])
     : null;
@@ -267,7 +275,7 @@ function GraficoHistorial({ serie, rango, onRango, precioActual, categoria, actu
                  tick={{ fontSize: 11, fill: 'var(--t4)' }} tickMargin={8} width={56}
                  tickFormatter={precioCorto}/>
 
-          <ChartTooltip content={<TooltipPrecio actual={actual} extras={extras}/>}
+          <ChartTooltip content={<TooltipPrecio actual={actual} color={color} extras={extras}/>}
                         cursor={{ strokeDasharray: '3 3', stroke: 'var(--t4)', strokeOpacity: 0.5 }}/>
 
           {/* La curva une los cambios (connectNulls salta los días sin

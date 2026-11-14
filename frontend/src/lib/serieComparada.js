@@ -50,3 +50,13 @@ export function vigentesEn(tiendas, t) {
   }
   return out;
 }
+
+// Recorta la serie de otra tienda a la ventana del producto: un punto fuera de
+// [desde, hasta] estiraría el eje X sin ticks. El precio que regía al abrir la
+// ventana entra como un punto en `desde`.
+export function recortarAVentana(puntos, desde, hasta) {
+  const previo = puntos.findLast(p => p.t < desde);
+  const dentro = puntos.filter(p => p.t >= desde && p.t <= hasta);
+  if (previo && (!dentro.length || dentro[0].t > desde)) dentro.unshift({ t: desde, precio: previo.precio });
+  return dentro;
+}

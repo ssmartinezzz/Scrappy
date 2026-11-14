@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { anexarSeries, masBarato, unirSeries, vigentesEn } from './serieComparada';
+import { anexarSeries, masBarato, recortarAVentana, unirSeries, vigentesEn } from './serieComparada';
 
 const D1 = Date.UTC(2026, 10, 1);
 const D2 = Date.UTC(2026, 10, 2);
@@ -110,5 +110,24 @@ describe('vigentesEn', () => {
 
   it('una tienda sin puntos queda en null', () => {
     expect(vigentesEn([{ id: 'h2', puntos: [] }], D3)).toEqual({ h2: null });
+  });
+});
+
+describe('recortarAVentana', () => {
+  const D0 = Date.UTC(2026, 9, 31);
+  const D4 = Date.UTC(2026, 10, 4);
+
+  it('deja sólo los puntos de la ventana del producto', () => {
+    const puntos = [{ t: D1, precio: 100 }, { t: D2, precio: 90 }, { t: D4, precio: 80 }];
+    expect(recortarAVentana(puntos, D1, D3)).toEqual([{ t: D1, precio: 100 }, { t: D2, precio: 90 }]);
+  });
+
+  it('un punto anterior a la ventana entra como el precio vigente en su inicio', () => {
+    const puntos = [{ t: D0, precio: 120 }, { t: D2, precio: 90 }];
+    expect(recortarAVentana(puntos, D1, D3)).toEqual([{ t: D1, precio: 120 }, { t: D2, precio: 90 }]);
+  });
+
+  it('una tienda que sólo tiene puntos fuera de la ventana queda vacía si son posteriores', () => {
+    expect(recortarAVentana([{ t: D4, precio: 80 }], D1, D3)).toEqual([]);
   });
 });
