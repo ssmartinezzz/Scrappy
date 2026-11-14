@@ -52,8 +52,10 @@ ambiguos): 3224 → 3260 grupos, 10 367 → 9 911 productos agrupados; grupos co
 | Grupos multi-sitio | 1717 | 2761 |
 | Catálogo entero sin filtros | 169 ms | 333 ms (cacheado en `CatalogoDerivadoCache`) |
 
-Con `NameSpecs` (2026-11-14, 81.6k activos, mediana caliente, A/B intercalado en la misma máquina): 697 → 902 ms
-(+29%). Se paga una vez por clave cacheada.
+Con las cuatro rondas (2026-11-14, 81.6k activos, mediana caliente, A/B intercalado contra master, máquina cargada):
+grupos multi-sitio 3175 → 3272, productos agrupados 10 339 → 9 903, catálogo entero 712 → ~950 ms (+33%). `NameSpecs.of`
+cuesta ~6 µs por nombre; el resto del aumento es el bucle de candidatos: con más precisión cada semilla absorbe menos y
+quedan más semillas. Se paga una vez por clave cacheada.
 
 ## Límites conocidos
 
