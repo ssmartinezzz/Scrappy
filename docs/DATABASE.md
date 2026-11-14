@@ -174,6 +174,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V97` | Las `Juguete` LEGO de Elmundodeljuguete (hoja `Lego` / `Sets de Ladrillos y Bloques` → `Juguete`, que ganaba al nombre) pasan a `LEGO`; los libros de LEGO siguen `Libro` |
 | `V98` | Seed de Ayrun (Tiendanube, gym de mujer, marca propia): fila en `sitio` con `monomarca` y su fila en `marca` |
 | `V99` | Estado de stock por producto: `en_stock`, `visto_en_stock_at`, `stock_chequeado_at` en `productos` y el CHECK `ck_productos_stock_chequeado` |
+| `V100` | Dos índices parciales de `productos` para el filtro de stock de `/api/data`: `idx_productos_sin_stock` (el conjunto excluido) e `idx_productos_activo_precio` (el orden por defecto) |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -5095,4 +5096,33 @@ cualquier upsert falla (y el upsert se traga el error: síntoma `"0 nuevos"`). A
 su cuerpo previo al stock (`git show <commit anterior a V99>:scraper/src/main/resources/db/migration/R__sp_upsert_run.sql`); como es
 repetible, Flyway lo reaplica solo al cambiar su checksum. Además hay que borrar la fila de `V99` de `flyway_schema_history`
 (`DELETE FROM flyway_schema_history WHERE version = '99'`), que ningún otro bloque de este archivo hace: sin eso Flyway cree que la
-migración sigue aplicada. Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V98`.
+migración sigue aplicada. Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V100` y antes que el de `V98`.
+
+---
+
+## `V100` — índices del filtro de stock
+
+**Decisión**: dos índices parciales sobre `productos`, sin cambio de datos ni de columnas. Medido con 82k filas activas, el filtro
+`stock=excluir_sin_stock` costaba +27..33 ms sobre master porque el predicado por fila (`en_stock IS DISTINCT FROM FALSE OR ...`) saca
+al `COUNT(*)` del index-only scan de `idx_prod_activo` (4,5 ms → 24 ms de seq scan), y la página por defecto (`ORDER BY precio, url
+LIMIT n`) recorría la tabla entera y ordenaba (~20-25 ms).
+
+| Índice | Definición | Sirve a |
+|---|---|---|
+| `idx_productos_sin_stock` | `(stock_chequeado_at) WHERE activo AND en_stock = false` | El conjunto que el filtro excluye: `CatalogQueryRepository.contarTotal` calcula el total como `COUNT(resto) - COUNT(resto AND en_stock = false AND stock_chequeado_at >= corte)`, exacto porque el filtro sólo saca un "no" confirmado y vigente (las ramas `NULL` se quedan) |
+| `idx_productos_activo_precio` | `(precio, url) WHERE activo` | La página por defecto `ORDER BY p.precio ASC, p.url ASC`: `LIMIT n` lee n entradas del índice en vez de ordenar el catálogo |
+
+La consulta de la página conserva el predicado original; sólo el `COUNT` se reescribe. El modo keyset no cuenta.
+
+### Rollback
+
+```sql
+-- >>> rollback:V100
+DROP INDEX IF EXISTS idx_productos_activo_precio;
+DROP INDEX IF EXISTS idx_productos_sin_stock;
+-- <<< rollback:V100
+```
+
+No pierde datos: sólo vuelven los planes lentos del filtro de stock y de la página por defecto. Hay que borrar la fila de `V100` de
+`flyway_schema_history` (`DELETE FROM flyway_schema_history WHERE version = '100'`), que ningún otro bloque de este archivo hace. Es el
+bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V99`.
