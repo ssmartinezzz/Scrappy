@@ -1,14 +1,10 @@
 package ar.scraper.aggregator.grouping;
 
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * Brands recognised inside a product name, for rows whose {@code marca} is blank. Chip makers
@@ -32,19 +28,39 @@ final class NameBrands {
             + "sharkoon cougar darkflash azza phanteks noctua thermalright netmak gadnic soundcore anker baseus "
             + "ugreen tenda mercusys huawei motorola").split(" ");
 
-    private static final Pattern PATTERN = Pattern.compile("(?<![a-z0-9])("
-            + Stream.concat(Arrays.stream(MULTI), Arrays.stream(LIST))
-                    .sorted(Comparator.comparingInt(String::length).reversed())
-                    .map(Pattern::quote)
-                    .collect(Collectors.joining("|"))
-            + ")(?![a-z0-9])");
+    private static final Set<String> SINGLE = Set.of(LIST);
+    private static final Set<String> MULTI_SET = Set.of(MULTI);
+    private static final Set<String> MULTI_FIRST = Arrays.stream(MULTI)
+            .map(m -> m.split("[ -]")[0])
+            .collect(Collectors.toSet());
 
     private NameBrands() {}
 
+    /** Brands are whole [a-z0-9] runs (or two runs joined by one space/hyphen), so no regex is needed. */
     static Set<String> of(String nombre) {
         Set<String> out = new HashSet<>();
-        Matcher m = PATTERN.matcher(nombre);
-        while (m.find()) out.add(ALIAS.getOrDefault(m.group(1), m.group(1)));
+        int n = nombre.length();
+        int i = 0;
+        String previo = null;
+        int previoIni = -1, previoFin = -1;
+        while (i < n) {
+            if (!alnum(nombre.charAt(i))) { i++; continue; }
+            int a = i;
+            while (i < n && alnum(nombre.charAt(i))) i++;
+            String w = nombre.substring(a, i);
+            if (SINGLE.contains(w)) out.add(ALIAS.getOrDefault(w, w));
+            if (previo != null && a - previoFin == 1 && MULTI_FIRST.contains(previo)) {
+                String junto = nombre.substring(previoIni, i);
+                if (MULTI_SET.contains(junto)) out.add(ALIAS.getOrDefault(junto, junto));
+            }
+            previo = w;
+            previoIni = a;
+            previoFin = i;
+        }
         return out;
+    }
+
+    private static boolean alnum(char c) {
+        return (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9');
     }
 }
