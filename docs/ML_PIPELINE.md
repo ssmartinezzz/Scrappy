@@ -499,7 +499,8 @@ natación. No hay `fijaciones` pelado (ferretería). Dar de alta un deporte son
 **dos** cambios, igual que una categoría: el keyword y la fila en la tabla `deporte`
 (FK). Los clubes van con nombre completo (`river plate`, no `river`: "Kennebec
 River" es Timberland). `EligibilityPolicy` saca de armadores, recomendados y picks
-todo lo que tiene deporte o es `infantil`; el catálogo los sigue listando y filtra
+todo lo que tiene deporte o es `infantil` (en picks, el rubro `juguetes` queda exento del
+veto `infantil`: un juguete es infantil por definición); el catálogo los sigue listando y filtra
 con `?deporte=`. Los sufijos de talle de kids (`jr`, `ps`, `gs`, `td`…) sólo
 cuentan en ropa (`V60`): fuera de ella "450 GS" son gramos y "PC/PS" es una consola.
 Y todas las señales cortas de género (`nino`, `bebe`, `w`, `men`, `male`, `dama`) son

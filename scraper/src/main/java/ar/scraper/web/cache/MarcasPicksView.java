@@ -232,8 +232,14 @@ final class MarcasPicksView {
             .filter(p -> StringUtils.isBlank(rubro)
                 || rubro.equalsIgnoreCase(p.rubro() != null ? p.rubro() : "indumentaria"))
             .filter(p -> !gymrat || (p.esGymrat() && SiteClassification.esMarcaGymPicks(p.sitio(), p.marca())))
-            .filter(ar.scraper.outfits.EligibilityPolicy::elegible)
+            .filter(MarcasPicksView::elegibleEnPicks)
             .filter(p -> aplicaAGenero(p, genero));
+    }
+
+    /** Toys are kids' products by definition: a toy store files them all as infantil, and the kids veto would empty juguetes. */
+    private static boolean elegibleEnPicks(Product p) {
+        return ar.scraper.outfits.EligibilityPolicy.elegible(p)
+            || ("juguetes".equalsIgnoreCase(p.rubro()) && StringUtils.isBlank(p.deporte()));
     }
 
     /** A product in the paged ranking: its sort key is {@code (clave, url)}, a total order because urls are unique. */
