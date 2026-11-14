@@ -13,9 +13,9 @@ Paquete `ar.scraper.aggregator.grouping`. Decide qué publicaciones de distintos
 | Bloque | Familia de categoría: primera palabra de `categoria` | `ProductIdentity` |
 | Firma | Palabras significativas − palabras de la propia categoría − relleno | `JaccardSimilarity.firma`, `StopWords` |
 | Umbral | Jaccard ≥ 0.60 | `JaccardSimilarity` |
-| Guardas | Nunca agrupa: marca o código de modelo distintos, niños vs adulto (`nino`, `kids`, `bebe`, `baby`, `jr`… en el nombre), ni un nombre que sólo dice marca + categoría ("Buzo Lacoste"). Un lado vacío abstiene | `JaccardSimilarity.compatibles` |
+| Guardas | Nunca agrupa: marca o código de modelo distintos, niños vs adulto (`nino`, `kids`, `bebe`, `baby`, `jr`… en el nombre), ni un nombre que sólo dice marca + categoría ("Buzo Lacoste"). Con `marca` vacía (99.9% de tecnología) la marca sale del nombre con una lista de fabricantes propia del agrupado (`NameBrands`, sin NVIDIA/AMD/Intel); los conjuntos de marcas deben cruzarse ("HP HyperX" ≈ "HyperX"). Un lado vacío abstiene | `JaccardSimilarity.compatibles`, `NameBrands` |
 | Specs del nombre | Nunca agrupa dos nombres que **declaran** una spec distinta (tabla de abajo). Si sólo un nombre la declara, abstiene | `NameSpecs` |
-| Absorción | Por sitio, sólo los candidatos de mayor puntaje; los empates (variantes de color) entran todos | `subAgruparPorJaccard` |
+| Absorción | Por sitio, sólo los candidatos de mayor puntaje. Los empates entran juntos sólo si son casi idénticos entre sí (Jaccard ≥ 0.8 y compatibles: variantes de color); si no, el match es ambiguo y ese sitio no entra | `subAgruparPorJaccard` |
 | Candidatos | Prefix filtering sobre los tokens más raros. Exacto para Jaccard ≥ t | `subAgruparPorJaccard` |
 
 ## Specs del nombre (`NameSpecs`)
@@ -41,7 +41,8 @@ Antes la versión se comparaba por igualdad estricta: "ATX 3.1 PCIe 5.1" en un s
 no agrupe. Medido con una réplica del algoritmo sobre la base de dev (81.6k activos, 2026-11-14), primera ronda: 64 de 3178 grupos
 multi-sitio cambian; revisados a mano, todos cortes correctos (placas de video 5060 / 5060 Ti / 5080 mezcladas en un
 grupo, mousepad S con XL, whey 2 lb con 5 lb, RAM 3000 con 3200 MHz, mochila 25 L con 8 L). Segunda ronda (versiones, edición, niños, sólo-marca): 3172 → 3216 grupos
-multi-sitio; recupera procesadores y fuentes que la igualdad estricta separaba.
+multi-sitio; recupera procesadores y fuentes que la igualdad estricta separaba. Tercera ronda (marca del nombre, empates
+ambiguos): 3224 → 3260 grupos, 10 367 → 9 911 productos agrupados; grupos con precio máx/mín ≥ 1.6: 482 → 422.
 
 ## Medición (dev, 33.5k activos, 2026-10-13)
 
@@ -59,6 +60,7 @@ Con `NameSpecs` (2026-11-14, 81.6k activos, mediana caliente, A/B intercalado en
 - "8gb"/"16gb" cuentan como código de modelo: la misma GPU con otra memoria no agrupa (a propósito). El mismo
   efecto deja afuera `3200mhz` vs `3200 MHz` o `1kg` vs `1000 g`: sacar las unidades de los códigos sumaría 49
   grupos, pero junta memorias de marcas distintas cuando la tienda deja `marca` vacía. No se hizo.
+- `NameBrands` es independiente de `BrandExtractor.MARCAS` (ésa es la de preferencias de armadores e indumentaria).
 - "8500G" (Ryzen) se lee como 8500 g: inofensivo, los dos lados lo leen igual.
 - Ropa con nombre genérico ("Remera adidas Boca Juniors") sigue mezclando: el nombre no alcanza.
 - Un nombre que no declara la spec abstiene: "Mousepad Raptor Ultra Glide" sigue agrupando con el XL.
