@@ -145,6 +145,13 @@ const ProductCard = memo(function ProductCard({
     onOpenDetail(p);  // ← pasa el objeto directo, sin URL lookup
   }
 
+  function handleCardKeyDown(e) {
+    // Only keys aimed at the card itself: inner buttons handle their own Enter/Space.
+    if (e.target !== e.currentTarget || (e.key !== 'Enter' && e.key !== ' ')) return;
+    e.preventDefault();
+    onOpenDetail(p);
+  }
+
   function handleCompareClick(e) {
     e.stopPropagation();
     onToggleComparar(p);
@@ -167,7 +174,8 @@ const ProductCard = memo(function ProductCard({
   }
 
   return (
-    <div className={`card${esSinStock(p) ? ' card-sin-stock' : ''}`} onClick={handleCardClick}>
+    <div className={`card${esSinStock(p) ? ' card-sin-stock' : ''}`} role="button" tabIndex={0}
+         onClick={handleCardClick} onKeyDown={handleCardKeyDown}>
       {/* Imagen — fixed aspect-ratio crop (letterbox-safe for inconsistent
           third-party photos); onError fallback keeps a neutral placeholder
           + site-name so the card stays usable even with a broken image. */}

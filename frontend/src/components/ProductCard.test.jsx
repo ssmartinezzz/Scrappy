@@ -145,3 +145,41 @@ describe('ProductCard — badge de stock (stock-por-tienda)', () => {
     expect(document.querySelector('.card')).not.toHaveClass('card-sin-stock');
   });
 });
+
+describe('ProductCard — teclado', () => {
+  function renderWith(onOpenDetail) {
+    return render(
+      <ProductCard
+        product={baseProduct}
+        catStats={{}}
+        isInComparar={false}
+        isFavorito={false}
+        onOpenDetail={onOpenDetail}
+        onToggleComparar={vi.fn()}
+        onToggleFavorito={vi.fn()}
+      />
+    );
+  }
+
+  it('Enter y Espacio sobre la tarjeta abren el detalle, como el click', () => {
+    const onOpenDetail = vi.fn();
+    renderWith(onOpenDetail);
+    const card = screen.getByRole('button', { name: /Remera Oversize/ });
+
+    fireEvent.keyDown(card, { key: 'Enter' });
+    fireEvent.keyDown(card, { key: ' ' });
+
+    expect(onOpenDetail).toHaveBeenCalledTimes(2);
+    expect(card).toHaveAttribute('tabindex', '0');
+  });
+
+  it('una tecla sobre un botón interno no abre el detalle', () => {
+    const onOpenDetail = vi.fn();
+    renderWith(onOpenDetail);
+    const card = screen.getByRole('button', { name: /Remera Oversize/ });
+
+    fireEvent.keyDown(card.querySelector('.card-fav-btn'), { key: 'Enter' });
+
+    expect(onOpenDetail).not.toHaveBeenCalled();
+  });
+});
