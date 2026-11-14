@@ -300,17 +300,6 @@ export const EXTERNAL_SEARCH = {
   google:       q => `https://www.google.com.ar/search?q=${encodeURIComponent(q)}+precio+argentina&tbm=shop`,
 };
 
-export async function fetchGrupos(filters = {}) {
-  const p = new URLSearchParams();
-  Object.entries(filters).forEach(([k, v]) => {
-    if (v !== '' && v != null) p.set(k, v);
-  });
-  const r = await authedFetch(`${BASE}/api/grupos?${p}`);
-  const { data, page } = await unwrapCatalogPage(r);
-  if (!data) return null;
-  return { grupos: data, total: page?.total ?? 0, page: page?.number ?? 0, size: page?.size ?? 0 };
-}
-
 export async function fetchMejores(rubro = '', { gymrat = false, genero = '' } = {}) {
   const p = new URLSearchParams();
   if (rubro) p.set('rubro', rubro);

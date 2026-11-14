@@ -71,6 +71,12 @@ describe('visibleNav — role-based filtering (design D6)', () => {
     expect(armadores.items.map(i => i.to)).toEqual(['/outfits', '/suplementos', '/pcs']);
   });
 
+  // grupos-en-historial: comparar tiendas vive en el gráfico de /historial/:key.
+  it('ya no existe el destino /grupos', () => {
+    const destinos = NAV_CONFIG.flatMap(n => n.kind === 'link' ? [n.to] : n.items.map(i => i.to));
+    expect(destinos).not.toContain('/grupos');
+  });
+
   it('ya no existe el menú Explorar ni el destino /armadores', () => {
     expect(NAV_CONFIG.map(n => n.label)).not.toContain('Explorar');
 

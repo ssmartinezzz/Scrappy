@@ -6,7 +6,6 @@ import AppLayout, {
   CatalogoPanelRoute,
   PicksPanelRoute,
   MarcasPanelRoute,
-  GruposPanelRoute,
   MercadoPanelRoute,
   HistorialPanelRoute,
   OportunidadesPanelRoute,
@@ -150,7 +149,8 @@ export default function App() {
             <Route path="catalogo"   element={<CatalogoPanelRoute/>}/>
             <Route path="picks/*"    element={<PicksPanelRoute/>}/>
             <Route path="marcas"     element={<MarcasPanelRoute/>}/>
-            <Route path="grupos"     element={<GruposPanelRoute/>}/>
+            {/* /grupos retired: comparing stores lives in the /historial/:key chart */}
+            <Route path="grupos"     element={<Navigate to="/catalogo" replace/>}/>
             {/* /tendencias retired (spec "Old route retired") -> redirect to /analisis/mercado */}
             <Route path="tendencias" element={<Navigate to="/analisis/mercado" replace/>}/>
             <Route path="analisis/mercado" element={<MercadoPanelRoute/>}/>
