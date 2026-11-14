@@ -153,4 +153,49 @@ class NameSpecsTest {
         assertThat(ok("copa fg", "copa tf")).isFalse();
         assertThat(ok("copa fg/mg", "copa fg")).isTrue();
     }
+
+    @Test
+    void aUnitNeedsANumberThatIsNotTheTailOfACode() {
+        assertThat(num("mouse pad razer gigantus v2 l", "vol")).isEmpty();
+        assertThat(txt("mouse pad razer gigantus v2 l", "talla")).containsExactly("l");
+        assertThat(num("pack 6x500ml", "vol")).containsExactly(500.0);
+        assertThat(num("whey 2 lb", "peso")).containsExactly(907.2);
+    }
+
+    @Test
+    void sizeWordsAreSizes() {
+        assertThat(txt("gigantus v2 large 450x400mm", "talla")).containsExactly("l");
+        assertThat(txt("scabbard ii medium", "talla")).containsExactly("m");
+        assertThat(txt("mochila small", "talla")).containsExactly("s");
+        assertThat(txt("gigantus xlarge", "talla")).containsExactly("xl");
+        assertThat(ok("gigantus v2 large", "gigantus v2 xxl")).isFalse();
+    }
+
+    @Test
+    void genderWordsSplitMenFromWomenAndUnisexAbstains() {
+        assertThat(txt("guantes gym essentials 2.0 de mujer", "genero")).containsExactly("mujer");
+        assertThat(txt("zapatilla running para dama", "genero")).containsExactly("mujer");
+        assertThat(txt("campera essentials de hombre", "genero")).containsExactly("hombre");
+        assertThat(txt("botines club fg unisex", "genero")).isEmpty();
+        assertThat(ok("charged assert 10 para mujer", "charged assert 10 de hombre")).isFalse();
+        assertThat(ok("charged assert 10 para mujer", "charged assert 10")).isTrue();
+        assertThat(ok("predator unisex", "predator de hombre")).isTrue();
+    }
+
+    @Test
+    void eightyPlusRatingIsASpecOnlyNextToEightyPlus() {
+        assertThat(txt("fuente asus 750w 80 plus bronze prime", "cert")).containsExactly("bronze");
+        assertThat(txt("fuente 650w 80+ gold", "cert")).containsExactly("gold");
+        assertThat(txt("remera gold edition", "cert")).isEmpty();
+        assertThat(ok("fuente asus 750w 80 plus bronze prime", "fuente asus prime 750w 80 plus gold")).isFalse();
+    }
+
+    @Test
+    void hardwareLinesMustOverlap() {
+        assertThat(txt("water cooler asus tuf lc iii 240", "linea")).containsExactly("tuf");
+        assertThat(ok("cooler asus tuf lc iii 240", "cooler asus rog strix lc iii 240")).isFalse();
+        assertThat(ok("cooler asus rog ryuo iii 240", "cooler asus rog strix lc iii 240")).isFalse();
+        assertThat(ok("cooler asus prime lc 360", "cooler asus prime lc ii 360")).isTrue();
+        assertThat(ok("cooler asus prime lc 360", "cooler asus lc 360")).isTrue();
+    }
 }

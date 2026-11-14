@@ -30,6 +30,7 @@ public class JaccardSimilarity {
 
     private static final Set<String> KIDS = Set.of("ninos", "ninas", "nino", "nina", "kids", "junior", "infantil",
             "bebe", "bebes", "baby", "toddler", "infant", "jr");
+    private static final Set<String> GENEROS_DEL_CAMPO = Set.of("hombre", "mujer");
     private static final Pattern CODIGO_CON_SUFIJO = Pattern.compile("([a-z0-9]*\\d[a-z0-9]*)-([a-z0-9]{1,3})\\b");
     private static final Pattern SEPARADORES_CODIGO = Pattern.compile("[\\s/.,()_]+");
     private static final Pattern PALABRA = Pattern.compile("[^a-z0-9]+");
@@ -40,7 +41,10 @@ public class JaccardSimilarity {
         final String marca;
         final String nombre;
         final boolean kids;
+        final boolean unisex;
+        final String generoCampo;
         private Set<String> codigos;
+        private Set<String> generos;
         private NameSpecs specs;
         private Boolean soloMarca;
         private Set<String> marcas;
@@ -49,7 +53,21 @@ public class JaccardSimilarity {
             this.firma = firma;
             this.marca = AccentStripper.strip(StringUtils.defaultString(p.marca()).toLowerCase()).trim();
             this.nombre = AccentStripper.strip(StringUtils.defaultString(p.nombre()).toLowerCase());
-            this.kids = Arrays.stream(PALABRA.split(nombre)).anyMatch(KIDS::contains);
+            String[] palabras = PALABRA.split(nombre);
+            this.kids = Arrays.stream(palabras).anyMatch(KIDS::contains);
+            this.unisex = Arrays.asList(palabras).contains("unisex");
+            this.generoCampo = StringUtils.defaultString(p.genero()).toLowerCase();
+        }
+
+        /** The gender the name states; when it is silent, the genero field. "Unisex" abstains. */
+        Set<String> generos() {
+            if (generos == null) {
+                Set<String> delNombre = specs().text.getOrDefault("genero", Set.of());
+                if (unisex) generos = Set.of();
+                else if (!delNombre.isEmpty()) generos = delNombre;
+                else generos = GENEROS_DEL_CAMPO.contains(generoCampo) ? Set.of(generoCampo) : Set.of();
+            }
+            return generos;
         }
 
         Set<String> codigos() {
@@ -173,7 +191,8 @@ public class JaccardSimilarity {
         if (!a.codigos().isEmpty() && !b.codigos().isEmpty() && !a.codigos().equals(b.codigos())) return false;
         if (a.soloMarca() || b.soloMarca()) return false;
         if (!a.marcas().isEmpty() && !b.marcas().isEmpty() && Collections.disjoint(a.marcas(), b.marcas())) return false;
-        return a.specs().compatibleWith(b.specs());
+        if (!a.specs().compatibleWith(b.specs())) return false;
+        return a.generos().isEmpty() || b.generos().isEmpty() || !Collections.disjoint(a.generos(), b.generos());
     }
 
     private Set<String> codigosModelo(String nombre) {

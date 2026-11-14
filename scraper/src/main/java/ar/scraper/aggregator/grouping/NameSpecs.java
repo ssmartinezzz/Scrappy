@@ -87,12 +87,27 @@ final class NameSpecs {
     final Map<String, Set<String>> text = new HashMap<>();
     final Set<String> versions = new HashSet<>();
     final Set<String> editions = new HashSet<>();
+    private boolean ochentaPlus;
 
-    // A unit is always a whole letter run (or a quote mark) followed by a non-alphanumeric.
-    private static final Pattern UNIDAD_RAPIDA = Pattern.compile(NUM + "\\s?([a-z]+|''|\"|\u201d)(?![a-z0-9])");
+    // A unit is always a whole letter run (or a quote mark) followed by a non-alphanumeric, and its
+    // number is never the tail of a code ("v2 l" is a size, not 2 litres; "6x500ml" is still 500 ml).
+    private static final Pattern UNIDAD_RAPIDA = Pattern.compile("(?<![a-wyz0-9.,])" + NUM + "\\s?([a-z]+|''|\"|\u201d)(?![a-z0-9])");
     private static final Set<String> TALLAS = Set.of("xxs", "xs", "s", "m", "l", "xl", "xxl", "xxxl", "2xl", "3xl", "4xl");
     private static final Set<String> TIERS = Set.of("ti", "super", "xt", "xtx");
     private static final Set<String> SUELAS = Set.of("fg", "tf", "ag", "mg", "sg", "ic");
+    private static final Map<String, String> TALLAS_EN_PALABRAS = Map.of(
+            "small", "s", "medium", "m", "large", "l", "xlarge", "xl");
+    // "unisex" is deliberately absent: it fits either gender, so it abstains.
+    private static final Map<String, String> GENEROS = Map.ofEntries(
+            Map.entry("hombre", "hombre"), Map.entry("hombres", "hombre"), Map.entry("caballero", "hombre"),
+            Map.entry("masculino", "hombre"), Map.entry("men", "hombre"), Map.entry("mens", "hombre"),
+            Map.entry("mujer", "mujer"), Map.entry("mujeres", "mujer"), Map.entry("dama", "mujer"),
+            Map.entry("damas", "mujer"), Map.entry("femenino", "mujer"), Map.entry("women", "mujer"),
+            Map.entry("womens", "mujer"));
+    private static final Set<String> CERTIFICACIONES = Set.of("bronze", "silver", "gold", "platinum", "titanium");
+    // Product lines inside one hardware brand. "rog" and "gaming" are left out: they span lines.
+    private static final Set<String> LINEAS = Set.of("tuf", "strix", "ryuo", "ryujin", "astral", "prime", "proart",
+            "dual", "aorus", "eagle", "windforce", "ventus", "suprim", "tomahawk", "mortar");
     private static final String[] TRIGGERS_RUIDO = {"sata", "80", "usb", "pcie", "atx", "gen", "ddr", "wifi", "bluetooth", "\""};
 
     static NameSpecs of(String nombre) {
@@ -156,6 +171,7 @@ final class NameSpecs {
         }
 
         Set<String> tier = new HashSet<>();
+        s.ochentaPlus = nombre.contains("80 plus") || nombre.contains("80plus") || nombre.contains("80+");
         if (t.equals(nombre)) {
             s.recorrer(t, true, true, tier);
         } else {
@@ -195,6 +211,10 @@ final class NameSpecs {
                 if (SUELAS.contains(w)) addText("suela", w);
                 else if (w.equals("futsal") || w.equals("sala")) addText("suela", "ic");
                 else if (w.equals("multitapon")) addText("suela", "tf");
+                String genero = GENEROS.get(w);
+                if (genero != null) addText("genero", genero);
+                if (LINEAS.contains(w)) addText("linea", w);
+                if (ochentaPlus && CERTIFICACIONES.contains(w)) addText("cert", w);
             }
             if (enTexto) {
                 if (TIERS.contains(w)) tier.add(w);
@@ -203,6 +223,9 @@ final class NameSpecs {
                 boolean punto = antes == '.' || despues == '.';
                 if (len <= 4 && !punto && TALLAS.contains(w)) {
                     addText("talla", w.replace("2xl", "xxl").replace("3xl", "xxxl"));
+                } else if (len >= 5) {
+                    String talla = TALLAS_EN_PALABRAS.get(w);
+                    if (talla != null) addText("talla", talla);
                 }
                 if (len >= 3 && len <= 5 && !punto && antes != ',' && despues != ',' && soloDigitos(w)) {
                     addText("num", w);

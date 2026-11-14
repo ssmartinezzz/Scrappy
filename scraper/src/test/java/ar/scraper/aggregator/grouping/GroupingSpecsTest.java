@@ -186,4 +186,56 @@ class GroupingSpecsTest {
         assertGroups("Botines", "Botines adidas F50 Messi League Pasto Artificial Unisex", "adidas",
                 "Botines adidas F50 Messi League Tf", "adidas");
     }
+
+    @Test
+    void splitsSizesWhenACodeSitsBeforeTheLetter() {
+        assertSplit("Mousepad", "Mouse Pad Razer Gigantus V2 L", "", "Mouse Pad Razer Gigantus V2 XXL", "");
+        assertSplit("Mousepad", "Mouse Pad Razer Gigantus V2 Large 450x400mm", "", "Mouse Pad Razer Gigantus V2 XXL", "");
+    }
+
+    @Test
+    void splitsMenFromWomen() {
+        assertSplit("Zapatilla Running", "Zapatillas Running Under Armour Charged Assert 10 de Hombre", "Under Armour",
+                "Zapatillas de Running Charged Assert 10 para Mujer", "Under Armour");
+    }
+
+    @Test
+    void keepsGenderlessAndUnisexWithAGender() {
+        assertGroups("Zapatilla", "Zapatillas Under Armour Charged Assert 10", "Under Armour",
+                "Zapatillas Running Under Armour Charged Assert 10 de Hombre", "Under Armour");
+        assertGroups("Botines", "Botines adidas F50 Hyperfast Club FG Unisex", "adidas",
+                "Botines adidas F50 Hyperfast Club FG de Hombre", "adidas");
+    }
+
+    @Test
+    void splitsPowerSupplyRatingsAndHardwareLines() {
+        assertSplit("Fuente", "Fuente Asus 750W 80 Plus Bronze Prime", "", "Fuente Asus Prime 750w 80 Plus Gold", "");
+        assertSplit("Cooler", "Cooler CPU ASUS TUF LC III 240 ARGB Water Cooler White", "",
+                "CPU Water Cooler 240mm ASUS ROG STRIX LC III 240 ARGB White", "");
+    }
+
+    private static Product conGenero(Product p, String genero) {
+        return p.toBuilder().genero(genero).build();
+    }
+
+    @Test
+    void theGeneroFieldSpeaksWhenTheNameIsSilent() {
+        assertThat(multi(conGenero(product("A", "Pantalón Puma Evostripe", "Puma", "Pantalón", 1), "mujer"),
+                product("B", "Pantalón Puma Evostripe De Hombre", "Puma", "Pantalón", 1))).isEmpty();
+        assertThat(multi(conGenero(product("A", "Pantalón Puma Evostripe", "Puma", "Pantalón", 1), "unisex"),
+                product("B", "Pantalón Puma Evostripe De Hombre", "Puma", "Pantalón", 1))).hasSize(1);
+        assertThat(multi(conGenero(product("A", "Zapatillas Puma Caven III Plus Unisex", "Puma", "Zapatilla", 1), "hombre"),
+                product("B", "Zapatillas Puma Caven III Plus de Mujer", "Puma", "Zapatilla", 1))).hasSize(1);
+    }
+
+    @Test
+    void theGeneroFieldResolvesAMenAndWomenTie() {
+        List<ProductGroup> grupos = multi(
+                conGenero(product("A", "Pantalón Puma Evostripe", "Puma", "Pantalón", 1), "hombre"),
+                product("B", "Pantalón Puma Evostripe De Hombre", "Puma", "Pantalón", 2),
+                product("B", "Pantalón Puma Evostripe De Mujer", "Puma", "Pantalón", 3));
+        assertThat(grupos).hasSize(1);
+        assertThat(grupos.get(0).getProductos()).extracting(Product::nombre)
+                .containsExactlyInAnyOrder("Pantalón Puma Evostripe", "Pantalón Puma Evostripe De Hombre");
+    }
 }
