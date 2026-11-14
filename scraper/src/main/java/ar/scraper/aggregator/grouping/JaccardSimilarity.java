@@ -6,6 +6,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -25,6 +26,7 @@ import org.apache.commons.lang3.StringUtils;
 public class JaccardSimilarity {
 
     private static final double JACCARD_THRESHOLD = 0.60;
+    private static final double TIE_THRESHOLD = 0.80;
 
     private static final Set<String> KIDS = Set.of("ninos", "ninas", "nino", "nina", "kids", "junior", "infantil",
             "bebe", "bebes", "baby", "toddler", "infant", "jr");
@@ -41,6 +43,7 @@ public class JaccardSimilarity {
         private Set<String> codigos;
         private NameSpecs specs;
         private Boolean soloMarca;
+        private Set<String> marcas;
 
         Rasgos(Product p, Set<String> firma) {
             this.firma = firma;
@@ -59,6 +62,12 @@ public class JaccardSimilarity {
             return specs;
         }
 
+        /** Its marca when filled, else every known brand named in the title. */
+        Set<String> marcas() {
+            if (marcas == null) marcas = marca.isEmpty() ? NameBrands.of(nombre) : Set.of(marca);
+            return marcas;
+        }
+
         /** Brand + category only ("Buzo Lacoste"): nothing identifies a model. */
         boolean soloMarca() {
             if (soloMarca == null) {
@@ -71,7 +80,7 @@ public class JaccardSimilarity {
 
     /**
      * Greedy clustering of a block: each unassigned product seeds a group and absorbs, for every
-     * other site, only its best-scoring candidates (ties are colour variants and all stay).
+     * other site, only its best-scoring candidates (ties stay together only when near-identical).
      */
     List<List<Product>> subAgruparPorJaccard(List<Product> productos) {
         int n = productos.size();
@@ -130,6 +139,7 @@ public class JaccardSimilarity {
                 }
             }
             for (List<Integer> js : mejores.values()) {
+                if (!empateSinAmbiguedad(js, rasgos)) continue;
                 for (int j : js) {
                     grupo.add(productos.get(j));
                     asignado[j] = true;
@@ -138,6 +148,17 @@ public class JaccardSimilarity {
             grupos.add(grupo);
         }
         return grupos;
+    }
+
+    /** Several equally good candidates on one site are colour variants only if they are near-identical. */
+    private boolean empateSinAmbiguedad(List<Integer> js, List<Rasgos> rasgos) {
+        for (int x = 0; x < js.size(); x++) {
+            for (int y = x + 1; y < js.size(); y++) {
+                Rasgos a = rasgos.get(js.get(x)), b = rasgos.get(js.get(y));
+                if (jaccardSimilarity(a.firma, b.firma) < TIE_THRESHOLD || !compatibles(a, b)) return false;
+            }
+        }
+        return true;
     }
 
     private static int largoPrefijo(int tamanio) {
@@ -151,6 +172,7 @@ public class JaccardSimilarity {
         if (!a.marca.isEmpty() && !b.marca.isEmpty() && !a.marca.equals(b.marca)) return false;
         if (!a.codigos().isEmpty() && !b.codigos().isEmpty() && !a.codigos().equals(b.codigos())) return false;
         if (a.soloMarca() || b.soloMarca()) return false;
+        if (!a.marcas().isEmpty() && !b.marcas().isEmpty() && Collections.disjoint(a.marcas(), b.marcas())) return false;
         return a.specs().compatibleWith(b.specs());
     }
 
