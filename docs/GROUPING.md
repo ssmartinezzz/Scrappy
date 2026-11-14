@@ -31,6 +31,7 @@ Se extraen del nombre en minúsculas y sin tildes. Una spec veta el par sólo si
 | Código corto letra+dígito | Throne **R1** vs **R20**, MWE **V2** vs **V3** | un conjunto incluye al otro |
 | Tier de GPU (`ti`, `super`, `xt`, `xtx`) | 5060 vs 5060 **Ti** | iguales, sólo si los dos tienen número de modelo |
 | Versión de 1–2 dígitos: romanos a número, `3.0` = `3`, `2.5` es un solo valor; ignora `talle N`, SATA III, 80 Plus, USB/PCIe/ATX/Gen x.y, DDR, pulgadas | Caven **2.0** vs **III**, Copa Pure **IV** vs **3** | un conjunto incluye al otro; además versión ∪ número de modelo (New Balance **80** vs **370**) |
+| Suela de botín (`fg`, `tf`, `ag`, `mg`, `sg`, `ic`; "cancha cubierta"/"sala"/"futsal" = ic, "multitapón"/"pasto artificial" = tf, "in" sólo como última palabra) | Predator Club **FG** vs **In**, Copa Pure **FG** vs **TF** | algún valor coincide (`FG/MG` ≈ `FG`) |
 | Edición (`elite`, `pro`, `academy`, `club`, `league`, `lite`, `plus`, `max`, `mini`, `ultra`, `base`, `alpha`, `platform`, `se`) | Mercurial **Elite** vs **Club**, Viper V3 Pro vs Pro **SE** | iguales |
 
 Ruido descartado a propósito: velocidades (`6000MB/s` no es talle S ni capacidad), `M.2`, separador de miles
@@ -42,7 +43,7 @@ no agrupe. Medido con una réplica del algoritmo sobre la base de dev (81.6k act
 multi-sitio cambian; revisados a mano, todos cortes correctos (placas de video 5060 / 5060 Ti / 5080 mezcladas en un
 grupo, mousepad S con XL, whey 2 lb con 5 lb, RAM 3000 con 3200 MHz, mochila 25 L con 8 L). Segunda ronda (versiones, edición, niños, sólo-marca): 3172 → 3216 grupos
 multi-sitio; recupera procesadores y fuentes que la igualdad estricta separaba. Tercera ronda (marca del nombre, empates
-ambiguos): 3224 → 3260 grupos, 10 367 → 9 911 productos agrupados; grupos con precio máx/mín ≥ 1.6: 482 → 422.
+ambiguos): 3224 → 3260 grupos, 10 367 → 9 911 productos agrupados; grupos con precio máx/mín ≥ 1.6: 482 → 422. Cuarta ronda (suela de botín): 3260 → 3270 grupos.
 
 ## Medición (dev, 33.5k activos, 2026-10-13)
 
@@ -62,5 +63,6 @@ Con `NameSpecs` (2026-11-14, 81.6k activos, mediana caliente, A/B intercalado en
   grupos, pero junta memorias de marcas distintas cuando la tienda deja `marca` vacía. No se hizo.
 - `NameBrands` es independiente de `BrandExtractor.MARCAS` (ésa es la de preferencias de armadores e indumentaria).
 - "8500G" (Ryzen) se lee como 8500 g: inofensivo, los dos lados lo leen igual.
+- El sitio de Nike repite "Nike Sportswear Club" para decenas de productos distintos: el nombre es idéntico, no hay qué comparar.
 - Ropa con nombre genérico ("Remera adidas Boca Juniors") sigue mezclando: el nombre no alcanza.
 - Un nombre que no declara la spec abstiene: "Mousepad Raptor Ultra Glide" sigue agrupando con el XL.
