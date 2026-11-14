@@ -33,7 +33,8 @@ final class NameSpecs {
         put("mhz", 1, "mhz");
         put("mah", 1, "mah");
         put("dpi", 1, "dpi");
-        put("pulg", 1, "pulgadas", "\"", "pulg");
+        put("pulg", 1, "pulgadas", "\"", "''", "\u201d", "pulg");
+        put("ghz", 1, "ghz");
         put("uds", 1, "caps", "capsulas", "comprimidos", "tabletas", "softgels");
         put("serv", 1, "servicios", "servings", "porciones");
     }
@@ -50,7 +51,7 @@ final class NameSpecs {
             "(?<![a-z0-9])(\\d+)\\s?x" + NUM + "\\s?(gb|tb)(?![a-z0-9])");
     private static final Pattern M2 = Pattern.compile("m\\.2|m2(?![a-z0-9])");
     private static final Pattern DIMENSION = Pattern.compile(
-            "(?<![a-z0-9.])" + NUM + "\\s?x\\s?" + NUM + "(?:\\s?x\\s?" + NUM + ")?\\s?(mm|cm|m)?(?![a-z0-9])");
+            "(?<![a-z0-9.])" + NUM + "\\s?x\\s?" + NUM + "(?:\\s?x\\s?" + NUM + ")?\\s?(mm|cm|m)?(?![a-z0-9]|[.,]\\d)");
     private static final Pattern UNIDAD = Pattern.compile(NUM + "\\s?("
             + UNITS.keySet().stream()
                     .sorted((a, b) -> b.length() - a.length())
@@ -62,10 +63,23 @@ final class NameSpecs {
             "(?<![a-z0-9.])(xxs|xs|s|m|l|xl|xxl|xxxl|2xl|3xl|4xl)(?![a-z0-9.])");
     private static final Pattern MODELO = Pattern.compile("(?<![a-z0-9.,])(\\d{3,5})(?![a-z0-9.,])");
     private static final Pattern CODIGO_CORTO = Pattern.compile("(?<![a-z0-9.])([a-z]\\d|\\d[a-z])(?![a-z0-9.])");
+    private static final Pattern TALLE_COMPLETO = Pattern.compile("talle\\s*\\d+");
+    private static final Pattern RUIDO_VERSION = Pattern.compile("sata\\s*(?:iii|ii|3)|80\\s*\\+|80\\s*plus|usb\\s*\\d(?:\\.\\d)?"
+            + "|pcie\\s*\\d(?:\\.\\d)?|atx\\s*\\d(?:\\.\\d)?|gen\\s*\\d|ddr\\d|gddr\\d|wifi\\s*\\d"
+            + "|bluetooth\\s*\\d(?:\\.\\d)?|\\d+(?:[.,]\\d+)?\\s*\"");
+    private static final Pattern ROMANO = Pattern.compile("(?<![a-z0-9])(viii|vii|iii|ii|iv|vi|ix)(?![a-z0-9])");
+    private static final Map<String, String> ROMANOS = Map.of(
+            "ii", "2", "iii", "3", "iv", "4", "vi", "6", "vii", "7", "viii", "8", "ix", "9");
+    private static final Pattern VERSION = Pattern.compile("(?<![a-z0-9.,])(\\d{1,2})(?:[.,](\\d))?(?![a-z0-9]|[.,]\\d)");
+    private static final Pattern PALABRA = Pattern.compile("[^a-z0-9]+");
+    private static final Set<String> EDICIONES = Set.of("elite", "pro", "academy", "club", "league", "lite",
+            "plus", "max", "mini", "ultra", "base", "alpha", "platform", "se");
     private static final Pattern TIER = Pattern.compile("(?<![a-z0-9])(ti|super|xt|xtx)(?![a-z0-9])");
 
     final Map<String, Set<Double>> numeric = new HashMap<>();
     final Map<String, Set<String>> text = new HashMap<>();
+    final Set<String> versions = new HashSet<>();
+    final Set<String> editions = new HashSet<>();
 
     static NameSpecs of(String nombre) {
         NameSpecs s = new NameSpecs();
@@ -102,6 +116,9 @@ final class NameSpecs {
         }
         t = UNIDAD.matcher(t).replaceAll(" ");
 
+        s.versions.addAll(versiones(t));
+        for (String w : PALABRA.split(nombre)) if (EDICIONES.contains(w)) s.editions.add(w);
+
         m = TALLE.matcher(t);
         while (m.find()) s.addText("talle", m.group(1));
         m = TALLA.matcher(t);
@@ -122,7 +139,37 @@ final class NameSpecs {
         return s;
     }
 
+    private static Set<String> versiones(String t) {
+        t = RUIDO_VERSION.matcher(TALLE_COMPLETO.matcher(t).replaceAll(" ")).replaceAll(" ");
+        t = ROMANO.matcher(t).replaceAll(r -> " " + ROMANOS.get(r.group(1)) + " ");
+        Set<String> out = new HashSet<>();
+        Matcher m = VERSION.matcher(t);
+        while (m.find()) {
+            String d = m.group(2);
+            out.add(d == null || d.equals("0") ? m.group(1) : m.group(1) + "." + d);
+        }
+        return out;
+    }
+
+    /** True when the name states a model number or version, so it is more than brand + category. */
+    boolean hasModel() {
+        return !versions.isEmpty() || text.containsKey("num") || text.containsKey("cod2");
+    }
+
+    private Set<String> versionsAndModels() {
+        Set<String> all = new HashSet<>(versions);
+        Set<String> num = text.get("num");
+        if (num != null) all.addAll(num);
+        return all;
+    }
+
+    private static boolean nested(Set<String> a, Set<String> b) {
+        return a.isEmpty() || b.isEmpty() || a.containsAll(b) || b.containsAll(a);
+    }
+
     boolean compatibleWith(NameSpecs o) {
+        if (!nested(versions, o.versions) || !nested(versionsAndModels(), o.versionsAndModels())) return false;
+        if (!editions.isEmpty() && !o.editions.isEmpty() && !editions.equals(o.editions)) return false;
         for (Map.Entry<String, Set<Double>> e : numeric.entrySet()) {
             Set<Double> other = o.numeric.get(e.getKey());
             if (other != null && !close(e.getValue(), other)) return false;

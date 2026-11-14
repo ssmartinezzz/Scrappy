@@ -8,13 +8,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
@@ -28,11 +26,11 @@ public class JaccardSimilarity {
 
     private static final double JACCARD_THRESHOLD = 0.60;
 
-    private static final Set<String> KIDS = Set.of("ninos", "ninas", "nino", "nina", "kids", "junior", "infantil");
+    private static final Set<String> KIDS = Set.of("ninos", "ninas", "nino", "nina", "kids", "junior", "infantil",
+            "bebe", "bebes", "baby", "toddler", "infant", "jr");
     private static final Pattern CODIGO_CON_SUFIJO = Pattern.compile("([a-z0-9]*\\d[a-z0-9]*)-([a-z0-9]{1,3})\\b");
     private static final Pattern SEPARADORES_CODIGO = Pattern.compile("[\\s/.,()_]+");
-    private static final Pattern TALLE = Pattern.compile("talle\\s*\\d+");
-    private static final Pattern VERSION = Pattern.compile("(?<![a-z0-9])(\\d{1,2})(?![a-z0-9])");
+    private static final Pattern PALABRA = Pattern.compile("[^a-z0-9]+");
 
     /** Per-product features. The regex-heavy guards are lazy: only pairs above the threshold need them. */
     private final class Rasgos {
@@ -41,14 +39,14 @@ public class JaccardSimilarity {
         final String nombre;
         final boolean kids;
         private Set<String> codigos;
-        private Set<String> versiones;
         private NameSpecs specs;
+        private Boolean soloMarca;
 
         Rasgos(Product p, Set<String> firma) {
             this.firma = firma;
             this.marca = AccentStripper.strip(StringUtils.defaultString(p.marca()).toLowerCase()).trim();
             this.nombre = AccentStripper.strip(StringUtils.defaultString(p.nombre()).toLowerCase());
-            this.kids = firma.stream().anyMatch(KIDS::contains);
+            this.kids = Arrays.stream(PALABRA.split(nombre)).anyMatch(KIDS::contains);
         }
 
         Set<String> codigos() {
@@ -61,9 +59,13 @@ public class JaccardSimilarity {
             return specs;
         }
 
-        Set<String> versiones() {
-            if (versiones == null) versiones = numerosDeVersion(nombre);
-            return versiones;
+        /** Brand + category only ("Buzo Lacoste"): nothing identifies a model. */
+        boolean soloMarca() {
+            if (soloMarca == null) {
+                Set<String> tokens = Set.copyOf(Arrays.asList(PALABRA.split(marca)));
+                soloMarca = firma.stream().allMatch(tokens::contains) && codigos().isEmpty() && !specs().hasModel();
+            }
+            return soloMarca;
         }
     }
 
@@ -148,7 +150,7 @@ public class JaccardSimilarity {
         if (a.kids != b.kids) return false;
         if (!a.marca.isEmpty() && !b.marca.isEmpty() && !a.marca.equals(b.marca)) return false;
         if (!a.codigos().isEmpty() && !b.codigos().isEmpty() && !a.codigos().equals(b.codigos())) return false;
-        if (!a.versiones().isEmpty() && !b.versiones().isEmpty() && !a.versiones().equals(b.versiones())) return false;
+        if (a.soloMarca() || b.soloMarca()) return false;
         return a.specs().compatibleWith(b.specs());
     }
 
@@ -158,13 +160,6 @@ public class JaccardSimilarity {
                 .filter(t -> t.length() >= 3)
                 .filter(t -> t.chars().anyMatch(Character::isDigit) && t.chars().anyMatch(Character::isLetter))
                 .collect(Collectors.toSet());
-    }
-
-    private Set<String> numerosDeVersion(String nombre) {
-        Matcher m = VERSION.matcher(TALLE.matcher(nombre).replaceAll(" "));
-        Set<String> out = new HashSet<>();
-        while (m.find()) out.add(m.group(1));
-        return out;
     }
 
     /** Mismo valor exacto — son enteros, no hay redondeo de por medio. */

@@ -98,4 +98,72 @@ class GroupingSpecsTest {
     void abstainsWhenOneSideIsSilent() {
         assertGroups("Mousepad", "Mousepad Raptor Ultra Glide", "", "Mousepad Raptor Ultra Glide XL", "");
     }
+
+    @Test
+    void splitsVersionsWrittenDifferently() {
+        assertSplit("Zapatilla", "Zapatillas Puma Caven 2.0", "Puma",
+                "Zapatillas Urbanas Puma Caven III de Hombre", "Puma");
+        assertSplit("Botines", "Botines adidas Copa Pure IV Club FG De Hombre", "adidas",
+                "Botines adidas Copa Pure III Club Fg", "adidas");
+    }
+
+    @Test
+    void splitsKidsStatedAsBabyAndAdults() {
+        assertSplit("Zapatilla", "Zapatillas Urbanas adidas Grand Court 3.0 de Bebés", "adidas",
+                "Zapatillas adidas Grand Court 3.0", "adidas");
+    }
+
+    @Test
+    void splitsModelNumbersThroughTheCrossCheck() {
+        assertSplit("Zapatilla", "Zapatillas New Balance 80", "New Balance",
+                "Zapatillas New Balance 370", "New Balance");
+    }
+
+    @Test
+    void splitsEditionWords() {
+        assertSplit("Botines", "Mercurial Vapor 17 Elite", "Nike",
+                "Botines Nike Mercurial Vapor 17 Club FG De Hombre", "Nike");
+        assertSplit("Mouse", "Mouse Razer Viper V3 PRO Wireless Black", "Razer",
+                "Mouse Razer Viper V3 PRO SE Hyperspeed Wireless Black", "Razer");
+    }
+
+    @Test
+    void neverGroupsBrandOnlyNames() {
+        assertSplit("Buzo", "Buzo Lacoste", "Lacoste", "Buzo Lacoste", "Lacoste");
+    }
+
+    @Test
+    void keepsCpuTogetherDespiteGhzAndCoreCounts() {
+        assertGroups("Procesador", "Procesador AMD Ryzen 5 9600X 5.4GHz Turbo AM5 - No Incluye Cooler", "AMD",
+                "Procesador AMD Ryzen 5 9600X 6/12 5.4GHz AM5 (No incluye cooler)", "AMD");
+    }
+
+    @Test
+    void keepsPsuTogetherDespiteAtxAndPcieRevisions() {
+        assertGroups("Fuente", "Fuente Corsair 750W Cybenetics Gold RM750e Full Modular ATX 3.1 PCIe 5.1 S/C", "Corsair",
+                "Fuente Corsair 750W Cybenetics Gold Full Modular RM750E ATX PCIe 5.1", "Corsair");
+    }
+
+    @Test
+    void keepsVersionTogetherWhenOneWritesDecimalAndOtherInteger() {
+        assertGroups("Zapatilla", "Zapatillas Urbanas adidas Lite Racer 4.0 de Mujer", "adidas",
+                "Zapatillas adidas Lite Racer Adapt 4", "adidas");
+    }
+
+    @Test
+    void keepsSsdTogetherDespiteInchesAndSataRevision() {
+        assertGroups("Disco", "Disco Ssd Adata Su650 512gb 2.5\" Sata 3.0", "Adata",
+                "Disco SSD Adata SU650 512GB SATA 3 2.5", "Adata");
+    }
+
+    @Test
+    void keepsHyphenatedCodeTogetherAndBrandOnlyDoesNotKillIt() {
+        assertGroups("Zapatilla", "Zapatillas Salomon XT-6", "Salomon", "Zapatillas Salomon Xt 6", "Salomon");
+    }
+
+    @Test
+    void keepsSameModelAcrossSites() {
+        assertGroups("Zapatilla", "Zapatillas adidas Supernova Rise 2", "adidas",
+                "Zapatillas adidas Supernova Rise 2", "adidas");
+    }
 }

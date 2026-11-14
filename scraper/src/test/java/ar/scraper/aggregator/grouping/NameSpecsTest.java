@@ -109,4 +109,36 @@ class NameSpecsTest {
         assertThat(ok("rtx 5060", "rtx 5060 ti")).isFalse();
         assertThat(ok("katar pro", "katar pro xt")).isTrue();
     }
+
+    @Test
+    void versionsNormaliseRomansDecimalsAndIgnoreNoise() {
+        assertThat(NameSpecs.of("caven iii").versions).containsExactly("3");
+        assertThat(NameSpecs.of("caven 2.0").versions).containsExactly("2");
+        assertThat(NameSpecs.of("racer 4.5").versions).containsExactly("4.5");
+        assertThat(NameSpecs.of("ssd 512gb 2.5\" sata 3.0 usb 3.2 ddr4").versions).isEmpty();
+        assertThat(NameSpecs.of("nike talle 42 v2").versions).isEmpty();
+        assertThat(NameSpecs.of("fuente 80 plus bronze 650w").versions).isEmpty();
+    }
+
+    @Test
+    void versionsCompareBySubsetAndCrossCheckModelNumbers() {
+        assertThat(ok("caven 2.0", "caven iii")).isFalse();
+        assertThat(ok("caven 2", "caven 2 3")).isTrue();
+        assertThat(ok("new balance 80", "new balance 370")).isFalse();
+    }
+
+    @Test
+    void editionWordsMustBeEqualWhenBothStateThem() {
+        assertThat(ok("vapor elite", "vapor club")).isFalse();
+        assertThat(ok("vapor elite", "vapor")).isTrue();
+        assertThat(ok("viper pro", "viper pro se")).isFalse();
+    }
+
+    @Test
+    void ghzAndDoubleQuoteInchesAreUnits() {
+        assertThat(num("ryzen 5.4ghz", "ghz")).containsExactly(5.4);
+        assertThat(num("short 6\" ", "pulg")).containsExactly(6.0);
+        assertThat(num("short 7''", "pulg")).containsExactly(7.0);
+        assertThat(ok("short launch 6''", "short launch 7''")).isFalse();
+    }
 }
