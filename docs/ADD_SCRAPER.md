@@ -300,6 +300,33 @@ sitio.nombre.activo=true
 
 ---
 
+## Promos de pago: qué le toca al sitio nuevo
+
+Un sitio nuevo **ya lee promos sin tocar nada**: `ScraperFactory.fuenteDePromos` le asigna una fuente de sitio por plataforma (`TiendanubeSitePromoSource` para
+`tiendanube`/`hadriatica`/`monkyforce`, `BannerSitePromoSource` para el resto; home + hasta 2 páginas de pagos del mismo host). Qué lee cada plataforma:
+[`SITES.md`](./SITES.md) § Señal de promos de pago por sitio. Sólo hace falta código si querés más que eso.
+
+| Querés… | Hacé | Dónde |
+|---|---|---|
+| Promos que vienen **en el payload del producto** (cuotas, precio especial) | Una clase `XxxPromoExtractor implements ProductPromoExtractor` (`extraer(JsonNode, hoy)`), una por plataforma, y que la page la llame al armar el `Product` (como `VtexPage`, `VaypolPage`…). Sin request extra | `ar.scraper.promos` |
+| Promos de la **tienda entera** con otra lectura (otra home, otro formato) | Una `SitePromoSource` nueva y cablearla en `fuenteDePromos`. Contrato: `leer` **nunca lanza**; ante cualquier falla devuelve `NO_LEIDO` (así el sitio no se desactiva en bloque), y `leidas(lista)` —aunque esté vacía— sólo cuando la lectura fue real | `ar.scraper.promos`, `ScraperFactory` |
+| Texto libre ("12 cuotas sin interés con Macro (Visa y Mastercard)") | No escribas otro parser: pasá la línea por `PromoTextParser.parsear(texto, alcance, hoy)`, el único dueño de texto → promo | `PromoTextParser` |
+| Un banco, billetera o pasarela que no se reconoce | Una entrada en `MediosDePago.TABLA` (nombre canónico, `TipoMedio`, alias). **No hace falta migración**: `sp_upsert_promos` inserta por nombre los medios que no existen, con el `tipo` que traiga | `MediosDePago` |
+| Una **red de tarjeta** nueva (Diners, etc.) | La entrada en `MediosDePago.TABLA` con `TipoMedio.TARJETA` **y** la fila `'tarjeta'` en `medio_pago` por una migración nueva. Sin la fila, `sp_upsert_promos` hace `RAISE EXCEPTION` por una `red` inexistente o que no es `tarjeta` y **revierte la corrida entera**, no sólo la promo | migración + `MediosDePago` |
+| Que el medio nuevo tenga su icono | Un monograma en `MedioPagoIcon` (ver [`FRONTEND.md`](./FRONTEND.md) § Promos de pago); sin él cae al glifo genérico | `frontend/src/components/MedioPagoIcon.jsx` |
+
+Reglas que valen para cualquier fuente:
+
+- **Abstención (CODE-5).** Si la fuente no dice a qué medio aplica, el medio es el genérico (`Tarjeta de crédito`, `Transferencia`), nunca un banco inventado. Un
+  `n × cuota ≈ precio` que no cierra no es "sin interés". Mejor ninguna promo que una falsa; CompraGamer se abstiene por eso.
+- **Las promos viajan con el producto o con el sitio**, nunca por SQL desde la page: `Product` lleva las suyas y `ScrapeResult.promosDelSitio` las del sitio; las
+  escribe `ProductRepository` en la misma transacción que el upsert (un run que falla no escribe ninguna).
+- **Probalo con una página real**: las pruebas del parser con variantes inventadas no alcanzan (ver los fixtures de `src/test/resources/fixtures/site-promos/`).
+
+Un test guarda la sincronía de las redes: `MediosDePagoTest.todaRedDeJavaEstaSembradaComoTarjeta` falla si Java emite una red de tarjeta que la semilla no tiene como
+`tarjeta`. ⚠️ **Lee sólo `V101`** (`semillaDeV101`): una red sembrada en una migración posterior, que es lo único legal porque `V101` está congelada, **no la ve** y
+el test falla aunque la base esté bien. Al agregar la primera red nueva hay que ampliarlo para que lea todas las migraciones (ver [`KNOWN_ISSUES.md`](./KNOWN_ISSUES.md)).
+
 ## Checklist al agregar cualquier sitio
 
 - [ ] La fila de seed en `sitio` existe, con `origen='config'` y el `plataforma` correcto
@@ -307,6 +334,7 @@ sitio.nombre.activo=true
 - [ ] Verificar que la URL responde (no da 404 ni timeout)
 - [ ] Confirmar el rango de precios (sitios premium pueden estar sobre $300k)
 - [ ] Primer run: revisar log `[SITIO] NOMBRE → X productos` con fotos
+- [ ] Promos: la plataforma ya tiene fuente de sitio; si la home no publica pagos, `[promos] lectura de … fallida` es esperable y no es un error del alta (ver § Promos de pago)
 - [ ] Si fotos = 0/X: revisar extractor de imágenes
 - [ ] Si productos = 0: activar modo `headless=false` en `config.properties` para ver el browser
 

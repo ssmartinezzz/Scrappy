@@ -1633,6 +1633,20 @@ Spring 6.1 no agrega un viaje por `null`: con el driver de PostgreSQL,
 ---
 
 <!-- Movido desde CLAUDE.md (2026-09-28) -->
+### ¿Por qué las promos de pago tienen un dueño por regla, se escriben en la transacción del run y un sitio que no se pudo leer no se desactiva?
+
+Las promos (cuotas sin interés, descuentos, recargos por medio de pago) se guardan en tablas propias ([`DATABASE.md`](./DATABASE.md) § `V101`/`V102`), no como
+columnas de `Product`. Tres decisiones:
+
+| Decisión | Por qué |
+|---|---|
+| **Un dueño por regla**: `MediosDePago` (alias → medio canónico y tipo), `PromoTextParser` (texto → promos), un `ProductPromoExtractor` por plataforma, `SitePromoSource` para lo de la tienda entera, `ResumenDePromos` (cuál es la mejor y qué medios van primero) | Las pages no saben de SQL ni de bancos, y la card y el detalle no re-derivan nada: dos copias de "cuál es la mejor" divergen (DOC-1) |
+| **Se escriben en la misma transacción que el upsert del run**, con **una** llamada a `sp_upsert_promos` después de todos los lotes | Un run que falla no deja promos a medias, y la desactivación por run (`clock_timestamp`) no puede correr por lote o borraría las de los lotes anteriores |
+| **`NO_LEIDO` ≠ lista vacía**: un sitio cuya lectura falló (429, timeout, bloqueo de Cloudflare, parse) queda **fuera de `p_sitios`** | Es la misma regla del barrido de productos (un sitio que no se miró no se desactiva): si no, un mal día borraría todas las promos de la tienda. El mismo riesgo que un 429 leído como catálogo vacío |
+
+La abstención rige todo el modelo (CODE-5): un medio desconocido cae al genérico y un banco desconocido con redes conocidas descarta la línea, porque guardarla sin
+banco la haría pasar por válida con cualquier tarjeta de esa red. Qué lee cada sitio: [`SITES.md`](./SITES.md); cómo agregar uno: [`ADD_SCRAPER.md`](./ADD_SCRAPER.md).
+
 ## Model `Product` (record, 21 campos)
 
 ```java

@@ -695,9 +695,9 @@ historial va al final. Sólo ese orden toca `precio_historico`; el total no camb
 
 **Promos de pago (`medios`, `mejorPromo`).** Cada fila trae `medios`: los medios de pago canónicos que aceptan las
 promos vigentes de la fila (las suyas más las de su sitio), con Mercado Pago, Transferencia y Santander primero y el resto
-en orden alfabético (`[]` si no tiene), y, sólo si hay una, `mejorPromo` `{ medio, red, tipo, cuotas, pct }`. La mejor es
+en orden alfabético (`[]` si no tiene; sólo nombres de medio, no las redes que exige cada promo), y, sólo si hay una, `mejorPromo` `{ medio, red, tipo, cuotas, pct }`. La mejor es
 la primera del orden de utilidad de `ResumenDePromos` (único dueño): descuento por `pct` mayor, después cuotas sin interés
-por `cuotas` mayor, desempate por medio prioritario y nombre; un recargo nunca es la mejor. Una página lee todas sus promos
+por `cuotas` mayor, desempate por medio prioritario, nombre del medio y nombre de la red (alfabético: `American Express` antes que `Visa`); un recargo nunca es la mejor. Una página lee todas sus promos
 en dos consultas (por sitio y por URL), sin consulta por fila. Detalle del modelo: [`DATABASE.md`](./DATABASE.md) § `V101`/`V102`.
 
 **Modo cursor (`cursor`).** `page` + `size` pagina con `LIMIT/OFFSET`: bien para el catálogo, pero cada página profunda
@@ -848,7 +848,8 @@ no el catálogo).
 - `vigenciaDesde` / `vigenciaHasta`: `YYYY-MM-DD` o `null`. `vistoAt`: UTC ISO-8601, la última corrida que vio la promo.
 - Vigente = `activo` y hoy (hora de Buenos Aires) dentro de la ventana de vigencia; una promo sin fechas siempre lo está.
   Una promo vencida pero todavía `activo` (la corrida no la desactivó aún) no se lista.
-- Orden: sitio, descuentos, cuotas sin interés, recargos (dentro de cada grupo, mayor `pct` / `cuotas` primero).
+- Orden: sitio, descuentos, cuotas sin interés, recargos (dentro de cada grupo, mayor `pct` / `cuotas` primero, también en los recargos). `data.promos` del
+  detalle usa el orden de `ResumenDePromos`, que en los recargos pone el **menor** `pct` primero: los dos órdenes sólo difieren ahí.
 
 ---
 

@@ -128,7 +128,7 @@ slide de PC no adapta nada. Los slides de outfit habían salido del carrusel en
 | **Renombrar y eliminar viven en la vista de LISTA** | `SavedOutfitCard`/`SavedPcCard`, reusadas sin redibujar. En un slide no hay dónde ponerlos sin taparle el collage — el mismo reparto que la vista tenía antes de `saved-pcs-armadores` |
 | **El carrusel aparece con CUALQUIER cosa guardada**, no sólo con productos | Antes el cuerpo entero colgaba de `items.length`, así que borrar el último favorito habría hecho desaparecer una PC guardada de la pantalla |
 | **El contador del header cuenta SÓLO productos** | Dice "N productos guardados"; sumarle outfits y PCs haría la frase falsa. Hay un test que lo fija |
-| ⚠️ **Hay UN solo panel de detalle, y un llamador flaco lo dibuja a medias** | `DetailPanel` es el mismo archivo para `/catalogo` y para un ítem de un outfit o una PC guardada. Pero un ítem guardado es la **foto** de `saved_outfit_item`/`saved_pc_item` (`slot, sitio, nombre, precio, url, img, marca`): sin `ml` no hay gauge, segmento, percentil ni z-score; sin `categoria` no hay box plot; y "Ver historial completo" está gateado por `p?.key`. Se veía como otro panel, y era el mismo con menos datos. Los dos repositorios ya hacían `LEFT JOIN productos` para `precioActual`, así que mandan también `producto_key` (`null` si el producto ya no existe) y el panel se hidrata solo con `GET /api/producto/{key}` cuando le falta el `ml`. **La foto gana sobre el catálogo vivo** (`{ ...vivo, ...item }`): el panel muestra el mismo nombre y precio que la tarjeta desde la que se abrió |
+| ⚠️ **Hay UN solo panel de detalle, y un llamador flaco lo dibuja a medias** | `DetailPanel` es el mismo archivo para `/catalogo` y para un ítem de un outfit o una PC guardada. Pero un ítem guardado es la **foto** de `saved_outfit_item`/`saved_pc_item` (`slot, sitio, nombre, precio, url, img, marca`): sin `ml` no hay gauge, segmento, percentil ni z-score; sin `categoria` no hay box plot; y "Ver historial completo" está gateado por `p?.key`. Se veía como otro panel, y era el mismo con menos datos. Los dos repositorios ya hacían `LEFT JOIN productos` para `precioActual`, así que mandan también `producto_key` (`null` si el producto ya no existe) y el panel se hidrata solo con `GET /api/producto/{key}` cuando le falta el `ml` (y lo pide siempre que haya `key`, por las promos: ver § Promos de pago). **La foto gana sobre el catálogo vivo** (`{ ...vivo, ...item }`): el panel muestra el mismo nombre y precio que la tarjeta desde la que se abrió |
 
 El estado no se movió: `savedOutfits`/`savedPcs` ya vivían en el reducer de
 `AppLayout` y ya los cargaba esta misma ruta.
@@ -167,6 +167,25 @@ entradas por lo mismo: las siete que se fueron eran `ADMIN` y ya no llegan a
 la página; quedan las tres de auth, que mutan la sesión de quien llama.
 `MlStatusPanel`, `GpuTrainingOverlay` y `AgentChatPanel` son componentes montados
 a nivel `AppLayout`, no rutas.
+
+---
+
+## Promos de pago: badge, iconos y detalle
+
+Las promos llegan hechas del servidor (ver [`API_REFERENCE.md`](./API_REFERENCE.md): `mejorPromo` y `medios` en cada fila de `/api/data`, `promos` en
+`/api/producto/{key}`). El frontend **sólo formatea**: no decide cuál es la mejor ni inventa lo que no llegó (CODE-5: sin dato, silencio).
+
+| Pieza | Qué hace |
+|---|---|
+| `lib/promos.js` | Dueño único del texto: `textoPromoCorta(mejorPromo)` (`"15% Transferencia"`, `"6 sin interés Santander"`, y con red `"12 sin interés Macro Visa"`: medio, espacio, red), `textoPromoLarga(promo)` (el beneficio sin el medio), `vigenciaTexto` (`Del 10/11 al 16/11`, sin pasar por `Date`). Un recargo o una promo sin cifra devuelve `''` y no se pinta |
+| `PromoBadge` (`ProductCard`) | Cupón + `mejorPromo`, junto a `StockBadge`. Sólo si la fila trae `mejorPromo`. Una línea con elipsis; el texto entero va en el `title` |
+| `MediosPago` (`PromoBadge.jsx`) | Fila de iconos de `p.medios` en el orden del servidor (Mercado Pago, Transferencia y Santander primero), tope `MEDIOS_VISIBLES = 4` y un `+N` con el resto en el `title` |
+| `MedioPagoIcon` | **Monogramas propios**, dibujados a mano (forma, color de marca e iniciales); no son los logos oficiales ni se descarga nada. La clave es el nombre canónico del seed `medio_pago`, con tildes (`Nación`, `Ualá`). Un medio sin monograma cae al **glifo genérico de tarjeta**: nunca se inventa una marca. El color de cada uno es un token `--medio-*` de `styles.css` (17 monogramas) |
+| `PromosDetalle` (`DetailPanel`) | Sección "Promos y medios de pago": icono, beneficio, `medio` (+ red), alcance (`Todo el sitio` / `Este producto`) y vigencia. Sin promos no hay sección |
+
+**`DetailPanel` pide `GET /api/producto/{key}` siempre que la fila trae `key`**, aunque ya venga entera: las promos viven sólo en el detalle, no en la fila. Antes sólo
+pedía cuando faltaba el `ml`. El costo es **+1 request por apertura del panel**; el producto vivo sólo se usa si la fila llegó flaca (`!product.ml`), las promos
+se toman siempre. Una fila sin `key` (un ítem guardado cuyo producto ya no existe) no pide nada y no muestra promos.
 
 ---
 

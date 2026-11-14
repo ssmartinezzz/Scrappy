@@ -108,6 +108,10 @@ Scrappy/
         │   │                                  PcBuilder + SlotDeArmado + reglas/ + EjesTecnicos (fases 2/6),
         │   │                                  Gama, GamaWire, PreferenciaArmadorPort, TechSpecsPort,
         │   │                                  SavedPcsPort (lo sirve PcsController en web/)
+        │   ├── promos/                     ← promos de pago: MediosDePago (alias → medio canónico),
+        │   │                                  PromoTextParser, ProductPromoExtractor (uno por plataforma),
+        │   │                                  SitePromoSource (Tiendanube / Banner), ResumenDePromos
+        │   │                                  (cuál es la mejor); los tipos viven en model/promo/
         │   ├── pages/                      ← Page Object Model
         │   ├── scrapers/                   ← BaseScraper, ScraperFactory (registry plataforma → page)
         │   ├── aggregator/                 ← ResultAggregator + collaborators SOLID +
