@@ -5,6 +5,7 @@ import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { fetchHistorial, fetchProductoDetalle, fmt, BADGE_LABELS, buscarExterno, EXTERNAL_SEARCH } from '../api';
 import BuySignal from './BuySignal';
 import StockBadge from './StockBadge';
+import PromosDetalle from './PromosDetalle';
 import { Dialog, DialogOverlay, DialogTitle } from './ui/dialog';
 import { SEG_COLORS, SEMANTIC, gaugeColor } from '../lib/colors';
 import { highlightPrices } from '../lib/richText';
@@ -397,12 +398,20 @@ export default function DetailPanel({ product, catStats, onClose }) {
   // puede derivar solo, y sólo cuando falta algo: una fila de /catalogo o de
   // /favoritos ya viene entera y no pide nada.
   const [vivo, setVivo] = useState(null);
+  const [promos, setPromos] = useState([]);
   useEffect(() => {
     setVivo(null);
-    if (product.ml || !product.key) return;
+    setPromos([]);
+    if (!product.key) return;
     let montado = true;
     fetchProductoDetalle(product.key)
-      .then(d => { if (montado && d?.producto) setVivo(d.producto); })
+      .then(d => {
+        if (!montado) return;
+        // Las promos viven sólo en el detalle (no en la fila): se piden siempre.
+        // El producto vivo, en cambio, sólo hace falta si la fila llegó flaca.
+        if (!product.ml && d?.producto) setVivo(d.producto);
+        if (Array.isArray(d?.promos)) setPromos(d.promos);
+      })
       .catch(() => {});
     return () => { montado = false; };
   }, [product.key, product.ml]);
@@ -563,6 +572,8 @@ export default function DetailPanel({ product, catStats, onClose }) {
               </div>
             </div>
           )}
+
+          <PromosDetalle promos={promos} />
 
           {/* Contexto estadístico */}
           <PriceContext product={p} st={st} />
