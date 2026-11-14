@@ -886,6 +886,27 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  /api/producto/{key}/comparado:
+    get:
+      tags: [Catálogo]
+      summary: The same product in the other stores, each with its price history.
+      x-access: AUTHENTICATED
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema: { type: string }
+          description: 16-hex `producto_key`, not the raw URL.
+      responses:
+        "200":
+          description: "`data`: `[{ sitio, url, key, precio, img, stock, historial }]`, the other members of the product's multi-site group (see `docs/GROUPING.md`); `historial` has the shape of `/api/producto/{key}`. `[]` when the product is alone or is not in the in-memory catalog (for example soft-deleted)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
   /api/promos:
     get:
       tags: [Catálogo]
