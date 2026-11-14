@@ -238,4 +238,20 @@ class GroupingSpecsTest {
         assertThat(grupos.get(0).getProductos()).extracting(Product::nombre)
                 .containsExactlyInAnyOrder("Pantalón Puma Evostripe", "Pantalón Puma Evostripe De Hombre");
     }
+
+    @Test
+    void splitsTwoLetterSubModelsAndLighting() {
+        assertSplit("Zapatilla Running", "Zapatillas adidas Duramo Sl 2", "adidas",
+                "Zapatillas Running adidas Duramo RC 2 de Hombre", "adidas");
+        assertSplit("Botines", "Botin de Rugby adidas Kakari Sg", "adidas", "Botines De Rugby adidas Kakari RS De Hombre", "adidas");
+        assertSplit("Zapatilla", "Zapatillas Puma Suede Classic", "Puma", "Zapatillas Urbanas Puma Suede XL de Hombre", "Puma");
+        assertSplit("Cooler", "Cooler CPU Corsair ICUE TITAN LINK 240 RX RGB White Water Cooler", "",
+                "Water Cooler Corsair ICUE Link Titan 240 RX LCD 2X 240MM White", "");
+    }
+
+    @Test
+    void keepsTheSameSubModelAcrossSites() {
+        assertGroups("Zapatilla Running", "Zapatillas adidas Duramo SL 2", "adidas",
+                "Zapatillas Running adidas Duramo SL 2 de Hombre", "adidas");
+    }
 }

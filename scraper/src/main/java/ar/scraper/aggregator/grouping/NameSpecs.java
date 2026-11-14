@@ -104,6 +104,15 @@ final class NameSpecs {
             Map.entry("mujer", "mujer"), Map.entry("mujeres", "mujer"), Map.entry("dama", "mujer"),
             Map.entry("damas", "mujer"), Map.entry("femenino", "mujer"), Map.entry("women", "mujer"),
             Map.entry("womens", "mujer"));
+    // Sub-model words a store keeps across listings (Duramo SL vs RC, Dunk Low vs Hi, Suede XL vs Classic).
+    // Two-letter words are curated: most of them in names are noise ("de", "cm", "oc", "tg").
+    private static final Map<String, String> VARIANTES = Map.ofEntries(
+            Map.entry("hi", "high"), Map.entry("high", "high"), Map.entry("mid", "mid"),
+            Map.entry("lo", "low"), Map.entry("low", "low"), Map.entry("og", "og"), Map.entry("sl", "sl"),
+            Map.entry("rc", "rc"), Map.entry("rs", "rs"), Map.entry("xl", "xl"), Map.entry("lx", "lx"),
+            Map.entry("cs", "cs"), Map.entry("st", "st"), Map.entry("tr", "tr"), Map.entry("ss", "ss"),
+            Map.entry("ls", "ls"), Map.entry("classic", "classic"));
+    private static final Set<String> LUCES = Set.of("rgb", "lcd");
     private static final Set<String> CERTIFICACIONES = Set.of("bronze", "silver", "gold", "platinum", "titanium");
     // Product lines inside one hardware brand. "rog" and "gaming" are left out: they span lines.
     private static final Set<String> LINEAS = Set.of("tuf", "strix", "ryuo", "ryujin", "astral", "prime", "proart",
@@ -214,6 +223,9 @@ final class NameSpecs {
                 String genero = GENEROS.get(w);
                 if (genero != null) addText("genero", genero);
                 if (LINEAS.contains(w)) addText("linea", w);
+                String variante = VARIANTES.get(w);
+                if (variante != null) addText("variante", variante);
+                if (LUCES.contains(w)) addText("luz", w);
                 if (ochentaPlus && CERTIFICACIONES.contains(w)) addText("cert", w);
             }
             if (enTexto) {
@@ -312,7 +324,19 @@ final class NameSpecs {
         return a.isEmpty() || b.isEmpty() || a.containsAll(b) || b.containsAll(a);
     }
 
+    /** Sub-model words plus the sole: "Kakari SG" and "Kakari RS" name two boots. */
+    private Set<String> variantesYSuela() {
+        Set<String> v = text.getOrDefault("variante", Set.of());
+        Set<String> suela = text.get("suela");
+        if (suela == null) return v;
+        Set<String> all = new HashSet<>(v);
+        all.addAll(suela);
+        return all;
+    }
+
     boolean compatibleWith(NameSpecs o) {
+        Set<String> va = variantesYSuela(), vb = o.variantesYSuela();
+        if (!va.isEmpty() && !vb.isEmpty() && Collections.disjoint(va, vb)) return false;
         if (!nested(versions, o.versions) || !nested(versionsAndModels(), o.versionsAndModels())) return false;
         if (!editions.isEmpty() && !o.editions.isEmpty() && !editions.equals(o.editions)) return false;
         for (Map.Entry<String, Set<Double>> e : numeric.entrySet()) {

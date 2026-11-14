@@ -198,4 +198,24 @@ class NameSpecsTest {
         assertThat(ok("cooler asus prime lc 360", "cooler asus prime lc ii 360")).isTrue();
         assertThat(ok("cooler asus prime lc 360", "cooler asus lc 360")).isTrue();
     }
+
+    @Test
+    void variantWordsAndSolesMustOverlap() {
+        assertThat(txt("zapatillas adidas duramo sl 2", "variante")).containsExactly("sl");
+        assertThat(txt("zapatillas nike dunk lo", "variante")).containsExactly("low");
+        assertThat(ok("zapatillas adidas duramo sl 2", "zapatillas adidas duramo rc 2")).isFalse();
+        assertThat(ok("botin de rugby adidas kakari sg", "botin de rugby adidas kakari rs")).isFalse();
+        assertThat(ok("zapatillas puma suede xl", "zapatillas puma suede classic")).isFalse();
+        assertThat(ok("zapatillas nike dunk low", "zapatillas nike dunk hi")).isFalse();
+        assertThat(ok("zapatillas puma suede classic adp", "zapatillas puma suede classic")).isTrue();
+        assertThat(ok("zapatillas adidas duramo sl 2", "zapatillas adidas duramo 2")).isTrue();
+        assertThat(ok("botines copa low fg", "botines copa fg")).isTrue();
+    }
+
+    @Test
+    void lightingRgbAndLcdMustOverlap() {
+        assertThat(ok("cooler corsair icue titan link 240 rx rgb", "water cooler corsair icue link titan 240 rx lcd")).isFalse();
+        assertThat(ok("cooler corsair titan 240 rx rgb lcd", "cooler corsair titan 240 rx lcd")).isTrue();
+        assertThat(ok("teclado corsair k70 rgb", "teclado corsair k70")).isTrue();
+    }
 }
