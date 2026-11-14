@@ -338,7 +338,11 @@ public abstract class PostgresTestBase {
                     preferencia_armador, producto_tech_specs,
                     -- price-drop-email-alerts (V49). It cascades from `usuario` and
                     -- `productos`, but is named: this list is hand-maintained.
-                    notificacion_precio
+                    notificacion_precio,
+                    -- financiacion-promos (V101). `medio_pago` is deliberately absent, same
+                    -- reason as `rol`/`indice`: the migration seeds it. The link table
+                    -- cascades from promo_financiacion/productos, but is named.
+                    promo_financiacion_producto, promo_financiacion
                 RESTART IDENTITY CASCADE
                 """);
         }

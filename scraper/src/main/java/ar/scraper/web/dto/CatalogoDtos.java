@@ -5,6 +5,8 @@ import ar.scraper.catalog.PoliticaStock;
 import ar.scraper.json.ProductJson;
 import ar.scraper.catalog.ProductKey;
 import ar.scraper.model.Product;
+import ar.scraper.model.promo.PromoVigente;
+import ar.scraper.promos.ResumenDePromos;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -112,12 +114,23 @@ public final class CatalogoDtos {
         private Ml ml;
         private Senal senal;
         private SenalFinanciacion senalFinanciacion;
+        /** The single best current promo of the row (see {@code ResumenDePromos}); absent when it has none. */
+        @JsonInclude(JsonInclude.Include.NON_NULL)
+        private PromoDtos.Mejor mejorPromo;
+        /** Canonical medios the row's site accepts, priority ones first; empty when it has no promos. */
+        private List<String> medios = List.of();
 
         public static ProductoRow of(Product p, String presetActivoLabel) {
             return of(p, presetActivoLabel, PoliticaStock.porDefecto());
         }
 
         public static ProductoRow of(Product p, String presetActivoLabel, PoliticaStock politica) {
+            return of(p, presetActivoLabel, politica, List.of());
+        }
+
+        /** {@code promos} are the current promos that apply to the row (its own plus its site's). */
+        public static ProductoRow of(Product p, String presetActivoLabel, PoliticaStock politica,
+                                     List<PromoVigente> promos) {
             String img = ProductJson.safe(p.imagenUrl());
             if (img.startsWith("//")) img = "https:" + img;
             var r = new ProductoRow();
@@ -157,6 +170,8 @@ public final class CatalogoDtos {
             r.senal = new Senal(s.senal(), s.scoreCompra(), s.confianzaDeflactor().name().toLowerCase());
             Product.SenalFinanciacion f = p.finan() != null ? p.finan() : Product.SenalFinanciacion.EMPTY;
             r.senalFinanciacion = new SenalFinanciacion(f.senal(), f.ahorroReal(), f.vp(), presetActivoLabel);
+            r.mejorPromo = ResumenDePromos.mejor(promos).map(PromoDtos.Mejor::of).orElse(null);
+            r.medios = ResumenDePromos.medios(promos);
             return r;
         }
     }
@@ -194,5 +209,12 @@ public final class CatalogoDtos {
     public static class ProductoDetalle {
         private ObjectNode producto;
         private JsonNode historial;
+        /** The product's own current promos plus its site's, most useful first. */
+        private List<PromoDtos.Promo> promos = List.of();
+
+        public ProductoDetalle(ObjectNode producto, JsonNode historial) {
+            this.producto = producto;
+            this.historial = historial;
+        }
     }
 }

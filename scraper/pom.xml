@@ -118,6 +118,13 @@
             <artifactId>commons-lang3</artifactId>
         </dependency>
 
+        <!-- HTML -> visible text for the site-level promo sources (banners, payment pages) -->
+        <dependency>
+            <groupId>org.jsoup</groupId>
+            <artifactId>jsoup</artifactId>
+            <version>1.23.2</version>
+        </dependency>
+
         <!-- JDBC + HikariCP (default pool in Spring Boot) -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

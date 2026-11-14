@@ -116,7 +116,7 @@ public final class ApiRoutePolicy {
             new RoutePolicy(Set.of(HttpMethod.GET), List.of("/api/events"), Access.AUTHENTICATED,
                     "SSE status stream; cron_execution changes are filtered to ADMIN inside"),
             new RoutePolicy(Set.of(HttpMethod.GET),
-                    List.of("/api/data", "/api/facets", "/api/csv", "/api/producto/**"),
+                    List.of("/api/data", "/api/facets", "/api/csv", "/api/producto/**", "/api/promos"),
                     Access.AUTHENTICATED),
             new RoutePolicy(Set.of(HttpMethod.GET),
                     List.of("/api/tendencias", "/api/historial"), Access.AUTHENTICATED),

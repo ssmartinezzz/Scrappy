@@ -18,10 +18,12 @@ from .client import ApiClient, ApiError, ForbiddenOperation
 # Enough to answer and to chain into ver_producto / reclasificar; the full row
 # carries ML internals and size lists that only burn context.
 COMPACT_FIELDS = ("key", "nombre", "precio", "precioOrig", "descuento", "sitio", "marca",
-                  "categoria", "sub_categoria", "genero", "rubro", "url", "stock", "vistoEnStockAt")
+                  "categoria", "sub_categoria", "genero", "rubro", "url", "stock", "vistoEnStockAt",
+                  "mejorPromo", "medios")
 
 INSTRUCTIONS = """Scrappy: catalog of Argentine online stores (clothing, gym, supplements, PC hardware,
 home). Prices are ARS. Search with buscar_productos, then use a row's `key` with ver_producto.
+Rows carry `mejorPromo` and `medios` (payment promos); promos lists them by site or medio.
 Mutations (scrape, ML, reclassification, config) are real and affect the shared catalog.
 Nothing can be deleted through this server."""
 
@@ -66,8 +68,19 @@ def build_server(api: ApiClient) -> MCPServer:
 
     @mcp.tool()
     def ver_producto(key: str) -> dict:
-        """A product and its full price history, by the 16-hex `key` from buscar_productos."""
+        """A product, its full price history and its current payment promos (`promos`: interest-free
+        installments, discounts and surcharges per bank / wallet / card, most useful first), by the
+        16-hex `key` from buscar_productos."""
         return call("GET", f"/api/producto/{key}")
+
+    @mcp.tool()
+    def promos(sitio: str | None = None, medio: str | None = None, page: int = 0, size: int = 50) -> dict:
+        """Current payment promos of the stores (GET /api/promos): cuotas sin interes, descuentos and
+        recargos per medio de pago. sitio: site name as in a row's `sitio`. medio: canonical name
+        (Santander, Mercado Pago, Transferencia, Visa...); matches the medio or the card network the promo
+        requires. Each promo: medio {nombre, tipo}, red {nombre} | null, tipo, cuotas, pct, alcance,
+        vigenciaDesde/Hasta, textoFuente, vistoAt."""
+        return call("GET", "/api/promos", {"sitio": sitio, "medio": medio, "page": page, "size": size})
 
     @mcp.tool()
     def facetas() -> dict:

@@ -3,7 +3,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 import DetailPanel from '@/components/DetailPanel';
-import { fetchHistorial } from '@/api';
+import { fetchHistorial, fetchProductoDetalle } from '@/api';
 
 // close-1nf-and-3nf-foundation (design DD6/V16): /api/tendencias emits
 // distribucionCategorias keyed by the CANONICAL categoria (Title Case,
@@ -21,7 +21,7 @@ function renderPanel(product, catStats) {
 
 vi.mock('@/api', async (importOriginal) => {
   const actual = await importOriginal();
-  return { ...actual, fetchHistorial: vi.fn() };
+  return { ...actual, fetchHistorial: vi.fn(), fetchProductoDetalle: vi.fn(() => Promise.resolve(null)) };
 });
 
 describe('DetailPanel — catStats se busca por categoria canónica, no por normCat', () => {
@@ -140,5 +140,47 @@ describe('DetailPanel — badge de stock (mismo componente que la card)', () => 
     renderPanel({ ...base, stock: 'en_stock' }, {});
 
     expect(screen.queryByText(/Sin stock/)).not.toBeInTheDocument();
+  });
+});
+
+describe('DetailPanel — promos y medios de pago', () => {
+  beforeEach(() => {
+    fetchHistorial.mockResolvedValue(null);
+    fetchProductoDetalle.mockReset();
+  });
+
+  const base = { url: 'https://tienda.test/p/1', key: 'abcd1234abcd1234', nombre: 'SSD 1TB', sitio: 'Tienda',
+    precio: 100000, categoria: 'SSD', ml: {} };
+  const promo = { sitio: 'Tienda', medio: { nombre: 'Transferencia', tipo: 'medio' }, red: null,
+    tipo: 'descuento', cuotas: null, pct: 15, alcance: 'sitio', vigenciaDesde: null, vigenciaHasta: null,
+    textoFuente: 't', vistoAt: '2026-11-10T10:00:00Z' };
+
+  it('trae las promos del detalle aunque la fila ya traiga ml, y pinta la sección', async () => {
+    fetchProductoDetalle.mockResolvedValue({ producto: { nombre: 'otro' }, promos: [promo] });
+
+    renderPanel(base, {});
+
+    expect(await screen.findByText('Promos y medios de pago')).toBeInTheDocument();
+    expect(screen.getByText('15% de descuento')).toBeInTheDocument();
+    expect(screen.getByText('SSD 1TB')).toBeInTheDocument(); // la foto de la fila no se pisa
+  });
+
+  it('sin promos no hay sección', async () => {
+    fetchProductoDetalle.mockResolvedValue({ producto: {}, promos: [] });
+
+    renderPanel(base, {});
+
+    await waitFor(() => expect(fetchProductoDetalle).toHaveBeenCalled());
+    expect(screen.queryByText('Promos y medios de pago')).not.toBeInTheDocument();
+  });
+
+  it('si el detalle falla, el panel sigue sin sección y sin romper', async () => {
+    fetchProductoDetalle.mockRejectedValue(new Error('boom'));
+
+    renderPanel(base, {});
+
+    await waitFor(() => expect(fetchProductoDetalle).toHaveBeenCalled());
+    expect(screen.queryByText('Promos y medios de pago')).not.toBeInTheDocument();
+    expect(screen.getByText('SSD 1TB')).toBeInTheDocument();
   });
 });

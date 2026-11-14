@@ -925,3 +925,32 @@ body { overflow-x: hidden; }
 .fav-row { border-color: var(--bd); transition: border-color .15s; }
 .fav-row:hover { border-color: var(--p2); }
 .group-card:hover { box-shadow: 0 8px 32px rgba(0,0,0,.4); }
+
+/* ===== PROMOS DE PAGO ===== */
+/* Colores de marca de los monogramas propios de MedioPagoIcon (no son los logos
+   oficiales). Tokens, no literales en el JSX. La app tiene un único tema. */
+:root {
+  --medio-mercado-pago: #00A6E8; --medio-transferencia: #475569; --medio-santander: #E60000;
+  --medio-galicia: #F26A1B; --medio-macro: #0B3C8C; --medio-bbva: #0B4A8F;
+  --medio-nacion: #00619E; --medio-provincia: #00A04A; --medio-naranja-x: #FF6B00;
+  --medio-modo: #0C1E3E; --medio-modo-acento: #46E08C; --medio-uala: #3D3DF2;
+  --medio-cuenta-dni: #2E9B4E; --medio-visa: #1A1F71; --medio-mastercard-rojo: #EB001B;
+  --medio-mastercard-naranja: #F79E1B; --medio-amex: #1F72CD; --medio-cabal: #1B5EAB;
+  --medio-pago-nube: #00A9E0;
+  --promo-fg: #1F6B43; --promo-bg: color-mix(in srgb, var(--sem-positive) 13%, transparent);
+  --promo-bd: color-mix(in srgb, var(--sem-positive) 32%, transparent);
+}
+.badge-promo { display: inline-flex; align-items: center; gap: 3px; min-width: 0; max-width: 100%;
+  background: var(--promo-bg); color: var(--promo-fg); border: 1px solid var(--promo-bd);
+  font: 700 .58rem/1.4 var(--font); padding: 2px 7px; border-radius: 20px; }
+.badge-promo-ico { flex: none; }
+.badge-promo-txt { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.medios-row { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; min-width: 0; }
+.medio-icon { flex: none; display: block; }
+.promo-list { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.promo-item { display: flex; align-items: flex-start; gap: 10px; padding: 8px 10px; min-width: 0;
+  background: var(--s2); border: 1px solid var(--bd2); border-radius: var(--rb); }
+.promo-item-body { min-width: 0; flex: 1; }
+.promo-item-main { font: 700 .8rem/1.3 var(--font); color: var(--t1); overflow-wrap: anywhere; }
+.promo-item-sub { font: .7rem/1.3 var(--font); color: var(--t2); overflow-wrap: anywhere; }
+.promo-item-meta { display: flex; flex-wrap: wrap; gap: 4px 10px; font: .62rem/1.4 var(--font); color: var(--t4); margin-top: 2px; }

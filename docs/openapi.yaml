@@ -815,7 +815,7 @@ paths:
           schema: { type: string }
       responses:
         "200":
-          description: "`data`: `{ meta, productos[], nextCursor? }` plus `page`. `nextCursor` is absent on the last page and for orders without a keyset. An empty catalog answers 200 with empty items and `page.total = 0`, never 204."
+          description: "`data`: `{ meta, productos[], nextCursor? }` plus `page`. Each row carries `medios` (canonical medios its site's and its own current promos accept: Mercado Pago, Transferencia, Santander first, then alphabetical; `[]` when none) and, only when there is one, `mejorPromo` `{ medio, red, tipo, cuotas, pct }` (the best non-surcharge promo: a discount beats installments). `nextCursor` is absent on the last page and for orders without a keyset. An empty catalog answers 200 with empty items and `page.total = 0`, never 204."
           content:
             application/json:
               schema:
@@ -878,13 +878,47 @@ paths:
           description: 16-hex `producto_key`, not the raw URL.
       responses:
         "200":
-          description: "`data`: `{ producto, historial }`"
+          description: "`data`: `{ producto, historial, promos[] }`. `promos` are the product's own current payment promos plus its site's, most useful first (discounts by `pct`, then interest-free installments by `cuotas`, surcharges last); `[]` when there are none. Each promo is `{ sitio, medio: {nombre, tipo}, red: {nombre} | null, tipo, cuotas, pct, alcance, vigenciaDesde, vigenciaHasta, textoFuente, vistoAt }`, the same shape as `/api/promos`."
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiResponse"
         "404":
           $ref: "#/components/responses/NotFound"
+
+  /api/promos:
+    get:
+      tags: [Catálogo]
+      summary: Current payment promos of the stores (interest-free installments, discounts, surcharges).
+      x-access: AUTHENTICATED
+      parameters:
+        - name: sitio
+          in: query
+          required: false
+          schema: { type: string }
+          description: Site display name (the `sitio` of a catalog row). Absent or blank is no filter.
+        - name: medio
+          in: query
+          required: false
+          schema: { type: string }
+          description: Canonical medio name (`Santander`, `Mercado Pago`, `Transferencia`, `Visa`...), case-insensitive. Matches the promo's medio OR the card network it requires, so `Visa` also finds "12 sin interés con Macro (Visa)". Absent or blank is no filter.
+        - name: page
+          in: query
+          required: false
+          schema: { type: integer, default: 0 }
+          description: Zero-based page; a negative value is page 0.
+        - name: size
+          in: query
+          required: false
+          schema: { type: integer, default: 50 }
+          description: Page size, clamped to 1..200.
+      responses:
+        "200":
+          description: "`data`: array of `{ sitio, medio: {nombre, tipo}, red: {nombre} | null, tipo, cuotas, pct, alcance, vigenciaDesde, vigenciaHasta, textoFuente, vistoAt }` plus `page`. `medio.tipo` is `banco|billetera|tarjeta|pasarela|medio`; `red` is the card network the promo requires on top of the medio (null = any card of the medio); `tipo` is `cuotas_sin_interes` (`cuotas` set, `pct` null) or `descuento|recargo` (`pct` set, `cuotas` null); `alcance` is `sitio|producto`; `vigenciaDesde`/`vigenciaHasta` are `YYYY-MM-DD` or null; `vistoAt` is UTC ISO-8601, the last run that saw the promo. Only `activo` promos inside their vigencia window today (Buenos Aires) are listed. Ordered by site, then discounts, installments, surcharges. An empty result is 200 with `page.total = 0`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiPagedResponse"
 
   # ── ML ──────────────────────────────────────────────────────────────────
 

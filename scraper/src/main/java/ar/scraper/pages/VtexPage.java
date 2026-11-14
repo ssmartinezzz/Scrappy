@@ -1,6 +1,8 @@
 package ar.scraper.pages;
 
 import ar.scraper.model.Product;
+import ar.scraper.promos.ProductPromoExtractor;
+import ar.scraper.promos.VtexPromoExtractor;
 import ar.scraper.model.SitioCategoriaNodo;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -8,6 +10,7 @@ import com.microsoft.playwright.APIResponse;
 import com.microsoft.playwright.Page;
 
 import java.net.URI;
+import java.time.LocalDate;
 import java.util.function.ToIntFunction;
 import java.util.*;
 import org.apache.commons.lang3.StringUtils;
@@ -16,6 +19,7 @@ import org.apache.commons.lang3.StringUtils;
 public class VtexPage extends StorePage implements CatalogPage, ArbolDeCategorias {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ProductPromoExtractor PROMOS = new VtexPromoExtractor();
     private static final int PAGE_SIZE = 50;
     /** Techo del path IO (Vaypol y similares) — sin cambios en este fix. */
     private static final int MAX_PRODUCTS = 2500;
@@ -476,8 +480,11 @@ public class VtexPage extends StorePage implements CatalogPage, ArbolDeCategoria
                 }
             }
 
-            return Optional.of(producto(nombre, p, oferta.get().original(), url, img, categoria,
-                    extraerGeneroVtex(prod, nombre), extraerTallesVtex(prod), hoja, enStock(items)));
+            Product producto = producto(nombre, p, oferta.get().original(), url, img, categoria,
+                    extraerGeneroVtex(prod, nombre), extraerTallesVtex(prod), hoja, enStock(items));
+            return Optional.of(producto.toBuilder()
+                    .promos(PROMOS.extraer(oferta.get().oferta(), LocalDate.now()))
+                    .build());
         } catch (Exception e) {
             return Optional.empty();
         }
@@ -503,7 +510,7 @@ public class VtexPage extends StorePage implements CatalogPage, ArbolDeCategoria
         }
     }
 
-    private record Oferta(double precio, Double original) {}
+    private record Oferta(double precio, Double original, JsonNode oferta) {}
 
     private static String primeraImagen(JsonNode items) {
         if (!items.isArray() || items.isEmpty()) return "";
@@ -524,7 +531,7 @@ public class VtexPage extends StorePage implements CatalogPage, ArbolDeCategoria
                 double p = offer.path("Price").asDouble(0);
                 double pOrig = offer.path("ListPrice").asDouble(0);
                 if (p <= 0) continue;
-                Oferta oferta = new Oferta(p, pOrig > p ? pOrig : null);
+                Oferta oferta = new Oferta(p, pOrig > p ? pOrig : null, offer);
                 if (Boolean.TRUE.equals(ofertaEnStock(offer))) return Optional.of(oferta);
                 if (primera.isEmpty()) primera = Optional.of(oferta);
             }

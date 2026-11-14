@@ -1,11 +1,14 @@
 package ar.scraper.pages;
 
 import ar.scraper.model.Product;
+import ar.scraper.promos.GamerFactoryPromoExtractor;
+import ar.scraper.promos.ProductPromoExtractor;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.microsoft.playwright.Page;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -19,6 +22,7 @@ import java.util.Set;
 public class GamerFactoryPage extends StorePage implements CatalogPage {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ProductPromoExtractor PROMOS = new GamerFactoryPromoExtractor();
     private static final String API = "https://core.gamerfactory.com.ar/products/search";
     private static final int POR_PAGINA = 1000;
     private static final int MAX_PAGINAS = 20;
@@ -98,6 +102,7 @@ public class GamerFactoryPage extends StorePage implements CatalogPage {
                     .marca("")
                     .rubro("tecnologia")
                     .enStock(enStock(n.path("stock")))
+                    .promos(PROMOS.extraer(n, LocalDate.now()))
                     .build());
         }
         return new Search(productos, total, data.size());

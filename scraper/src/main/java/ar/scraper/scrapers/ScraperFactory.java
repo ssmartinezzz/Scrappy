@@ -24,6 +24,9 @@ import ar.scraper.pages.TiendanubePage;
 import ar.scraper.pages.VaypolPage;
 import ar.scraper.pages.VtexPage;
 import ar.scraper.pages.WooCommercePage;
+import ar.scraper.promos.BannerSitePromoSource;
+import ar.scraper.promos.SitePromoSource;
+import ar.scraper.promos.TiendanubeSitePromoSource;
 import ar.scraper.scrape.CloudflareListener;
 import ar.scraper.scrapers.BaseScraper.PageFactory;
 import com.microsoft.playwright.Page;
@@ -90,18 +93,25 @@ public class ScraperFactory {
         String key     = SiteClassification.sitioKey(n);
         String display = siteRegistry.nombreVisible(key, Character.toUpperCase(n.charAt(0)) + n.substring(1));
         String plataforma = StringUtils.defaultString(siteRegistry.plataforma(key));
-        return new BaseScraper(config, display, site.url(), site.extraUrls(), elegir(plataforma, site.url()),
-                cloudflare);
+        String efectiva = plataformaEfectiva(plataforma, site.url());
+        return new BaseScraper(config, display, site.url(), site.extraUrls(), PAGINAS.get(efectiva), cloudflare,
+                fuenteDePromos(efectiva, config.isPromosSitioHabilitado()));
     }
 
-    private static PageFactory elegir(String plataforma, String url) {
-        if (GANAN_A_LA_URL.contains(plataforma))
-            return PAGINAS.get(plataforma);
-        if (url.contains("vtexcommercestable.com.br") || url.contains("vteximg.com.br"))
-            return PAGINAS.get("vtex");
-        if (url.contains("myshopify.com"))
-            return PAGINAS.get("shopify");
-        return PAGINAS.getOrDefault(plataforma, PAGINAS.get(TIENDANUBE));
+    /** Storefronts that embed Tiendanube's per-product payment data; every other platform reads banners. */
+    private static final Set<String> TIENDANUBE_STOREFRONT = Set.of(TIENDANUBE, "hadriatica", "monkyforce");
+
+    static SitePromoSource fuenteDePromos(String plataforma, boolean habilitado) {
+        if (!habilitado) return SitePromoSource.NINGUNA;
+        return TIENDANUBE_STOREFRONT.contains(plataforma) ? new TiendanubeSitePromoSource() : new BannerSitePromoSource();
+    }
+
+    /** The platform whose page class scrapes this site: the registry value, unless the url says otherwise. */
+    private static String plataformaEfectiva(String plataforma, String url) {
+        if (GANAN_A_LA_URL.contains(plataforma)) return plataforma;
+        if (url.contains("vtexcommercestable.com.br") || url.contains("vteximg.com.br")) return "vtex";
+        if (url.contains("myshopify.com")) return "shopify";
+        return PAGINAS.containsKey(plataforma) ? plataforma : TIENDANUBE;
     }
 
     private static PageFactory simple(SimplePage pagina) {

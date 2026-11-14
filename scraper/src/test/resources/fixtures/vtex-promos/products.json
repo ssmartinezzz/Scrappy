@@ -1,0 +1,167 @@
+[
+ {
+  "productName": "Zapatillas Running adidas Galaxy 7 de Hombre",
+  "linkText": "zapatillas-adidas-galaxy-7-de-hombre-6id8760-000",
+  "categoryId": "436",
+  "items": [
+   {
+    "sellers": [
+     {
+      "commertialOffer": {
+       "Price": 89999.0,
+       "ListPrice": 119999.0,
+       "AvailableQuantity": 1,
+       "Installments": [
+        {
+         "Value": 11634.87,
+         "InterestRate": 7.5,
+         "TotalValuePlusInterestRate": 139618.44,
+         "NumberOfInstallments": 12,
+         "PaymentSystemName": "American Express",
+         "PaymentSystemGroupName": "creditCardPaymentGroup",
+         "Name": "American Express 12 vezes com juros"
+        },
+        {
+         "Value": 89999.0,
+         "InterestRate": 0.0,
+         "TotalValuePlusInterestRate": 89999.0,
+         "NumberOfInstallments": 1,
+         "PaymentSystemName": "Visa",
+         "PaymentSystemGroupName": "creditCardPaymentGroup",
+         "Name": "Visa à vista"
+        },
+        {
+         "Value": 29999.66,
+         "InterestRate": 0.0,
+         "TotalValuePlusInterestRate": 89999.0,
+         "NumberOfInstallments": 3,
+         "PaymentSystemName": "Visa",
+         "PaymentSystemGroupName": "creditCardPaymentGroup",
+         "Name": "Visa 3 vezes sem juros"
+        },
+        {
+         "Value": 7499.91,
+         "InterestRate": 0.0,
+         "TotalValuePlusInterestRate": 89999.0,
+         "NumberOfInstallments": 12,
+         "PaymentSystemName": "Visa",
+         "PaymentSystemGroupName": "creditCardPaymentGroup",
+         "Name": "Visa 12 vezes sem juros"
+        },
+        {
+         "Value": 89999.0,
+         "InterestRate": 0.0,
+         "TotalValuePlusInterestRate": 89999.0,
+         "NumberOfInstallments": 1,
+         "PaymentSystemName": "Vale",
+         "PaymentSystemGroupName": "giftCardPaymentGroup",
+         "Name": "Vale à vista"
+        },
+        {
+         "Value": 29999.66,
+         "InterestRate": 0.0,
+         "TotalValuePlusInterestRate": 89999.0,
+         "NumberOfInstallments": 3,
+         "PaymentSystemName": "Cabal",
+         "PaymentSystemGroupName": "creditCardPaymentGroup",
+         "Name": "Cabal 3 vezes sem juros"
+        },
+        {
+         "Value": 16668.69,
+         "InterestRate": 3.1,
+         "TotalValuePlusInterestRate": 100012.14,
+         "NumberOfInstallments": 6,
+         "PaymentSystemName": "Cabal",
+         "PaymentSystemGroupName": "creditCardPaymentGroup",
+         "Name": "Cabal 6 vezes com juros"
+        },
+        {
+         "Value": 29999.66,
+         "InterestRate": 0.0,
+         "TotalValuePlusInterestRate": 89999.0,
+         "NumberOfInstallments": 3,
+         "PaymentSystemName": "Naranja",
+         "PaymentSystemGroupName": "creditCardPaymentGroup",
+         "Name": "Naranja 3 vezes sem juros"
+        },
+        {
+         "Value": 20701.38,
+         "InterestRate": 4.85,
+         "TotalValuePlusInterestRate": 103506.9,
+         "NumberOfInstallments": 5,
+         "PaymentSystemName": "Naranja",
+         "PaymentSystemGroupName": "creditCardPaymentGroup",
+         "Name": "Naranja 5 vezes com juros"
+        },
+        {
+         "Value": 89999.0,
+         "InterestRate": 0.0,
+         "TotalValuePlusInterestRate": 89999.0,
+         "NumberOfInstallments": 1,
+         "PaymentSystemName": "Modo Payment",
+         "PaymentSystemGroupName": "Modo PaymentPaymentGroup",
+         "Name": "Modo Payment à vista"
+        },
+        {
+         "Value": 14999.83,
+         "InterestRate": 0.0,
+         "TotalValuePlusInterestRate": 89999.0,
+         "NumberOfInstallments": 6,
+         "PaymentSystemName": "Tarjeta Milenia",
+         "PaymentSystemGroupName": "customPrivate_503PaymentGroup",
+         "Name": "Tarjeta Milenia 6 vezes sem juros"
+        },
+        {
+         "Value": 7499.91,
+         "InterestRate": 0.0,
+         "TotalValuePlusInterestRate": 89999.0,
+         "NumberOfInstallments": 12,
+         "PaymentSystemName": "Mastercard - Cencopay",
+         "PaymentSystemGroupName": "customPrivate_504PaymentGroup",
+         "Name": "Mastercard - Cencopay 12 vezes sem juros"
+        }
+       ],
+       "PromotionTeasers": [],
+       "DiscountHighLight": []
+      }
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "productName": "Cerámico para Piso 51X51 Cm Gris Johao Grey Cerámica Alberdi",
+  "linkText": "piso-cer-johao-grey-51x51-2-08-48-1233098",
+  "categoryId": "326",
+  "items": [
+   {
+    "sellers": [
+     {
+      "commertialOffer": {
+       "Price": 20373.6,
+       "ListPrice": 22877.0,
+       "AvailableQuantity": 99999,
+       "Installments": [
+        {
+         "Value": 20373.6,
+         "InterestRate": 0.0,
+         "TotalValuePlusInterestRate": 20373.6,
+         "NumberOfInstallments": 1,
+         "PaymentSystemName": "Cencosud Pay",
+         "PaymentSystemGroupName": "Cencosud PayPaymentGroup",
+         "Name": "Cencosud Pay à vista"
+        }
+       ],
+       "PromotionTeasers": [],
+       "DiscountHighLight": [
+        {
+         "<Name>k__BackingField": "flag_20373.6 - Octavilla Noviembre 13 al 29/11 - Hasta - 29/11/2026"
+        }
+       ]
+      }
+     }
+    ]
+   }
+  ]
+ }
+]

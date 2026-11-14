@@ -8,6 +8,8 @@ import ar.scraper.pages.ArbolDeCategorias;
 import ar.scraper.pages.CatalogPage;
 import ar.scraper.pages.CloudflareBlockedException;
 import ar.scraper.pages.CloudflareSolver;
+import ar.scraper.model.promo.PromosDelSitio;
+import ar.scraper.promos.SitePromoSource;
 import ar.scraper.scrape.CloudflareListener;
 import ar.scraper.scrape.StatusEvent.ScrapeCloudflare;
 import ar.scraper.scrape.StatusEvent.ScrapeCloudflare.Estado;
@@ -19,6 +21,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ar.scraper.security.egress.EgressProxy;
 import java.net.URI;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Function;
@@ -90,6 +93,7 @@ public final class BaseScraper {
     private final Supplier<String> proxyServer;
     private final Function<String, FlareSolverrClient> solverFactory;
     private final CloudflareListener cloudflareListener;
+    private final SitePromoSource promosDelSitio;
     private String cloudflareUserAgent;
     private int refrescos;
 
@@ -116,6 +120,20 @@ public final class BaseScraper {
     BaseScraper(ScraperConfig config, String sitio, String baseUrl, List<String> extraUrls, PageFactory pageFactory,
                 Supplier<String> proxyServer, Function<String, FlareSolverrClient> solverFactory,
                 CloudflareListener cloudflareListener) {
+        this(config, sitio, baseUrl, extraUrls, pageFactory, proxyServer, solverFactory, cloudflareListener,
+                SitePromoSource.NINGUNA);
+    }
+
+    BaseScraper(ScraperConfig config, String sitio, String baseUrl, List<String> extraUrls, PageFactory pageFactory,
+                CloudflareListener cloudflareListener, SitePromoSource promosDelSitio) {
+        this(config, sitio, baseUrl, extraUrls, pageFactory, () -> EgressProxy.shared().server(),
+                FlareSolverrClient::new, cloudflareListener, promosDelSitio);
+    }
+
+    BaseScraper(ScraperConfig config, String sitio, String baseUrl, List<String> extraUrls, PageFactory pageFactory,
+                Supplier<String> proxyServer, Function<String, FlareSolverrClient> solverFactory,
+                CloudflareListener cloudflareListener, SitePromoSource promosDelSitio) {
+        this.promosDelSitio = promosDelSitio;
         this.cloudflareListener = cloudflareListener;
         this.proxyServer = proxyServer;
         this.solverFactory = solverFactory;
@@ -263,14 +281,38 @@ public final class BaseScraper {
     }
 
     List<Product> scrape(Page page) {
-        return resultado(page, System.currentTimeMillis()).productos();
+        return catalogo(page).scrapeAll();
+    }
+
+    private CatalogPage catalogo(Page page) {
+        return pageFactory.crear(page, pageContext);
     }
 
     ScrapeResult resultado(Page page, long inicioMs) {
-        CatalogPage catalogo = pageFactory.crear(page, pageContext);
+        CatalogPage catalogo = catalogo(page);
         List<Product> prods = catalogo.scrapeAll();
         List<SitioCategoriaNodo> arbol = catalogo instanceof ArbolDeCategorias conArbol
                 ? conArbol.arbolDeCategorias() : List.of();
-        return new ScrapeResult(sitio, prods, catalogo.truncamiento(), System.currentTimeMillis() - inicioMs, arbol);
+        PromosDelSitio promos = leerPromosDelSitio(page);
+        return new ScrapeResult(sitio, prods, catalogo.truncamiento(), System.currentTimeMillis() - inicioMs, arbol,
+                promos);
+    }
+
+    /** Once per run, after the products; whatever goes wrong here must not cost the products. */
+    private PromosDelSitio leerPromosDelSitio(Page page) {
+        try {
+            PromosDelSitio leidas = promosDelSitio.leer(origen(pageContext.baseUrl()),
+                    new PlaywrightPaginaWeb(page, config.getTimeoutMs()), LocalDate.now());
+            return leidas == null ? PromosDelSitio.NO_LEIDO : leidas;
+        } catch (RuntimeException e) {
+            log.warn("[{}] promos del sitio no leidas: {}", sitio, e.getMessage());
+            return PromosDelSitio.NO_LEIDO;
+        }
+    }
+
+    /** The store's home: catalog urls such as {@code /productos/} are not where banners live. */
+    static String origen(String url) {
+        URI uri = URI.create(url);
+        return uri.getScheme() + "://" + uri.getAuthority();
     }
 }

@@ -83,6 +83,43 @@ stock", CODE-5). Una fila agotada **se guarda** (`activo = true`); sólo se desc
 
 Los sitios sin señal no se ven afectados por el filtro `stock=excluir_sin_stock` ni por los armadores: `desconocido` es elegible.
 
+### Señal de promos de pago por sitio
+
+Cada sitio guarda las promos de pago que publica (cuotas sin interés, descuentos, recargos por medio): tablas y semántica en
+[`docs/DATABASE.md`](./DATABASE.md) (`V101`/`V102`), cómo se exponen en [`docs/API_REFERENCE.md`](./API_REFERENCE.md) (`GET /promos`, `promos` del
+producto, `mejorPromo`/`medios` de las filas). Hay **dos fuentes**, y se suman:
+
+- **Por producto** (`ProductPromoExtractor`, sin request extra: sale del mismo payload que el precio). Alcance `producto`.
+- **Del sitio** (`SitePromoSource`, **un request extra por sitio por corrida**, después de los productos). Alcance `sitio`. `ScraperFactory.fuenteDePromos`
+  elige la fuente por plataforma; `PROMOS_SITIO_HABILITADO=false` (default `true`) apaga las dos fuentes de sitio.
+
+Un medio que el vocabulario (`MediosDePago`) no reconoce no se inventa (CODE-5): cae al genérico (`Tarjeta de crédito`, `Transferencia`) o, si hay
+una red conocida pero un banco que no, se descarta la línea.
+
+#### Por producto
+
+| Plataforma / sitio | Señal que se lee | Regla |
+|---|---|---|
+| VTEX | `commertialOffer` del que salió el precio: `Installments` por `PaymentSystemName` (sólo `InterestRate` 0), más `PromotionTeasers` y `DiscountHighLight` | Por medio que el vocabulario resuelve, el máximo de cuotas sin interés (2 o más; 1 cuota no es promo). Los nombres de teaser/highlight pasan por `PromoTextParser`, que se abstiene con las banderas internas de campaña |
+| Vaypol (`vaypol`, `city`) | `all_prices.installments` `{quantity, value}` | No dice "sin interés" ni el medio: cuenta como sin interés sólo si `quantity × value` reproduce el precio (±$1 por cuota). Medio: `Tarjeta de crédito` |
+| Kevingston | `cuotas` ("6 cuotas de $32.666,67*") | Mismo criterio que Vaypol (`n × monto ≈ precio`). `porcentaje` es el descuento ya dentro de `precio`, no una promo de pago. Medio: `Tarjeta de crédito` |
+| GamerFactory | `price.special` vs `price.list` de la API | El propio texto de la tienda dice que `special` es sólo por transferencia o depósito: `special < list` es un descuento por `Transferencia` del porcentaje sobre `list` |
+| Inpro | descripción SEO del producto Tiendanube ("… 20% de descuento con transferencia.") | Lo lee `PromoTextParser` |
+| CompraGamer | — | **Se abstiene**: no hay fuente que diga qué significa `precioLista` |
+
+#### Del sitio
+
+| Fuente | Sitios | Qué lee |
+|---|---|---|
+| `TiendanubeSitePromoSource` | plataformas `tiendanube`, `hadriatica` y `monkyforce` | **Sólo la home** (sin páginas de pagos). Por producto de la vidriera, el `data-variants`: `installments_data` por pasarela (el máximo de cuotas con `without_interests`, 2 o más) y el precio con el descuento de pago (un porcentaje sólo si todas las variantes planas coinciden, atribuido a los métodos que la config de la tienda dice que lo muestran; un método que el vocabulario no conoce es abstención). Además la barra de anuncios y los bloques de servicio, por `PromoTextParser`. Lo estructurado va primero: ante una clave natural repetida gana lo demostrado |
+| `BannerSitePromoSource` | **todas las demás** plataformas (Shopify, VTEX, WooCommerce, Magento, Vaypol, Prestashop, `morashop`, `ambiancedeco`…) | La home y, si ésta enlaza alguna, hasta **2** páginas del mismo host de "medios de pago" / promociones / bancos / cuotas (las de "medios de pago" primero), sin crawl. Los nombres de banco suelen estar sólo en el `alt` de una imagen. En una página de pagos, una línea que no nombra medio se descarta (un "3 y 6 cuotas sin interés" bajo un título de banco se archivaría como tarjeta genérica) |
+
+**Cuándo un sitio no lee nada.** Ninguno queda fuera por plataforma: todos tienen fuente de sitio. Una lectura que falla (error de red, página de
+bloqueo de Cloudflare o título "Just a moment", un CAPTCHA con menos de 300 caracteres visibles, página con menos de 40 caracteres y sin `data-variants`)
+devuelve `NO_LEIDO`: ese sitio **queda fuera de `p_sitios`** y sus promos guardadas se conservan, no se borran. `leidas` con lista vacía, en cambio, sí es una
+respuesta y desactiva las promos viejas. Qué sitios caen en `NO_LEIDO` en una corrida real no está medido sitio por sitio (ver
+[`KNOWN_ISSUES.md`](./KNOWN_ISSUES.md)).
+
 ### Detección de plataforma (`ScraperFactory.crear`, en orden)
 
 Desde `V20` esto lee `sitio.plataforma` vía `SiteRegistry`, no name-sets en

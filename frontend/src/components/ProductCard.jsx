@@ -3,6 +3,7 @@ import { BADGE_LABELS, fmt, addFavorito, removeFavorito } from '../api';
 import { SEÑAL_CONFIG, gaugeColor } from '../lib/colors';
 import FinanBadge from './FinanBadge';
 import StockBadge, { esSinStock } from './StockBadge';
+import PromoBadge, { MediosPago } from './PromoBadge';
 import { ImageWithFallback } from './ui/image-with-fallback';
 import { thumbSrcSet, thumbUrl } from '../lib/thumb';
 
@@ -258,7 +259,10 @@ const ProductCard = memo(function ProductCard({
           <span className="badge-sitio">{p.sitio}</span>
           {p.descuento && <span className="badge-oferta">OFERTA</span>}
           <StockBadge product={p} />
+          <PromoBadge product={p} />
           <BadgeCluster p={p} ml={ml} badge={badge} catStats={catStats} />
+          {/* Medios de pago que acepta el sitio, en el orden del servidor */}
+          <MediosPago medios={p.medios} />
         </div>
 
         {/* Cue: toda la card (salvo los botones explícitos) es clickeable para
