@@ -61,14 +61,29 @@ public class MagentoPage extends StorePage implements CatalogPage {
 
     @Override
     public List<Product> scrapeAll() {
+        return scrapeAll(url -> {
+            navigateConReintentos(url);
+            return page.content();
+        });
+    }
+
+    /**
+     * A catalogue that fails once others have collected products is a cut, not a failed site: rethrowing there
+     * discarded a whole run's worth of products when the browser died mid-crawl.
+     */
+    List<Product> scrapeAll(Function<String, String> htmlDe) {
         List<Product> result = new ArrayList<>();
         Set<String> vistas = new HashSet<>();
         for (String catalogo : catalogos()) {
             int antes = result.size();
-            crawlCatalogo(catalogo, url -> {
-                navigateConReintentos(url);
-                return page.content();
-            }, vistas, result);
+            try {
+                crawlCatalogo(catalogo, htmlDe, vistas, result);
+            } catch (RuntimeException e) {
+                if (result.isEmpty()) throw e;
+                registrarTruncamiento(1, e);
+                log.warn("[{}] Magento {} falló; se conservan {} productos", sitio, catalogo, result.size());
+                continue;
+            }
             log.info("[{}] Magento {} -> {} nuevos ({} acumulados)", sitio, catalogo, result.size() - antes, result.size());
         }
         return result;
