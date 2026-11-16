@@ -789,6 +789,14 @@ horizontalmente; jsdom no lo ve. O se fijan las columnas explícitas
 grilla entra con `md:grid` (la clase `md:grid` no matchea `.grid`). Los hijos de
 una grilla con texto `truncate` necesitan `min-w-0`.
 
+**La escala de spacing de Tailwind está duplicada: `gap-2` son 16px, no 8px.**
+`tailwind.config.js` redefine `spacing` 1–6 en pasos de 8px (`p-3` = 24px,
+`h-5` = 40px); las fracciones (`1.5`, `2.5`) y los valores ≥ 7 siguen siendo los
+de Tailwind. Código escrito "a ojo" con la escala estándar sale el doble de
+aireado: en el `/splash` v2 un campo de 121px con `px-3 gap-2` dejaba 9px al
+`<input>` de precio, que no mostraba el valor. jsdom no lo ve. Para medidas
+finas, `gap-[8px]`/`px-[12px]`.
+
 **El selector de suplementos scrollea adentro de su tarjeta, y el header fijo
 depende de un `bg-s1` que no se ve.** Con 33 subtipos, dejar crecer el picker
 empuja presupuesto, botón y resultados abajo de todo — en un teléfono son ~1000px
