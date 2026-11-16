@@ -284,6 +284,36 @@ class MagentoPageTest {
     }
 
     @Test
+    @DisplayName("a later catalogue that fails keeps what earlier ones collected, flags the cut and goes on")
+    void laterCatalogueFailureKeepsWhatWasCollected() {
+        String a = "https://laspepas.com.ar/ar/ss27/ver-todo";
+        String b = "https://laspepas.com.ar/ar/shop/carteras/ver-todo-carteras";
+        String c = "https://laspepas.com.ar/ar/shop/zapatos";
+        MagentoPage page = new MagentoPage(null, 0, SITIO, a, MIN, MAX, List.of(b, c), 60);
+        Map<String, String> paginas = Map.of(a, pagina("ss27/ver-todo", 1, 3), c, pagina("shop/zapatos", 10, 11));
+
+        List<Product> out = page.scrapeAll(url -> {
+            if (url.startsWith(b)) throw new IllegalStateException("Target page, context or browser has been closed");
+            return paginas.getOrDefault(url, pagina());
+        });
+
+        assertThat(out).hasSize(5);
+        assertThat(page.truncamiento()).contains("browser has been closed");
+    }
+
+    @Test
+    @DisplayName("a failure before anything was collected is still an explicit failure")
+    void failureWithNothingCollectedThrows() {
+        String a = "https://laspepas.com.ar/ar/ss27/ver-todo";
+        MagentoPage page = new MagentoPage(null, 0, SITIO, a, MIN, MAX,
+                List.of("https://laspepas.com.ar/ar/shop/zapatos"), 60);
+
+        assertThatThrownBy(() -> page.scrapeAll(url -> {
+            throw new IllegalStateException("Target page, context or browser has been closed");
+        })).hasMessageContaining("browser has been closed");
+    }
+
+    @Test
     @DisplayName("catalogue urls: the base first, then the extras, without repeats")
     void catalogoUrls() {
         MagentoPage page = new MagentoPage(null, 0, SITIO, "https://laspepas.com.ar/ar/ss27/ver-todo/", MIN, MAX,
