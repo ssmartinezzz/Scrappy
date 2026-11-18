@@ -13,7 +13,7 @@
         <maven.compiler.release>21</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <jmh.version>1.37</jmh.version>
-        <scraper.version>1.0.1</scraper.version>
+        <scraper.version>1.1.0</scraper.version>
     </properties>
 
     <dependencies>

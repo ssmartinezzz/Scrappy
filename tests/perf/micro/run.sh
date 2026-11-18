@@ -9,7 +9,7 @@ TOPE="systemd-run --user --scope -q -p MemoryMax=6G -p MemorySwapMax=0"
 SALIDA="$AQUI/target/jmh-result.txt"
 
 instalar_scraper() {
-    local jar="$RAIZ/scraper/target/fashion-scraper-1.0.1.jar.original"
+    local jar="$RAIZ/scraper/target/fashion-scraper-1.1.0.jar.original"
     JAVA_HOME="$JDK_COMPILA" $TOPE timeout 900 mvn -q -f "$RAIZ/scraper/pom.xml" clean package -DskipTests
     JAVA_HOME="$JDK_COMPILA" $TOPE timeout 300 mvn -q install:install-file \
         -Dfile="$jar" -DpomFile="$RAIZ/scraper/pom.xml" -Dclassifier=plain

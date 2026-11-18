@@ -289,7 +289,7 @@ viejo que algo bajo `scraper/src/main` o `scraper/pom.xml`, o si `frontend/dist/
 viejo que `frontend/src`, `package.json` o `index.html` (`cli/core/builder.py:is_built`, comparación
 de mtime). Quedan huecos: los tests no cuentan (el jar se arma con `-DskipTests`), y un jar
 armado a mano fuera del CLI sin copiarlo a `scraper/scraper.jar` sigue sin verse —copiar
-`scraper/target/fashion-scraper-1.0.1.jar` → `scraper/scraper.jar`. `frontend/.env` (p. ej.
+`scraper/target/fashion-scraper-1.1.0.jar` → `scraper/scraper.jar`. `frontend/.env` (p. ej.
 `VITE_API_BASE_URL`) tampoco cuenta: cambiarlo exige `build`.
 
 **Bootear el jar contra la dev DB arranca un scrape real.** `CronJobService.tick`
