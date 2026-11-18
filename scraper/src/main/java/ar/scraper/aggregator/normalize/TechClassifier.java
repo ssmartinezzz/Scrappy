@@ -24,6 +24,9 @@ final class TechClassifier implements FamiliaClassifier {
                 || texto.empiezaCon(GarmentTaxonomy.KW_ACCESORIO_LIDER)
                 || texto.empiezaCon(GarmentTaxonomy.KW_SERVICIO_LIDER))
             return "";
+        if (texto.empiezaCon(GarmentTaxonomy.KW_SOPORTE_LIDER)
+                && (texto.contiene(GarmentTaxonomy.KW_GPU) || texto.contiene(GarmentTaxonomy.KW_AURICULAR)))
+            return "";
         if (texto.empiezaCon(GarmentTaxonomy.KW_MINIPC_LIDER))               return "Mini PC";
         if (texto.empiezaCon(GarmentTaxonomy.KW_PC_LIDER))                   return "PC";
         if (esComboDeActualizacion(texto))                                   return "Combo de Actualización";
@@ -43,7 +46,8 @@ final class TechClassifier implements FamiliaClassifier {
         if (texto.contiene(GarmentTaxonomy.KW_CAMARA))                       return "Cámara";
         if (texto.contiene(GarmentTaxonomy.KW_PC))                           return "PC";
         if (texto.contiene(GarmentTaxonomy.KW_MONITOR))                      return "Monitor";
-        if (texto.contiene(GarmentTaxonomy.KW_GPU))                          return "GPU";
+        if (texto.contiene(GarmentTaxonomy.KW_GPU) && !texto.empiezaCon(GarmentTaxonomy.KW_NO_GPU_LIDER))
+            return "GPU";
         if (texto.contiene(GarmentTaxonomy.KW_MOTHERBOARD))                  return "Motherboard";
         if (texto.empiezaCon(GarmentTaxonomy.KW_FUENTE_LIDER) && !texto.contiene(GarmentTaxonomy.KW_FUENTE_VETO))
             return "Fuente";
@@ -67,7 +71,9 @@ final class TechClassifier implements FamiliaClassifier {
             return "Joystick";
         if (texto.contiene(GarmentTaxonomy.KW_MICROFONO))                    return "Micrófono";
         if (texto.contiene(GarmentTaxonomy.KW_WEBCAM))                       return "Webcam";
-        if (texto.contiene(GarmentTaxonomy.KW_AURICULAR))                    return "Auricular";
+        if (texto.contiene(GarmentTaxonomy.KW_AURICULAR) && !texto.contiene(GarmentTaxonomy.KW_AURICULAR_VETO)
+                && !texto.empiezaCon(GarmentTaxonomy.KW_AURICULAR_NO_LIDER))
+            return "Auricular";
         if (texto.contiene(GarmentTaxonomy.KW_MOUSEPAD))                     return "Mousepad";
         if (texto.contiene(GarmentTaxonomy.KW_TECLADO))                      return "Teclado";
         if (texto.contiene(GarmentTaxonomy.KW_MOUSE)
@@ -84,6 +90,7 @@ final class TechClassifier implements FamiliaClassifier {
      * Full PCs never get here (PC leader above) and a kit that carries a case or a "pc gamer" is a PC.
      */
     private static boolean esComboDeActualizacion(TextoClasificable texto) {
+        if (texto.empiezaCon(GarmentTaxonomy.KW_COMBO_ACTUALIZACION_LIDER)) return true;
         String n = texto.normalizado();
         return (texto.contiene(MARCA_DE_PAQUETE) || n.indexOf('+') >= 0)
                 && SENAL_CPU.matcher(n).find()

@@ -28,6 +28,7 @@ final class GamingClassifier implements FamiliaClassifier {
 
     /** A console model wins over a Joy-Con in its own bundle title. */
     private boolean esConsolaPorModelo(TextoClasificable texto) {
+        if (texto.sinPrefijoDeVentaEmpiezaCon(GarmentTaxonomy.KW_CONSOLA_ARCADE_LIDER)) return true;
         return !texto.contiene(GarmentTaxonomy.KW_ACCESORIO_CONSOLA)
                 && texto.sinPrefijoDeVentaEmpiezaCon(GarmentTaxonomy.KW_CONSOLA_LIDER);
     }
