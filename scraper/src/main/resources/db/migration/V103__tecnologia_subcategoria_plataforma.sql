@@ -66,8 +66,12 @@ WITH rasgo (clave, re) AS (
          (9,  '^Auricular:[^:]*:(?=.*\mentrada\M)(?=.*\mteclado\M)',                      'Teclado'),
          (10, '^Auricular:[^:]*:(?=.*\mentrada\M)(?=.*\mmouse\M)',                        'Mouse'),
          (11, '^Auricular:[^:]*:(?=.*\mentrada\M)(?=.*\mreloj\M)',                        'Reloj'),
+         -- no GPU model, but a cooler word anywhere (KW_COOLER): TechClassifier falls through to Cooler
+         (12, '^GPU:[^:]*(?:cooler|watercooling|water cooling|refrigeracion liquida|disipador| aio |ventilador de gabinete'
+              '|ventilador para gabinete|grasa termica|pasta termica|thermal pad|pad termico|thermal paste)[^:]*:(?!.*\mgpu\M)',
+                                                                                         'Cooler'),
          -- no GPU model at all, or an Auricular combo with nothing more specific
-         (12, '^GPU:[^:]*:(?!.*\mgpu\M)|^Auricular:[^:]*:.*\mentrada\M',                 'Otros')
+         (13, '^GPU:[^:]*:(?!.*\mgpu\M)|^Auricular:[^:]*:.*\mentrada\M',                 'Otros')
 ), subcat (prioridad, sub, re) AS (
   VALUES -- 1-7: an explicit socket token wins ("lga1700", "1700", "s1700")
          (1,  'am5',     '^(?:CPU|Motherboard):.* am5 '),
