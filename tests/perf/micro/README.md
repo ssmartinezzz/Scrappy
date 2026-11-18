@@ -28,12 +28,12 @@ tests/perf/micro/run.sh run ScraperMicroBenchmarks.groupingServiceAgrupar
 `all` hace tres cosas, que también se pueden pedir por separado (`scraper`,
 `build`, `run`). Todo corre bajo `systemd-run --scope -p MemoryMax=6G` y `timeout`.
 
-**Por qué no depende del jar normal del scraper.** `scraper/target/fashion-scraper-1.0.1.jar`
+**Por qué no depende del jar normal del scraper.** `scraper/target/fashion-scraper-1.1.0.jar`
 es el fat jar de Spring Boot: las clases viven bajo `BOOT-INF/classes` y nadie
 las puede importar. `spring-boot-maven-plugin` deja además el jar plano como
-`fashion-scraper-1.0.1.jar.original`; `run.sh scraper` lo instala en el `~/.m2`
+`fashion-scraper-1.1.0.jar.original`; `run.sh scraper` lo instala en el `~/.m2`
 con classifier `plain` y el `pom.xml` del scraper, y el módulo depende de
-`ar.scraper:fashion-scraper:1.0.1:plain`, que trae las dependencias transitivas
+`ar.scraper:fashion-scraper:1.1.0:plain`, que trae las dependencias transitivas
 correctas. El fat jar no se toca. Tras cambiar código del scraper hay que
 repetir `run.sh scraper` (el módulo mide lo que está instalado, no el árbol).
 

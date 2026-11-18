@@ -341,14 +341,14 @@ def test_diagnose_flags_a_stale_jar(repo):
     target.mkdir(parents=True)
     jar = repo / "scraper" / "scraper.jar"
     jar.write_text("")
-    built = target / "fashion-scraper-1.0.1.jar"
+    built = target / "fashion-scraper-1.1.0.jar"
     built.write_text("")
     os.utime(jar, (1, 1))
 
     check = next(c for c in ops(repo).diagnose()["checks"] if c["check"].startswith("jar"))
 
     assert not check["ok"]
-    assert "fashion-scraper-1.0.1.jar" in check["arreglo"]
+    assert "fashion-scraper-1.1.0.jar" in check["arreglo"]
 
 
 def test_diagnose_never_leaks_secret_values(repo):

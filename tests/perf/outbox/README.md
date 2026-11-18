@@ -46,7 +46,7 @@ Copiá los jars fuera de `scraper/target` antes de medir: `mvn clean` lo borra.
 |---|---|
 | `OUTBOX_DB` | `perf_outbox` (se crea y se borra) |
 | `OUTBOX_PGHOST` / `PGPORT` / `PGUSER` / `PGPASSWORD` | `127.0.0.1` / `5432` / `postgres` / vacío |
-| `OUTBOX_JAR` | `scraper/target/fashion-scraper-1.0.1.jar` (en `abba.sh`, sólo crea el esquema) |
+| `OUTBOX_JAR` | `scraper/target/fashion-scraper-1.1.0.jar` (en `abba.sh`, sólo crea el esquema) |
 | `OUTBOX_JAVA`, `OUTBOX_HEAP` | JRE 21, `512m` (heap fijo: `-Xms` = `-Xmx`) |
 | `OUTBOX_SECRETO` | aleatorio por corrida; fijarlo mantiene las credenciales del backend entre reinicios del jar |
 | `OUTBOX_PORT` | `3100` (aborta si está ocupado: otro backend contestaría por el medido) |
