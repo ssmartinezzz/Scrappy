@@ -15,9 +15,8 @@
 # uv-provisioned venv), which owns build, .env generation (no longer
 # written here), and backend+frontend orchestration. menu.sh was retired.
 #
-# NOT executed end-to-end in the apply sandbox (Windows-only) — written and
-# reviewed against the .bat's logic, but a real Linux/macOS smoke run is a
-# follow-up (see apply-progress GATE-2/installer-smoke notes).
+# Linux: run for real with SCRAPPY_INSTALL_ONLY=1 (2026-11-18). macOS: the
+# uv target and Java checks are written for it but no real Mac run yet.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -60,9 +59,12 @@ require java
 require mvn
 require python3
 require node
-JAVA_MAJOR="$(java -version 2>&1 | head -1 | sed -E 's/.*"([0-9]+).*/\1/')"
-if [[ "${JAVA_MAJOR:-0}" -lt 21 ]]; then
-  echo "  [ERROR] Se requiere Java 21+, encontrado: $JAVA_MAJOR" >&2
+# macOS ships a /usr/bin/java stub that exists without any JDK and fails on
+# -version; under pipefail that used to kill the script with no message.
+JAVA_MAJOR="$(java -version 2>&1 | head -1 | sed -E 's/.*"([0-9]+).*/\1/' || true)"
+if ! [[ "$JAVA_MAJOR" =~ ^[0-9]+$ ]] || [[ "$JAVA_MAJOR" -lt 21 ]]; then
+  echo "  [ERROR] Se requiere Java 21+, encontrado: ${JAVA_MAJOR:-ninguno}" >&2
+  echo "          (macOS: brew install openjdk@21 y seguí las instrucciones de brew)" >&2
   exit 1
 fi
 echo "       OK"
@@ -205,16 +207,22 @@ export UV_PYTHON_INSTALL_DIR="$UV_DIR/python"
 export UV_CACHE_DIR="$UV_DIR/cache"
 mkdir -p "$UV_DIR"
 
+# uv publishes one tarball per OS+arch; the Linux one does not run on macOS.
+uv_target() {
+  case "$1:$2" in
+    Linux:x86_64|Linux:amd64) echo "x86_64-unknown-linux-gnu" ;;
+    Linux:aarch64|Linux:arm64) echo "aarch64-unknown-linux-gnu" ;;
+    Darwin:x86_64) echo "x86_64-apple-darwin" ;;
+    Darwin:arm64|Darwin:aarch64) echo "aarch64-apple-darwin" ;;
+  esac
+}
+
 if [[ -x "$UV_BIN" ]]; then
   echo "       uv ya instalado."
 else
-  UV_ARCH=""
-  case "$(uname -m)" in
-    x86_64|amd64) UV_ARCH="x86_64-unknown-linux-gnu" ;;
-    aarch64|arm64) UV_ARCH="aarch64-unknown-linux-gnu" ;;
-  esac
+  UV_ARCH="$(uv_target "$(uname -s)" "$(uname -m)")"
   if [[ -z "$UV_ARCH" ]]; then
-    echo "  [ERROR] Arquitectura no reconocida ($(uname -m)) para descargar uv." >&2
+    echo "  [ERROR] Plataforma no reconocida ($(uname -s) $(uname -m)) para descargar uv." >&2
     echo "          El CLI nativo requiere Python/uv — instalacion abortada." >&2
     exit 1
   fi
@@ -309,4 +317,10 @@ echo
 # running "_tools/cli-venv/bin/python -m cli" from $ROOT works the same way.
 mkdir -p "$PROJECT/logs"
 cd "$ROOT"
+# Set by the MCP `instalar` tool: provision only. The CLI is interactive and
+# would hang a caller that has no terminal.
+if [[ "${SCRAPPY_INSTALL_ONLY:-0}" == "1" ]]; then
+  echo "[OK] Toolchain listo (SCRAPPY_INSTALL_ONLY=1: no se abre el CLI)."
+  exit 0
+fi
 exec "$CLI_VENV_PY" -m cli
