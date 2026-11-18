@@ -7,6 +7,7 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.apache.commons.lang3.StringUtils;
 
 /**
@@ -15,6 +16,8 @@ import org.apache.commons.lang3.StringUtils;
  */
 @Component
 public class SubcategoryResolver {
+
+    private final HardwareSubcategoryResolver hardware = new HardwareSubcategoryResolver();
 
     /**
      * {@code entry[1..n]} = keywords to match (accent/case-insensitive, space-padded for
@@ -245,6 +248,19 @@ public class SubcategoryResolver {
     );
 
     /**
+     * Technology categories never get a sport sub: tier 2 is for garments, and "Mario Tennis" is not a tennis product.
+     * V103 clears stale sport subs on exactly this set. Reloj is out on purpose: a running watch is a sport product.
+     */
+    static final Set<String> TECNOLOGIA_SIN_DEPORTE;
+    static {
+        TECNOLOGIA_SIN_DEPORTE = Set.of("CPU", "Motherboard", "RAM", "GPU", "Auricular", "PC", "Gabinete",
+            "Almacenamiento", "Red", "Cable", "Impresión", "Cooler", "Fuente", "Teclado", "Mouse", "Monitor",
+            "Notebook", "Joystick", "Cámara", "Videojuego", "Mousepad", "Combo de Actualización", "Silla",
+            "TV y Audio", "Micrófono", "Tablet", "Webcam", "Consola", "Mini PC", "UPS", "Soporte Monitor",
+            "Escritorio");
+    }
+
+    /**
      * {@code ""} — never {@code null}. All comparison is accent/case-insensitive (via
      * {@link #normalizarAcentos}).
      */
@@ -252,6 +268,8 @@ public class SubcategoryResolver {
         if (StringUtils.isBlank(nombre) || categoria == null) return "";
         // Space-padded, accent-normalized name — enables safe word-boundary matching
         String n = " " + normalizarAcentos(nombre) + " ";
+
+        if (hardware.handles(categoria)) return hardware.resolver(categoria, nombre);
 
         List<String[]> tier1 = SUBCATEG_TIER1.get(categoria);
         if (tier1 != null) {
@@ -272,6 +290,8 @@ public class SubcategoryResolver {
 
         // The sport tier is for garments; "Perfume Hockey Club" is not a hockey product, nor is a card or a LEGO set.
         if ("Perfume".equals(categoria) || "TCG".equals(categoria) || "LEGO".equals(categoria)) return "";
+
+        if (TECNOLOGIA_SIN_DEPORTE.contains(categoria)) return "";
 
         String catNorm = normalizarAcentos(categoria);
         for (String[] entry : SUBCATEG_TIER2) {

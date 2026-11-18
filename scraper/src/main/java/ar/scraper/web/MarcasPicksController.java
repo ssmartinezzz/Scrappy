@@ -48,19 +48,26 @@ public class MarcasPicksController {
     /**
      * Every eligible product of one category, best first, in keyset pages: {@code cursor} is the opaque
      * {@code nextCursor} of the previous page, {@code limit} defaults to 24 and is clamped to 1..100. A malformed
-     * cursor is a 400.
+     * cursor is a 400. {@code subCategoria} (optional, exact stored value) restricts the list before paging, so
+     * {@code total} and the cursors refer to the filtered list; an unknown value yields an empty page.
      */
     @GetMapping("/mejores/picks")
     public ResponseEntity<ApiResponse<MarcasPicksDtos.PicksPagina>> picksDeCategoria(@RequestParam String categoria,
             @RequestParam(required = false) String rubro,
             @RequestParam(required = false) Boolean gymrat,
             @RequestParam(required = false) String genero,
+            @RequestParam(required = false) String subCategoria,
             @RequestParam(required = false) String cursor,
             @RequestParam(required = false) Integer limit) {
         if (service.getLastResult() == null) return ResponseEntity.noContent().build();
         return ResponseEntity.ok(ApiResponse.ok(derivados.picks(
-                MejoresKey.de(service.snapshotVersion(), rubro, gymrat, genero), categoria, cursor,
+                MejoresKey.de(service.snapshotVersion(), rubro, gymrat, genero), categoria, subCategoria, cursor,
                 limit == null ? 24 : limit)));
+    }
+
+    public ResponseEntity<ApiResponse<MarcasPicksDtos.PicksPagina>> picksDeCategoria(String categoria, String rubro,
+            Boolean gymrat, String genero, String cursor, Integer limit) {
+        return picksDeCategoria(categoria, rubro, gymrat, genero, null, cursor, limit);
     }
 
     public ResponseEntity<ApiResponse<List<MarcasPicksDtos.MejoresCategoria>>> mejoresPorCategoria(String rubro, Boolean gymrat) {

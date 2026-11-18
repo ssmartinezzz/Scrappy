@@ -8,7 +8,7 @@ import CategoryPicksView, { tagline } from './CategoryPicksView';
 import CategoryPicksCarousel from './CategoryPicksCarousel';
 import { RUBROS, rubroLabel } from '../lib/rubros';
 import { PERFUMERIA_PROXIMAMENTE } from '../lib/perfumeria';
-import { subChipsDe } from '../lib/subcategorias';
+import { subChipsDe, chipPorSlug } from '../lib/subcategorias';
 import { canonicalFromSlug, slugify } from '../lib/cat';
 
 
@@ -44,7 +44,7 @@ const GENEROS = [{ key: 'hombre', label: 'Hombre' }, { key: 'mujer', label: 'Muj
 // Gymrat's entry summary is every gender (key 'gymrat'); its gallery is one gender (key 'gymrat:hombre').
 const claveCache = (rubro, genero) => (rubro === GYMRAT && genero ? `${GYMRAT}:${genero}` : rubro);
 
-// The URL is the panel's state: /picks · /picks/<rubro> · /picks/<rubro>/<categoria> · /picks/gymrat/<genero>[/<categoria>].
+// The URL is the panel's state: /picks · /picks/<rubro> · /picks/<rubro>/<categoria>[/<sub>] · /picks/gymrat/<genero>[/<categoria>].
 // The neutral rubro '' is spelled `todos`. A first segment that is no rubro is an old /picks/<categoria> link.
 const TODOS = 'todos';
 const RUBRO_KEYS_ENTRADA = new Set(RUBROS_ENTRADA.map(r => r.key));
@@ -52,19 +52,20 @@ const RUBRO_KEYS_ENTRADA = new Set(RUBROS_ENTRADA.map(r => r.key));
 function leerRuta(resto) {
   const [primero, segundo, tercero] = (resto || '').split('/').filter(Boolean);
   if (!primero) return { rubro: null };
-  if (primero === TODOS) return { rubro: '', catSlug: segundo };
+  if (primero === TODOS) return { rubro: '', catSlug: segundo, subSlug: tercero };
   if (primero === GYMRAT) {
     if (GENEROS.some(g => g.key === segundo)) return { rubro: GYMRAT, genero: segundo, catSlug: tercero };
     return { rubro: GYMRAT, catSlug: segundo };
   }
-  if (RUBRO_KEYS_ENTRADA.has(primero)) return { rubro: primero, catSlug: segundo };
+  if (RUBRO_KEYS_ENTRADA.has(primero)) return { rubro: primero, catSlug: segundo, subSlug: tercero };
   return { rubro: undefined, legado: primero };
 }
 
-function rutaDe(rubro, genero, categoria) {
+function rutaDe(rubro, genero, categoria, sub) {
   const partes = ['/picks', rubro === '' ? TODOS : rubro];
   if (rubro === GYMRAT && (genero || categoria)) partes.push(genero || GENEROS[0].key);
   if (categoria) partes.push(slugify(categoria));
+  if (categoria && sub && rubro !== GYMRAT) partes.push(slugify(sub));
   return partes.join('/');
 }
 
@@ -310,12 +311,22 @@ const pickFiltersDe = (rubro, genero) => (rubro === GYMRAT
   : { rubro: rubro || '', gymrat: false, genero: '' });
 
 // /picks/<rubro>/<categoria>: the detail, or a loading / not-found message while the slug cannot be resolved.
-function DetalleCategoria({ cat, buscando, rubro, genero, migas, onBack, onProductClick }) {
+// A sub slug that matches no chip of the category (or a category with no chips) is dropped by replacing the URL
+// with the category's own, so the address always says what is shown.
+function DetalleCategoria({ cat, buscando, rubro, genero, subSlug, onSubChange, migas, onBack, onProductClick }) {
+  const subChips = cat ? subChipsDe(rubro, cat.categoria) : undefined;
+  const chip = subSlug ? chipPorSlug(subChips, subSlug) : undefined;
+  const subHuerfano = Boolean(cat && subSlug && !chip);
+  useEffect(() => {
+    if (subHuerfano) onSubChange('', { replace: true });
+  }, [subHuerfano, onSubChange]);
   if (cat) return (
     <div className="picks-scroll picks-scroll--detalle">
       <CategoryPicksView cat={cat} onBack={onBack} migas={migas}
                           onProductClick={onProductClick}
-                          subChips={subChipsDe(rubro, cat.categoria)}
+                          subChips={subChips}
+                          sub={chip ? (chip.value ?? chip) : ''}
+                          onSubChange={onSubChange}
                           pickFilters={pickFiltersDe(rubro, genero)}/>
     </div>
   );
@@ -343,7 +354,7 @@ export default function PicksPanel({ onProductClick }) {
   // back and forth costs no request — App.jsx mounts this under ONE `picks/*` route so the cache survives.
   const { '*': resto } = useParams();
   const navigate = useNavigate();
-  const { rubro, genero: generoRuta, catSlug, legado } = leerRuta(resto);
+  const { rubro, genero: generoRuta, catSlug, subSlug, legado } = leerRuta(resto);
   const genero = generoRuta || GENEROS[0].key;
   const [busq, setBusq] = useState('');
 
@@ -364,11 +375,16 @@ export default function PicksPanel({ onProductClick }) {
                       onBack={() => navigate('/picks')} onProductClick={onProductClick}/>
   );
 
-  if (catSlug) return (
-    <DetalleCategoria cat={canonicalFromSlug(catSlug, cats)} buscando={loading} rubro={rubro} genero={genero}
+  if (catSlug) {
+    const catActual = canonicalFromSlug(catSlug, cats);
+    return (
+    <DetalleCategoria cat={catActual} buscando={loading} rubro={rubro} genero={genero}
+                      subSlug={rubro === GYMRAT ? undefined : subSlug}
+                      onSubChange={(valor, opts) => navigate(rutaDe(rubro, generoRuta, catActual?.categoria, valor), opts)}
                       migas={migasDe(rubro, generoRuta, navigate)}
                       onBack={() => navigate(rutaDe(rubro, generoRuta))} onProductClick={onProductClick}/>
-  );
+    );
+  }
 
   if (rubro === null) return (
     <div className="picks-panel">

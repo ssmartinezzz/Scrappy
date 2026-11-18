@@ -21,6 +21,24 @@ class CpuSpecsReaderTest {
         assertThat(reader.categoria()).isEqualTo("CPU");
     }
 
+    // ── socket: the glued "S1700" and the model number when the name has no socket ──
+
+    @Test
+    void socketPegadoALaSLeeElNumero() {
+        assertThat(leer("Micro Intel I5-14400F 4.7Ghz S1700").socket()).isEqualTo("LGA1700");
+        assertThat(leer("Micro Intel Celeron G5925 3.56 Ghz S.1200").socket()).isEqualTo("LGA1200");
+        assertThat(leer("Procesador Intel Core Ultra 5 245K S1851").socket()).isEqualTo("LGA1851");
+    }
+
+    @Test
+    void socketPorModeloIntelAnterior() {
+        assertThat(leer("Procesador Intel Core i5 8400 Coffee Lake").socket()).isEqualTo("LGA1151");
+        assertThat(leer("Procesador Intel Core i5 10400F").socket()).isEqualTo("LGA1200");
+        assertThat(leer("Procesador Intel Pentium Gold G5400 3.7GHz").socket()).isEqualTo("LGA1151");
+        assertThat(leer("Procesador Intel Pentium Gold G6400").socket()).isEqualTo("LGA1200");
+        assertThat(leer("Procesador Intel Xeon E5-2699 V3 Oem").socket()).isEqualTo("LGA2011-3");
+    }
+
     // ── ALTA: i9/i7, Ryzen 9/7, Ultra 9/7 ───────────────────────────────
 
     @Test

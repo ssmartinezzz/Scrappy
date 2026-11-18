@@ -2045,6 +2045,10 @@ paths:
         - name: genero
           in: query
           schema: { type: string, enum: [hombre, mujer] }
+        - name: subCategoria
+          in: query
+          description: "Optional. Keeps only the products whose stored `sub_categoria` equals this value (trimmed, exact: lowercase, accents kept, e.g. `inalámbrico`, `80 plus`). The ranking is filtered BEFORE paging, so `total`, the cursors and the pages all describe the filtered list. Blank or absent means no filter; an unknown value is an empty page with `total` 0, not a 400."
+          schema: { type: string }
         - name: cursor
           in: query
           description: "The `nextCursor` of the previous page; absent starts at the best product."
@@ -2055,7 +2059,7 @@ paths:
           schema: { type: integer, default: 24, minimum: 1, maximum: 100 }
       responses:
         "200":
-          description: "`data`: `{ picks[], nextCursor, total }`; `nextCursor` is `null` on the last page, `total` is the size of the category ranking. Each pick carries `subCategoria` (the product's `sub_categoria`) unless it is blank, and `key` (the product handle `/api/historial/{key}` and `/api/producto/{key}` take)."
+          description: "`data`: `{ picks[], nextCursor, total }`; `nextCursor` is `null` on the last page, `total` is the size of the category ranking (of the `subCategoria`-filtered list when that param is set). Each pick carries `subCategoria` (the product's `sub_categoria`) unless it is blank, and `key` (the product handle `/api/historial/{key}` and `/api/producto/{key}` take)."
           content:
             application/json:
               schema:

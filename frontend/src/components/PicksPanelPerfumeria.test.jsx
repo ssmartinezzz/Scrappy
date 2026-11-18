@@ -71,7 +71,16 @@ describe('PicksPanel — perfumería', () => {
     expect(screen.queryByText('Próximamente')).not.toBeInTheDocument();
   });
 
-  it('filters the Perfume picks by sub-category chip', async () => {
+  it('filters the Perfume picks by sub-category chip (the server does the filtering)', async () => {
+    window.IntersectionObserver = class {
+      constructor(cb) { this.cb = cb; }
+      observe() { this.cb([{ isIntersecting: true }]); }
+      disconnect() {}
+    };
+    fetchMejoresPicks.mockImplementation(async (categoria, { subCategoria = '' } = {}) => {
+      const picks = perfume.picks.filter(p => !subCategoria || p.subCategoria === subCategoria);
+      return { picks, nextCursor: null, total: picks.length };
+    });
     const user = userEvent.setup();
     renderPicks();
     await abrirPerfumeria(user);

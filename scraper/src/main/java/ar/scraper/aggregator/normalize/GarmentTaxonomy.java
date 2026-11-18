@@ -1545,11 +1545,39 @@ public final class GarmentTaxonomy {
         "webcam","camara web","web cam","facecam"
     };
 
+    /**
+     * A bare " rx " or " arc " is not a graphics card ("Titan 240 RX" is a Corsair cooler, "Wraith Arc" a manga), so
+     * only a model number counts: Radeon RX 4xx..9xx / Arc A3xx..A7xx / B5xx / Pro.
+     */
     public static final String[] KW_GPU = {
         "gpu","tarjeta de video","video card","graphics card",
-        " rtx "," gtx "," rx ","radeon","geforce"," arc ",
+        " rtx "," gtx "," rx 4"," rx 5"," rx 6"," rx 7"," rx 9","radeon","geforce",
+        " arc a3"," arc a5"," arc a7"," arc b5"," arc pro ",
         "placa de video","placa video"
     };
+
+    /**
+     * Líder ⇒ NO es GPU aunque nombre una: "Pasta Térmica ... Para CPU / GPU", "Gabinete ... GPU Mount" y
+     * "Fuente ... Para GPU" dicen para qué placa sirven, y el sustantivo líder gana sobre el orden de keywords.
+     */
+    public static final String[] KW_NO_GPU_LIDER = {
+        " cooler "," watercooler "," water cooler "," water cooling "," watercooling "," aio "," pasta ",
+        " gabinete "," fuente "," mouse "
+    };
+
+    /** A seller's own name for the kit: "Combo Actualización ... Ram + SSD" is an upgrade combo, not the RAM it lists. */
+    public static final String[] KW_COMBO_ACTUALIZACION_LIDER = { " combo actualizacion "," combo de actualizacion " };
+
+    /** Líder ⇒ soporte/estructura para una placa o unos auriculares: un accesorio, ni GPU ni Auricular. */
+    public static final String[] KW_SOPORTE_LIDER = { " soporte "," soportes "," rig "," estructura " };
+
+    /** Líder ⇒ NO es Auricular aunque nombre uno: un combo, un mouse o un reloj que lo trae de regalo. */
+    public static final String[] KW_AURICULAR_NO_LIDER = {
+        " combo "," kit "," mouse "," teclado "," soporte "," reloj "
+    };
+
+    /** "Headphone Jack" es la salida de audio de un aparato, no el aparato. Guard de {@link #KW_AURICULAR}. */
+    public static final String[] KW_AURICULAR_VETO = { "headphone jack","headphones jack" };
 
     public static final String[] KW_RAM = {
         " ram ","memoria ram"," dimm ","ddr4","ddr5","sodimm",
@@ -2174,6 +2202,8 @@ public final class GarmentTaxonomy {
         " snes classic edition"," neo geo mini"," genesis mini"," sega genesis mini"," new 3ds"," new nintendo 3ds"," 2ds "," nintendo 2ds",
         " nintendo switch lite"," nintendo switch oled"," nintendo switch -"," switch lite"," switch oled"
     };
+    /** Retro mini arcades are consoles even when the box lists "battery" or "speaker" (accessory words). */
+    public static final String[] KW_CONSOLA_ARCADE_LIDER = { " my arcade " };
     /** Platform models that are consoles unless a controller token says otherwise. */
     public static final String[] KW_CONSOLA_MODELO_LIDER = {
         " xbox series x"," xbox series s"," xbox one "," playstation 5"," playstation 4"," ps5 slim"," ps5 digital"

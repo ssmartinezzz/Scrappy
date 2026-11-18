@@ -481,6 +481,22 @@ su franquicia (`pokemon`, `dragon ball`, `magic`, `yu-gi-oh`, `one piece`, `lorc
 `Wall Panel` (`KW_WALL_PANEL`: wall panel, wallpanel, panel wpc) corre antes de `Placa Decorativa` en `ConstruccionClassifier`; el "panel ranurado" de
 ferretería no es un wall panel.
 
+**Hardware por plataforma** (`V103`). `SubcategoryResolver` le da `sub_categoria` a `CPU` y `Motherboard` (`am4`, `am5`, `lga1700`, `lga1851`,
+`lga1200`, `lga1151`), `RAM` (`notebook`, `ddr5`, `ddr4`, `ddr3`), `GPU` (`nvidia`, `amd`, `intel`), `Auricular` (`inalámbrico`, `gamer`, `oficina`,
+`in-ear`) y `PC` (`gamer` si lleva GPU dedicada, `oficina` si no); `Gabinete` no tiene. Lee tokens alfanuméricos del nombre, no el nombre con
+espacios: `AM5,`, `S.1700` y el pegado `S1700` cuentan. El socket sale de `SocketDeNombre` (`ar.scraper.model`, el mismo que los lectores de `pcs`):
+token explícito, si no la generación del modelo de CPU (`Ryzen 5 9600X` → `am5`, `i5 10400` → `lga1200`, `Celeron G4900` → `lga1151`) o el chipset de
+la mother (`B650` → `am5`, `B460` → `lga1200`). AM3, LGA2011 y Xeon quedan `''`. Sin token DDR, la RAM toma la generación de la velocidad
+(≥ 4800 MHz `ddr5`, 2133-3600 `ddr4`, ≤ 1866 `ddr3`; DDR2 queda `''`). En `Auricular`, `in-ear` va primero si dice buds/TWS/true wireless, luego
+`inalámbrico` > `gamer` (líneas de gaming conocidas, 7.1/surround/RGB) > `oficina` (Logitech `H###`/Zone, Genius `HS-###`). Las categorías de tecnología
+(`TECNOLOGIA_SIN_DEPORTE`) ya no reciben el tier 2 deportivo: el `tenis` de un `Videojuego` era una fuga.
+
+El sustantivo líder también gana sobre una palabra de GPU o de auricular en `TechClassifier`: `Water Cooler ... Titan 240 RX`, `Pasta Térmica ... Para
+Cpu / Gpu`, `Gabinete ... GPU Mount`, `Fuente ... Para GPU` y `Mouse ... RX` ya no son `GPU` (`KW_NO_GPU_LIDER`); `Soporte`/`Rig` para una placa o unos
+auriculares es un accesorio (`KW_SOPORTE_LIDER`); un combo, un mouse o un reloj que trae un auricular no es `Auricular`; `Headphone Jack` es una salida
+de audio; los `My Arcade` son `Consola`; y `Combo Actualización ...` es `Combo de Actualización` aunque liste una RAM. `KW_GPU` pide un modelo:
+` rx 4..9`, ` arc a3/a5/a7/b5/pro `.
+
 **Género fijo por sitio.** `NormalizerService.GENERO_FIJO_POR_SITIO` (sitio → género) gana
 sobre todo: `elmundodeljuguete` → `infantil`, `equus` → `hombre`, `laspepas` y `ayrun` → `mujer`.
 

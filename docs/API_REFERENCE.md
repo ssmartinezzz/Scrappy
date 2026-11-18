@@ -747,7 +747,10 @@ detalle hidrata el pick por `/api/producto/{key}` y enlaza `/historial/{key}`.
 Todos los productos elegibles de **una** categoría, mejores primero, paginados por cursor. Parámetros: `categoria`
 (obligatorio, la etiqueta tal cual la devuelve `/mejores`), `rubro`, `gymrat` y `genero` (los mismos de `/mejores`: para que
 las páginas describan el mismo conjunto que el resumen hay que mandar los mismos), `cursor` (el `nextCursor` de la página
-anterior) y `limit` (24 por defecto, entre 1 y 100). El orden es el de `/mejores` (`scoreP`, 999 si no tiene) con `url`
+anterior), `limit` (24 por defecto, entre 1 y 100) y `subCategoria` (opcional: el valor guardado en `sub_categoria`, exacto
+con trim, minúsculas y acentos tal cual: `inalámbrico`, `80 plus`). La sub filtra el ranking **antes** de paginar, así que
+`total`, `nextCursor` y las páginas son los de la lista filtrada; vacía o ausente no filtra y una sub desconocida es una página
+vacía con `total` 0, no un 400. El filtro es un pase O(n) sobre una sola categoría por request (no se memoiza; ver `MarcasPicksSubFiltroCostoTest`). El orden es el de `/mejores` (`scoreP`, 999 si no tiene) con `url`
 de desempate, o sea un orden total y estable. `data` es `{ picks[], nextCursor, total }`; `nextCursor` es `null` en la
 última página. El cursor es base64url de `clave|url` y la página siguiente arranca estrictamente después de él con una
 búsqueda binaria sobre el ranking, cacheado por snapshot con la misma clave que `mejores`: una página cuesta

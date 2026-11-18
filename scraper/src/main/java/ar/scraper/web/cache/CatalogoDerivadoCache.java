@@ -117,7 +117,18 @@ public class CatalogoDerivadoCache {
     }
 
     public MarcasPicksDtos.PicksPagina picks(MejoresKey k, String categoria, String cursor, int limite) {
-        return MarcasPicksView.pagina(rankingPicks(k).getOrDefault(categoria, List.of()), cursor, limite, politicaStock);
+        return picks(k, categoria, null, cursor, limite);
+    }
+
+    /**
+     * Like {@link #picks(MejoresKey, String, String, int)} restricted to one stored {@code subCategoria} (exact match
+     * after trimming; blank means no restriction). The cached ranking is filtered BEFORE paging, so cursor, nextCursor
+     * and total all describe the filtered list. The filter keeps the ranking order, so the keyset binary search still
+     * applies; it is one O(n) pass over a single category per request, not memoized.
+     */
+    public MarcasPicksDtos.PicksPagina picks(MejoresKey k, String categoria, String subCategoria, String cursor, int limite) {
+        var ranking = rankingPicks(k).getOrDefault(categoria, List.of());
+        return MarcasPicksView.pagina(MarcasPicksView.filtrarPorSub(ranking, subCategoria), cursor, limite, politicaStock);
     }
 
     private static String normalizar(String s) {

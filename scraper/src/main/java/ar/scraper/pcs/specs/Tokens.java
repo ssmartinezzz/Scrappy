@@ -1,6 +1,7 @@
 package ar.scraper.pcs.specs;
 
 import ar.scraper.aggregator.text.AccentStripper;
+import ar.scraper.model.SocketDeNombre;
 
 import java.util.OptionalInt;
 import java.util.regex.Matcher;
@@ -38,14 +39,7 @@ public final class Tokens {
     }
 
     public String socketExplicito() {
-        if (has("am5")) return "AM5";
-        if (has("am4")) return "AM4";
-        if (has("am3")) return "AM3";
-        if (has("lga1851") || has("1851")) return "LGA1851";
-        if (has("lga1700") || has("1700")) return "LGA1700";
-        if (has("lga1200") || has("1200") || has("s1200")) return "LGA1200";
-        if (has("lga1151") || has("1151") || has("s1151")) return "LGA1151";
-        return "";
+        return SocketDeNombre.explicito(tokens);
     }
 
     public String formFactorExplicito() {

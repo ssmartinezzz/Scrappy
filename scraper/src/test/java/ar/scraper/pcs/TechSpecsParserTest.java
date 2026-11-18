@@ -354,9 +354,17 @@ class TechSpecsParserTest {
 
     @Test
     void cpuUnrecognizedModelAbstains() {
-        var t = TechSpecsParser.parse("Procesador Intel Pentium G6400", "CPU");
+        // LGA1150 is outside the taxonomy: the model number says nothing SocketDeNombre knows
+        var t = TechSpecsParser.parse("Procesador Intel Pentium G3220", "CPU");
 
         assertThat(t.socket()).isEmpty();
+    }
+
+    @Test
+    void cpuPentiumGModelNamesItsSocket() {
+        // V103 / T7: Pentium and Celeron Gxxxx carry their socket in the model (G4xxx, G5400 -> 1151; G59xx, G64xx -> 1200)
+        assertThat(TechSpecsParser.parse("Procesador Intel Pentium G6400", "CPU").socket()).isEqualTo("LGA1200");
+        assertThat(TechSpecsParser.parse("Procesador Intel Pentium Gold G5400", "CPU").socket()).isEqualTo("LGA1151");
     }
 
     @Test

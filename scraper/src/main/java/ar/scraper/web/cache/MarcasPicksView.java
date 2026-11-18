@@ -271,6 +271,13 @@ final class MarcasPicksView {
         return Map.copyOf(out);
     }
 
+    /** The entries whose stored sub-category equals {@code sub} (trimmed), in ranking order; blank {@code sub} keeps all. */
+    static List<Ranked> filtrarPorSub(List<Ranked> ranking, String sub) {
+        String s = StringUtils.trimToNull(sub);
+        if (s == null) return ranking;
+        return ranking.stream().filter(r -> s.equals(StringUtils.trimToNull(r.producto().subCategoria()))).toList();
+    }
+
     static final int PAGINA_POR_DEFECTO = 24;
     static final int PAGINA_MAXIMA = 100;
 
