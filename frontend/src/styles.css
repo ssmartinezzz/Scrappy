@@ -830,7 +830,9 @@ body { overflow-x: hidden; }
   .picks-carousel-track { transition: none; }
 }
 .picks-carousel-item { flex: 0 0 calc((100% - (var(--per-view, 3) - 1) * var(--gap, 16px)) / var(--per-view, 3));
-  min-width: 0; }
+  min-width: 0; position: relative; }
+/* At the card's foot the sentinel sat below the fold on a 900px screen, so paging the carousel never loaded a page. */
+.picks-carousel-item > .picks-sentinel { position: absolute; top: 0; left: 0; right: 0; margin: 0; }
 
 /* Mobile: native swipe/scroll-snap instead of JS transform paging — strictly
    better touch semantics than the fixed-column grid it replaces (no PR #51
