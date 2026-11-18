@@ -35,6 +35,7 @@ PORTS = {"postgres": 5432, "backend": 3000, "frontend": 5173}
 USERNAME_RE = re.compile(r"^[A-Za-z0-9._@-]{1,64}$")
 STEP_RE = re.compile(r"^\s*\[(\d/4|ML|CF|GF|OK|ERROR|AVISO)\]")
 TAIL_LINES = 25
+JAR_CHECK = "jar del backend al día"
 
 
 def default_repo_root() -> Path:
@@ -290,11 +291,11 @@ class LocalOps:
         scraper = self.root / "scraper"
         jar, built = scraper / "scraper.jar", sorted((scraper / "target").glob("fashion-scraper-*.jar"))
         if not jar.is_file():
-            return _check("jar del backend al día", False, "sin compilar", "`levantar_servicios` compila si falta.")
+            return _check(JAR_CHECK, False, "sin compilar", "`levantar_servicios` compila si falta.")
         if built and built[-1].stat().st_mtime > jar.stat().st_mtime:
-            return _check("jar del backend al día", False, "desactualizado frente a scraper/target",
+            return _check(JAR_CHECK, False, "desactualizado frente a scraper/target",
                           f"Copiá {built[-1].name} a scraper/scraper.jar")
-        return _check("jar del backend al día", True, str(jar), "")
+        return _check(JAR_CHECK, True, str(jar), "")
 
     def _login_checks(self, backend_up: bool, env: dict[str, str]) -> list[dict[str, Any]]:
         login_servicio, detalle = None, "backend apagado"
