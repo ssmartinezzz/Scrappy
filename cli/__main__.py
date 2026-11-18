@@ -92,7 +92,47 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
             "'Explicit Force Regenerate Flag')."
         ),
     )
+    parser.add_argument(
+        "--init-env",
+        action="store_true",
+        help="Create .env (or append missing keys) and exit. Non-interactive.",
+    )
+    parser.add_argument(
+        "--set-admin",
+        metavar="USER",
+        help=(
+            "Write the bootstrap admin into .env and exit. The password is read as one "
+            "line from stdin; an empty line generates one. It is never printed."
+        ),
+    )
     return parser.parse_args(list(argv))
+
+
+_ADMIN_FIRST_BOOT_ONLY = (
+    "Sólo vale para el primer arranque: si el backend ya creó ese usuario, "
+    "esto no cambia su password."
+)
+
+
+def _run_setup(args: argparse.Namespace, cfg: Config) -> int:
+    """`--init-env` / `--set-admin`: one action, a one-line result, an exit code."""
+    from cli.core.bootstrap import init_env, set_admin
+    from cli.core.errors import CliError
+
+    try:
+        if args.set_admin is not None:
+            line = sys.stdin.readline() if not sys.stdin.isatty() else ""
+            generated = set_admin(cfg, args.set_admin, line.rstrip("\r\n") or None)
+            origen = "generada" if generated else "la indicada"
+            print(f"ADMIN_BOOTSTRAP_USERNAME={args.set_admin.strip()} y ADMIN_BOOTSTRAP_PASSWORD "
+                  f"({origen}) escritas en .env. {_ADMIN_FIRST_BOOT_ONLY}")
+        else:
+            init_env(cfg)
+            print(f".env listo en {cfg.repo_root / '.env'}")
+    except CliError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 2
+    return 0
 
 
 def _load_tui_run() -> Optional[Callable[..., int]]:
@@ -122,6 +162,8 @@ def main(
     argv = list(argv if argv is not None else sys.argv[1:])
     args = parse_args(argv)
     cfg = cfg if cfg is not None else load_config()
+    if args.init_env or args.set_admin is not None:
+        return _run_setup(args, cfg)
     environ = environ if environ is not None else os.environ
     stdout_isatty = stdout_isatty or sys.stdout.isatty
     stdin_isatty = stdin_isatty or sys.stdin.isatty

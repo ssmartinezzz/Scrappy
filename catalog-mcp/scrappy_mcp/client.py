@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import posixpath
 import threading
+from collections.abc import Callable
 from typing import Any
 
 import httpx
@@ -28,10 +29,12 @@ class ApiError(Exception):
 
 
 class ApiClient:
-    def __init__(self, base_url: str, username: str, password: str,
-                 transport: httpx.BaseTransport | None = None, timeout: float = 120.0):
-        self._username = username
-        self._password = password
+    def __init__(self, base_url: str, username: str = "", password: str = "",
+                 transport: httpx.BaseTransport | None = None, timeout: float = 120.0,
+                 credentials: Callable[[], tuple[str, str]] | None = None):
+        # `credentials` is asked at login time, so the server can boot on a fresh
+        # clone — before `.env` holds an account — and pick it up once it does.
+        self._credentials = credentials or (lambda: (username, password))
         self._http = httpx.Client(base_url=base_url, transport=transport, timeout=timeout)
         self._token: str | None = None
         self._lock = threading.Lock()
@@ -73,8 +76,9 @@ class ApiClient:
 
     def _login(self) -> None:
         with self._lock:
+            username, password = self._credentials()
             response = self._http.post("/api/auth/login",
-                                       json={"username": self._username, "password": self._password})
+                                       json={"username": username, "password": password})
             if response.is_error:
                 raise ApiError(response.status_code, response.text)
             self._token = response.json()["data"]["accessToken"]

@@ -218,9 +218,15 @@ eventos con `e2e/event-stream-stub.js` (envuelve `window.fetch` sólo para
 - **Los fixtures se escriben contra el esquema de HOY, no contra `V1`.**
   `saved_outfits.slots_json` la borró `V14`; `outfit_feedback_item.liked` es
   BOOLEAN desde `V5`. Mirar el baseline es mirar una foto vieja.
-- **El placeholder `cambiame-por-una-password-real` vive en dos lados** y tienen
-  que coincidir byte a byte: `.env.example` y `AdminSeeder.PLACEHOLDER`. Si se
-  separan, el backend deja de negarse a sembrar con la password de ejemplo.
+- **El placeholder `cambiame-por-una-password-real` vive en cuatro lados** y
+  tienen que coincidir: `.env.example`, `AdminSeeder.PLACEHOLDER`/`Placeholders`,
+  `cli/core/bootstrap.py` (`--set-admin`) y `catalog-mcp/scrappy_mcp/local.py`
+  (`diagnosticar`). Si se separan, el backend deja de negarse a sembrar con la
+  password de ejemplo, o el MCP da por buena una config que el backend rechaza.
+- **`ADMIN_BOOTSTRAP_PASSWORD` sólo vale en el primer arranque.** El seeder hace
+  `ON CONFLICT DO NOTHING`: si el usuario ya existe, cambiar `.env` no cambia la
+  password y el login da 401 contra una config que se ve bien. `diagnosticar`
+  (MCP) prueba el login del admin con la password de `.env` y lo dice.
 - **`AUTH_JWT_SECRET` y `CLI_SERVICE_ACCOUNT_PASSWORD` son pegajosos**: el CLI
   los genera una vez y NO los rota aunque regeneres el `.env` (`GENERATED_KEYS`
   en `cli/core/env_file.py`). Rotarlos cierra todas las sesiones o rompe todos

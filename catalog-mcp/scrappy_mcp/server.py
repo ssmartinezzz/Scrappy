@@ -14,6 +14,7 @@ from mcp.server import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 
 from .client import ApiClient, ApiError, ForbiddenOperation
+from .local import LocalOps, resolve_credentials
 
 # Enough to answer and to chain into ver_producto / reclasificar; the full row
 # carries ML internals and size lists that only burn context.
@@ -25,11 +26,15 @@ INSTRUCTIONS = """Scrappy: catalog of Argentine online stores (clothing, gym, su
 home). Prices are ARS. Search with buscar_productos, then use a row's `key` with ver_producto.
 Rows carry `mejorPromo` and `medios` (payment promos); promos lists them by site or medio.
 Mutations (scrape, ML, reclassification, config) are real and affect the shared catalog.
-Nothing can be deleted through this server."""
+Nothing can be deleted through this server.
+Not installed, not running, or a tool says "backend not reachable" / "sin credenciales"? Call
+`quickstart`: it diagnoses this machine and names the next tool (instalar → configurar_admin →
+levantar_servicios → diagnosticar). Works on Linux, macOS and Windows, with no backend."""
 
 
-def build_server(api: ApiClient) -> MCPServer:
+def build_server(api: ApiClient, local: LocalOps | None = None) -> MCPServer:
     mcp = MCPServer("scrappy-catalog", instructions=INSTRUCTIONS)
+    local = local or LocalOps()
 
     def call(method: str, path: str, params: dict | None = None, body: Any = None) -> Any:
         try:
@@ -212,7 +217,64 @@ def build_server(api: ApiClient) -> MCPServer:
         run are refused. Check api_reference for paths and parameters."""
         return call(method, path, params, body)
 
+    _register_local_tools(mcp, local)
     return mcp
+
+
+def _register_local_tools(mcp: MCPServer, local: LocalOps) -> None:
+    """Install, set up, start and debug this machine's Scrappy. No API needed."""
+
+    def guarded(fn, *args):
+        try:
+            return fn(*args)
+        except ApiError as e:
+            raise ToolError(str(e)) from e
+
+    @mcp.tool()
+    def quickstart() -> dict:
+        """START HERE on a new machine or when anything fails. Diagnoses the install and returns
+        the ordered steps, which are done, and the next tool to call."""
+        return guarded(local.quickstart)
+
+    @mcp.tool()
+    def instalar() -> dict:
+        """Run this OS's installer (Ejecutar_instalar.sh on Linux/macOS, INSTALAR_Y_CORRER.bat on
+        Windows) in the background, toolchain only. Poll with estado_instalacion."""
+        return guarded(local.start_install)
+
+    @mcp.tool()
+    def estado_instalacion() -> dict:
+        """Progress of the installer started by `instalar`: state, current step, log tail."""
+        return guarded(local.install_status)
+
+    @mcp.tool()
+    def configurar_admin(usuario: str = "admin", password: str | None = None) -> dict:
+        """Create .env and set the bootstrap admin account the backend seeds on first boot.
+        Omit `password` to generate one: it is written to .env (ADMIN_BOOTSTRAP_PASSWORD) and
+        never returned. Only affects the first boot: an existing account keeps its password."""
+        return guarded(local.configure_admin, usuario, password)
+
+    @mcp.tool()
+    def levantar_servicios(modo: str = "local") -> dict:
+        """Start backend (:3000) + frontend (:5173) through the native CLI; builds first if needed.
+        modo: local | lan. They stop when this MCP session ends."""
+        return guarded(local.start_services, modo)
+
+    @mcp.tool()
+    def bajar_servicios() -> dict:
+        """Stop the backend + frontend started by levantar_servicios."""
+        return guarded(local.stop_services)
+
+    @mcp.tool()
+    def diagnosticar() -> dict:
+        """Check toolchain, .env secrets, jar, ports, backend, MCP login and admin login, with a
+        concrete fix for each failure and the last backend errors."""
+        return guarded(local.diagnose)
+
+    @mcp.tool()
+    def logs_locales(servicio: str = "backend", lineas: int = 80) -> dict:
+        """Tail a local log: backend | frontend | errores | cli | instalacion."""
+        return guarded(local.logs, servicio, lineas)
 
 
 def _csv(values: list[str] | None) -> str | None:
@@ -221,12 +283,16 @@ def _csv(values: list[str] | None) -> str | None:
 
 
 def main() -> None:
-    try:
-        user, password = os.environ["SCRAPPY_API_USER"], os.environ["SCRAPPY_API_PASSWORD"]
-    except KeyError as e:
-        raise SystemExit(f"missing environment variable {e}; see docs/MCP.md") from None
-    api = ApiClient(os.environ.get("SCRAPPY_API_URL") or "http://localhost:3000", user, password)
-    build_server(api).run()
+    # Never refuses to start: on a fresh clone there are no credentials yet, and
+    # the local tools are exactly what creates them.
+    local = LocalOps()
+
+    def credentials() -> tuple[str, str]:
+        user, password, _ = resolve_credentials(os.environ, local.root)
+        return user, password
+
+    api = ApiClient(os.environ.get("SCRAPPY_API_URL") or "http://localhost:3000", credentials=credentials)
+    build_server(api, local).run()
 
 
 if __name__ == "__main__":

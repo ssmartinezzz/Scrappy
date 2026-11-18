@@ -2,6 +2,11 @@
 chcp 65001 >nul 2>&1
 setlocal enabledelayedexpansion
 
+:: SCRAPPY_INSTALL_ONLY=1 (set by the MCP `instalar` tool): provision only.
+:: No `cmd /k` window, no pauses, no CLI — a caller without a console would
+:: otherwise wait forever.
+if "%SCRAPPY_INSTALL_ONLY%"=="1" (set "PAUSA=ver >nul") else (set "PAUSA=pause")
+if "%SCRAPPY_INSTALL_ONLY%"=="1" goto :main
 if "%~1"=="__run__" goto :main
 cmd /k "%~f0" __run__
 exit /b
@@ -58,7 +63,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "try{(New-Object Net.WebClient).DownloadString('https://www.google.com')|Out-Null;exit 0}catch{exit 1}"
 if errorlevel 1 (
     echo  [ERROR] Sin internet.
-    pause & exit /b 1
+    %PAUSA% & exit /b 1
 )
 echo        OK
 echo.
@@ -80,7 +85,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "'%TOOLS%\jdk.zip')"
 if not exist "%TOOLS%\jdk.zip" (
     echo  [ERROR] Descarga Java fallo.
-    pause & exit /b 1
+    %PAUSA% & exit /b 1
 )
 echo        Descomprimiendo...
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
@@ -90,7 +95,7 @@ rmdir /s /q "%TOOLS%\jdk_tmp" 2>nul
 del /f /q "%TOOLS%\jdk.zip" 2>nul
 if not exist "%JAVA_EXE%" (
     echo  [ERROR] Extraccion Java fallo.
-    pause & exit /b 1
+    %PAUSA% & exit /b 1
 )
 echo        Java 21 listo.
 :java_ok
@@ -115,7 +120,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "'%TOOLS%\pgsql.zip')"
 if not exist "%TOOLS%\pgsql.zip" (
     echo  [ERROR] Descarga PostgreSQL fallo.
-    pause & exit /b 1
+    %PAUSA% & exit /b 1
 )
 echo        Descomprimiendo PostgreSQL...
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
@@ -126,7 +131,7 @@ rmdir /s /q "%TOOLS%\pgsql_tmp" 2>nul
 del /f /q "%TOOLS%\pgsql.zip" 2>nul
 if not exist "%PG_BIN%\postgres.exe" (
     echo  [ERROR] Extraccion PostgreSQL fallo.
-    pause & exit /b 1
+    %PAUSA% & exit /b 1
 )
 echo        PostgreSQL portable listo.
 :pg_bin_ok
@@ -139,7 +144,7 @@ echo        Inicializando data directory...
 "%PG_BIN%\initdb.exe" -D "%PG_DATA%" -U "%PG_USER%" -A trust --locale=C -E UTF8 >nul
 if not exist "%PG_DATA%\PG_VERSION" (
     echo  [ERROR] initdb fallo.
-    pause & exit /b 1
+    %PAUSA% & exit /b 1
 )
 :pg_initdb_ok
 
@@ -154,7 +159,7 @@ echo        Iniciando servidor en 127.0.0.1:%PG_PORT%...
   -l "%TOOLS%\pgserver.log" -w start
 if errorlevel 1 (
     echo  [ERROR] PostgreSQL no arranco. Ver %TOOLS%\pgserver.log.
-    pause & exit /b 1
+    %PAUSA% & exit /b 1
 )
 :pg_start_ok
 
@@ -425,7 +430,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "'%TOOLS%\node.zip')"
 if not exist "%TOOLS%\node.zip" (
     echo  [ERROR] Descarga Node.js fallo.
-    pause & exit /b 1
+    %PAUSA% & exit /b 1
 )
 echo        Descomprimiendo Node.js...
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
@@ -465,7 +470,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "'%TOOLS%\mvn.zip') }"
 if not exist "%TOOLS%\mvn.zip" (
     echo  [ERROR] Descarga Maven fallo.
-    pause & exit /b 1
+    %PAUSA% & exit /b 1
 )
 echo        Descomprimiendo Maven...
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
@@ -475,7 +480,7 @@ rmdir /s /q "%TOOLS%\mvn_tmp" 2>nul
 del /f /q "%TOOLS%\mvn.zip" 2>nul
 if not exist "%MVN_EXE%" (
     echo  [ERROR] Maven no extraido.
-    pause & exit /b 1
+    %PAUSA% & exit /b 1
 )
 echo        Maven listo.
 :mvn_ok
@@ -553,7 +558,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "'%TOOLS%\uv.zip')"
 if not exist "%TOOLS%\uv.zip" (
     echo  [ERROR] Descarga de uv fallo. El CLI nativo requiere Python/uv — instalacion abortada.
-    pause & exit /b 1
+    %PAUSA% & exit /b 1
 )
 echo        Descomprimiendo uv...
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
@@ -564,7 +569,7 @@ rmdir /s /q "%TOOLS%\uv_tmp" 2>nul
 del /f /q "%TOOLS%\uv.zip" 2>nul
 if not exist "%UV_EXE%" (
     echo  [ERROR] Extraccion de uv fallo. El CLI nativo requiere Python/uv — instalacion abortada.
-    pause & exit /b 1
+    %PAUSA% & exit /b 1
 )
 echo        uv listo.
 :uv_bin_ok
@@ -583,19 +588,19 @@ echo        Instalando CPython %UV_PY_VER% administrado por uv...
 if errorlevel 1 (
     echo  [ERROR] "uv python install %UV_PY_VER%" fallo. El CLI nativo requiere Python —
     echo          instalacion abortada. Verifica conexion a internet y reintenta.
-    pause & exit /b 1
+    %PAUSA% & exit /b 1
 )
 echo        Creando _tools\cli-venv...
 "%UV_EXE%" venv --managed-python --python %UV_PY_VER% "%CLI_VENV%"
 if errorlevel 1 (
     echo  [ERROR] "uv venv" fallo al crear _tools\cli-venv. Instalacion abortada.
-    pause & exit /b 1
+    %PAUSA% & exit /b 1
 )
 echo        Instalando dependencias del CLI ^(textual — ver cli\requirements.txt^)...
 "%UV_EXE%" pip install --python "%CLI_VENV_PY%" -r "%ROOT%\cli\requirements.txt"
 if errorlevel 1 (
     echo  [ERROR] "uv pip install" fallo instalando cli\requirements.txt. Instalacion abortada.
-    pause & exit /b 1
+    %PAUSA% & exit /b 1
 )
 :cli_venv_ok
 
@@ -610,7 +615,7 @@ if errorlevel 1 (
     echo  [ERROR] "_tools\cli-venv" no tiene "textual" instalado tras el aprovisionamiento.
     echo          El CLI nativo no puede arrancar sin el. Revisa la salida de "uv pip install"
     echo          arriba, o borra _tools\uv y _tools\cli-venv y reintenta.
-    pause & exit /b 1
+    %PAUSA% & exit /b 1
 )
 echo        _tools\cli-venv listo ^(Python %UV_PY_VER% administrado por uv, "import textual" OK^).
 echo.
@@ -666,6 +671,10 @@ mkdir "%PROJECT%\logs" 2>nul
 :: %ROOT% works the same way.
 :: ============================================================
 cd /d "%ROOT%"
+if "%SCRAPPY_INSTALL_ONLY%"=="1" (
+    echo  [OK] Toolchain listo ^(SCRAPPY_INSTALL_ONLY=1: no se abre el CLI^).
+    exit /b 0
+)
 "%CLI_VENV_PY%" -m cli
 
 echo.
