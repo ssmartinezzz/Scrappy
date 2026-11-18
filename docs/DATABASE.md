@@ -5250,6 +5250,9 @@ El nombre se tokeniza (todo lo que no es `[a-z0-9]` es un espacio): `AM5,`, `(am
 sueltos no son GPU (el cooler `Titan 240 RX`, el manga `Wraith Arc`): `KW_GPU` pide un modelo (`rx 4..9xx`, `arc a3/a5/a7/b5/pro`).
 El paso 2 vacía los deportes de las categorías de tecnología (`TECNOLOGIA_SIN_DEPORTE`); `Reloj` queda afuera a propósito.
 Nunca toca filas bloqueadas (`bloqueado_por`) y es idempotente (`IS DISTINCT FROM`).
+Las reglas son tablas `VALUES` dentro de la migración (`rasgo`, `mover`, `subcat`; gana la de menor `prioridad`), no una escalera de `CASE`: cada
+valor se escribe una vez (Sonar `plsql:S1192` marca un literal repetido tres veces) y una regla se lee como una fila. Una sub `NULL` frena la
+búsqueda (AM3, DDR2). El cuerpo del rollback de abajo no cambia.
 
 **Recategorización** (mismo `UPDATE`, antes del sub). `TechClassifier` ahora deja que el sustantivo líder gane sobre una palabra de GPU o de
 auricular (`KW_NO_GPU_LIDER`, `KW_SOPORTE_LIDER`, `KW_AURICULAR_NO_LIDER`, `KW_AURICULAR_VETO`), y la migración mueve las filas guardadas:
