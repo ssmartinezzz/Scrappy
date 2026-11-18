@@ -23,6 +23,8 @@ export function tagline(cat, pick, mediana) {
   return `El mejor precio/calidad en ${cat} en este momento`;
 }
 
+const productos = n => `${n.toLocaleString('es-AR')} ${n === 1 ? 'producto' : 'productos'}`;
+
 const VIEW_MODE_KEY = 'picks:viewMode';
 
 // Storage can throw (blocked or full); an unknown stored value falls back to the carousel.
@@ -40,50 +42,61 @@ function leerModo() {
 // backend's opaque `nextCursor`, never an offset) loaded as a sentinel scrolls into view — either as one carousel or
 // as one list, never both. The mode is a per-viewer preference kept in localStorage, like /favoritos. `pickFilters` must be the same
 // rubro/gymrat/genero the summary `cat` was fetched with, so the pages describe the same set.
-// `subChips` (optional) lists sub-categories to filter by; picks carry `subCategoria` when the product has one.
+// `subChips` (optional) lists sub-categories to filter by. The sub is sent to the backend (`subCategoria`), which filters
+// the whole ranking before paging; with a sub active the curated highlights are not shown and the header counts that sub.
 // `migas` (optional) are the breadcrumb segments before the category, `{ label, onClick }` each: Picks › Rubro › Categoría.
 // The bar holding them and the back control is sticky, so the way out stays reachable while the list scrolls.
-export default function CategoryPicksView({ cat, onBack, onProductClick, pickFilters, subChips, migas }) {
-  const [sub, setSub] = useState('');
-  const delFiltro = lista => (sub ? lista.filter(p => p.subCategoria === sub) : lista);
-  const firstPick = delFiltro(cat.picks || [])[0];
+// `sub` / `onSubChange` make the chip selection controlled (PicksPanel keeps it in the URL); without them the view keeps it itself.
+export default function CategoryPicksView({ cat, onBack, onProductClick, pickFilters, subChips, migas, sub: subControlado, onSubChange }) {
+  const [subLocal, setSubLocal] = useState('');
+  const controlado = onSubChange !== undefined;
+  const sub = controlado ? (subControlado ?? '') : subLocal;
+  const setSub = controlado ? onSubChange : setSubLocal;
   const [viewMode, setViewMode] = useState(leerModo);
   const elegirModo = modo => {
     setViewMode(modo);
     try { localStorage.setItem(VIEW_MODE_KEY, modo); } catch { /* still works for this session */ }
   };
 
-  const [extra, setExtra] = useState([]);
-  const [cursor, setCursor] = useState(null);
-  const [fin, setFin] = useState(false);
-  const cargando = useRef(false);
-  // State, not a ref: the sentinel moves between carousel items as pages arrive, and the observer must follow it.
-  const [sentinel, setSentinel] = useState(null);
+  // One list per (category, filters, sub): the server filters by sub, so lists of different subs never mix. State
+  // carrying a different key than the current one reads as empty, which also drops a cursor issued for another sub.
   const filtros = pickFilters || { rubro: '', gymrat: false, genero: '' };
   const filtrosKey = `${filtros.rubro}|${filtros.gymrat}|${filtros.genero}`;
+  const listaKey = `${cat.categoria}|${filtrosKey}|${sub}`;
+  const [lista, setLista] = useState({ key: listaKey, extra: [], cursor: null, fin: false, total: null });
+  const vigente = lista.key === listaKey ? lista : { key: listaKey, extra: [], cursor: null, fin: false, total: null };
+  const { extra, cursor, fin, total } = vigente;
+  const cargando = useRef(null);
+  // State, not a ref: the sentinel moves between carousel items as pages arrive, and the observer must follow it.
+  const [sentinel, setSentinel] = useState(null);
 
-  useEffect(() => {
-    setExtra([]); setCursor(null); setFin(false); cargando.current = false; setSub('');
-  }, [cat.categoria, filtrosKey]);
+  useEffect(() => { setSubLocal(''); }, [cat.categoria, filtrosKey]);
 
   const cargarMas = useCallback(async () => {
-    if (cargando.current) return;
-    cargando.current = true;
+    if (cargando.current === listaKey) return;
+    cargando.current = listaKey;
     try {
-      const page = await fetchMejoresPicks(cat.categoria, { ...filtros, cursor });
-      setExtra(prev => {
-        const vistos = new Set([...(cat.picks || []), ...prev].map(p => p.url));
-        return [...prev, ...(page?.picks || []).filter(p => !vistos.has(p.url))];
+      const page = await fetchMejoresPicks(cat.categoria, { ...filtros, subCategoria: sub, cursor });
+      setLista(prev => {
+        const base = prev.key === listaKey ? prev : { key: listaKey, extra: [], cursor: null, fin: false, total: null };
+        // With a sub active the curated highlights (cat.picks, unfiltered) are not shown, so only the pages dedupe.
+        const vistos = new Set([...(sub ? [] : cat.picks || []), ...base.extra].map(p => p.url));
+        const nextCursor = page?.nextCursor || null;
+        return {
+          key: listaKey,
+          extra: [...base.extra, ...(page?.picks || []).filter(p => !vistos.has(p.url))],
+          cursor: nextCursor,
+          fin: !nextCursor,
+          total: typeof page?.total === 'number' ? page.total : base.total,
+        };
       });
-      setCursor(page?.nextCursor || null);
-      if (!page?.nextCursor) setFin(true);
     } catch {
       // A failed page leaves the sentinel armed; scrolling again retries it.
     } finally {
-      cargando.current = false;
+      if (cargando.current === listaKey) cargando.current = null;
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cat.categoria, filtrosKey, cursor]);
+  }, [listaKey, cursor]);
 
   useEffect(() => {
     if (fin) return;
@@ -97,7 +110,9 @@ export default function CategoryPicksView({ cat, onBack, onProductClick, pickFil
     return () => observer.disconnect();
   }, [fin, cargarMas, sentinel]);
 
-  const todos = delFiltro([...(cat.picks || []), ...extra]);
+  // With a sub active the list is exactly what the server returned for it (its best products come first anyway).
+  const todos = sub ? extra : [...(cat.picks || []), ...extra];
+  const firstPick = todos[0];
   const centinela = fin ? null : <div ref={setSentinel} className="picks-sentinel" />;
   const modoBtn = (modo, etiqueta, Icono) => (
     <button type="button" className={`picks-view-btn${viewMode === modo ? ' active' : ''}`}
@@ -126,7 +141,7 @@ export default function CategoryPicksView({ cat, onBack, onProductClick, pickFil
         {cat.categoria}
       </h2>
       <p className="picks-catdetail-meta">
-        {(cat.count||0).toLocaleString('es-AR')} productos · mediana ${fmt(cat.mediana)}
+        {productos(sub && total !== null ? total : (cat.count || 0))} · mediana ${fmt(cat.mediana)}
       </p>
       {firstPick && (
         <p className="picks-catdetail-tagline">

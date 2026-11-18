@@ -4,7 +4,7 @@
 
 ## Frontend (rutas)
 
-Catálogo `/catalogo` · Picks `/picks(/:rubro(/:categoria))` · Para ti `/recomendados` ·
+Catálogo `/catalogo` · Picks `/picks(/:rubro(/:categoria(/:sub)))` · Para ti `/recomendados` ·
 Cronjobs `/cronjobs` · Marcas `/marcas` · Suplementos `/suplementos` ·
 Análisis `/analisis/mercado` · `/analisis/oportunidades(/:badge)` ·
 Cuotas `/financiacion` · Favoritos `/favoritos` ·
@@ -30,15 +30,22 @@ Gymrat sin género.
 
 **Cada paso de `/picks` es una ruta**: `/picks` (rubros) · `/picks/<rubro>` (galería; el neutro es
 `/picks/todos`) · `/picks/<rubro>/<categoria>` (detalle, slug de `lib/cat.js` `slugify`) ·
+`/picks/<rubro>/<categoria>/<sub>` (chip de subcategoría, mismo `slugify` sobre `productos.sub_categoria`: `inalámbrico` → `inalambrico`, `80 plus` → `80-plus`) ·
 `/picks/gymrat/<hombre|mujer>[/<categoria>]`. `PicksPanel` lee todo de la URL y `App.jsx` lo monta en
 **una sola** ruta `picks/*`: rutas separadas lo remontarían y perdería la cache por rubro. Un link viejo
 `/picks/<categoria>` (primer segmento que no es rubro) se redirige con `replace` al rubro dueño de la categoría.
 El detalle muestra **todos** los productos de la categoría como carrusel **o** como lista, nunca ambos; el
 toggle se recuerda en `localStorage` (`picks:viewMode`), igual que `/favoritos`.
+Los chips de subcategoría salen de `lib/subcategorias.js` (`<rubro>/<categoria>`; tecnología los tiene todos) y el
+chip activo es el tercer segmento: elegir uno navega, "Todos" vuelve a la ruta de la categoría. Un `<sub>` que no
+corresponde a ningún chip se descarta con `replace` hacia la URL de la categoría. Gymrat no tiene este nivel. El
+filtro es del servidor: con un chip activo el detalle pide `/api/mejores/picks?subCategoria=<valor>` (cambiar de chip
+reinicia lista y cursor), no muestra los destacados sin filtrar y el encabezado cuenta el `total` de esa sub. Filtrar en
+el cliente fallaba en subs profundas (`/almacenamiento/hdd`: 2 de 61, el centinela dejaba de paginar antes de llegar).
 
 **`/picks` en `perfumeria`**: la galería suma tres cards grises "Próximamente" (Maquillaje, Cuidado de la piel, Cabello) que NO son categorías: son un mock de frontend, sin filas en la base ni keywords, definido en
 `PERFUMERIA_PROXIMAMENTE` (`lib/perfumeria.js`; borrar la entrada cuando exista la categoría real: `Desodorante` ya lo es y salió del mock). Dentro de la categoría
-`Perfume` hay chips por subcategoría (`PERFUME_SUBCATEGORIAS`) que filtran en el cliente por el `subCategoria` de cada pick.
+`Perfume` hay chips por subcategoría (`PERFUME_SUBCATEGORIAS`) que filtran por `subCategoria` en el servidor (mismo mecanismo que los chips de tecnología).
 
 **`/analisis/oportunidades` se filtra por rubro y juzga con `/api/data`.** Una fila de chips
 (`RUBROS` de `lib/rubros.js`) elige el rubro y lo deja en la URL como `?rubro=`, así que se

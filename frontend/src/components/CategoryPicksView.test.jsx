@@ -48,14 +48,14 @@ describe('CategoryPicksView — every product of the category', () => {
     await tocarCentinela();
     await waitFor(() => expect(screen.getByText('Producto 3')).toBeInTheDocument());
     expect(fetchMejoresPicks).toHaveBeenNthCalledWith(1, 'Remera',
-      { rubro: 'indumentaria', gymrat: false, genero: '', cursor: null });
+      { rubro: 'indumentaria', gymrat: false, genero: '', subCategoria: '', cursor: null });
     // The highlights (1, 2) are not repeated in the list below the carousel.
     expect(screen.getAllByText('Producto 1')).toHaveLength(1);
 
     await tocarCentinela();
     await waitFor(() => expect(screen.getByText('Producto 5')).toBeInTheDocument());
     expect(fetchMejoresPicks).toHaveBeenNthCalledWith(2, 'Remera',
-      { rubro: 'indumentaria', gymrat: false, genero: '', cursor: 'c1' });
+      { rubro: 'indumentaria', gymrat: false, genero: '', subCategoria: '', cursor: 'c1' });
   });
 
   it('stops asking once nextCursor is null', async () => {
