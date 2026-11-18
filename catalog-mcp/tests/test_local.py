@@ -117,7 +117,8 @@ def test_install_runs_in_install_only_mode_without_stdin(repo):
     result = local.start_install()
 
     cmd, kwargs = calls[0]
-    assert result["iniciado"] and cmd[0] == "bash"
+    assert result["iniciado"]
+    assert cmd[0] == "bash"
     assert kwargs["env"]["SCRAPPY_INSTALL_ONLY"] == "1"
     assert kwargs["stdin"] == subprocess.DEVNULL
 
@@ -150,7 +151,8 @@ def test_a_failed_install_points_at_the_error_lines(repo):
 
     status = local.install_status()
 
-    assert status["estado"] == "falló" and status["paso_actual"].strip().startswith("[ERROR]")
+    assert status["estado"] == "falló"
+    assert status["paso_actual"].strip().startswith("[ERROR]")
 
 
 # ── Credentials ─────────────────────────────────────────────────────────
@@ -158,7 +160,8 @@ def test_a_failed_install_points_at_the_error_lines(repo):
 def test_explicit_variables_win_over_env_file(repo):
     (repo / ".env").write_text(GOOD_ENV)
     user, password, source = resolve_credentials({"SCRAPPY_API_USER": "bot", "SCRAPPY_API_PASSWORD": "pw"}, repo)
-    assert (user, password) == ("bot", "pw") and "SCRAPPY_API_USER" in source
+    assert (user, password) == ("bot", "pw")
+    assert "SCRAPPY_API_USER" in source
 
 
 def test_falls_back_to_the_cli_service_account(repo):
@@ -219,20 +222,23 @@ def test_configure_admin_without_password_never_returns_one(repo):
 @pytest.mark.parametrize("usuario", ["", "dos palabras", "a;rm -rf", "x" * 65])
 def test_configure_admin_refuses_odd_usernames(repo, usuario):
     installed(repo)
+    local = ops(repo)
     with pytest.raises(ApiError, match="usuario"):
-        ops(repo).configure_admin(usuario, None)
+        local.configure_admin(usuario, None)
 
 
 def test_configure_admin_before_install_says_what_to_run(repo):
+    local = ops(repo)
     with pytest.raises(ApiError, match="instalar"):
-        ops(repo).configure_admin("admin", None)
+        local.configure_admin("admin", None)
 
 
 def test_configure_admin_surfaces_the_cli_refusal(repo):
     installed(repo)
     run = lambda cmd, **kw: subprocess.CompletedProcess(cmd, 2, "", "Error: la password debe tener 12")
+    local = ops(repo, run=run)
     with pytest.raises(ApiError, match="12"):
-        ops(repo, run=run).configure_admin("admin", "corta")
+        local.configure_admin("admin", "corta")
 
 
 # ── Services ────────────────────────────────────────────────────────────
@@ -240,8 +246,9 @@ def test_configure_admin_surfaces_the_cli_refusal(repo):
 def test_services_refuse_to_start_on_placeholder_secrets(repo):
     installed(repo)
     (repo / ".env").write_text(GOOD_ENV.replace("admin-pass-real", "cambiame-por-una-password-real"))
+    local = ops(repo)
     with pytest.raises(ApiError, match="ADMIN_BOOTSTRAP_PASSWORD"):
-        ops(repo).start_services("local")
+        local.start_services("local")
 
 
 def test_services_refuse_when_the_backend_port_is_taken(repo):
@@ -263,8 +270,9 @@ def test_services_start_the_plain_cli_and_type_start(repo):
 
 
 def test_an_unknown_mode_is_refused(repo):
+    local = ops(repo)
     with pytest.raises(ApiError, match="modo"):
-        ops(repo).start_services("prod; rm -rf /")
+        local.start_services("prod; rm -rf /")
 
 
 def test_stop_quits_the_cli_it_started(repo):
@@ -282,21 +290,24 @@ def test_stop_quits_the_cli_it_started(repo):
 
 def test_fresh_clone_quickstart_says_install_first(repo):
     q = ops(repo, which=lambda cmd: None).quickstart()
-    assert q["siguiente"].startswith("1.") and "instalar" in q["siguiente"]
+    assert q["siguiente"].startswith("1.")
+    assert "instalar" in q["siguiente"]
     assert not q["pasos"][0]["hecho"]
 
 
 def test_after_install_quickstart_asks_for_the_admin(repo):
     installed(repo)
     q = ops(repo, ports={5432}).quickstart()
-    assert q["siguiente"].startswith("2.") and "configurar_admin" in q["siguiente"]
+    assert q["siguiente"].startswith("2.")
+    assert "configurar_admin" in q["siguiente"]
 
 
 def test_configured_but_stopped_quickstart_asks_to_start(repo):
     installed(repo)
     (repo / ".env").write_text(GOOD_ENV)
     q = ops(repo, ports={5432}).quickstart()
-    assert q["siguiente"].startswith("3.") and "levantar_servicios" in q["siguiente"]
+    assert q["siguiente"].startswith("3.")
+    assert "levantar_servicios" in q["siguiente"]
 
 
 def test_everything_up_quickstart_is_done(repo):
@@ -321,7 +332,8 @@ def test_a_rejected_admin_login_explains_the_seeder_trap(repo):
     d = local.diagnose()
 
     admin = next(c for c in d["checks"] if c["check"].startswith("login del admin"))
-    assert not admin["ok"] and "ON CONFLICT DO NOTHING" in admin["arreglo"]
+    assert not admin["ok"]
+    assert "ON CONFLICT DO NOTHING" in admin["arreglo"]
 
 
 def test_diagnose_flags_a_stale_jar(repo):
@@ -335,7 +347,8 @@ def test_diagnose_flags_a_stale_jar(repo):
 
     check = next(c for c in ops(repo).diagnose()["checks"] if c["check"].startswith("jar"))
 
-    assert not check["ok"] and "fashion-scraper-1.0.1.jar" in check["arreglo"]
+    assert not check["ok"]
+    assert "fashion-scraper-1.0.1.jar" in check["arreglo"]
 
 
 def test_diagnose_never_leaks_secret_values(repo):
@@ -355,12 +368,14 @@ def test_macos_hints_use_brew(repo):
 def test_windows_checks_the_vendored_toolchain(repo):
     d = ops(repo, system="Windows").diagnose()
     names = {c["check"] for c in d["checks"]}
-    assert "toolchain: JDK 21" in names and "toolchain: java 21+" not in names
+    assert "toolchain: JDK 21" in names
+    assert "toolchain: java 21+" not in names
 
 
 def test_logs_refuse_unknown_services(repo):
+    local = ops(repo)
     with pytest.raises(ApiError, match="servicio"):
-        ops(repo).logs("../../etc/passwd", 10)
+        local.logs("../../etc/passwd", 10)
 
 
 # ── Through the MCP ─────────────────────────────────────────────────────
@@ -384,10 +399,12 @@ def test_a_slow_java_is_reported_as_slow_not_missing(repo):
         raise subprocess.TimeoutExpired(cmd, 60)
 
     java = next(c for c in ops(repo, run=run).diagnose()["checks"] if c["check"] == "toolchain: java 21+")
-    assert not java["ok"] and "no respondió" in java["detalle"]
+    assert not java["ok"]
+    assert "no respondió" in java["detalle"]
 
 
 def test_java_17_is_too_old(repo):
     run = lambda *a, **k: subprocess.CompletedProcess(a, 0, "", 'openjdk version "17.0.9"')
     java = next(c for c in ops(repo, run=run).diagnose()["checks"] if c["check"] == "toolchain: java 21+")
-    assert not java["ok"] and "17" in java["detalle"]
+    assert not java["ok"]
+    assert "17" in java["detalle"]

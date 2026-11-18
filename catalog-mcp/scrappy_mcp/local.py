@@ -116,7 +116,12 @@ class Job:
         if self.process is None:
             return {"estado": "nunca corrió en esta sesión", "log": str(self.log), "tail": tail(self.log)}
         code = self.process.poll()
-        estado = "corriendo" if code is None else ("terminó OK" if code == 0 else "falló")
+        if code is None:
+            estado = "corriendo"
+        elif code == 0:
+            estado = "terminó OK"
+        else:
+            estado = "falló"
         return {"estado": estado, "exit_code": code, "log": str(self.log), "tail": tail(self.log)}
 
 
@@ -269,58 +274,69 @@ class LocalOps:
                              "brew install postgresql@16 (o Docker)" if brew else "Instalá postgresql o Docker"))
         return checks
 
-    def diagnose(self) -> dict[str, Any]:
-        root = self.root
-        checks = self._toolchain()
-        checks.append(_check("uv + venv del CLI", cli_python(self.system, root).exists(),
-                             str(cli_python(self.system, root)), "Llamá a `instalar`."))
+    def _env_checks(self, env_path: Path, env: dict[str, str]) -> list[dict[str, Any]]:
+        checks = [_check(".env existe", env_path.is_file(), str(env_path), "Llamá a `configurar_admin`.")]
+        if not env_path.is_file():
+            return checks
+        pendientes = [k for k in REQUIRED_SECRETS if not env.get(k) or is_placeholder(env[k])]
+        checks.append(_check("secretos de .env configurados", not pendientes, ", ".join(pendientes) or "ok",
+                             "Llamá a `configurar_admin` (genera la password del admin)."))
+        faltan = sorted(set(read_env(self.root / ".env.example")) - set(env))
+        checks.append(_check(".env tiene todas las claves de .env.example", not faltan, ", ".join(faltan) or "ok",
+                             "Llamá a `configurar_admin`: reconcilia las que faltan."))
+        return checks
 
-        env_path = root / ".env"
-        env = read_env(env_path)
-        checks.append(_check(".env existe", env_path.is_file(), str(env_path), "Llamá a `configurar_admin`."))
-        if env_path.is_file():
-            pendientes = [k for k in REQUIRED_SECRETS if not env.get(k) or is_placeholder(env[k])]
-            checks.append(_check("secretos de .env configurados", not pendientes,
-                                 ", ".join(pendientes) or "ok",
-                                 "Llamá a `configurar_admin` (genera la password del admin)."))
-            example = read_env(root / ".env.example")
-            faltan = sorted(set(example) - set(env))
-            checks.append(_check(".env tiene todas las claves de .env.example", not faltan,
-                                 ", ".join(faltan) or "ok", "Llamá a `configurar_admin`: reconcilia las que faltan."))
+    def _jar_check(self) -> dict[str, Any]:
+        scraper = self.root / "scraper"
+        jar, built = scraper / "scraper.jar", sorted((scraper / "target").glob("fashion-scraper-*.jar"))
+        if not jar.is_file():
+            return _check("jar del backend al día", False, "sin compilar", "`levantar_servicios` compila si falta.")
+        if built and built[-1].stat().st_mtime > jar.stat().st_mtime:
+            return _check("jar del backend al día", False, "desactualizado frente a scraper/target",
+                          f"Copiá {built[-1].name} a scraper/scraper.jar")
+        return _check("jar del backend al día", True, str(jar), "")
 
-        jar, built = root / "scraper" / "scraper.jar", sorted((root / "scraper" / "target").glob("fashion-scraper-*.jar"))
-        stale = bool(jar.is_file() and built and built[-1].stat().st_mtime > jar.stat().st_mtime)
-        checks.append(_check("jar del backend al día", jar.is_file() and not stale,
-                             "desactualizado frente a scraper/target" if stale else (str(jar) if jar.is_file() else "sin compilar"),
-                             f"Copiá {built[-1].name} a scraper/scraper.jar" if stale
-                             else "`levantar_servicios` compila si falta."))
-
-        puertos = {name: self.port_check(port) for name, port in PORTS.items()}
-        checks.append(_check("postgres escucha en :5432", puertos["postgres"], "",
-                             "Corré `instalar` de nuevo: arranca Postgres."))
-
+    def _login_checks(self, backend_up: bool, env: dict[str, str]) -> list[dict[str, Any]]:
         login_servicio, detalle = None, "backend apagado"
-        if puertos["backend"]:
+        if backend_up:
             try:
-                user, password, source = resolve_credentials(self.environ, root)
+                user, password, source = resolve_credentials(self.environ, self.root)
                 login_servicio, detalle = self._login(user, password)
                 detalle = f"{source}: {detalle}"
             except ApiError as e:
                 detalle = str(e)
-        checks.append(_check("backend responde en :3000", puertos["backend"], self.api_url,
-                             "Llamá a `levantar_servicios`; si ya lo hiciste, mirá `logs_backend`."))
-        checks.append(_check("el MCP puede loguearse", bool(login_servicio), detalle, _seeder_hint("la cuenta del MCP")))
+        checks = [
+            _check("backend responde en :3000", backend_up, self.api_url,
+                   "Llamá a `levantar_servicios`; si ya lo hiciste, mirá `logs_locales`."),
+            _check("el MCP puede loguearse", bool(login_servicio), detalle, _seeder_hint("la cuenta del MCP")),
+        ]
+        admin, password = env.get(ADMIN_KEYS[0], "admin"), env.get(ADMIN_KEYS[1], "")
+        if backend_up and password and not is_placeholder(password):
+            ok, det = self._login(admin, password)
+            checks.append(_check(f"login del admin '{admin}' con la password de .env", bool(ok), det,
+                                 _seeder_hint("el admin")))
+        return checks
 
-        if puertos["backend"] and env.get(ADMIN_KEYS[1]) and not is_placeholder(env[ADMIN_KEYS[1]]):
-            ok, det = self._login(env.get(ADMIN_KEYS[0], "admin"), env[ADMIN_KEYS[1]])
-            checks.append(_check(f"login del admin '{env.get(ADMIN_KEYS[0], 'admin')}' con la password de .env",
-                                 bool(ok), det, _seeder_hint("el admin")))
+    def diagnose(self) -> dict[str, Any]:
+        python = cli_python(self.system, self.root)
+        env_path = self.root / ".env"
+        env = read_env(env_path)
+        puertos = {name: self.port_check(port) for name, port in PORTS.items()}
 
-        logs = root / "scraper" / "logs"
-        errores = [line for line in tail(logs / "error.log", 200)
+        checks = [
+            *self._toolchain(),
+            _check("uv + venv del CLI", python.exists(), str(python), "Llamá a `instalar`."),
+            *self._env_checks(env_path, env),
+            self._jar_check(),
+            _check("postgres escucha en :5432", puertos["postgres"], "",
+                   "Corré `instalar` de nuevo: arranca Postgres."),
+            *self._login_checks(puertos["backend"], env),
+        ]
+
+        errores = [line for line in tail(self.root / "scraper" / "logs" / "error.log", 200)
                    if re.search(r"ERROR|\[AUTH\]|\[GUARD\]", line)][-10:]
         fallidos = [c for c in checks if not c["ok"]]
-        return {"sistema": self.system, "raiz": str(root), "ok": not fallidos, "checks": checks,
+        return {"sistema": self.system, "raiz": str(self.root), "ok": not fallidos, "checks": checks,
                 "a_resolver": [{"check": c["check"], "como": c["arreglo"]} for c in fallidos],
                 "ultimos_errores_backend": errores,
                 "instalacion": self.install_status() if self.install.process else None}
