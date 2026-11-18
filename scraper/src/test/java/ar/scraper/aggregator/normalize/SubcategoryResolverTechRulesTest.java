@@ -102,7 +102,7 @@ class SubcategoryResolverTechRulesTest {
         // no dice nada sobre el subtipo devuelve "", que es el "no sé" honesto.
         assertThat(resolver.resolver("Fuente Jalatec Jt-520", "Fuente")).isEmpty();
         assertThat(resolver.resolver("Teclado Logitech K120", "Teclado")).isEmpty();
-        assertThat(resolver.resolver("Motherboard MSI B840M-B PRO", "Motherboard")).isEmpty();
+        assertThat(resolver.resolver("Motherboard MSI PRO H81M-P33", "Motherboard")).isEmpty();
         assertThat(resolver.resolver("UPS Hunnox 650VA", "UPS")).isEmpty();
     }
 

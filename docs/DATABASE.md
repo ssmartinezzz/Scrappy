@@ -180,6 +180,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V100` | Dos índices parciales de `productos` para el filtro de stock de `/api/data`: `idx_productos_sin_stock` (el conjunto excluido) e `idx_productos_activo_precio` (el orden por defecto) |
 | `V101` | Promos de financiación: `medio_pago` (lookup sembrado), `promo_financiacion` y `promo_financiacion_producto`; `sp_upsert_promos` vive en `R__sp_upsert_promos.sql` |
 | `V102` | `promo_financiacion.red_medio_pago_id`: la red de tarjeta que la promo exige además del banco o billetera; entra en la clave natural |
+| `V103` | `sub_categoria` de hardware por plataforma (`CPU`/`Motherboard`: socket; `RAM`: `notebook`/`ddr5`/`ddr4`/`ddr3`; `GPU`: fabricante; `Auricular`; `PC`: `gamer`/`oficina`), recategoriza lo que el sustantivo líder desmiente (`GPU`/`Auricular` que son coolers, soportes, combos) y limpia los deportes que el tier 2 le puso a categorías de tecnología |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -5219,5 +5220,120 @@ DELETE FROM flyway_schema_history WHERE version IS NULL AND description = 'sp up
 
 Borra las promos con red (sin la columna, `Macro+Visa 12` y `Macro+Mastercard 12` chocarían en la clave de `V101`) y deja las demás.
 La función se tira y se borra la fila de la repetible: sin eso quedaría la versión con `red` apuntando a una columna que ya no existe;
-con la fila borrada, el jar anterior la recrea sola al arrancar. Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO,
-antes que el de `V101`.
+con la fila borrada, el jar anterior la recrea sola al arrancar. Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de
+`V103` y antes que el de `V101`.
+
+---
+
+## `V103` — plataforma como subcategoría del hardware
+
+**Problema**: `/picks/tecnologia` no podía partir `CPU`, `Motherboard`, `RAM`, `GPU`, `Auricular` ni `PC`: ninguna tenía `sub_categoria`.
+Además el tier 2 deportivo de `SubcategoryResolver` corría sobre cualquier categoría sin entrada tier 1, y un `Videojuego` ("Mario Tennis")
+quedó con `tenis`. Y mirando las filas apareció otra cosa: 70 nombres con un `RX`, un `Arc` o un `Headphone Jack` estaban en `GPU` o
+`Auricular` sin serlo.
+
+**Decisión**: las mismas reglas en dos lugares, porque `POST /api/ml/renormalizar` reescribe `sub_categoria` desde el resolver:
+`SubcategoryResolver.hardware` (filas nuevas) y esta migración (filas guardadas). El socket sale de `SocketDeNombre` (`ar.scraper.model`),
+que también usan los lectores de `pcs`: vive en `model` porque `aggregator` → `pcs` cerraría un ciclo de paquetes (`pcs` ya depende de
+`aggregator.text.AccentStripper`) y `grafoSinCiclos` lo rompería.
+
+| Categoría | Valores (gana el primero) |
+|---|---|
+| `CPU`, `Motherboard` | `am4`, `am5`, `lga1700`, `lga1851`, `lga1200`, `lga1151`: el token de socket del nombre (`lga1700`, `1700` y el pegado `s1700`); si no está, la generación del modelo (CPU: Core `i3..i9` 10xxx-11xxx → `lga1200`, 6xxx-9xxx → `lga1151`; Pentium/Celeron `G4xxx`, `G5400` → `lga1151`, `G59xx`, `G64xx` → `lga1200`, `G7400` → `lga1700`) o el chipset (mother: `H410 B460 Z490 H510 B560 Z590` → `lga1200`; `H310 B360 B365 Z390 H370 H110 B150 H170 Z170 B250 H270 Z270` → `lga1151`). AM3, LGA2011, Xeon y los handhelds quedan `''` |
+| `RAM` | `notebook` (SODIMM), `ddr5`, `ddr4`, `ddr3` (`dddr4`/`dddr5` es el typo del catálogo). Sin token DDR, la velocidad en MHz / MT/s: ≥ 4800 `ddr5`, 2133-3600 `ddr4`, ≤ 1866 `ddr3`. DDR2 queda `''` |
+| `GPU` | `nvidia` (geforce/rtx/gtx/quadro, `nvidia`, `GT1030` y `1030GT`), `amd` (radeon, `rx NNNN`, `R5 230`), `intel` (`arc` + modelo) |
+| `Auricular` | `in-ear` si dice buds/earbuds/TWS/true wireless (son inalámbricos, pero son buds), `inalámbrico` (también `wireles`, `bluetooh`), `gamer` (gaming/gamer, `quantum`, HyperX, Virtuoso, Redragon, Astro, Razer, Arctis, Fantech, Cougar, Aula, GXT, ROG/TUF, Afterglow/PDP, VSG, Raptor, 7.1/surround/RGB, Corsair `HS##`, Logitech `G###`, Cooler Master `CH###`, Genius `GX`/`HS-G###`), `oficina` (Logitech `H###` y Zone, Genius `HS-###`), `in-ear` por las palabras genéricas (in ear, earphones, intraural). "Con micrófono" solo no alcanza |
+| `PC` | `gamer` si el nombre trae una GPU dedicada, `oficina` si no (un `radeon` pelado es la gráfica integrada del CPU) |
+| `Gabinete` | sin subcategoría |
+
+El nombre se tokeniza (todo lo que no es `[a-z0-9]` es un espacio): `AM5,`, `(am5)` y `S.1700` son tokens de plataforma. Un `rx` o un `arc`
+sueltos no son GPU (el cooler `Titan 240 RX`, el manga `Wraith Arc`): `KW_GPU` pide un modelo (`rx 4..9xx`, `arc a3/a5/a7/b5/pro`).
+El paso 2 vacía los deportes de las categorías de tecnología (`TECNOLOGIA_SIN_DEPORTE`); `Reloj` queda afuera a propósito.
+Nunca toca filas bloqueadas (`bloqueado_por`) y es idempotente (`IS DISTINCT FROM`).
+
+**Recategorización** (mismo `UPDATE`, antes del sub). `TechClassifier` ahora deja que el sustantivo líder gane sobre una palabra de GPU o de
+auricular (`KW_NO_GPU_LIDER`, `KW_SOPORTE_LIDER`, `KW_AURICULAR_NO_LIDER`, `KW_AURICULAR_VETO`), y la migración mueve las filas guardadas:
+
+| Origen | Destino | Qué es |
+|---|---|---|
+| `GPU` | `Cooler` (líder cooler / water cooler / watercooling / aio / pasta) | "Water Cooler Corsair Titan 240 RX", "Pasta Térmica ... Para Cpu / Gpu" |
+| `GPU` | `Gabinete`, `Fuente`, `Mouse` (líder) | "Gabinete ... GPU Mount", "Fuente ... Para GPU", "Mouse Cougar Surpassion RX" |
+| `GPU`, `Auricular`, `Joystick` | `Otros` (líder soporte / rig / estructura) | "Soporte para GPU", "Rig de minería", "Soporte ... para Auriculares" |
+| `GPU` | `Otros` (sin ningún modelo de GPU) | "MADOKA MAGICA WRAITH ARC" |
+| `Auricular` | `Consola` | los `My Arcade` (`KW_CONSOLA_ARCADE_LIDER`) |
+| `Auricular` | `Mousepad` / `Teclado` / `Mouse` / `Reloj` / `Otros` (líder combo, kit, mouse, teclado, soporte, reloj, o `Headphone Jack`) | el combo cae donde caería sin el auricular |
+| `CPU`, `GPU`, `RAM` | `Combo de Actualización` (líder "Combo (de) Actualización") | "Combo Actualización Kingston Ram + SSD" |
+
+Una fila movida recibe la sub que el resolver le da a su categoría nueva (`pasta`, `líquida`, `inalámbrico`...), y la sub vieja (`nvidia` de un
+combo con una RTX) se va con ella. `ml_score` y los percentiles por categoría de esas filas se recalculan en la próxima corrida del ML.
+
+### Rollback
+
+```sql
+-- >>> rollback:V103
+-- 1. Give the rows V103 moved their categoria back. Each branch is a rule of the migration read backwards: "the jar
+--    before V103 classifies this name as ...". The old KW_GPU still counted a bare " rx " / " arc " and the old
+--    Auricular rule had no leading-noun veto, which is what put these rows there.
+WITH base AS (
+  SELECT url, categoria,
+         regexp_replace(' ' || btrim(regexp_replace(lower(translate(nombre, 'áéíóúüñÁÉÍÓÚÜÑ', 'aeiouunAEIOUUN')),
+                                                    '[^a-z0-9]+', ' ', 'g')) || ' ', '^ outlet ', ' ') AS n
+    FROM productos
+   WHERE rubro = 'tecnologia'
+     AND bloqueado_por IS NULL
+     AND categoria IN ('Cooler', 'Gabinete', 'Fuente', 'Mouse', 'Otros', 'Consola', 'Mousepad', 'Teclado', 'Reloj',
+                       'Combo de Actualización')
+), flags AS (
+  SELECT url, categoria, n,
+         n ~ ('gpu|tarjeta de video|video card|graphics card| rtx | gtx | rx |radeon|geforce| arc |placa de video'
+              '|placa video')                                                                     AS gpu_viejo,
+         n ~ 'auricular|headset|headphone|earphone|earbud|over ear|in ear|on ear'
+           OR (categoria = 'Mouse' AND n ~ 'inalambrico bt')                                      AS kw_auricular,
+         n ~ ('gpu|tarjeta de video|video card|graphics card| rtx | gtx | rx [45679]|radeon|geforce'
+              '| arc (?:a3|a5|a7|b5|pro )|placa de video|placa video')                            AS gpu_nuevo,
+         n ~ ' (?:joystick|joypad|gamepad)'                                                       AS kw_joystick,
+         n ~ '^ (?:soporte|soportes|rig|estructura) '                                             AS soporte,
+         n ~ ('mother|placa madre|mainboard|mobo| (?:[ab]3[2-7]0|a[56]20|b[3-6]50|b[3-6]60|b[78][3-6]0|h[3-8]10'
+              '|z[3-9]90|x[3-8]70)[me]? ')                                                        AS con_mother
+    FROM base
+), origen AS (
+  SELECT url,
+         CASE
+           WHEN categoria IN ('Cooler', 'Gabinete', 'Fuente', 'Mouse') AND gpu_viejo
+                AND n ~ '^ (?:cooler|watercooler|water cooler|water cooling|watercooling|aio|pasta|gabinete|fuente|mouse) '
+             THEN 'GPU'
+           WHEN categoria = 'Otros' AND gpu_viejo AND (soporte OR NOT gpu_nuevo)        THEN 'GPU'
+           WHEN categoria = 'Otros' AND soporte AND kw_joystick                         THEN 'Joystick'
+           WHEN categoria = 'Otros' AND soporte AND kw_auricular                        THEN 'Auricular'
+           WHEN categoria = 'Consola' AND n ~ '^ my arcade '                            THEN 'Auricular'
+           WHEN categoria IN ('Mousepad', 'Teclado', 'Mouse', 'Reloj', 'Otros') AND kw_auricular
+                AND (n ~ 'headphones? jack' OR n ~ '^ (?:combo|kit|mouse|teclado|soporte|reloj) ')
+             THEN 'Auricular'
+           WHEN categoria = 'Combo de Actualización' AND n ~ '^ combo (?:de )?actualizacion ' AND NOT con_mother THEN
+             CASE WHEN gpu_viejo THEN 'GPU' WHEN n ~ ' ram |memoria' THEN 'RAM' ELSE 'CPU' END
+         END AS categoria
+    FROM flags
+)
+UPDATE productos
+   SET categoria = origen.categoria,
+       sub_categoria = CASE WHEN origen.categoria = 'Joystick' THEN 'gamepad' ELSE '' END -- the Joystick tier-1 sub
+  FROM origen
+ WHERE productos.url = origen.url
+   AND origen.categoria IS NOT NULL;
+-- 2. The platform subs. Before V103 CPU, Motherboard, RAM, GPU, Auricular and PC had none.
+UPDATE productos SET sub_categoria = ''
+ WHERE rubro = 'tecnologia'
+   AND categoria IN ('CPU', 'Motherboard', 'RAM', 'GPU', 'Auricular', 'PC')
+   AND sub_categoria IN ('am4', 'am5', 'lga1700', 'lga1851', 'lga1200', 'lga1151', 'notebook', 'ddr5', 'ddr4', 'ddr3',
+                         'nvidia', 'amd', 'intel', 'inalámbrico', 'gamer', 'in-ear', 'oficina');
+DELETE FROM flyway_schema_history WHERE version = '103';
+-- <<< rollback:V103
+```
+
+El paso 1 es la regla de arriba al revés ("el jar anterior clasifica este nombre como ..."): usa la `KW_GPU` vieja (con ` rx ` y ` arc `
+sueltos) y el `inalambrico bt` del auricular viejo. Medido sobre la copia: aplicar `V103` y su rollback devuelve la categoría de las 11.244
+filas activas de tecnología, 0 diferencias. Es aproximado sólo para filas nuevas cuyo nombre lleve la puntuación distinta ("inalambrico - bt").
+Los `Combo de Actualización` que ya lo eran antes (traen una mother) no se mueven. Antes de `V103` `CPU`, `Motherboard`, `RAM`, `GPU`, `Auricular`
+y `PC` no tenían ninguna subcategoría, así que vaciar sus valores las deja como estaban; los dos `Joystick` recuperan `gamepad`. **No** restaura
+los `tenis` que el paso 2 le sacó a los `Videojuego` (eran la fuga que `V103` corrige; el jar anterior los vuelve a producir en el próximo
+`renormalizar`). Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V102`.

@@ -62,6 +62,14 @@ class MotherboardSpecsReaderTest {
     }
 
     @Test
+    void socketPorChipsetIntelAnterior() {
+        assertThat(leer("Motherboard ASUS Prime H110M-K").socket()).isEqualTo("LGA1151");
+        assertThat(leer("Motherboard Gigabyte Z270X Gaming").socket()).isEqualTo("LGA1151");
+        assertThat(leer("Motherboard MSI Z590-A PRO").socket()).isEqualTo("LGA1200");
+        assertThat(leer("Mother MSI PRO H610M-G S1700").socket()).isEqualTo("LGA1700");
+    }
+
+    @Test
     void tierChipsetCeroSinChipsetLegible() {
         assertThat(leer("Motherboard ECS H81H3-M4 DDR3").tierChipset()).isZero();
     }
