@@ -98,3 +98,5 @@ result by eye and add white marks to `LOGOS_SOBRE_OSCURO`. Stores behind a WAF (
 | Vaypol | `vaypol.webp` | https://www.vaypol.com.ar/brandlogos/vaypol.webp | store site |
 | King of the Kongo | `kingofthekongo.webp` | https://acdn-us.mitiendanube.com/stores/219/431/themes/common/logo-3825714704076569041-1790371576-82ef3042ce34e21fbe74c881bce1bf181790371576-320-0.webp | store site |
 | Easy | `easy.svg` | https://arcencohogareasy.vtexassets.com/assets/vtex.file-manager-graphql/images/70762c9e-9f1a-4061-9113-144b83dd8370___389e812d088de026179c879e8ddb85da.svg | store site |
+| Arredo | `arredo.png` | https://arredo.vteximg.com.br/arquivos/favicon_2026.png | store site |
+| Sportline | `sportline.webp` | https://sportline.vtexassets.com/arquivos/sportline-logo.webp | store site |

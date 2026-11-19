@@ -7,11 +7,13 @@ import ar.scraper.model.Product;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Story;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
+import java.sql.Statement;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
@@ -36,6 +38,17 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @Story("marca FK never rejects abstention")
 @DisplayName("V21 — marca FK abstention (real Postgres)")
 class MarcaFkAbstentionTest extends PostgresTestBase {
+
+    @BeforeEach
+    void seedSitio() throws Exception {
+        // productos.sitio_key tiene FK a sitio (V23) y PostgresTestBase no trunca `sitio` (es dato de referencia):
+        // el test siembra su propia fila en vez de depender de que otro test la haya dejado.
+        try (Connection c = dataSource().getConnection(); Statement st = c.createStatement()) {
+            st.execute("INSERT INTO sitio (nombre, sitio_key, plataforma, es_premium, rubro_forzado, origen) "
+                    + "VALUES ('Sitio', 'sitio', 'tiendanube', false, NULL, 'historico') "
+                    + "ON CONFLICT DO NOTHING");
+        }
+    }
 
     @Test
     @DisplayName("marca=NULL nunca es rechazado por la FK — es la abstención")

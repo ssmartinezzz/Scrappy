@@ -39,8 +39,15 @@ class CategoriaLookupTableTest extends PostgresTestBase {
     private DatabaseService db;
 
     @BeforeEach
-    void setUp() {
+    void setUp() throws Exception {
         db = TestDatabaseServices.create(dataSource());
+        // productos.sitio_key tiene FK a sitio (V23) y PostgresTestBase no trunca `sitio` (es dato de referencia):
+        // el test siembra su propia fila en vez de depender de que otro test la haya dejado.
+        try (Connection c = dataSource().getConnection(); Statement st = c.createStatement()) {
+            st.execute("INSERT INTO sitio (nombre, sitio_key, plataforma, es_premium, rubro_forzado, origen) "
+                    + "VALUES ('Sitio', 'sitio', 'tiendanube', false, NULL, 'historico') "
+                    + "ON CONFLICT DO NOTHING");
+        }
     }
 
     @Test
