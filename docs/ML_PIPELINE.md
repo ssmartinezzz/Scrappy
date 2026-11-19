@@ -472,6 +472,12 @@ scrunchie, hebilla, dije, brazalete): `CategoryClassifier` la chequea **antes** 
 `cm`/`mm`, `talla`, `reloj`, `inteligente`...). Un `Perfume para Auto` ya no es `Perfume`: `KW_LIMPIEZA_AUTO_LIDER` lo manda a `Limpieza de Auto`
 (rubro `hogar`), junto a `aromatizante`. Canon 277.
 
+**Belleza** (`V112`, `V113`, canon 290). El rubro `perfumeria` pasó a `belleza` y suma `Maquillaje`, `Cuidado de la Piel` y `Cuidado del Cabello`. `BellezaClassifier` corre antes de
+`NonTextileGuard` (que veta `crema`/`shampoo`/`gel`/`protector solar` para las prendas): parte de `KW_BELLEZA_VETO` (mascotas, autos, pintura, madera, telas, `Perfume`/`Desodorante` en el nombre)
+y `Maquillaje` suma `KW_MAQUILLAJE_VETO` (sets de juguete, el plural `Set De Maquillajes` de las jugueterías, estuches). Orden dentro del clasificador: labial-cuidado, `Maquillaje`, `Cabello`, `Piel`.
+Una hoja curada fuera de belleza le gana a un nombre de belleza (y a `Perfume`). Sub-categorías: `Maquillaje` Labios/Uñas/Ojos/Rostro; `Piel` Protector Solar/Corporal/Facial;
+`Cabello` Tintura/Shampoo/Acondicionador/Tratamiento; `Perfume` suma `Extracto` (`extrait`, antes de `Eau de Parfum`). Sin sub de deporte para las tres.
+
 **`Desodorante` y `Llavero`** (`V93`, canon 279). `desodorante `/`antitranspirante` salen de `KW_PERFUME` a `KW_DESODORANTE`, que `AccesoriosClassifier`
 chequea antes ("Desodorante ... fragancia X" es `Desodorante`); es categoría de `belleza` y no tiene subcategoría de perfume
 (`SubcategoryResolver` sólo la da a `Perfume`). `Llavero` (`KW_LLAVERO`: `llavero`/`keychain` en cualquier parte del nombre) corre primero en

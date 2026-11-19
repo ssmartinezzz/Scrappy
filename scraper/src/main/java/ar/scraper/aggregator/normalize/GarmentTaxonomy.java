@@ -1800,6 +1800,56 @@ public final class GarmentTaxonomy {
         "perfume"," colonia ","eau de toilette","eau de parfum","fragancia","body splash","body mist"
     };
 
+    // Beauty categories (V113). BellezaClassifier runs before NonTextileGuard, so the vetoes carry the weight: the same words
+    // name pet, car, paint and toy products. Leading space only: the classifier text keeps punctuation ("Shampoo, 250 ml").
+    public static final String[] KW_BELLEZA_VETO = {
+        " perfume"," eau de "," desodorante"," antitranspirante"," fragancia",
+        " mascota"," perro"," perros"," gato"," gatos"," pet "," pets "," pet's "," canino",
+        " auto "," autos "," vehiculo"," moto "," pileta"," alfombra"," tapizado"," mueble"," piso "," pisos "," pared ",
+        " cortina"," parasol"," sombrilla"," toldo"," lona "," madera"," textil"," tela "," telas "," ropa "," cuero "," calzado ",
+        " impregnante"," barniz"," balanza"," tintura madre"," pintura"," sintetico"," suelo"," dispensador"," dispenser","caramelo"," golosina"," candy"
+    };
+
+    // Toy make-up sets ("Mi Primer Set De Maquillaje", "Valijita De Maquillaje Tiny"; a toy store writes the plural "Set De Maquillajes")
+    // and the cases that hold make-up stay out.
+    public static final String[] KW_MAQUILLAJE_VETO = {
+        " infantil"," mi primer"," valija"," valijita"," maletin"," poppi"," tiny "," peluche"," juguete"," muneca"," nena ",
+        " organizador"," neceser"," portacosmetico"," cosmetiquera"," estuche"," bolso"," mochila"," cartera"," pouch"," bolsa ",
+        " espejo"," artistico"," disfraz"," maquillajes "," led "," lumen"," fotografia"," video"
+    };
+
+    public static final String[] KW_PIEL_LABIAL = {" protector labial"," balsamo labial"," manteca de cacao"};
+
+    public static final String[] KW_MAQUILLAJE = {
+        " maquillaje"," makeup"," make up"," make-up"," labial"," pintalabios"," lip gloss"," lip tint"," tinte labial"," delineador",
+        " rimel"," mascara de pestanas"," sombra de ojos"," sombras de ojos"," paleta de sombras"," pestanas postizas",
+        " lapiz de cejas"," gel de cejas"," gel fijador de cejas"," serum para cejas"," esmalte de unas"," esmalte para unas",
+        " esmalte semipermanente"," unas postizas"," polvo compacto"," polvos compactos"," polvo suelto"," bronzer"
+    };
+
+    // A leading noun only: "Corrector de Postura" has none of these first.
+    public static final String[] KW_MAQUILLAJE_LIDER = {" iluminador"," corrector de ojeras"," corrector liquido"," corrector en barra"," rubor"," primer facial"};
+
+    public static final String[] KW_CABELLO = {
+        " shampoo"," champu"," enjuague capilar"," mascara capilar"," mascarilla capilar"," tratamiento capilar"," ampolla capilar",
+        " ampollas capilares"," crema para peinar"," spray para peinar"," serum capilar"," aceite capilar"," keratina"," botox capilar",
+        " alisado progresivo"," tintura"," tinte para el cabello"," tinte capilar"," decolorante para el cabello"," oxidante"," matizador",
+        " laca para el cabello"," laca para cabello"," tangle teezer"," cepillo desenredante"
+    };
+
+    // "Acondicionador de pisos", "aire acondicionado": only a leading "acondicionador" is a conditioner.
+    public static final String[] KW_CABELLO_LIDER = {" acondicionador"};
+
+    public static final String[] KW_PIEL = {
+        " crema facial"," crema corporal"," crema de manos"," crema para manos"," crema de pies"," crema para pies"," crema hidratante",
+        " crema antiarrugas"," crema nutritiva"," crema de noche"," crema de dia"," crema para el cuerpo"," crema para la cara",
+        " crema contorno"," crema de ojos"," crema gel"," locion corporal"," locion hidratante"," leche corporal"," protector solar",
+        " bloqueador solar"," serum"," agua micelar"," tonico facial"," mascarilla facial"," contorno de ojos",
+        " exfoliante"," hidratante facial"," hidratante corporal"," limpiador facial"," gel de limpieza"," espuma de limpieza",
+        " desmaquillante"," autobronceante"," bronceador"," acelerador de bronceado"," after sun"," aceite corporal"," manteca corporal",
+        " parches para ojos"
+    };
+
     // Contains-anywhere ("Funko Pop! Llavero: The Flash"); the backslash form is a real Hadriatica name ("Monky\\Llavero").
     public static final String[] KW_LLAVERO = {" llavero"," llaveros","\\llavero"," keychain"};
     // A camera shaped or sold as a keychain ("Mini Camara Digital ... Llavero Retro") stays a camera.

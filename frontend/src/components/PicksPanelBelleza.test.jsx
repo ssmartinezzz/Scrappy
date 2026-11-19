@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { renderPicks } from '@/test/renderPicks';
 import { fetchMejores, fetchMejoresPicks } from '@/api';
-import { BELLEZA_PROXIMAMENTE, PERFUME_SUBCATEGORIAS } from '@/lib/belleza';
+import { PERFUME_SUBCATEGORIAS } from '@/lib/belleza';
 
 vi.mock('@/api', async importOriginal => ({
   ...(await importOriginal()),
@@ -50,29 +50,10 @@ describe('PicksPanel — belleza', () => {
     await waitFor(() => expect(screen.getByTestId('ruta')).toHaveTextContent('/picks/belleza/perfume'));
   });
 
-  it('lists every mocked "Próximamente" card, greyed and not clickable', async () => {
+  it('shows no Próximamente placeholder cards, in Belleza or any other rubro', async () => {
     const user = userEvent.setup();
     renderPicks();
     await abrirBelleza(user);
-
-    expect(BELLEZA_PROXIMAMENTE.map(c => c.label))
-      .toEqual(['Maquillaje', 'Cuidado de la piel', 'Cabello']);
-    for (const { label } of BELLEZA_PROXIMAMENTE) {
-      const card = screen.getByText(label).closest('[data-proximamente]');
-      expect(card).not.toBeNull();
-      expect(card).toHaveAttribute('aria-disabled', 'true');
-      expect(card.tagName).not.toBe('BUTTON');
-      await user.click(card);
-    }
-    expect(screen.getAllByText('Próximamente')).toHaveLength(3);
-    expect(fetchMejoresPicks).not.toHaveBeenCalled();
-  });
-
-  it('shows no Próximamente cards in other rubros', async () => {
-    const user = userEvent.setup();
-    renderPicks();
-    await user.click(await screen.findByRole('button', { name: 'Indumentaria' }));
-    await screen.findByText('Remera');
     expect(screen.queryByText('Próximamente')).not.toBeInTheDocument();
   });
 

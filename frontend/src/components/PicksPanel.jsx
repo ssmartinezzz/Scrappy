@@ -7,7 +7,6 @@ import { RubroCard } from './ui/rubro-card';
 import CategoryPicksView, { tagline } from './CategoryPicksView';
 import CategoryPicksCarousel from './CategoryPicksCarousel';
 import { RUBROS, rubroLabel } from '../lib/rubros';
-import { BELLEZA_PROXIMAMENTE } from '../lib/belleza';
 import { subChipsDe, chipPorSlug } from '../lib/subcategorias';
 import { canonicalFromSlug, slugify } from '../lib/cat';
 
@@ -164,20 +163,8 @@ function RubroCarousel({ byRubro, cargando, onSelect }) {
   );
 }
 
-// Greyed placeholder for a category that does not exist yet (see BELLEZA_PROXIMAMENTE). A div, not a button:
-// nothing to open, nothing to focus.
-function ProximamenteCard({ card }) {
-  return (
-    <div className="picks-proximamente" data-proximamente aria-disabled="true">
-      <span className="picks-proximamente-icon" aria-hidden="true">{card.icon}</span>
-      <span className="picks-proximamente-title">{card.label}</span>
-      <span className="picks-proximamente-badge">Próximamente</span>
-    </div>
-  );
-}
-
 // ─── Gallery: hero + grid + search, con reveal progresivo ────────────────────
-function PicksGallery({ cats, busq, onSelectCat, proximamente = [], subtitulo = 'Un producto por categoría' }) {
+function PicksGallery({ cats, busq, onSelectCat, subtitulo = 'Un producto por categoría' }) {
   const [visibleCount, setVisibleCount] = useState(INITIAL_BATCH);
   const sentinelRef = useRef(null);
 
@@ -194,9 +181,6 @@ function PicksGallery({ cats, busq, onSelectCat, proximamente = [], subtitulo = 
   }, [filtered]);
 
   const visible = filtered.slice(0, visibleCount);
-  const proximos = busq
-    ? proximamente.filter(c => c.label.toLowerCase().includes(busq.toLowerCase()))
-    : proximamente;
 
   // Sentinel observer — grows visibleCount, no-ops once everything is revealed
   useEffect(() => {
@@ -233,9 +217,6 @@ function PicksGallery({ cats, busq, onSelectCat, proximamente = [], subtitulo = 
             <div className="picks-grid">
               {visible.map(cat => (
                 <CategoryBanner key={cat.categoria} cat={cat} onClick={onSelectCat} />
-              ))}
-              {visibleCount >= filtered.length && proximos.map(c => (
-                <ProximamenteCard key={c.key} card={c} />
               ))}
             </div>
             {visibleCount < filtered.length && (
@@ -442,7 +423,6 @@ export default function PicksPanel({ onProductClick }) {
         )}
         {!loading && cats.length > 0 && (
           <PicksGallery cats={cats} busq={busq} onSelectCat={c => navigate(rutaDe(rubro, generoRuta, c.categoria))}
-            proximamente={rubro === 'belleza' ? BELLEZA_PROXIMAMENTE : []}
             subtitulo={rubro === GYMRAT ? 'Marcas de gym' : undefined} />
         )}
       </div>
