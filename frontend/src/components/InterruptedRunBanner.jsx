@@ -46,7 +46,7 @@ export default function InterruptedRunBanner({ run, busy = false, error = '', on
       <div className="flex flex-wrap gap-2">
         <button
           type="button" onClick={onRetomar} disabled={busy}
-          className={cn('btn-sm border-none bg-primary text-white', busy && 'cursor-not-allowed opacity-60')}
+          className={cn('btn-sm border-none bg-primary text-on-accent', busy && 'cursor-not-allowed opacity-60')}
         >
           {busy ? 'Retomando…' : '▶ Retomar la corrida'}
         </button>

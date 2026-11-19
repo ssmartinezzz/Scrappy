@@ -639,7 +639,7 @@ const [restored] = useState(loadPersisted);
                     className={cn(
                       'flex max-w-[85%] flex-col rounded-2xl px-3 py-2 text-[.75rem] leading-snug',
                       m.role === 'user'
-                        ? 'self-end rounded-tr-sm bg-primary text-white'
+                        ? 'self-end rounded-tr-sm bg-primary text-on-accent'
                         : 'self-start rounded-tl-sm bg-s3 text-t2 [&_a]:text-primary',
                     )}
                   >
@@ -678,7 +678,7 @@ const [restored] = useState(loadPersisted);
                     <button
                       onClick={retry}
                       disabled={sending}
-                      className="ml-2 rounded-btn border border-danger px-2 py-0.5 font-semibold not-italic text-danger transition-colors hover:bg-danger hover:text-white disabled:opacity-40"
+                      className="ml-2 rounded-btn border border-danger px-2 py-0.5 font-semibold not-italic text-danger transition-colors hover:bg-danger hover:text-on-accent disabled:opacity-40"
                     >
                       Reintentar
                     </button>
@@ -699,7 +699,7 @@ const [restored] = useState(loadPersisted);
               <button
                 onClick={() => send()}
                 disabled={sending || !input.trim()}
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-white transition hover:bg-primary2 disabled:opacity-40"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-on-accent transition hover:bg-primary2 disabled:opacity-40"
                 aria-label="Enviar"
               >
                 <Send className="h-4 w-4" />
@@ -718,7 +718,7 @@ const [restored] = useState(loadPersisted);
         title="Ask Agent"
         style={{ touchAction: 'none' }}
         className={cn(
-          'flex h-14 w-14 cursor-grab items-center justify-center rounded-full text-white shadow-2xl transition-colors active:cursor-grabbing',
+          'flex h-14 w-14 cursor-grab items-center justify-center rounded-full text-on-accent shadow-2xl transition-colors active:cursor-grabbing',
           open ? 'bg-danger' : 'bg-primary hover:bg-primary2',
         )}
       >
@@ -773,7 +773,7 @@ function ProposalCard({ proposal, onConfirm, onReject, onRequery, busy }) {
             <button
               onClick={() => onRequery(proposal)}
               disabled={busy}
-              className="rounded-btn border border-primary px-3 py-1 font-semibold text-primary transition-colors hover:bg-primary hover:text-white disabled:opacity-40"
+              className="rounded-btn border border-primary px-3 py-1 font-semibold text-primary transition-colors hover:bg-primary hover:text-on-accent disabled:opacity-40"
             >
               Volver a consultar
             </button>
@@ -795,7 +795,7 @@ function ProposalCard({ proposal, onConfirm, onReject, onRequery, busy }) {
               <button
                 onClick={() => onConfirm(proposal)}
                 disabled={busy}
-                className="rounded-btn border border-primary px-3 py-1 font-semibold text-primary transition-colors hover:bg-primary hover:text-white disabled:opacity-40"
+                className="rounded-btn border border-primary px-3 py-1 font-semibold text-primary transition-colors hover:bg-primary hover:text-on-accent disabled:opacity-40"
               >
                 Sí
               </button>

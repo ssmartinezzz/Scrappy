@@ -441,7 +441,7 @@ function OutfitPanel({ style = 'gym', favoritos, onAddFavorito, savedOutfits, on
                 'inline-flex min-h-[44px] cursor-pointer items-center rounded-btn px-[16px] py-[8px] text-[.9rem] capitalize',
                 '[touch-action:manipulation] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary',
                 genero === g
-                  ? 'border border-transparent bg-primary text-white'
+                  ? 'border border-transparent bg-primary text-on-accent'
                   : 'border border-bd2 bg-s2 text-t2 hover:border-primary'
               )}
             >
@@ -506,7 +506,7 @@ function OutfitPanel({ style = 'gym', favoritos, onAddFavorito, savedOutfits, on
               'text-[.9rem] font-bold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary',
               (loading || !selectedCats.size)
                 ? 'cursor-not-allowed bg-s3 text-t3'
-                : 'cursor-pointer bg-primary text-white hover:bg-primary2'
+                : 'cursor-pointer bg-primary text-on-accent hover:bg-primary2'
             )}
           >
             {loading ? 'Buscando...' : 'Armar'}
@@ -562,7 +562,7 @@ function OutfitPanel({ style = 'gym', favoritos, onAddFavorito, savedOutfits, on
 
           {totalVisibleSlots > 0 && (
             <div style={{ fontSize:'.8rem', fontWeight:600,
-                          color: presupuestoExcedido ? '#ef4444' : 'var(--t2)' }}>
+                          color: presupuestoExcedido ? 'var(--r)' : 'var(--t2)' }}>
               Total estimado: ${fmt(totalVisibleSlots)}
               {presupuestoExcedido && ' · Excede el presupuesto'}
             </div>
@@ -574,7 +574,7 @@ function OutfitPanel({ style = 'gym', favoritos, onAddFavorito, savedOutfits, on
               disabled={saving}
               style={{
                 alignSelf:'flex-start', padding:'6px 16px', borderRadius:8,
-                border:'1px solid var(--p)', background:'var(--p)', color:'#fff',
+                border:'1px solid var(--p)', background:'var(--p)', color:'var(--on-accent)',
                 fontSize:'.78rem', fontWeight:700, cursor: saving ? 'default' : 'pointer',
                 opacity: saving ? .7 : 1,
               }}>

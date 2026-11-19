@@ -74,7 +74,7 @@ function SelectorRango({ valor, onChange }) {
           className={cn(
             'min-h-[36px] min-w-[40px] cursor-pointer rounded-btn px-2 text-[.75rem] font-semibold',
             '[touch-action:manipulation] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary',
-            valor === r.id ? 'bg-primary text-white' : 'text-t3 hover:text-t1'
+            valor === r.id ? 'bg-primary text-on-accent' : 'text-t3 hover:text-t1'
           )}
         >
           {r.id}

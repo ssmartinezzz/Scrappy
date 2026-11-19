@@ -3,7 +3,8 @@
 @tailwind utilities;
 
 /* ===== CSS VARIABLES ===== */
-/* Warm editorial palette — single theme, no toggle. Light warm-neutral base,
+/* Warm editorial palette, light by default; `:root.dark` (below) re-points the
+   same tokens, toggled by hooks/useTheme.js. Light warm-neutral base,
    one confident terracotta accent, near-black ink headlines. Token names are
    KEPT identical to the prior dark theme (only values repointed) to minimize
    diff surface; tailwind.config.js maps these via theme.extend unchanged.
@@ -12,17 +13,19 @@
    single source of truth"). */
 :root {
   --bg:  #F5F0E6; --s1: #FBF7EF; --s2: #EFE8DA; --s3: #E5DCCB;
-  --t1:  #1F1B16; --t2: #3D362C; --t3: #6E6354; --t4: #9A8E7B;
+  --t1:  #1F1B16; --t2: #3D362C; --t3: #5A5043; --t4: #716756;
   --bd:  #E0D7C6; --bd2: #ECE5D7;
-  --p:   #C4502E; --p2: #A23E22;
-  --g:   #2E7D52; --r: #C0392B; --y: #D08A1E;
+  --p:   #B04829; --p2: #923820;
+  --g:   #2B754D; --r: #BE382B; --y: #8D5E14;
   --contrast-bg: #221E1A; --contrast-ink: #F5F0E6;
-  --sem-positive: #2E7D52; --sem-negative: #C0392B; --sem-warn: #D08A1E;
-  --sem-oferta:   #8E5BD6; --sem-trend:    #D2622A; --sem-gym:  #6E9B2E;
-  --sem-pack:     #8E5BD6;
-  --font:'Segoe UI',system-ui,sans-serif;
-  --mono:'Cascadia Code','JetBrains Mono',Consolas,'SF Mono',Menlo,monospace;
+  --on-accent: #FFFFFF; /* text on a filled --p/--g/--r/--y/--sem-* */
+  --sem-positive: #2B754D; --sem-negative: #BE382B; --sem-warn: #8D5E14;
+  --sem-oferta:   #8147D1; --sem-trend:    #A84E22; --sem-gym:  #517322;
+  --sem-pack:     #8147D1;
+  --font:'Geist Variable','Segoe UI',system-ui,sans-serif;
+  --mono:'Geist Mono Variable','Cascadia Code','JetBrains Mono',Consolas,'SF Mono',Menlo,monospace;
   --rc:  12px; --rb: 8px;
+  color-scheme: light;
   /* ===== BREAKPOINT SYSTEM (mobile-first / min-width) =====
      Base styles target the smallest screen. min-width queries layer up.
      sm 560  md 768  lg 900  xl 1200  — keep 560/900 (legacy), md/xl are new.
@@ -46,9 +49,57 @@
   --catalogo-hero-h: 56px;
 }
 
+/* ===== DARK THEME =====
+   Same warm character, inverted: warm near-black surfaces, off-white ink, a
+   lightened terracotta. Semantic roles are lightened to stay >= 4.5:1 as text
+   on --s1/--s2. --p is the fill (ink --on-accent on top), --p2 the text/hover tone. */
+:root.dark {
+  --bg:  #16130F; --s1: #1E1A15; --s2: #27221B; --s3: #312A22;
+  --t1:  #F2ECE1; --t2: #D6CCBC; --t3: #B8AC98; --t4: #9B9080;
+  --bd:  #3A332A; --bd2: #2D2720;
+  --p:   #D9603B; --p2: #F0825E;
+  --g:   #5CC48A; --r: #EF6B5B; --y: #E3A83A;
+  --contrast-bg: #F2ECE1; --contrast-ink: #16130F;
+  --on-accent: #16130F; /* the accents are light here: dark ink, not white */
+  --sem-positive: #5CC48A; --sem-negative: #EF6B5B; --sem-warn: #E3A83A;
+  --sem-oferta:   #B08CF0; --sem-trend:    #F08A4F; --sem-gym:  #9CC956;
+  --sem-pack:     #B08CF0;
+  --promo-fg: #7FD6A5;
+  color-scheme: dark; /* native pickers, scrollbars, autofill follow the theme */
+}
+
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html, body, #root { height: 100%; }
-body { background: var(--bg); color: var(--t1); font-family: var(--font); font-size: 14px; }
+/* Fluid root: every rem in this file (and Tailwind's) scales with the viewport. */
+html { font-size: clamp(15px, .9rem + .25vw, 17px); }
+body { background: var(--bg); color: var(--t1); font-family: var(--font); font-size: .9375rem;
+  -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: 'kern', 'liga', 'calt'; }
+
+/* ===== FORM CONTROLS (iOS Safari first) =====
+   :where() keeps the look at zero specificity so component classes still win;
+   the :is(...) rules below are deliberately heavier than a lone class: iOS
+   zooms the page when a focused field is under 16px, so the floor must beat
+   `.price-input { font: .75rem }` and Tailwind text-[.7rem] on inputs. */
+:where(input:not([type=checkbox],[type=radio],[type=range],[type=file],[type=color]), select, textarea) {
+  -webkit-appearance: none; appearance: none; border-radius: var(--rb);
+  background-color: var(--s2); color: var(--t1); border: 1.5px solid var(--bd2); }
+:where(input, textarea)::placeholder { color: var(--t4); opacity: 1; }
+:is(input:not([type=checkbox],[type=radio],[type=range],[type=file],[type=color]), select, textarea):focus-visible {
+  outline: 2px solid var(--p); outline-offset: 1px; }
+select:not([multiple]) { padding-right: 28px; background-repeat: no-repeat; background-size: 5px 5px, 5px 5px;
+  background-position: calc(100% - 15px) 55%, calc(100% - 10px) 55%;
+  background-image: linear-gradient(45deg, transparent 50%, var(--t3) 50%), linear-gradient(135deg, var(--t3) 50%, transparent 50%); }
+:is(input, select, textarea):-webkit-autofill {
+  -webkit-text-fill-color: var(--t1); caret-color: var(--t1);
+  box-shadow: 0 0 0 1000px var(--s2) inset; transition: background-color 9999s ease-out; }
+@media (max-width: 767px), (pointer: coarse) {
+  :is(input:not([type=checkbox],[type=radio],[type=range],[type=file],[type=color]), select, textarea) {
+    /* Never set a field's font size inline: an inline style beats this rule
+       and iOS zooms on focus. Use a class (e.g. text-[.82rem]) instead. */
+    font-size: max(16px, 1em); }
+}
+button, a, [role=button], label, summary { -webkit-tap-highlight-color: transparent; }
 
 /* ===== TOPBAR ===== */
 /* Topbar meta widgets (IPC, ML banners, training pills) — visible at md+, hidden below */
@@ -67,7 +118,7 @@ body { background: var(--bg); color: var(--t1); font-family: var(--font); font-s
   background: transparent; color: var(--t3); font: 600 .72rem/1.4 var(--font);
   cursor: pointer; transition: all .15s; white-space: nowrap; flex-shrink: 0; }
 .mbtn:hover { border-color: var(--p); color: var(--p2); }
-.mbtn.active { background: var(--p); border-color: var(--p); color: #fff; }
+.mbtn.active { background: var(--p); border-color: var(--p); color: var(--on-accent); }
 .mbtn .cnt { opacity: .6; font-size: .64rem; margin-left: 3px; }
 .topbar-actions { display: flex; gap: 6px; flex-shrink: 0; margin-left: auto; }
 
@@ -77,10 +128,10 @@ body { background: var(--bg); color: var(--t1); font-family: var(--font); font-s
 .btn-ghost { background: transparent; color: var(--t3); border-color: var(--bd2); }
 .btn-ghost:hover { border-color: var(--p); color: var(--p2); }
 .btn-outline { background: transparent; color: var(--p2); border-color: var(--p); }
-.btn-outline:hover { background: var(--p); color: #fff; }
+.btn-outline:hover { background: var(--p); color: var(--on-accent); }
 .btn-outline:disabled { opacity: .4; cursor: not-allowed; }
 .btn-primary { padding: 9px 18px; border-radius: var(--rb); background: var(--p);
-  color: #fff; font: 700 .85rem/1 var(--font); border: none; cursor: pointer; transition: background .15s; }
+  color: var(--on-accent); font: 700 .85rem/1 var(--font); border: none; cursor: pointer; transition: background .15s; }
 .btn-primary:hover { background: var(--p2); }
 .btn-primary:disabled { opacity: .4; cursor: not-allowed; }
 
@@ -173,7 +224,7 @@ body { background: var(--bg); color: var(--t1); font-family: var(--font); font-s
 .search-hero-input { width: 100%; padding: 9px 36px 9px 36px; border-radius: var(--rc);
   border: 1.5px solid var(--bd2); background: var(--s2); color: var(--t1);
   font: .78rem var(--font); outline: none; transition: all .2s; }
-.search-hero-input:focus { border-color: var(--p); background: var(--s3); box-shadow: 0 0 0 3px rgba(110,64,201,.15); }
+.search-hero-input:focus { border-color: var(--p); background: var(--s3); box-shadow: 0 0 0 3px color-mix(in srgb, var(--p) 15%, transparent); }
 .search-hero-input::placeholder { color: var(--t4); }
 @media (min-width: 560px) { .search-hero-input { font-size: .88rem; } }
 .search-clear { position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
@@ -181,7 +232,7 @@ body { background: var(--bg); color: var(--t1); font-family: var(--font); font-s
 .view-toggle { display: flex; gap: 3px; }
 .vtbtn { padding: 6px 8px; border-radius: 6px; border: 1.5px solid var(--bd2);
   background: transparent; color: var(--t3); cursor: pointer; transition: all .15s; font-size: .8rem; }
-.vtbtn.active,.vtbtn:hover { border-color: var(--p); color: var(--p2); background: rgba(110,64,201,.1); }
+.vtbtn.active,.vtbtn:hover { border-color: var(--p); color: var(--p2); background: color-mix(in srgb, var(--p) 10%, transparent); }
 .counter { font: .72rem/1 var(--font); color: var(--t4); white-space: nowrap; }
 
 /* ===== CATALOGO FILTER BAR (sticky sub-bar, /catalogo only) =====
@@ -208,7 +259,7 @@ body { background: var(--bg); color: var(--t1); font-family: var(--font); font-s
 .cfb-mas { margin-left: auto; }
 .cfb-count { display: inline-flex; align-items: center; justify-content: center;
   min-width: 15px; height: 15px; padding: 0 4px; border-radius: 999px;
-  background: var(--p); color: #fff; font-size: .6rem; font-weight: 700; }
+  background: var(--p); color: var(--on-accent); font-size: .6rem; font-weight: 700; }
 .cfb-genero-group { display: flex; gap: 2px; flex-shrink: 0; }
 .cfb-genero-pill { flex-shrink: 0; padding: 6px 9px; border-radius: 20px;
   border: 1.5px solid transparent; background: transparent; color: var(--t4);
@@ -311,7 +362,7 @@ body { background: var(--bg); color: var(--t1); font-family: var(--font); font-s
   color: var(--t3); font: 700 .58rem/1.4 var(--font); padding: 2px 7px; border-radius: 20px;
   letter-spacing: .05em; text-transform: uppercase; border: 1px solid var(--bd2); }
 .badge-oferta { display: inline-flex; align-items: center; background: var(--r);
-  color: #fff; font: 700 .58rem/1.4 var(--font); padding: 2px 7px; border-radius: 20px; }
+  color: var(--on-accent); font: 700 .58rem/1.4 var(--font); padding: 2px 7px; border-radius: 20px; }
 .badge-sin-stock { display: inline-flex; align-items: center; background: var(--s2);
   color: var(--t3); font: 700 .58rem/1.4 var(--font); padding: 2px 7px; border-radius: 20px;
   border: 1px solid var(--bd2); }
@@ -373,7 +424,7 @@ body { background: var(--bg); color: var(--t1); font-family: var(--font); font-s
 
 /* ===== TOAST ===== */
 .toast { position: fixed; bottom: 24px; right: 24px; padding: 12px 20px;
-  border-radius: 8px; color: #fff; font-size: .82rem; z-index: var(--z-toast);
+  border-radius: 8px; color: var(--on-accent); font-size: .82rem; z-index: var(--z-toast);
   animation: toastIn .3s ease; max-width: 320px; box-shadow: 0 4px 12px rgba(0,0,0,.4); }
 .toast-success { background: var(--sem-positive); }
 .toast-error { background: var(--sem-negative); }
@@ -415,7 +466,7 @@ body { background: var(--bg); color: var(--t1); font-family: var(--font); font-s
 .card-compare-btn { width: 26px; height: 26px; border-radius: 6px; background: rgba(0,0,0,.6);
   border: 1px solid rgba(255,255,255,.15); color: #fff; font-size: .7rem;
   cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all .15s; }
-.card-compare-btn:hover,.card-compare-btn.added { background: var(--p); border-color: var(--p); color: #fff; }
+.card-compare-btn:hover,.card-compare-btn.added { background: var(--p); border-color: var(--p); color: var(--on-accent); }
 .card-fav-btn { width: 26px; height: 26px; border-radius: 6px; background: rgba(0,0,0,.6);
   border: 1px solid rgba(255,255,255,.15); color: #fff; font-size: .85rem;
   cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all .15s; }
@@ -531,7 +582,7 @@ body { background: var(--bg); color: var(--t1); font-family: var(--font); font-s
 .sitio-chip { padding: 4px 12px; border-radius: 20px; border: 1.5px solid var(--bd2);
   background: transparent; color: var(--t3); font: .72rem var(--font); cursor: pointer; transition: all .15s; }
 .sitio-chip:hover { border-color: var(--p); color: var(--p2); }
-.sitio-chip.selected { background: var(--p); border-color: var(--p); color: #fff; }
+.sitio-chip.selected { background: var(--p); border-color: var(--p); color: var(--on-accent); }
 .prog-bar-wrap { background: var(--s2); border-radius: 8px; height: 6px; overflow: hidden; }
 .prog-bar-fill { height: 100%; background: linear-gradient(90deg, var(--p), var(--p2));
   border-radius: 8px; transition: width .4s; }
@@ -587,7 +638,7 @@ body { overflow-x: hidden; }
   transition: all .15s ease; text-transform: capitalize; }
 .genero-pill:hover { border-color: var(--p); color: var(--t1); }
 .genero-pill.active { background: linear-gradient(135deg, var(--p), var(--p2));
-  color: #fff; border-color: transparent; box-shadow: 0 4px 14px rgba(110,64,201,.4); }
+  color: var(--on-accent); border-color: transparent; box-shadow: 0 4px 14px color-mix(in srgb, var(--p) 40%, transparent); }
 
 /* outfit-card: 2-up on phone, original size at sm+ */
 .outfit-card { flex: 1 1 calc(50% - 8px); min-width: 0; max-width: none; background: var(--s1);
@@ -641,9 +692,9 @@ body { overflow-x: hidden; }
 .recomendados-dismiss-cat-btn:hover { color: var(--r); }
 
 .reroll-btn { padding: 9px 20px; border-radius: 20px; border: none; cursor: pointer;
-  font: 700 .8rem/1 var(--font); color: #fff; background: linear-gradient(135deg, var(--p), var(--p2));
-  box-shadow: 0 6px 18px rgba(110,64,201,.35); transition: transform .15s ease, box-shadow .15s ease; }
-.reroll-btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 10px 26px rgba(110,64,201,.5); }
+  font: 700 .8rem/1 var(--font); color: var(--on-accent); background: linear-gradient(135deg, var(--p), var(--p2));
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--p) 35%, transparent); transition: transform .15s ease, box-shadow .15s ease; }
+.reroll-btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 10px 26px color-mix(in srgb, var(--p) 50%, transparent); }
 .reroll-btn:disabled { background: var(--s2); color: var(--t4); box-shadow: none; cursor: default; }
 
 .partial-warning { font-size: .76rem; color: var(--y); background: rgba(240,165,0,.1);
@@ -652,7 +703,7 @@ body { overflow-x: hidden; }
 
 .greedy-toast {
   position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
-  background: var(--p); color: #fff;
+  background: var(--p); color: var(--on-accent);
   font-size: .78rem; font-weight: 600; letter-spacing: .02em;
   padding: 10px 20px; border-radius: 20px;
   box-shadow: 0 8px 24px rgba(0,0,0,.25);
@@ -705,7 +756,7 @@ body { overflow-x: hidden; }
   flex: 1; min-width: 120px;
   transition: border-color .15s, box-shadow .15s; }
 .picks-search::placeholder { color: var(--t4); }
-.picks-search:focus-visible { border-color: var(--p); box-shadow: 0 0 0 3px rgba(196,80,46,.35); }
+.picks-search:focus-visible { border-color: var(--p); box-shadow: 0 0 0 3px color-mix(in srgb, var(--p) 35%, transparent); }
 
 .picks-main { min-width: 0; padding: 1rem 1.25rem; }
 
@@ -732,7 +783,7 @@ body { overflow-x: hidden; }
   flex-wrap: wrap; flex-shrink: 0; }
 .picks-rubro-btn { padding: 4px 10px; border-radius: 16px; border: none; cursor: pointer;
   font-size: .72rem; font-weight: 700; background: var(--s2); color: var(--t4); }
-.picks-rubro-btn.active { background: var(--p); color: #fff; }
+.picks-rubro-btn.active { background: var(--p); color: var(--on-accent); }
 .picks-genero { display: flex; gap: 4px; padding-left: 8px; border-left: 1px solid var(--bd2); }
 .picks-rubro-back { padding: 4px 10px; border-radius: 16px; border: 1px solid var(--bd2);
   background: var(--s2); color: var(--t2); font: 700 .72rem var(--font); cursor: pointer;
@@ -746,7 +797,7 @@ body { overflow-x: hidden; }
 .picks-view-toggle { display: flex; gap: 8px; margin: 0 0 0 auto; padding: 0; border: 0; min-inline-size: 0; }
 .picks-view-btn { width: 44px; height: 44px; display: flex; align-items: center; justify-content: center;
   border-radius: 8px; border: 1.5px solid var(--bd2); background: var(--s2); color: var(--t3); cursor: pointer; }
-.picks-view-btn.active { background: var(--p); color: #fff; }
+.picks-view-btn.active { background: var(--p); color: var(--on-accent); }
 .picks-view-btn:focus-visible { outline: 2px solid var(--p); outline-offset: 2px; }
 .picks-proximamente { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
   min-height: 160px; padding: 1rem; border-radius: 14px; border: 1px dashed var(--bd2); background: var(--s2);
@@ -930,7 +981,7 @@ body { overflow-x: hidden; }
 
 /* ===== PROMOS DE PAGO ===== */
 /* Colores de marca de los monogramas propios de MedioPagoIcon (no son los logos
-   oficiales). Tokens, no literales en el JSX. La app tiene un único tema. */
+   oficiales). Tokens, no literales en el JSX. Las marcas no cambian con el tema. */
 :root {
   --medio-mercado-pago: #00A6E8; --medio-transferencia: #475569; --medio-santander: #E60000;
   --medio-galicia: #F26A1B; --medio-macro: #0B3C8C; --medio-bbva: #0B4A8F;

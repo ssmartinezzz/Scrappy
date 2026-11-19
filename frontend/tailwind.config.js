@@ -19,6 +19,7 @@ export default {
         success: 'var(--g)',
         danger: 'var(--r)',
         warning: 'var(--y)',
+        'on-accent': 'var(--on-accent)',
       },
       borderRadius: {
         card: 'var(--rc)',
@@ -33,9 +34,9 @@ export default {
         6: '48px',
       },
       fontFamily: {
-        sans: ['Segoe UI', 'system-ui', 'sans-serif'],
-        mono: ['Cascadia Code', 'JetBrains Mono', 'Consolas', 'SF Mono', 'Menlo', 'monospace'],
-        display: ['Archivo', 'Segoe UI', 'system-ui', 'sans-serif'],
+        sans: ['Geist Variable', 'Segoe UI', 'system-ui', 'sans-serif'],
+        mono: ['Geist Mono Variable', 'Cascadia Code', 'JetBrains Mono', 'Consolas', 'SF Mono', 'Menlo', 'monospace'],
+        display: ['Geist Variable', 'Segoe UI', 'system-ui', 'sans-serif'],
       },
       fontSize: {
         'display-1': ['2.5rem', { fontWeight: '800', lineHeight: '1.1' }],

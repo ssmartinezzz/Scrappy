@@ -58,7 +58,7 @@ function PresetForm({ initial, onSubmit, onCancel, submitLabel }) {
       <div className="finan-action-row">
         <button type="submit" style={{
           padding:'5px 12px', borderRadius:6, border:'none', cursor:'pointer',
-          background:'var(--p)', color:'#fff', fontSize:'.7rem', fontWeight:700,
+          background:'var(--p)', color:'var(--on-accent)', fontSize:'.7rem', fontWeight:700,
         }}>
           {submitLabel}
         </button>

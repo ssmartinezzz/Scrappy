@@ -17,11 +17,11 @@ export default function PickCard({ pick, mediana, onClick }) {
       type="button"
       onClick={() => onClick(pick)}
       className="btn-reset picks-pick-item"
-      style={{ borderColor: `${m.color}33` }}
+      style={{ borderColor: `color-mix(in srgb, ${m.color} 20%, transparent)` }}
       onMouseOver={e => e.currentTarget.style.borderColor = m.color}
       onFocus={e => e.currentTarget.style.borderColor = m.color}
-      onMouseOut={e => e.currentTarget.style.borderColor = `${m.color}33`}
-      onBlur={e => e.currentTarget.style.borderColor = `${m.color}33`}>
+      onMouseOut={e => e.currentTarget.style.borderColor = `color-mix(in srgb, ${m.color} 20%, transparent)`}
+      onBlur={e => e.currentTarget.style.borderColor = `color-mix(in srgb, ${m.color} 20%, transparent)`}>
 
       {/* Imagen grande arriba + rank en overlay */}
       <div className="picks-pick-imgwrap">

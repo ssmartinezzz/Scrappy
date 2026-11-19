@@ -8,7 +8,7 @@ const SIZES = {
   default: { box: 48, stroke: 4.5, ipcFont: 10, valueFont: 14, usdFont: 11 },
 };
 
-const AMBER  = '#D08A1E';
+const AMBER  = 'var(--sem-warn)';
 const GREY   = 'var(--t4)';
 const ACCENT = 'var(--p2)';
 

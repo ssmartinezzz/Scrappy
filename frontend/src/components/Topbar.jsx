@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils';
 import { RUBROS } from '../lib/rubros';
 import { IpcBadge } from './ui/ipc-badge';
 import UserMenu from './UserMenu';
+import ThemeToggle from './ThemeToggle';
 import { BrandLockup } from './brand/Brand';
 
 
@@ -79,7 +80,7 @@ export default function Topbar({
                 className={cn(
                   'flex shrink-0 items-center gap-[4px] whitespace-nowrap rounded-full border-none px-[10px] py-[4px]',
                   'cursor-pointer text-[.72rem] font-bold transition-all duration-150',
-                  active ? 'bg-primary text-white' : 'bg-transparent text-t4'
+                  active ? 'bg-primary text-on-accent' : 'bg-transparent text-t4'
                 )}>
                 {r.icon} {r.label}
                 {count > 0 && (
@@ -134,7 +135,7 @@ export default function Topbar({
         )}
 
         {/* Re-scrape button + user menu */}
-        <div className="ml-auto flex shrink-0 items-center gap-2 pl-1">
+        <div className="ml-auto flex shrink-0 items-center gap-[6px] pl-1">
           {canScrape && (
             <button onClick={onReScrape}
               title="Nuevo scraping"
@@ -143,6 +144,7 @@ export default function Topbar({
               ↺<span className="hidden sm:inline"> Nuevo scraping</span>
             </button>
           )}
+          <ThemeToggle />
           <UserMenu />
         </div>
       </div>

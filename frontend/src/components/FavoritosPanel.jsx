@@ -136,7 +136,7 @@ export default function FavoritosPanel({
                 width:44, height:44, display:'flex', alignItems:'center', justifyContent:'center',
                 borderRadius:8, border:'1.5px solid var(--bd2)', cursor:'pointer',
                 background: viewMode === 'carousel' ? 'var(--p)' : 'var(--s2)',
-                color: viewMode === 'carousel' ? '#fff' : 'var(--t3)',
+                color: viewMode === 'carousel' ? 'var(--on-accent)' : 'var(--t3)',
               }}>
               <LayoutGrid size={18} aria-hidden="true" />
             </button>
@@ -151,7 +151,7 @@ export default function FavoritosPanel({
                 width:44, height:44, display:'flex', alignItems:'center', justifyContent:'center',
                 borderRadius:8, border:'1.5px solid var(--bd2)', cursor:'pointer',
                 background: viewMode === 'list' ? 'var(--p)' : 'var(--s2)',
-                color: viewMode === 'list' ? '#fff' : 'var(--t3)',
+                color: viewMode === 'list' ? 'var(--on-accent)' : 'var(--t3)',
               }}>
               <List size={18} aria-hidden="true" />
             </button>

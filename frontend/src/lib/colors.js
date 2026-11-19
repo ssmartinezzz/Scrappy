@@ -1,18 +1,17 @@
-// Single source of truth for ML/semantic badge colors. CSS surfaces read the
-// mirrored `--sem-*` custom properties in styles.css (same hex values); JS
-// surfaces import directly from here. Changing a role's hex in ONE place
-// (this file + its CSS mirror) updates every consumer — see design doc
-// "Decision: Badge/semantic color single source of truth".
+// Single source of truth for ML/semantic badge colors. The values are the
+// `--sem-*` custom properties in styles.css (one hex per theme, light and
+// `.dark`), so JS surfaces follow the theme too. A var() cannot take a hex
+// alpha suffix: use color-mix(in srgb, X 20%, transparent) instead.
 //
 // 7 canonical semantic roles (collapses prior divergent per-file hex):
 export const SEMANTIC = {
-  positive: '#2E7D52', // below_market, budget, cheapest, muy/buen_momento, bajando
-  negative: '#C0392B', // above_market, luxury, caro, subiendo
-  warn:     '#D08A1E', // premium, esperar, all_time_low
-  oferta:   '#8E5BD6', // verified_deal, histLow
-  trend:    '#D2622A', // trending, comprar_ahora, oferta (pick)
-  gym:      '#6E9B2E', // gymrat, subcat chips
-  pack:     '#8E5BD6', // pack/combo, unit price (= oferta)
+  positive: 'var(--sem-positive)', // below_market, budget, cheapest, muy/buen_momento, bajando
+  negative: 'var(--sem-negative)', // above_market, luxury, caro, subiendo
+  warn:     'var(--sem-warn)', // premium, esperar, all_time_low
+  oferta:   'var(--sem-oferta)', // verified_deal, histLow
+  trend:    'var(--sem-trend)', // trending, comprar_ahora, oferta (pick)
+  gym:      'var(--sem-gym)', // gymrat, subcat chips
+  pack:     'var(--sem-pack)', // pack/combo, unit price (= oferta)
 };
 
 // Single source of truth for the 7 badge keys (badges-oportunidades-revamp

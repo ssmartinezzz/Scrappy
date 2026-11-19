@@ -288,7 +288,7 @@ function Btn({ color, bg, onClick, disabled, children }) {
   return (
     <button onClick={onClick} disabled={disabled} style={{
       padding:'5px 11px', borderRadius:8,
-      border:`1px solid ${color}66`,
+      border:`1px solid color-mix(in srgb, ${color} 40%, transparent)`,
       background: bg, color,
       cursor: disabled ? 'not-allowed' : 'pointer',
       fontSize:'.71rem', fontWeight:600,
