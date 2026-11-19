@@ -109,9 +109,8 @@ const COLUMNS = [
     id: 'username',
     accessorKey: 'username',
     header: 'Cuenta',
-    cell: ({ row, table }) => {
+    cell: ({ row }) => {
       const u = row.original;
-      const { ejecutar, ocupado } = table.options.meta;
       return (
         <div className="flex items-center gap-2">
           <Avatar username={u.username} />
