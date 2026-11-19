@@ -46,10 +46,10 @@ class DesodoranteYLlaveroTest {
     }
 
     @Test
-    void desodoranteIsPerfumeriaAndLlaveroBelongsToNoRubroGroup() {
+    void desodoranteIsBellezaAndLlaveroBelongsToNoRubroGroup() {
         assertThat(CategoryGroups.canonicalCategories()).contains("Desodorante", "Llavero");
-        assertThat(CategoryGroups.esCategoriaPerfumeria("Desodorante")).isTrue();
-        assertThat(CategoryGroups.esCategoriaPerfumeria("Llavero")).isFalse();
+        assertThat(CategoryGroups.esCategoriaBelleza("Desodorante")).isTrue();
+        assertThat(CategoryGroups.esCategoriaBelleza("Llavero")).isFalse();
         assertThat(CategoryGroups.esIndumentariaOCalzado("Llavero")).isFalse();
     }
 

@@ -18,7 +18,7 @@ class MarcasPicksKeyTest {
         return Product.builder()
                 .sitio("TestSitio").nombre("Perfume").precio(10000).url(url).imagenUrl("img")
                 .categoria("Perfume").genero("mujer").talles(List.of())
-                .ml(Product.MlScore.EMPTY).marca("Marca").rubro("perfumeria")
+                .ml(Product.MlScore.EMPTY).marca("Marca").rubro("belleza")
                 .gymrat(false).build();
     }
 
@@ -27,7 +27,7 @@ class MarcasPicksKeyTest {
         String url = "https://t/perfume-a";
         AggregatedResult cat = new AggregatedResult(List.of(perfume(url)), Map.of(), Map.of(), null, 0, 0);
 
-        List<MarcasPicksDtos.Pick> out = MarcasPicksView.mejores(cat, "perfumeria").stream()
+        List<MarcasPicksDtos.Pick> out = MarcasPicksView.mejores(cat, "belleza").stream()
                 .flatMap(c -> c.getPicks().stream()).toList();
 
         assertThat(out).isNotEmpty().allSatisfy(p -> assertThat(p.getKey()).isEqualTo(ProductKey.of(url)));

@@ -455,7 +455,7 @@ chequea antes que `Calzoncillos`, con `KW_BOMBACHA_VETO`: traje de baño (`bikin
 El zero-shot de imagen tiene su etiqueta (`ml_embeddings.py`: "women's panties or bikini briefs
 underwear, not swimwear"), y `ml_train.py` la agrupa igual que `calzoncillos`.
 
-**`Perfume` tiene rubro propio y subcategorías** (`V90`). `RubroResolver` manda `Perfume` a `perfumeria`, salvo en un sitio
+**`Perfume` tiene rubro propio y subcategorías** (`V90`). `RubroResolver` manda `Perfume` a `belleza` (hasta `V112` el rubro se llamaba `perfumeria`), salvo en un sitio
 con `rubro_forzado` `tecnologia`/`oficina`, que sigue ganando. `SubcategoryResolver` lo parte por nombre en `Eau de Parfum`
 (`eau de parfum`, `edp`, `parfum`), `Eau de Toilette` (`eau de toilette`, `edt`), `Body Splash` (`body splash`, `body mist`,
 `splash`) y `Colonia` (`colonia`, `eau de cologne`); gana la primera en ese orden y, si ninguna aparece, queda `''`. El tier
@@ -473,7 +473,7 @@ scrunchie, hebilla, dije, brazalete): `CategoryClassifier` la chequea **antes** 
 (rubro `hogar`), junto a `aromatizante`. Canon 277.
 
 **`Desodorante` y `Llavero`** (`V93`, canon 279). `desodorante `/`antitranspirante` salen de `KW_PERFUME` a `KW_DESODORANTE`, que `AccesoriosClassifier`
-chequea antes ("Desodorante ... fragancia X" es `Desodorante`); es categoría de `perfumeria` y no tiene subcategoría de perfume
+chequea antes ("Desodorante ... fragancia X" es `Desodorante`); es categoría de `belleza` y no tiene subcategoría de perfume
 (`SubcategoryResolver` sólo la da a `Perfume`). `Llavero` (`KW_LLAVERO`: `llavero`/`keychain` en cualquier parte del nombre) corre primero en
 `CategoryClassifier`, antes de Figura Coleccionable/Juguete/Peluche y de `NonTextileGuard`, salvo que el nombre **arranque** con
 mochila/bolso/cartera/riñonera; no pertenece a ningún grupo de rubro (el rubro sigue al sitio). `pin`/`pins` son líder de `Bijouterie`.

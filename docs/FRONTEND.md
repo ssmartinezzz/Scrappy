@@ -43,8 +43,8 @@ filtro es del servidor: con un chip activo el detalle pide `/api/mejores/picks?s
 reinicia lista y cursor), no muestra los destacados sin filtrar y el encabezado cuenta el `total` de esa sub. Filtrar en
 el cliente fallaba en subs profundas (`/almacenamiento/hdd`: 2 de 61, el centinela dejaba de paginar antes de llegar).
 
-**`/picks` en `perfumeria`**: la galería suma tres cards grises "Próximamente" (Maquillaje, Cuidado de la piel, Cabello) que NO son categorías: son un mock de frontend, sin filas en la base ni keywords, definido en
-`PERFUMERIA_PROXIMAMENTE` (`lib/perfumeria.js`; borrar la entrada cuando exista la categoría real: `Desodorante` ya lo es y salió del mock). Dentro de la categoría
+**`/picks` en `belleza`** (antes `perfumeria`; `/picks/perfumeria/...` redirige a `/picks/belleza/...`): la galería suma tres cards grises "Próximamente" (Maquillaje, Cuidado de la piel, Cabello) que NO son categorías: son un mock de frontend, sin filas en la base ni keywords, definido en
+`BELLEZA_PROXIMAMENTE` (`lib/belleza.js`; borrar la entrada cuando exista la categoría real: `Desodorante` ya lo es y salió del mock). Dentro de la categoría
 `Perfume` hay chips por subcategoría (`PERFUME_SUBCATEGORIAS`) que filtran por `subCategoria` en el servidor (mismo mecanismo que los chips de tecnología).
 
 **`/analisis/oportunidades` se filtra por rubro y juzga con `/api/data`.** Una fila de chips

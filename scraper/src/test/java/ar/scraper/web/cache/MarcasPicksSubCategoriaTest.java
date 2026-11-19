@@ -18,13 +18,13 @@ class MarcasPicksSubCategoriaTest {
                 .sitio("TestSitio").nombre(nombre).precio(10000)
                 .url("https://t/" + nombre.replace(' ', '-')).imagenUrl("img")
                 .categoria("Perfume").genero("mujer").talles(List.of()).subCategoria(sub)
-                .ml(Product.MlScore.EMPTY).marca("Marca").rubro("perfumeria")
+                .ml(Product.MlScore.EMPTY).marca("Marca").rubro("belleza")
                 .gymrat(false).build();
     }
 
     private static List<MarcasPicksDtos.Pick> picks(Product... ps) {
         AggregatedResult cat = new AggregatedResult(List.of(ps), Map.of(), Map.of(), null, 0, 0);
-        return MarcasPicksView.mejores(cat, "perfumeria").stream().flatMap(c -> c.getPicks().stream()).toList();
+        return MarcasPicksView.mejores(cat, "belleza").stream().flatMap(c -> c.getPicks().stream()).toList();
     }
 
     @Test
