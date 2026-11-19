@@ -182,6 +182,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V102` | `promo_financiacion.red_medio_pago_id`: la red de tarjeta que la promo exige además del banco o billetera; entra en la clave natural |
 | `V103` | `sub_categoria` de hardware por plataforma (`CPU`/`Motherboard`: socket; `RAM`: `notebook`/`ddr5`/`ddr4`/`ddr3`; `GPU`: fabricante; `Auricular`; `PC`: `gamer`/`oficina`), recategoriza lo que el sustantivo líder desmiente (`GPU`/`Auricular` que son coolers, soportes, combos) y limpia los deportes que el tier 2 le puso a categorías de tecnología |
 | `V104` | Seed de Arredo (VTEX, ropa de cama y deco, `rubro_por_defecto = 'hogar'`) y sus 36 hojas curadas en `sitio_categoria.categoria`; la regla `SITIOS_SOLO_HOGAR` de `NormalizerService` descarta nombres que no son de hogar |
+| `V105` | Seed de Sportline (VTEX, retail deportivo multimarca) y 90 hojas de accesorios curadas en `sitio_categoria.categoria` |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -5340,7 +5341,7 @@ filas activas de tecnología, 0 diferencias. Es aproximado sólo para filas nuev
 Los `Combo de Actualización` que ya lo eran antes (traen una mother) no se mueven. Antes de `V103` `CPU`, `Motherboard`, `RAM`, `GPU`, `Auricular`
 y `PC` no tenían ninguna subcategoría, así que vaciar sus valores las deja como estaban; los dos `Joystick` recuperan `gamepad`. **No** restaura
 los `tenis` que el paso 2 le sacó a los `Videojuego` (eran la fuga que `V103` corrige; el jar anterior los vuelve a producir en el próximo
-`renormalizar`). Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V104` y antes que el de `V102`.
+`renormalizar`). Ya no es el bloque más nuevo: en una cadena de rollbacks corre después de los de `V105` y `V104` y antes que el de `V102`.
 
 ---
 
@@ -5367,4 +5368,26 @@ DELETE FROM sitio s WHERE s.sitio_key = 'arredo'
 ```
 
 `sitio_categoria` cae en cascada con el sitio. Con productos ya scrapeados no borra nada (el FK de `productos` los protege). Ya no es el bloque
-más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V103`.
+más nuevo: en una cadena de rollbacks corre después del de `V105` y antes que el de `V103`.
+
+---
+
+## `V105` — seed de Sportline y su mapeo de accesorios
+
+Sportline (`www.sportline.com.ar`, VTEX): 6915 productos en el header, 6918 en un scrape real (11,5 min). Multimarca como Sporting:
+`rubro_forzado` y `rubro_por_defecto` en `NULL`, decide `RubroResolver`. El clasificador por nombre ya acierta en indumentaria y calzado; lo que
+se abstenía eran las hojas `ACCESORIOS` (protectores bucales, palos de hockey, raquetas, sogas, tapis de yoga, silbatos). V105 mapea 90 hojas
+(las mismas hojas bajo cada género) a `Equipamiento Deportivo`, `Pesas`, `Accesorio de Fitness`, `Accesorio Deportivo` y `Bolso`, sin categorías
+nuevas. Medido, filas activas: `categoria != Otros` 98,4 % → 99,9 % (`Otros` 110 → 8, los 8 son `ROPA INTERIOR`, sin categoría canónica).
+
+### Rollback
+
+```sql
+-- >>> rollback:V105
+DELETE FROM sitio s WHERE s.sitio_key = 'sportline'
+  AND NOT EXISTS (SELECT 1 FROM productos p WHERE p.sitio_key = s.sitio_key);
+-- <<< rollback:V105
+```
+
+Igual que `V104`: el mapeo cae con el sitio y con productos ya scrapeados no borra nada. Es el bloque más nuevo: en una cadena de rollbacks
+corre PRIMERO, antes que el de `V104`.

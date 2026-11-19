@@ -77,6 +77,7 @@ export const LOGO_FILES_BY_NAME = {
   "salomon": "salomon.svg",
   "saucony": "saucony.png",
   "sporting": "sporting.svg",
+  "sportline": "sportline.webp",
   "star nutrition": "star-nutrition.png",
   "timberland": "timberland.png",
   "topper": "topper.svg",
