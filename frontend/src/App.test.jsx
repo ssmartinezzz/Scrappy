@@ -176,7 +176,7 @@ describe('App — role-aware UI, hidden not disabled (design D6, spec frontend-r
     renderApp('/splash');
 
     expect(await screen.findByText(/todavía no hay datos/i)).toBeInTheDocument();
-    expect(screen.queryByText(/iniciar scraping/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Iniciar' })).not.toBeInTheDocument();
   });
 });
 
@@ -194,7 +194,7 @@ describe('App — a fresh install with no data still knows its ADMIN is an ADMIN
 
     renderApp('/');
 
-    expect(await screen.findByText(/iniciar scraping/i)).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Iniciar' })).toBeInTheDocument();
     expect(screen.queryByText(/pedile a un administrador/i)).not.toBeInTheDocument();
   });
 });
@@ -307,7 +307,7 @@ describe('App — the interrupted-run banner is ADMIN-only (slice 6, task 6.1/6.
 
     expect(await screen.findByText(/quedó una corrida sin terminar/i)).toBeInTheDocument();
     expect(screen.getByText('Catálogo')).toBeInTheDocument();
-    expect(screen.queryByText(/iniciar scraping/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Iniciar' })).not.toBeInTheDocument();
   });
 });
 
@@ -368,7 +368,7 @@ describe('App — T5: RootGate hands its status to AppLayout (frontend-perf)', (
 
     renderApp('/');
 
-    expect(await screen.findByText(/iniciar scraping/i)).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Iniciar' })).toBeInTheDocument();
 
     const statusCalls = global.fetch.mock.calls.filter(c => String(c[0]).includes('/api/status'));
     expect(statusCalls).toHaveLength(2);

@@ -47,6 +47,24 @@ describe('SplashPanel — an unreachable backend stops the screen claiming progr
   });
 });
 
+describe('SplashPanel — el botón de lanzar dice sólo qué hace', () => {
+  it('dice "Iniciar" en reposo y "Corriendo…" (deshabilitado) mientras corre', () => {
+    const { unmount } = renderSplash({ scrapeStatus: 'DONE' });
+    expect(screen.getByRole('button', { name: /^(Iniciar|Corriendo…)$/ })).toHaveTextContent('Iniciar');
+    unmount();
+
+    renderSplash({ scrapeStatus: 'RUNNING' });
+    expect(screen.getByRole('button', { name: 'Corriendo…' })).toBeDisabled();
+  });
+
+  it('ofrece "Ver catálogo" sin conteo ni emoji cuando hay productos de la corrida', () => {
+    renderSplash({ scrapeStatus: 'RUNNING', totalProds: 1200 });
+
+    expect(screen.getByRole('button', { name: 'Ver catálogo' })).toBeInTheDocument();
+    expect(screen.queryByText(/productos disponibles/)).not.toBeInTheDocument();
+  });
+});
+
 describe('SplashPanel — /splash siempre tiene salida al catálogo (breadcrumb)', () => {
   it('ofrece el breadcrumb cuando hay catálogo, aunque no haya corrida ni conteo', () => {
     // El caso que no tenía salida: catálogo cargado, nada corriendo, y
