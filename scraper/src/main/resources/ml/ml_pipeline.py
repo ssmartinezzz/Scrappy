@@ -824,7 +824,6 @@ def main():
         precio = p.get('precio', 0)
         precio_unit = precio_unitario(p)
         cat    = (p.get('categoria') or 'General').strip() or 'General'
-        genero = (p.get('genero') or '').strip()
 
         # Usar la misma lógica de agrupamiento que en la construcción de stats
         cat_nc = norm_cat(cat)
