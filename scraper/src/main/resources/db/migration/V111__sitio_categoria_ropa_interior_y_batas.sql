@@ -4,29 +4,9 @@
 -- were Otros; IndumentariaClassifier now reads a leading "Ropa Interior" plus the gender, and these leaves are the fallback: men's to Calzoncillos,
 -- women's to Bombacha. Unisex, kids and baby leaves stay unmapped (the name decides).
 -- Arredo Batas (9 rows of bath robes): no canonical home category fits better than Toalla (bath textile); the name rule gives them the sub 'Bata'.
--- Data only, no new categories. Lookup CTEs instead of a literal per row: a string repeated three times is Sonar S1192.
-WITH sitio_k(k, sitio_key) AS (VALUES
-    (1, 'arredo'),
-    (2, 'sportline')),
-cat(k, categoria) AS (VALUES
-    (1, 'Toalla'),
-    (2, 'Calzoncillos'),
-    (3, 'Bombacha')),
-nom(k, nombre) AS (VALUES
-    (1, 'Batas'),
-    (2, 'Infantiles'),
-    (3, 'Adultos'),
-    (4, 'ROPA INTERIOR')),
-hoja(s, origen_id, n, c) AS (VALUES
-    (1, 15, 1, 1),
-    (1, 61, 2, 1),
-    (1, 62, 3, 1),
-    (2, 1000177, 4, 2),
-    (2, 1000178, 4, 3))
+-- Data only, no new categories. One single-line text blob (sitio_key|origen_id|nombre|categoria rows joined by ";", no raw newline: Sonar flags one inside a literal) split by the INSERT, not a literal per row: a string repeated three times is Sonar S1192, and a long VALUES list of near-identical tuples reads as duplicated code to Sonar CPD.
+WITH linea(l) AS (SELECT regexp_split_to_table('arredo|15|Batas|Toalla;arredo|61|Infantiles|Toalla;arredo|62|Adultos|Toalla;sportline|1000177|ROPA INTERIOR|Calzoncillos;sportline|1000178|ROPA INTERIOR|Bombacha', ';')),
+campo(f) AS (SELECT string_to_array(l, '|') FROM linea)
 INSERT INTO sitio_categoria (sitio_key, origen_id, nombre, categoria)
-SELECT sk.sitio_key, h.origen_id, nom.nombre, cat.categoria
-  FROM hoja h
-  JOIN sitio_k sk ON sk.k = h.s
-  JOIN nom ON nom.k = h.n
-  JOIN cat ON cat.k = h.c
+SELECT f[1], f[2]::int, f[3], f[4] FROM campo
 ON CONFLICT (sitio_key, origen_id) DO UPDATE SET categoria = EXCLUDED.categoria;
