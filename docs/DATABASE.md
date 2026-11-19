@@ -191,6 +191,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V111` | Dos hojas que el nombre no ubica: `ROPA INTERIOR` de Sportline (hombre `Calzoncillos`, mujer `Bombacha`) y `Batas` de Arredo (`Toalla`, sub `Bata`) |
 | `V112` | El rubro `perfumeria` pasa a llamarse `belleza`: `chk_productos_rubro_domain` se re-lista completo y las filas guardadas se mueven |
 | `V113` | Categorías `Maquillaje`, `Cuidado de la Piel` y `Cuidado del Cabello` (rubro `belleza`) con sus sub-categorías; `Perfume` gana la sub `Extracto` |
+| `V114` | Seed de Oncity (VTEX, tienda por departamentos, `rubro_por_defecto = 'hogar'`) y 325 hojas curadas; el nodo `Supermercado` se excluye (espera al rubro `supermercado`) |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -5621,4 +5622,30 @@ DELETE FROM categoria WHERE nombre IN ('Maquillaje', 'Cuidado de la Piel', 'Cuid
 ```
 
 **El orden es obligatorio** (FK de `productos`, `sitio_categoria` y `categoria_stats` hacia `categoria`). Los productos vuelven a `Otros` y al rubro por defecto de su sitio; el
-próximo scrape los reclasifica. Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V112`.
+próximo scrape los reclasifica. Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V114` y antes que el de `V112`.
+
+---
+
+## `V114` — seed de Oncity y su mapeo de hojas
+
+Oncity (`www.oncity.com`, VTEX, tienda por departamentos): **49.854** productos en un scrape completo (1.278 s, 21 min), 20 departamentos y 559 hojas. El nodo `Supermercado`
+(2.149 filas) se excluye en `ServicioPorNombreDeCategoria` y espera al rubro `supermercado`: quedan **47.705**. `rubro_forzado` en `NULL` y `rubro_por_defecto = 'hogar'` (los
+neumáticos, la librería, los artículos de bebé y el equipamiento médico que ninguna categoría decide; tecnología es ~8 mil de las 47,7 mil). 325 hojas curadas (CTE de lookup,
+sin categorías nuevas; las de belleza vienen de `V113`): cada hoja toma la categoría que domina sus filas (>= 60 %) salvo las curadas a mano; la hoja gana sobre el nombre
+(`NormalizerService.SITIOS_DONDE_LA_HOJA_GANA`). Cochecitos, cunas, chupetes, higiene bucal y femenina, espuma de afeitar y repuestos de afeitado van a `Otros` explícito (no hay
+categoría y el nombre inventaría una); `Memorias` (RAM y tarjetas SD en la misma hoja), higiene corporal, suplementos, cargadores y accesorios gamer quedan sin mapear.
+
+Medido (47.705 filas del scrape, sin Supermercado): `categoria != Otros` **67,6 %** (clasificador previo, sin curar; 15.445 `Otros`) → **91,9 %** (3.851 `Otros`); el clasificador
+nuevo solo (sin hojas) ya da 75,2 %. Muestra al azar de 44 filas revisada a mano (41 bien; las 3 dudosas son del clasificador compartido: una pasta térmica en `Lubricante`, un
+booster de auto en `Sillón`, una silla inflable de perro en `Silla`).
+
+### Rollback
+
+```sql
+-- >>> rollback:V114
+DELETE FROM sitio s WHERE s.sitio_key = 'oncity'
+  AND NOT EXISTS (SELECT 1 FROM productos p WHERE p.sitio_key = s.sitio_key);
+-- <<< rollback:V114
+```
+
+`sitio_categoria` cae en cascada con el sitio; con productos ya scrapeados no borra nada. Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V113`.

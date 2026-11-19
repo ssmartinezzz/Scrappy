@@ -126,4 +126,12 @@ class ServicioPorNombreDeCategoriaExclusionesTest {
         assertThat(VtexPage.idsDeServicio(arbol, ServicioPorNombreDeCategoria.para("Equus")))
                 .containsExactlyInAnyOrder(1, 2);
     }
+
+    @Test
+    @DisplayName("the Supermercado subtree is excluded on Oncity only (it waits for the supermercado rubro)")
+    void supermercadoIsExcludedOnlyOnOncity() {
+        assertThat(ServicioPorNombreDeCategoria.para("Oncity").esServicio("Supermercado")).isTrue();
+        assertThat(ServicioPorNombreDeCategoria.para("Oncity").esServicio("Cuidado Personal")).isFalse();
+        assertThat(ServicioPorNombreDeCategoria.para("Easy").esServicio("Supermercado")).isFalse();
+    }
 }

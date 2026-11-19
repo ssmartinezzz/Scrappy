@@ -28,7 +28,9 @@ public final class ServicioPorNombreDeCategoria implements CriterioDeServicio {
             // Paint colour swatches ("Blancos Naturales - Shiitake"), not goods: ~200 rows under Colores.
             "prestigio", Set.of("colores"),
             // A test product ("GEO SIMULATION PRODUCT", $1000) and the warranty nodes under Garantias.
-            "cetrogar", Set.of("garantias", "garantia extendida", "compra protegida"));
+            "cetrogar", Set.of("garantias", "garantia extendida", "compra protegida"),
+            // Supermarket aisles (2149 rows): they wait for the supermercado rubro, not for a category guess.
+            "oncity", Set.of("supermercado"));
 
     private final Set<String> nodosExcluidos;
 

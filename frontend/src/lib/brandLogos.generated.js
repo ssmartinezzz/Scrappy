@@ -69,6 +69,7 @@ export const LOGO_FILES_BY_NAME = {
   "nike": "nike.svg",
   "notebookspro": "notebookspro.webp",
   "nutrex": "nutrex.svg",
+  "oncity": "oncity.png",
   "oneplaceworld": "oneplaceworld.webp",
   "optimum nutrition": "optimum-nutrition.svg",
   "penalty": "penalty.svg",
