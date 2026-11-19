@@ -22,6 +22,7 @@ public class CategoryClassifier {
     };
 
     private static final FamiliaClassifier[] FAMILIAS_EN_ORDEN = {
+        new CelularClassifier(),
         new PiletaClassifier(),
         new AutomotorClassifier(),
         new ParrillaClassifier(),

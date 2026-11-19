@@ -183,6 +183,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V103` | `sub_categoria` de hardware por plataforma (`CPU`/`Motherboard`: socket; `RAM`: `notebook`/`ddr5`/`ddr4`/`ddr3`; `GPU`: fabricante; `Auricular`; `PC`: `gamer`/`oficina`), recategoriza lo que el sustantivo líder desmiente (`GPU`/`Auricular` que son coolers, soportes, combos) y limpia los deportes que el tier 2 le puso a categorías de tecnología |
 | `V104` | Seed de Arredo (VTEX, ropa de cama y deco, `rubro_por_defecto = 'hogar'`) y sus 36 hojas curadas en `sitio_categoria.categoria`; la regla `SITIOS_SOLO_HOGAR` de `NormalizerService` descarta nombres que no son de hogar |
 | `V105` | Seed de Sportline (VTEX, retail deportivo multimarca) y 90 hojas de accesorios curadas en `sitio_categoria.categoria` |
+| `V106` | Categoría `Celular` (rubro tecnología): teléfonos y accesorios atados a un teléfono, con `sub_categoria` Smartphone, Funda, Protector, Cargador, Cable, Soporte y Repuesto |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -5389,5 +5390,34 @@ DELETE FROM sitio s WHERE s.sitio_key = 'sportline'
 -- <<< rollback:V105
 ```
 
-Igual que `V104`: el mapeo cae con el sitio y con productos ya scrapeados no borra nada. Es el bloque más nuevo: en una cadena de rollbacks
-corre PRIMERO, antes que el de `V104`.
+Igual que `V104`: el mapeo cae con el sitio y con productos ya scrapeados no borra nada. Ya no es el bloque más nuevo: en una cadena de
+rollbacks corre después del de `V106` y antes que el de `V104`.
+
+---
+
+## `V106` — categoría `Celular`
+
+Los teléfonos no tenían categoría: caían en `Otros` o, peor, en `Tablet`/`Reloj`/`Auricular` por la palabra "Galaxy" o "Redmi". `Celular` es de
+tecnología (`CategoryGroups.CATEGORIAS_TECH`) y agrupa los teléfonos y los accesorios que el nombre ata a uno ("Funda Magsafe para iPhone 16",
+"Soporte para Celular"), con `sub_categoria`: `Smartphone`, `Funda`, `Protector`, `Cargador`, `Cable`, `Soporte` y `Repuesto` (la que aparece primero
+en el nombre). Un cargador, un cable o unos auriculares genéricos siguen en su categoría; `Auricular`, `Reloj`, `Tablet` y `Notebook` ganan sobre la
+hoja. Es el par de siempre: `CelularClassifier` (+ `SubcategoryResolver`) y la fila de esta migración; sin la fila el upsert dice `"0 nuevos"`. Sin paso
+de datos: el próximo scrape es la fuente de verdad.
+
+Medido sobre las 82.654 filas activas de la base de dev (clasificador viejo contra nuevo, 2026-11-19): **19 filas cambian** (0,02 %), todas accesorios
+atados a un teléfono (11 `Otros`, 2 `Funda`, 1 `Billetera`, 1 `Accesorio de Auto`, 1 `Herraje`, 1 `Cable`, 1 `Notebook`, 1 `Reloj`); el clasificador
+tarda 508 ms contra 559 ms antes. Los puntajes de precio se calculan por (`Celular`, sub): ver `docs/ML_PIPELINE.md`.
+
+### Rollback
+
+```sql
+-- >>> rollback:V106
+UPDATE productos SET categoria = 'Otros' WHERE categoria = 'Celular';
+UPDATE sitio_categoria SET categoria = NULL WHERE categoria = 'Celular';
+DELETE FROM categoria_stats WHERE categoria = 'Celular';
+DELETE FROM categoria WHERE nombre = 'Celular';
+-- <<< rollback:V106
+```
+
+**El orden es obligatorio** (FK de `productos`, `sitio_categoria` y `categoria_stats` hacia `categoria`). Los productos vuelven a `Otros` y el próximo
+scrape los reclasifica. Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V105`.

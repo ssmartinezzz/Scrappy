@@ -43,6 +43,10 @@ public class NormalizerService {
     // Home-textile stores: their names read as clothing or kits ("Set x4 Individuales" is a Conjunto, "Funda de Acolchado"
     // a Puffer, "Tejido" a Sweater), so only a home category from the name counts there; anything else yields to the leaf.
     private static final Set<String> SITIOS_SOLO_HOGAR = Set.of("arredo");
+    // A curated "Celular" leaf (phones and their accessories) outranks the name unless the name says another device:
+    // a Galaxy Tab on a phone series leaf is a Tablet, a watch a Reloj.
+    private static final Set<String> OTROS_EQUIPOS_QUE_NO_CEDEN = Set.of(
+            "Tablet", "Notebook", "Reloj", "Auricular", "Monitor", "TV y Audio", "PC", "Mini PC", "Consola", "Cámara");
     // Sites whose whole catalogue is one gender, whatever the name says. A toy store sells to kids: its
     // backpacks, shoes and dolls' dresses are not adult picks. Equus is a men's-only shop. Ayrun is women's
     // gymwear whose names carry no gender word ("Musculosa Seamless Animal").
@@ -106,6 +110,11 @@ public class NormalizerService {
         return CategoryGroups.esCategoriaHogar(categoriaDelArbol) ? categoriaDelArbol : "Otros";
     }
 
+    private static String celularDelArbol(String categoriaDelArbol, String categoria) {
+        return "Celular".equals(categoriaDelArbol) && !OTROS_EQUIPOS_QUE_NO_CEDEN.contains(categoria)
+                ? "Celular" : categoria;
+    }
+
     private static boolean esOtrosEnSuSitio(String sitioKey, String nombre) {
         Set<String> palabras = PALABRAS_OTROS_POR_SITIO.get(sitioKey);
         if (palabras == null) return false;
@@ -129,11 +138,11 @@ public class NormalizerService {
         String nombre = StringUtils.defaultString(p.nombre());
         String sitioKey       = sitioKey(p.sitio());
         String delArbol       = categoriaDelArbol(p, categoriasDelArbol);
-        String cat            = hojaJugueteGana(sitioKey, delArbol)
+        String cat            = celularDelArbol(delArbol, hojaJugueteGana(sitioKey, delArbol)
                 ? CategoryClassifier.separarLego(delArbol, nombre)
                 : esOtrosEnSuSitio(sitioKey, nombre)
                         ? "Otros"
-                        : soloHogar(sitioKey, categoryClassifier.normalizarCategoria(p.categoria(), nombre, delArbol), delArbol);
+                        : soloHogar(sitioKey, categoryClassifier.normalizarCategoria(p.categoria(), nombre, delArbol), delArbol));
         String rubro          = rubroResolver.resolver(sitioKey, cat, p.rubro());
         String genero         = generoFijo(sitioKey, p.genero())
                 .orElseGet(() -> genderResolver.resolver(p.genero(), nombre, cat, rubro));

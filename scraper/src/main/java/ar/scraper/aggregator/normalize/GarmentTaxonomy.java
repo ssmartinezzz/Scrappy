@@ -2321,6 +2321,27 @@ public final class GarmentTaxonomy {
         " cm "," pared"," decorativ"," madera"," ceramica"," despertador"
     };
 
+    /** Líder de un teléfono ("Celular Samsung A07", "Reacondicionado iPhone 13", "Smartphone Apple"). */
+    public static final String[] KW_CELULAR_LIDER = {
+        " celular "," celulares "," smartphone "," smartphones "," telefono celular "," telefono movil "," telefono inteligente ",
+        " iphone "
+    };
+    /** Líder de un accesorio de teléfono: sólo es Celular si el nombre lo ata a un teléfono ({@link #KW_CELULAR_ATADO}). */
+    public static final String[] KW_CELULAR_ACCESORIO_LIDER = {
+        " funda "," fundas "," case "," carcasa "," carcasas "," estuche "," protector "," protectores "," vidrio "," templado "," film "," mica ",
+        " cargador "," cargadores "," adaptador "," cable "," cables "," soporte "," soportes "," pop socket "," popsocket "," anillo "," holder ",
+        " base "," tripode "," palo selfie "," correa "," power bank "," bateria "," kit "," repuesto "," lente "," lentes "," grip "
+    };
+    /** El nombre dice para qué teléfono es. */
+    public static final String[] KW_CELULAR_ATADO = {
+        " celular "," celulares "," smartphone "," smartphones "," iphone "," samsung galaxy "," magsafe "
+    };
+    /** Con alguna de estas el nombre es de otro producto (tablet, reloj, auriculares, notebook) o un juguete: nunca Celular. */
+    public static final String[] KW_CELULAR_VETO = {
+        " tab "," tablet "," pad "," book "," watch "," fit "," band "," buds "," earbuds "," notebook "," laptop "," joystick ",
+        " juguete "," juguetes "," infantil "," interactivo "," ditoys "," juego "," sonidos "
+    };
+
     public static boolean anyMatch(String text, String[] keywords) {
         for (String kw : keywords) if (text.contains(kw)) return true;
         return false;
