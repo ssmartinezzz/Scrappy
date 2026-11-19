@@ -29,7 +29,7 @@ const UA = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Geck
 
 /** `under-armour.svg` is looked up as "under armour": same normalisation as brandLogos.js `clave`. */
 function archivosDeLogos() {
-  return readdirSync(LOGOS).filter(f => IMAGENES.has(extname(f).toLowerCase())).sort();
+  return readdirSync(LOGOS).filter(f => IMAGENES.has(extname(f).toLowerCase())).sort((a, b) => a.localeCompare(b));
 }
 
 function regenerarManifiesto() {
@@ -66,13 +66,51 @@ async function cargarLado() {
 
 function atributos(etiqueta) {
   const attrs = {};
-  for (const m of etiqueta.matchAll(/([\w:-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/g)) {
-    attrs[m[1].toLowerCase()] = (m[2] ?? m[3] ?? m[4]).replaceAll('&amp;', '&');
+  // Attributes are written `name=value` with no spaces around `=` in every homepage this reads.
+  for (const [, nombre, crudo] of etiqueta.matchAll(/([\w:-]+)=("[^"]*"|'[^']*'|[^\s>]+)/g)) {
+    const valor = /^["']/.test(crudo) ? crudo.slice(1, -1) : crudo;
+    attrs[nombre.toLowerCase()] = valor.replaceAll('&amp;', '&');
   }
   return attrs;
 }
 
 const ladoDeclarado = sizes => Math.max(0, ...(sizes || '').split(/\s+/).map(s => Number.parseInt(s, 10) || 0));
+
+function deLinks(html, agregar) {
+  for (const [etiqueta] of html.matchAll(/<link\b[^>]*>/gi)) {
+    const a = atributos(etiqueta);
+    const rel = (a.rel || '').toLowerCase();
+    if (rel.includes('apple-touch-icon')) agregar(a.href, 0, ladoDeclarado(a.sizes) || 180);
+    else if (/\bicon\b/.test(rel)) agregar(a.href, 3, ladoDeclarado(a.sizes));
+  }
+}
+
+function prioridadDeImg(pistas, clave) {
+  if (pistas.includes('header-logo')) return 0.5;
+  if (pistas.includes(clave)) return 1;
+  return 1.5;
+}
+
+// The store's own header logo: an <img> that calls itself a logo, outside the footer. One that
+// names the store beats a generic one (a marketplace page also carries its sub-brands' logos).
+function deImgs(html, clave, agregar) {
+  const cabecera = html.split(/<footer\b/i)[0];
+  for (const [etiqueta] of cabecera.matchAll(/<img\b[^>]*>/gi)) {
+    const a = atributos(etiqueta);
+    const pistas = `${a.src} ${a['data-src']} ${a.alt} ${a.class} ${a.id}`.toLowerCase();
+    if (!pistas.includes('logo') || NO_ES_LOGO.test(pistas)) continue;
+    const src = a.src && !a.src.startsWith('data:') ? a.src : a['data-src'];
+    agregar(src, prioridadDeImg(pistas, clave));
+  }
+}
+
+function deMetas(html, agregar) {
+  for (const [etiqueta] of html.matchAll(/<meta\b[^>]*>/gi)) {
+    const a = atributos(etiqueta);
+    const esImagen = a.property === 'og:image' || a.name === 'twitter:image';
+    if (esImagen && /logo/i.test(a.content || '')) agregar(a.content, 2);
+  }
+}
 
 /** Candidate URLs in the order worth trying: [prioridad, lado declarado] ascending / descending. */
 function candidatos(html, base, clave) {
@@ -81,30 +119,9 @@ function candidatos(html, base, clave) {
     if (!href || href.startsWith('data:')) return;
     try { lista.push({ url: new URL(href.trim(), base).href, prioridad, lado }); } catch { /* bad href */ }
   };
-
-  for (const [etiqueta] of html.matchAll(/<link\b[^>]*>/gi)) {
-    const a = atributos(etiqueta);
-    const rel = (a.rel || '').toLowerCase();
-    if (rel.includes('apple-touch-icon')) agregar(a.href, 0, ladoDeclarado(a.sizes) || 180);
-    else if (/\bicon\b/.test(rel)) agregar(a.href, 3, ladoDeclarado(a.sizes));
-  }
-
-  // The store's own header logo: an <img> that calls itself a logo, outside the footer. One that
-  // names the store beats a generic one (a marketplace page also carries its sub-brands' logos).
-  const cabecera = html.split(/<footer\b/i)[0];
-  for (const [etiqueta] of cabecera.matchAll(/<img\b[^>]*>/gi)) {
-    const a = atributos(etiqueta);
-    const pistas = `${a.src} ${a['data-src']} ${a.alt} ${a.class} ${a.id}`.toLowerCase();
-    if (!pistas.includes('logo') || NO_ES_LOGO.test(pistas)) continue;
-    const prioridad = pistas.includes('header-logo') ? 0.5 : pistas.includes(clave) ? 1 : 1.5;
-    agregar(a.src && !a.src.startsWith('data:') ? a.src : a['data-src'], prioridad);
-  }
-
-  for (const [etiqueta] of html.matchAll(/<meta\b[^>]*>/gi)) {
-    const a = atributos(etiqueta);
-    if ((a.property === 'og:image' || a.name === 'twitter:image') && /logo/i.test(a.content || '')) agregar(a.content, 2);
-  }
-
+  deLinks(html, agregar);
+  deImgs(html, clave, agregar);
+  deMetas(html, agregar);
   agregar('/favicon.ico', 4);
   agregar('/apple-touch-icon.png', 5, 180);
   const vistos = new Set();
@@ -115,34 +132,39 @@ function candidatos(html, base, clave) {
 
 // ── image bytes ─────────────────────────────────────────────────────────────
 
+function leerJpeg(buf) {
+  for (let i = 2; i + 9 < buf.length;) {
+    if (buf[i] !== 0xff) { i++; continue; }
+    const marcador = buf[i + 1];
+    if (marcador >= 0xc0 && marcador <= 0xcf && ![0xc4, 0xc8, 0xcc].includes(marcador)) {
+      return { ext: '.jpg', h: buf.readUInt16BE(i + 5), w: buf.readUInt16BE(i + 7) };
+    }
+    i += 2 + buf.readUInt16BE(i + 2);
+  }
+  return { ext: '.jpg', w: 0, h: 0 };
+}
+
+function leerWebp(buf) {
+  const tipo = buf.subarray(12, 16).toString('latin1');
+  if (tipo === 'VP8X') return { ext: '.webp', w: 1 + buf.readUIntLE(24, 3), h: 1 + buf.readUIntLE(27, 3) };
+  if (tipo === 'VP8 ') return { ext: '.webp', w: buf.readUInt16LE(26) & 0x3fff, h: buf.readUInt16LE(28) & 0x3fff };
+  return { ext: '.webp', w: 0, h: 0 };
+}
+
+function leerIco(buf) {
+  let lado = 0;
+  for (let i = 0; i < buf.readUInt16LE(4); i++) lado = Math.max(lado, buf[6 + i * 16] || 256, buf[7 + i * 16] || 256);
+  return { ext: '.ico', w: lado, h: lado };
+}
+
 /** `{ ext, w, h }` from the magic bytes, or null when it is not an image we keep. w/h 0 = vector/unknown. */
 function leerImagen(buf) {
-  const u8 = buf;
   const ascii = (a, b) => buf.subarray(a, b).toString('latin1');
   if (ascii(1, 4) === 'PNG') return { ext: '.png', w: buf.readUInt32BE(16), h: buf.readUInt32BE(20) };
   if (ascii(0, 3) === 'GIF') return { ext: '.gif', w: buf.readUInt16LE(6), h: buf.readUInt16LE(8) };
-  if (u8[0] === 0xff && u8[1] === 0xd8) {
-    for (let i = 2; i + 9 < buf.length;) {
-      if (u8[i] !== 0xff) { i++; continue; }
-      const marcador = u8[i + 1];
-      if (marcador >= 0xc0 && marcador <= 0xcf && ![0xc4, 0xc8, 0xcc].includes(marcador)) {
-        return { ext: '.jpg', h: buf.readUInt16BE(i + 5), w: buf.readUInt16BE(i + 7) };
-      }
-      i += 2 + buf.readUInt16BE(i + 2);
-    }
-    return { ext: '.jpg', w: 0, h: 0 };
-  }
-  if (ascii(0, 4) === 'RIFF' && ascii(8, 12) === 'WEBP') {
-    const tipo = ascii(12, 16);
-    if (tipo === 'VP8X') return { ext: '.webp', w: 1 + buf.readUIntLE(24, 3), h: 1 + buf.readUIntLE(27, 3) };
-    if (tipo === 'VP8 ') return { ext: '.webp', w: buf.readUInt16LE(26) & 0x3fff, h: buf.readUInt16LE(28) & 0x3fff };
-    return { ext: '.webp', w: 0, h: 0 };
-  }
-  if (u8[0] === 0 && u8[1] === 0 && u8[2] === 1 && u8[3] === 0) {
-    let lado = 0;
-    for (let i = 0; i < buf.readUInt16LE(4); i++) lado = Math.max(lado, buf[6 + i * 16] || 256, buf[7 + i * 16] || 256);
-    return { ext: '.ico', w: lado, h: lado };
-  }
+  if (buf[0] === 0xff && buf[1] === 0xd8) return leerJpeg(buf);
+  if (ascii(0, 4) === 'RIFF' && ascii(8, 12) === 'WEBP') return leerWebp(buf);
+  if (buf[0] === 0 && buf[1] === 0 && buf[2] === 1 && buf[3] === 0) return leerIco(buf);
   if (/<svg[\s>]/i.test(ascii(0, Math.min(buf.length, 2048)))) return { ext: '.svg', w: 0, h: 0 };
   return null;
 }
@@ -214,7 +236,7 @@ async function main() {
   const sitios = sitiosDeConfig();
   const faltan = Object.keys(sitios)
     .filter(k => (only ? only.has(k) : !brandLogoFile(SITIO_LOGO_MARCA[k] ?? k)))
-    .sort();
+    .sort((a, b) => a.localeCompare(b));
 
   const sinEtiqueta = Object.keys(sitios).filter(k => !LABELS[k]);
   if (sinEtiqueta.length) console.log(`No LABELS entry in src/lib/sitios.js for: ${sinEtiqueta.join(', ')}`);
@@ -226,24 +248,30 @@ async function main() {
   console.log(`Fetching ${faltan.length} logos from the stores' own homepages…`);
   const fallos = [];
   const cola = [...faltan];
-  await Promise.all(Array.from({ length: 4 }, async () => {
-    for (let k = cola.shift(); k; k = cola.shift()) {
-      try {
-        const r = await logoDe(k, sitios[k]);
-        const archivo = `${k}${r.ext}`;
-        writeFileSync(resolve(LOGOS, archivo), r.buf);
-        anotarReadme(LABELS[k] ?? k, archivo, r.origen);
-        const dim = r.w ? `${r.w}x${r.h}` : 'vector';
-        console.log(`  ok    ${k.padEnd(18)} ${archivo.padEnd(24)} ${dim}${r.chico ? '  (small: only a favicon was available)' : ''}  <- ${r.origen}`);
-      } catch (e) {
-        fallos.push(k);
-        console.log(`  FAIL  ${k.padEnd(18)} ${e.message}`);
-      }
+  const procesar = async (k) => {
+    try {
+      const r = await logoDe(k, sitios[k]);
+      const archivo = `${k}${r.ext}`;
+      writeFileSync(resolve(LOGOS, archivo), r.buf);
+      anotarReadme(LABELS[k] ?? k, archivo, r.origen);
+      const dim = r.w ? `${r.w}x${r.h}` : 'vector';
+      console.log(`  ok    ${k.padEnd(18)} ${archivo.padEnd(24)} ${dim}${r.chico ? '  (small: only a favicon was available)' : ''}  <- ${r.origen}`);
+    } catch (e) {
+      fallos.push(k);
+      console.log(`  FAIL  ${k.padEnd(18)} ${e.message}`);
     }
-  }));
+  };
+  // Four workers drain one queue: a site at a time each, so no store sees more than one request at once.
+  const trabajador = async () => {
+    const k = cola.shift();
+    if (!k) return;
+    await procesar(k);
+    await trabajador();
+  };
+  await Promise.all(Array.from({ length: 4 }, trabajador));
 
   regenerarManifiesto();
-  if (fallos.length) console.log(`\nNo logo for: ${fallos.sort().join(' ')}. Drop the file in by hand as <key>.<ext> and rerun.`);
+  if (fallos.length) console.log(`\nNo logo for: ${fallos.toSorted((a, b) => a.localeCompare(b)).join(' ')}. Drop the file in by hand as <key>.<ext> and rerun.`);
 }
 
 await main();
