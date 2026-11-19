@@ -184,6 +184,11 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V104` | Seed de Arredo (VTEX, ropa de cama y deco, `rubro_por_defecto = 'hogar'`) y sus 36 hojas curadas en `sitio_categoria.categoria`; la regla `SITIOS_SOLO_HOGAR` de `NormalizerService` descarta nombres que no son de hogar |
 | `V105` | Seed de Sportline (VTEX, retail deportivo multimarca) y 90 hojas de accesorios curadas en `sitio_categoria.categoria` |
 | `V106` | Categoría `Celular` (rubro tecnología): teléfonos y accesorios atados a un teléfono, con `sub_categoria` Smartphone, Funda, Protector, Cargador, Cable, Soporte y Repuesto |
+| `V107` | Seed de Samsung (VTEX, tienda oficial `monomarca`, `rubro_por_defecto = 'tecnologia'`), su fila en `marca` y 87 hojas curadas; la hoja gana sobre el nombre |
+| `V108` | Seed de Prestigio (VTEX, ferretería y hogar mixto, `rubro_por_defecto = 'construccion'`) y 97 hojas curadas; el nodo `Colores` (muestras de pintura) se excluye |
+| `V109` | Seed de Naldo (VTEX, tienda por departamentos, `rubro_por_defecto = 'hogar'`) y 133 hojas curadas; la hoja gana sobre el nombre |
+| `V110` | Seed de Cetrogar (VTEX, electro y muebles, `rubro_por_defecto = 'tecnologia'`) y 125 hojas curadas; el nodo `Garantias` se excluye |
+| `V111` | Dos hojas que el nombre no ubica: `ROPA INTERIOR` de Sportline (hombre `Calzoncillos`, mujer `Bombacha`) y `Batas` de Arredo (`Toalla`, sub `Bata`) |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -5420,4 +5425,133 @@ DELETE FROM categoria WHERE nombre = 'Celular';
 ```
 
 **El orden es obligatorio** (FK de `productos`, `sitio_categoria` y `categoria_stats` hacia `categoria`). Los productos vuelven a `Otros` y el próximo
-scrape los reclasifica. Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V105`.
+scrape los reclasifica. Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V107` y antes que el de `V105`.
+
+---
+
+## `V107` — seed de Samsung y su mapeo de hojas
+
+Tienda oficial de Samsung Argentina (VTEX, `shop.samsung.com.ar`): 759 productos en el header, 453 en un scrape real tras excluir `Samsung Care` (169 filas
+de garantías y planes, `ServicioPorNombreDeCategoria`). Es `monomarca` (`NormalizerService` asigna `marca = sitio.nombre`), así que la migración inserta
+`'Samsung'` en `marca` (no existía y no está en `BrandExtractor.MARCAS`; sin la fila `fk_productos_marca` rechaza todo el sitio, ver `V52`). Mixto, con
+`rubro_forzado` en `NULL` y `rubro_por_defecto = 'tecnologia'`: los electrodomésticos salen `hogar` por categoría. Las 87 hojas (CTE de lookup, sin categorías
+nuevas) van de teléfonos y accesorios a `Celular`, `Tablet`, `Reloj`, `Auricular`, `Notebook`, `Monitor`, `Mouse`, `TV y Audio`, `Heladera`, `Lavarropas`,
+`Cocina y Horno`, `Campana y Extractor`, `Aspiradora` y `Aire Acondicionado`; los repuestos de electrodomésticos y los accesorios de tablet y TV, sin
+categoría canónica, van a `Otros` explícito (hojas 137, 150, 166, 184, 186, 193, 258-264 y 274-279). Queda sin mapear la 215 (SmartThings: sensores, hubs y
+lámparas Philips Hue en un solo nodo; decide el nombre). Para este sitio **la hoja gana sobre el nombre**, salvo que el nombre diga `Tablet`, `Notebook`,
+`Reloj`, `Auricular`, `Monitor`, `TV y Audio`, `PC`, `Mini PC`, `Consola` o `Cámara`: así un TV `Mini LED` no es un `Bolso` ni un cajón de heladera una
+`Organización`. `Servicios DA` no se excluye: es un tag sobre electrodomésticos reales.
+
+Medido (filas activas, mismo scrape): `categoria != Otros` 33,0 % (702 filas, clasificador previo) → 43,3 % (con `Celular` y `V106`) → 91,4 % (453 filas, hoja
+curada y sin `Samsung Care`); 38 filas en `indumentaria` y 16 en `suplementos` → 0. Muestra de 8 filas por categoría revisada a mano (Celular 179, TV y Audio
+73, Reloj 40, Monitor 33, Heladera 24, Lavarropas 18, Tablet 15).
+
+### Rollback
+
+```sql
+-- >>> rollback:V107
+DELETE FROM sitio s WHERE s.sitio_key = 'samsung'
+  AND NOT EXISTS (SELECT 1 FROM productos p WHERE p.sitio_key = s.sitio_key);
+DELETE FROM marca m WHERE m.nombre = 'Samsung'
+  AND NOT EXISTS (SELECT 1 FROM productos p WHERE p.marca = m.nombre);
+-- <<< rollback:V107
+```
+
+`sitio_categoria` cae en cascada con el sitio. Con productos ya scrapeados no borra nada. Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V108` y antes que el de `V106`.
+
+---
+
+## `V108` — seed de Prestigio y su mapeo de hojas
+
+Prestigio (`www.prestigio.com.ar`, VTEX): 2660 productos en el header, 2662 en un scrape real (90 s), **2487** tras excluir el nodo `Colores`
+(175 muestras de color de pintura, no productos). Mixto: `rubro_forzado` en `NULL` y `rubro_por_defecto = 'construccion'` (como Easy), así que decide
+`RubroResolver` por categoría. Las 97 hojas (CTE de lookup, sin categorías nuevas) van a `Pintura`, `Piso`, `Bazar`, `Mueble`, electrodomésticos, etc.; la
+hoja gana sobre el nombre (`NormalizerService.SITIOS_DONDE_LA_HOJA_GANA`). Sin mapear: `Infantil`, las raíces `Accesorios`, `Pinturas` e `Iluminación`,
+`Paletas y Accesorios` (raquetas, pelotas y bolsos de pádel en una hoja) y `Notebooks y Tablets`.
+
+Medido (filas activas, mismo scrape): `categoria != Otros` 75,5 % (2662 filas, clasificador previo) → 93,1 % (hojas curadas, con muestras) → **99,6 %** (2487
+filas, sin `Colores`: 9 `Otros`); `suplementos` 9 (67 antes de arreglar los litros) → 0; `indumentaria` 10 (bolsos de pádel).
+
+### Rollback
+
+```sql
+-- >>> rollback:V108
+DELETE FROM sitio s WHERE s.sitio_key = 'prestigio'
+  AND NOT EXISTS (SELECT 1 FROM productos p WHERE p.sitio_key = s.sitio_key);
+-- <<< rollback:V108
+```
+
+`sitio_categoria` cae en cascada con el sitio; con productos ya scrapeados no borra nada. Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V109` y antes que el de `V107`.
+
+---
+
+## `V109` — seed de Naldo y su mapeo de hojas
+
+Naldo (`www.naldo.com.ar`, VTEX, tienda por departamentos): 4328 productos en el header, **4307** en un scrape real (187 s). `rubro_forzado` en `NULL` y
+`rubro_por_defecto = 'hogar'` (pregunta abierta: las 419 filas sin categoría son neumáticos, motos, cochecitos y cunas, no tecnología). 133 hojas curadas
+(CTE de lookup, sin categorías nuevas): cada hoja toma la categoría que domina sus filas (>= 60 %) salvo las curadas a mano; la hoja gana sobre el nombre
+(`NormalizerService.SITIOS_DONDE_LA_HOJA_GANA`). Cochecitos, cunas, butacas, `Bebes y Niños` y motos van a `Otros` explícito; `Aberturas` y la hoja `Accesorios`
+(cámaras, routers y e-readers juntos) quedan sin mapear.
+
+Medido (filas activas, mismo scrape): `categoria != Otros` 78,8 % (911 `Otros`, clasificador previo) → 90,3 % (419); `indumentaria` 97 → 70 filas.
+Muestra de 36 filas revisada a mano (`Celular`, `Reloj`, `Heladera`, `Accesorio de Auto`, `Aire Acondicionado`, `Puerta`...).
+
+### Rollback
+
+```sql
+-- >>> rollback:V109
+DELETE FROM sitio s WHERE s.sitio_key = 'naldo'
+  AND NOT EXISTS (SELECT 1 FROM productos p WHERE p.sitio_key = s.sitio_key);
+-- <<< rollback:V109
+```
+
+`sitio_categoria` cae en cascada con el sitio; con productos ya scrapeados no borra nada. Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V110` y antes que el de `V108`.
+
+---
+
+## `V110` — seed de Cetrogar y su mapeo de hojas
+
+Cetrogar (`www.cetrogar.com.ar`, VTEX): 6270 productos en el header, **6029** en un scrape real (158 s; el nodo `Garantias` se excluye, tiene un producto de prueba a $1000).
+`rubro_forzado` en `NULL` y `rubro_por_defecto = 'tecnologia'` (los electrodomésticos y muebles salen `hogar` por categoría: 4314 filas contra 1368 de tecnología).
+125 hojas curadas (CTE de lookup, sin categorías nuevas): cada hoja toma la categoría que domina sus filas (>= 60 %) salvo las curadas a mano (celulares y accesorios,
+textiles Arredo, cuidado personal, hornitos, accesorios de TV); la hoja gana sobre el nombre (`NormalizerService.SITIOS_DONDE_LA_HOJA_GANA`). Quedan sin mapear
+`Accesorios para PC`, los accesorios gamer, `Indumentaria`, `Cascos` e `Internet Satelital`.
+
+Medido (filas activas, mismo scrape): `categoria != Otros` 89,2 % (654 `Otros`, clasificador previo) → 97,1 % (177); `indumentaria` 122 → 61. Muestra de 32 filas revisada a mano.
+
+### Rollback
+
+```sql
+-- >>> rollback:V110
+DELETE FROM sitio s WHERE s.sitio_key = 'cetrogar'
+  AND NOT EXISTS (SELECT 1 FROM productos p WHERE p.sitio_key = s.sitio_key);
+-- <<< rollback:V110
+```
+
+`sitio_categoria` cae en cascada con el sitio; con productos ya scrapeados no borra nada. Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V111` y antes que el de `V109`.
+
+---
+
+## `V111` — ropa interior de Sportline y batas de Arredo
+
+Las 8 filas `ROPA INTERIOR` de Sportline (`Ropa Interior Under Armour Ua Cotton Hombre`) caían en `Otros`: el sustantivo genérico no está en ninguna lista de keywords
+(no era un acento, una puntuación ni un veto del guard no textil: simplemente ninguna regla lo nombra). `IndumentariaClassifier` ahora lee un `Ropa Interior` **al frente**
+más el género (`hombre` → `Calzoncillos`, `mujer` → `Bombacha`); una bolsa de lavado o un tendedero "de ropa interior" no lideran con esa frase y no cambian. Esta migración
+es el respaldo por hoja (hombre `1000177` → `Calzoncillos`, mujer `1000178` → `Bombacha`; unisex, niños y bebés quedan sin mapear). Las 9 batas de Arredo (hoja `15`
+y sus hijas `61`, `62`) van a `Toalla` (textil de baño; no hay categoría de pijama) con la sub-categoría `Bata`.
+
+Sub-categorías, sólo donde hay filas que las respaldan: `Medias` gana `invisibles` (14 filas de Sportline), `soquete` (5), `caña alta` y `caña baja` (3 cada una); `Toalla` gana
+`Bata` (9). No se crea `tres cuartos` (ninguna fila real lo nombra); `Calzoncillos` y `Bombacha` ya tenían las suyas (`boxer`/`slip`/`brief`, `colaless` y compañía).
+
+### Rollback
+
+```sql
+-- >>> rollback:V111
+DELETE FROM sitio_categoria WHERE padre_id IS NULL AND categoria IS NOT NULL
+  AND ((sitio_key = 'arredo' AND origen_id IN (15, 61, 62)) OR (sitio_key = 'sportline' AND origen_id IN (1000177, 1000178)));
+UPDATE sitio_categoria SET categoria = NULL
+ WHERE (sitio_key = 'arredo' AND origen_id IN (15, 61, 62)) OR (sitio_key = 'sportline' AND origen_id IN (1000177, 1000178));
+-- <<< rollback:V111
+```
+
+Un scrape que ya cargó esos nodos les deja `padre_id`: ahí el `UPDATE` sólo borra la categoría. Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V110`.

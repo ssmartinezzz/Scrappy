@@ -22,7 +22,13 @@ public final class ServicioPorNombreDeCategoria implements CriterioDeServicio {
     private static final Map<String, Set<String>> NODOS_EXCLUIDOS_POR_SITIO = Map.of(
             "elmundodeljuguete", Set.of("bolsas"),
             // Test nodes left in the live tree ("prueba" and its child "testingids").
-            "equus", Set.of("prueba", "testingids"));
+            "equus", Set.of("prueba", "testingids"),
+            // Warranties and service plans (Samsung Care is 169 rows), vouchers, memberships and internal nodes.
+            "samsung", Set.of("samsung care", "membership", "members", "evouchers", "hidden", "teste"),
+            // Paint colour swatches ("Blancos Naturales - Shiitake"), not goods: ~200 rows under Colores.
+            "prestigio", Set.of("colores"),
+            // A test product ("GEO SIMULATION PRODUCT", $1000) and the warranty nodes under Garantias.
+            "cetrogar", Set.of("garantias", "garantia extendida", "compra protegida"));
 
     private final Set<String> nodosExcluidos;
 

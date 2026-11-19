@@ -5,15 +5,15 @@ import { SITIO_LOGO_MARCA, getBrandLogoUrl } from './brandLogos.js';
 export const LABELS = {
   ambiancedeco: 'Ambiance Deco', arredo: 'Arredo', armytech: 'Armytech', ayrun: 'Ayrun', baesics: 'Baesics',
   barnes: 'Barnes', batuk: 'Batuk', bulks: 'Bulks', bullbenny: 'Bullbenny',
-  burtonargentina: 'Burton', city: 'City', compragamer: 'CompraGamer', dcshoes: 'DC Shoes',
+  burtonargentina: 'Burton', cetrogar: 'Cetrogar', city: 'City', compragamer: 'CompraGamer', dcshoes: 'DC Shoes',
   dellorean: 'Dellorean', easy: 'Easy', eldon: 'Eldon', elmundodeljuguete: 'El Mundo del Juguete',
   entreno: 'Entreno', equus: 'Equus', flowin: 'Flowin', forever: 'Forever',
   foreverbstrd: 'Forever BSTRD', freres: 'Freres', fuark: 'Fuark', fullh4rd: 'FullH4rd',
   fursten: 'Fursten', gamerfactory: 'GamerFactory', hadriatica: 'Hadriatica', harvey: 'Harvey',
   inpro: 'Inpro', kevingston: 'Kevingston', kingofthekongo: 'King of the Kongo',
   laspepas: 'Las Pepas', maximus: 'Maximus', midway: 'Midway', mmartinez: 'M. Martinez',
-  monkyforce: 'Monkyforce', morashop: 'Morashop', mrplacadeco: 'MrPlacaDeco', nike: 'Nike',
-  notebookspro: 'NotebooksPro', oneplaceworld: 'One Place World', rockethard: 'RocketHard', sportline: 'Sportline',
+  monkyforce: 'Monkyforce', morashop: 'Morashop', mrplacadeco: 'MrPlacaDeco', naldo: 'Naldo', nike: 'Nike',
+  notebookspro: 'NotebooksPro', oneplaceworld: 'One Place World', rockethard: 'RocketHard', prestigio: 'Prestigio', samsung: 'Samsung', sportline: 'Sportline',
   sporting: 'Sporting', tussy: 'Tussy', underarmour: 'Under Armour', vaypol: 'Vaypol',
   vayzenhome: 'Vayzen Home', vcp: 'VCP', venex: 'Venex', zentra: 'Zentra',
 };
