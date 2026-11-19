@@ -128,20 +128,20 @@ function RubroCarousel({ byRubro, cargando, onSelect }) {
   return (
     <div className="picks-immersive">
       <div className="picks-header">
-        <div className="picks-title">🏆 Mejor picks</div>
-        <div className="picks-subtitle">Elegí un rubro para ver todas sus categorías, o Gymrat para todo lo de gym</div>
+        <div className="picks-title">Picks</div>
+        <div className="picks-subtitle">Elegí un rubro, o Gymrat para todo lo de gym</div>
       </div>
 
       <div className="picks-main">
         <CategoryPicksCarousel
           title="Rubros"
-          subtitle={cargando ? 'Cargando picks...' : 'El mejor de cada categoría según precio/calidad'}
+          subtitle={cargando ? 'Cargando…' : undefined}
           items={ENTRADAS}
           className="picks-rubro-carousel"
           renderItem={r => {
             const { img, categorias, productos } = resumenRubro(byRubro[r.key]);
             let picksStats = `${categorias} categorías · ${productos.toLocaleString('es-AR')} productos`;
-            if (!categorias) picksStats = cargando ? 'Cargando...' : 'Sin picks todavía';
+            if (!categorias) picksStats = cargando ? 'Cargando…' : 'Sin picks todavía';
             return (
               <RubroCard
                 imageUrl={img}
@@ -172,7 +172,7 @@ function ProximamenteCard({ card }) {
 }
 
 // ─── Gallery: hero + grid + search, con reveal progresivo ────────────────────
-function PicksGallery({ cats, busq, onSelectCat, proximamente = [], subtitulo = 'El mejor de cada categoría según precio/calidad' }) {
+function PicksGallery({ cats, busq, onSelectCat, proximamente = [], subtitulo = 'Un producto por categoría' }) {
   const [visibleCount, setVisibleCount] = useState(INITIAL_BATCH);
   const sentinelRef = useRef(null);
 
@@ -214,7 +214,7 @@ function PicksGallery({ cats, busq, onSelectCat, proximamente = [], subtitulo = 
   return (
     <div className="picks-immersive">
       <div className="picks-header">
-        <div className="picks-title">🏆 Mejor picks</div>
+        <div className="picks-title">Picks</div>
         <div className="picks-subtitle">{subtitulo}</div>
       </div>
 
@@ -332,7 +332,7 @@ function DetalleCategoria({ cat, buscando, rubro, genero, subSlug, onSubChange, 
   );
   if (buscando) return (
     <div className="picks-scroll">
-      <div className="picks-state-msg">Cargando picks...</div>
+      <div className="picks-state-msg">Cargando…</div>
     </div>
   );
   return (
@@ -424,7 +424,7 @@ export default function PicksPanel({ onProductClick }) {
       <div className="picks-scroll">
         {loading && (
           <div className="picks-state-msg">
-            Calculando mejores picks...
+            Cargando…
           </div>
         )}
         {!loading && cats.length === 0 && (
@@ -435,7 +435,7 @@ export default function PicksPanel({ onProductClick }) {
         {!loading && cats.length > 0 && (
           <PicksGallery cats={cats} busq={busq} onSelectCat={c => navigate(rutaDe(rubro, generoRuta, c.categoria))}
             proximamente={rubro === 'perfumeria' ? PERFUMERIA_PROXIMAMENTE : []}
-            subtitulo={rubro === GYMRAT ? 'Lo mejor de las marcas de gym' : undefined} />
+            subtitulo={rubro === GYMRAT ? 'Marcas de gym' : undefined} />
         )}
       </div>
     </div>
