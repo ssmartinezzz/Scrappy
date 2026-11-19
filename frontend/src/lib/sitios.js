@@ -13,7 +13,7 @@ export const LABELS = {
   inpro: 'Inpro', kevingston: 'Kevingston', kingofthekongo: 'King of the Kongo',
   laspepas: 'Las Pepas', maximus: 'Maximus', midway: 'Midway', mmartinez: 'M. Martinez',
   monkyforce: 'Monkyforce', morashop: 'Morashop', mrplacadeco: 'MrPlacaDeco', naldo: 'Naldo', nike: 'Nike',
-  notebookspro: 'NotebooksPro', oneplaceworld: 'One Place World', rockethard: 'RocketHard', prestigio: 'Prestigio', samsung: 'Samsung', sportline: 'Sportline',
+  notebookspro: 'NotebooksPro', oncity: 'Oncity', oneplaceworld: 'One Place World', rockethard: 'RocketHard', prestigio: 'Prestigio', samsung: 'Samsung', sportline: 'Sportline',
   sporting: 'Sporting', tussy: 'Tussy', underarmour: 'Under Armour', vaypol: 'Vaypol',
   vayzenhome: 'Vayzen Home', vcp: 'VCP', venex: 'Venex', zentra: 'Zentra',
 };
