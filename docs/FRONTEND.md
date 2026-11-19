@@ -43,9 +43,9 @@ filtro es del servidor: con un chip activo el detalle pide `/api/mejores/picks?s
 reinicia lista y cursor), no muestra los destacados sin filtrar y el encabezado cuenta el `total` de esa sub. Filtrar en
 el cliente fallaba en subs profundas (`/almacenamiento/hdd`: 2 de 61, el centinela dejaba de paginar antes de llegar).
 
-**`/picks` en `perfumeria`**: la galería suma tres cards grises "Próximamente" (Maquillaje, Cuidado de la piel, Cabello) que NO son categorías: son un mock de frontend, sin filas en la base ni keywords, definido en
-`PERFUMERIA_PROXIMAMENTE` (`lib/perfumeria.js`; borrar la entrada cuando exista la categoría real: `Desodorante` ya lo es y salió del mock). Dentro de la categoría
-`Perfume` hay chips por subcategoría (`PERFUME_SUBCATEGORIAS`) que filtran por `subCategoria` en el servidor (mismo mecanismo que los chips de tecnología).
+**`/picks` en `belleza`** (antes `perfumeria`; `/picks/perfumeria/...` redirige a `/picks/belleza/...`): la galería lista las categorías reales del rubro (`Perfume`, `Desodorante`,
+`Maquillaje`, `Cuidado de la Piel`, `Cuidado del Cabello`). Cada una trae chips por subcategoría (`lib/belleza.js`: `PERFUME_SUBCATEGORIAS`, `MAQUILLAJE_SUBCATEGORIAS`, ...) que filtran por
+`subCategoria` en el servidor (mismo mecanismo que los chips de tecnología). Las cards grises "Próximamente" de la versión anterior eran un mock y se borraron cuando las categorías existieron.
 
 **`/analisis/oportunidades` se filtra por rubro y juzga con `/api/data`.** Una fila de chips
 (`RUBROS` de `lib/rubros.js`) elige el rubro y lo deja en la URL como `?rubro=`, así que se

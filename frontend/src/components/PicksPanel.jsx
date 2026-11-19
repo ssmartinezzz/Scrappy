@@ -7,7 +7,6 @@ import { RubroCard } from './ui/rubro-card';
 import CategoryPicksView, { tagline } from './CategoryPicksView';
 import CategoryPicksCarousel from './CategoryPicksCarousel';
 import { RUBROS, rubroLabel } from '../lib/rubros';
-import { PERFUMERIA_PROXIMAMENTE } from '../lib/perfumeria';
 import { subChipsDe, chipPorSlug } from '../lib/subcategorias';
 import { canonicalFromSlug, slugify } from '../lib/cat';
 
@@ -28,7 +27,7 @@ const RUBRO_THEME = {
   deporte:      '203 62% 34%',
   juguetes:     '45 78% 38%',
   libros:       '262 38% 40%',
-  perfumeria:   '322 38% 42%',
+  belleza:      '322 38% 42%',
   gymrat:       '0 68% 38%',
 };
 const RUBROS_ENTRADA = RUBROS.filter(r => r.key);
@@ -48,10 +47,15 @@ const claveCache = (rubro, genero) => (rubro === GYMRAT && genero ? `${GYMRAT}:$
 // The neutral rubro '' is spelled `todos`. A first segment that is no rubro is an old /picks/<categoria> link.
 const TODOS = 'todos';
 const RUBRO_KEYS_ENTRADA = new Set(RUBROS_ENTRADA.map(r => r.key));
+// A rubro key that was renamed: /picks/perfumeria/... links saved before the rename move to /picks/belleza/....
+const RUBROS_RENOMBRADOS = { perfumeria: 'belleza' };
 
 function leerRuta(resto) {
   const [primero, segundo, tercero] = (resto || '').split('/').filter(Boolean);
   if (!primero) return { rubro: null };
+  if (RUBROS_RENOMBRADOS[primero]) {
+    return { rubro: undefined, renombrado: ['/picks', RUBROS_RENOMBRADOS[primero], segundo, tercero].filter(Boolean).join('/') };
+  }
   if (primero === TODOS) return { rubro: '', catSlug: segundo, subSlug: tercero };
   if (primero === GYMRAT) {
     if (GENEROS.some(g => g.key === segundo)) return { rubro: GYMRAT, genero: segundo, catSlug: tercero };
@@ -159,20 +163,8 @@ function RubroCarousel({ byRubro, cargando, onSelect }) {
   );
 }
 
-// Greyed placeholder for a category that does not exist yet (see PERFUMERIA_PROXIMAMENTE). A div, not a button:
-// nothing to open, nothing to focus.
-function ProximamenteCard({ card }) {
-  return (
-    <div className="picks-proximamente" data-proximamente aria-disabled="true">
-      <span className="picks-proximamente-icon" aria-hidden="true">{card.icon}</span>
-      <span className="picks-proximamente-title">{card.label}</span>
-      <span className="picks-proximamente-badge">Próximamente</span>
-    </div>
-  );
-}
-
 // ─── Gallery: hero + grid + search, con reveal progresivo ────────────────────
-function PicksGallery({ cats, busq, onSelectCat, proximamente = [], subtitulo = 'Un producto por categoría' }) {
+function PicksGallery({ cats, busq, onSelectCat, subtitulo = 'Un producto por categoría' }) {
   const [visibleCount, setVisibleCount] = useState(INITIAL_BATCH);
   const sentinelRef = useRef(null);
 
@@ -189,9 +181,6 @@ function PicksGallery({ cats, busq, onSelectCat, proximamente = [], subtitulo = 
   }, [filtered]);
 
   const visible = filtered.slice(0, visibleCount);
-  const proximos = busq
-    ? proximamente.filter(c => c.label.toLowerCase().includes(busq.toLowerCase()))
-    : proximamente;
 
   // Sentinel observer — grows visibleCount, no-ops once everything is revealed
   useEffect(() => {
@@ -228,9 +217,6 @@ function PicksGallery({ cats, busq, onSelectCat, proximamente = [], subtitulo = 
             <div className="picks-grid">
               {visible.map(cat => (
                 <CategoryBanner key={cat.categoria} cat={cat} onClick={onSelectCat} />
-              ))}
-              {visibleCount >= filtered.length && proximos.map(c => (
-                <ProximamenteCard key={c.key} card={c} />
               ))}
             </div>
             {visibleCount < filtered.length && (
@@ -354,13 +340,16 @@ export default function PicksPanel({ onProductClick }) {
   // back and forth costs no request — App.jsx mounts this under ONE `picks/*` route so the cache survives.
   const { '*': resto } = useParams();
   const navigate = useNavigate();
-  const { rubro, genero: generoRuta, catSlug, subSlug, legado } = leerRuta(resto);
+  const { rubro, genero: generoRuta, catSlug, subSlug, legado, renombrado } = leerRuta(resto);
   const genero = generoRuta || GENEROS[0].key;
   const [busq, setBusq] = useState('');
 
   const clave = rubro == null ? null : claveCache(rubro, genero);
   const { byRubro, resumenListo } = usePicksPorRubro(clave, rubro, genero);
   const destinoLegado = useRedireccionLegado(legado, resumenListo, byRubro);
+  useEffect(() => {
+    if (renombrado) navigate(renombrado, { replace: true });
+  }, [renombrado, navigate]);
 
   const abrirRubro = useCallback(key => {
     setBusq('');
@@ -434,7 +423,6 @@ export default function PicksPanel({ onProductClick }) {
         )}
         {!loading && cats.length > 0 && (
           <PicksGallery cats={cats} busq={busq} onSelectCat={c => navigate(rutaDe(rubro, generoRuta, c.categoria))}
-            proximamente={rubro === 'perfumeria' ? PERFUMERIA_PROXIMAMENTE : []}
             subtitulo={rubro === GYMRAT ? 'Marcas de gym' : undefined} />
         )}
       </div>

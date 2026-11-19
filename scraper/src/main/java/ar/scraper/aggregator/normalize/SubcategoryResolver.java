@@ -229,16 +229,38 @@ public class SubcategoryResolver {
         ));
         // First match wins, so a name that mentions both an eau de parfum and an eau de toilette is a parfum.
         SUBCATEG_TIER1.put("Perfume", Arrays.<String[]>asList(
+            new String[]{"Extracto",         "extrait", "extracto"},
             new String[]{"Eau de Parfum",    "eau de parfum", "edp", "parfum"},
             new String[]{"Eau de Toilette",  "eau de toilette", "edt"},
             new String[]{"Body Splash",      "body splash", "body mist", "splash"},
             new String[]{"Colonia",          "colonia", "eau de cologne"}
+        ));
+        // Beauty (V113). Labios before Ojos: a lip liner ("delineador de labios") is not an eye product.
+        SUBCATEG_TIER1.put("Maquillaje", Arrays.<String[]>asList(
+            new String[]{"Labios", "labial", "labiales", "pintalabios", "lip", "gloss", "brillo", "delineador de labios"},
+            new String[]{"Uñas",   "esmalte", "esmaltes", "unas", "semipermanente"},
+            new String[]{"Ojos",   "rimel", "mascara", "pestanas", "delineador", "sombra", "sombras", "cejas", "ojos"},
+            new String[]{"Rostro", "base", "corrector", "iluminador", "rubor", "polvo", "polvos", "bronzer", "primer", "rostro", "facial"}
+        ));
+        SUBCATEG_TIER1.put("Cuidado de la Piel", Arrays.<String[]>asList(
+            new String[]{"Protector Solar", "protector solar", "bloqueador", "bronceador", "autobronceante", "fps"},
+            new String[]{"Corporal",        "corporal", "cuerpo", "manos", "pies"},
+            new String[]{"Facial",          "facial", "rostro", "cara", "ojos", "serum", "micelar", "contorno", "labial"}
+        ));
+        SUBCATEG_TIER1.put("Cuidado del Cabello", Arrays.<String[]>asList(
+            new String[]{"Tintura",        "tintura", "tinte", "coloracion", "decolorante", "oxidante", "matizador"},
+            new String[]{"Shampoo",        "shampoo", "champu"},
+            new String[]{"Acondicionador", "acondicionador", "enjuague"},
+            new String[]{"Tratamiento",    "mascara", "mascarilla", "tratamiento", "ampolla", "ampollas", "keratina", "botox", "peinar"}
         ));
         SUBCATEG_TIER1.put("Botines", Arrays.<String[]>asList(
             new String[]{"futsal",  "futsal", "papi", "salon", "ic"},
             new String[]{"campo",   "campo", "fg", "cesped"}
         ));
     }
+
+    /** Beauty categories take no sport sub either: "Shampoo Running" names a shampoo. */
+    private static final Set<String> SIN_DEPORTE_BELLEZA = Set.of("Maquillaje", "Cuidado de la Piel", "Cuidado del Cabello");
 
     /** Evaluated in order after tier-1 produces no match. */
     private static final List<String[]> SUBCATEG_TIER2 = Arrays.<String[]>asList(
@@ -298,7 +320,7 @@ public class SubcategoryResolver {
         if ("Juguete".equals(categoria) && n.contains(" funko")) return "";
 
         // The sport tier is for garments; "Perfume Hockey Club" is not a hockey product, nor is a card or a LEGO set.
-        if ("Perfume".equals(categoria) || "TCG".equals(categoria) || "LEGO".equals(categoria)) return "";
+        if ("Perfume".equals(categoria) || "TCG".equals(categoria) || "LEGO".equals(categoria) || SIN_DEPORTE_BELLEZA.contains(categoria)) return "";
 
         if (TECNOLOGIA_SIN_DEPORTE.contains(categoria)) return "";
 

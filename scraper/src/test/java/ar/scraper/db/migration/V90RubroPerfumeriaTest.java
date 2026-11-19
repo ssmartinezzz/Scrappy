@@ -106,6 +106,8 @@ class V90RubroPerfumeriaTest extends PostgresTestBase {
                 st.execute("SET CONSTRAINTS ALL IMMEDIATE");
                 st.execute("INSERT INTO sitio (nombre, sitio_key, plataforma, es_premium, rubro_forzado, origen) "
                         + "VALUES ('V90 Test', 'v90test', 'shopify', false, NULL, 'config') ON CONFLICT DO NOTHING");
+                // V112 renamed the rubro; its rollback restores the CHECK this historical migration was written against.
+                st.execute(DocumentedRollback.sqlFor("V112"));
                 cuerpo.correr(st);
             } finally {
                 c.rollback();

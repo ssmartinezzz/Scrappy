@@ -167,10 +167,10 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V87` | Plataforma `kevingston`: `sitio_plataforma_check` pasa a 18 valores y seed de Kevingston (`monomarca`) |
 | `V88` | Categorías `Top` y `Top Deportivo` (salen de `Musculosa`), `croptop` pasa de `Corpino` a `Top`, las canilleras a `Accesorio Deportivo` y el inyector de sellante a `Repuesto de Bicicleta`; los tops movidos quedan con `genero = 'mujer'` salvo señal de hombre o infantil |
 | `V89` | Índice parcial `idx_productos_marca_precio` sobre `(lower(coalesce(marca,'')), precio, url) WHERE activo`: una marca paginada por cursor (`/api/data?cursor=`) pasa de barrer 87 mil filas a un rango de índice |
-| `V90` | Rubro `perfumeria`: `chk_productos_rubro_domain` pasa a 10 valores; las filas `Perfume` guardadas con nombre de fragancia se realinean |
+| `V90` | Rubro `perfumeria` (renombrado `belleza` en `V112`): `chk_productos_rubro_domain` pasa a 10 valores; las filas `Perfume` guardadas con nombre de fragancia se realinean |
 | `V91` | Plataforma `magento`: `sitio_plataforma_check` pasa a 19 valores y seed de Las Pepas (`monomarca`) |
 | `V92` | Categoría `Bijouterie` (aros, collar, choker, anillo, broche...) y los "Perfume para Auto" pasan de `Perfume`/`perfumeria` a `Limpieza de Auto`/`hogar` |
-| `V93` | Categorías `Desodorante` (rubro `perfumeria`) y `Llavero` (en ningún grupo de rubro); los desodorantes guardados como `Perfume` se mueven y las `Perfume` sin palabra de fragancia (juguetes `Splash`, `Teja Colonial`) se realinean |
+| `V93` | Categorías `Desodorante` (rubro `perfumeria`, hoy `belleza`) y `Llavero` (en ningún grupo de rubro); los desodorantes guardados como `Perfume` se mueven y las `Perfume` sin palabra de fragancia (juguetes `Splash`, `Teja Colonial`) se realinean |
 | `V94` | Categorías `Vincha`, `Bandana` y `Traje Deportivo` (indumentaria); las `Gorra` con vincha/bandana, los `tracksuit`/`catsuit` guardados como `Traje`/`Conjunto`, todo Funko (a `Juguete`/`juguetes`, sin subcategoría de deporte) y las `Juguete` LEGO (`sub_categoria = 'lego'`) se realinean |
 | `V95` | Seed de Under Armour y Nike (VTEX), las dos `monomarca` con su fila en `marca`; Nike devuelve 403 a `page.request()` y `VtexPage` lee su API con `fetch` dentro de la página |
 | `V96` | Categorías `Camisaco` (indumentaria), `LEGO` y `TCG` (juguetes) y `Wall Panel` (construcción); los `blazer` que no lideran el nombre salen de `Saco`, los `Top` con palabra de limpieza/suplemento se corrigen, ninguna `Camisa`/`Chomba` es `gymrat`, y las `Juguete` LEGO, los juegos de cartas coleccionables y los wall panel pasan a su categoría |
@@ -189,6 +189,8 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V109` | Seed de Naldo (VTEX, tienda por departamentos, `rubro_por_defecto = 'hogar'`) y 133 hojas curadas; la hoja gana sobre el nombre |
 | `V110` | Seed de Cetrogar (VTEX, electro y muebles, `rubro_por_defecto = 'tecnologia'`) y 125 hojas curadas; el nodo `Garantias` se excluye |
 | `V111` | Dos hojas que el nombre no ubica: `ROPA INTERIOR` de Sportline (hombre `Calzoncillos`, mujer `Bombacha`) y `Batas` de Arredo (`Toalla`, sub `Bata`) |
+| `V112` | El rubro `perfumeria` pasa a llamarse `belleza`: `chk_productos_rubro_domain` se re-lista completo y las filas guardadas se mueven |
+| `V113` | Categorías `Maquillaje`, `Cuidado de la Piel` y `Cuidado del Cabello` (rubro `belleza`) con sus sub-categorías; `Perfume` gana la sub `Extracto` |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -4806,6 +4808,8 @@ de rollbacks corre después del de `V90` y antes que el de `V88`.
 
 ## `V90` — rubro `perfumeria`
 
+> Desde `V112` el rubro se llama `belleza`; este bloque queda como registro de lo que `V90` hizo.
+
 `Perfume` pasa a tener rubro propio. `chk_productos_rubro_domain` (CHECK, no tabla, como `V6`) se re-lista completo con el valor
 nuevo (10 valores). Las otras copias del vocabulario viajan en el mismo commit: `CategoryGroups.esCategoriaPerfumeria`,
 `RubroResolver` (rama justo después de los rubros forzados `tecnologia`/`oficina`, que siguen ganando), `frontend/src/lib/rubros.js`
@@ -5554,4 +5558,67 @@ UPDATE sitio_categoria SET categoria = NULL
 -- <<< rollback:V111
 ```
 
-Un scrape que ya cargó esos nodos les deja `padre_id`: ahí el `UPDATE` sólo borra la categoría. Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V110`.
+Un scrape que ya cargó esos nodos les deja `padre_id`: ahí el `UPDATE` sólo borra la categoría. Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V112` y antes que el de `V110`.
+
+---
+
+## `V112` — rubro `belleza`
+
+El rubro `perfumeria` pasa a llamarse `belleza`: además de fragancias va a tener maquillaje, cuidado de la piel y del cabello, con `Perfume` y
+`Desodorante` como dos de sus categorías (la jerarquía es rubro → categoría → sub-categoría; los tipos de fragancia siguen siendo sub-categorías de
+`Perfume`). `productos.rubro` es la **única** columna que enumeraba el valor (`sitio.rubro_forzado` y `rubro_por_defecto` nunca lo listaron), así que la
+migración re-lista el CHECK completo con `belleza` y mueve las filas. Orden obligatorio: el CHECK viejo rechaza `belleza` y el nuevo rechaza
+`perfumeria`, por eso es `DROP` → `UPDATE` → `ADD`. Las otras copias del vocabulario viajan en el mismo commit: `CategoryGroups.esCategoriaBelleza`,
+`RubroResolver`, `config.properties` (comentario), `frontend/src/lib/rubros.js`, `lib/belleza.js`, el color de `PicksPanel.jsx` y la redirección
+`/picks/perfumeria/...` → `/picks/belleza/...`. Los tests de `V90`/`V92`/`V93` corren el rollback de `V112` antes de sembrar filas `perfumeria`.
+
+### Rollback
+
+```sql
+-- >>> rollback:V112
+ALTER TABLE productos DROP CONSTRAINT chk_productos_rubro_domain;
+UPDATE productos SET rubro = 'perfumeria' WHERE rubro = 'belleza' AND categoria IN ('Perfume', 'Desodorante');
+UPDATE productos p SET rubro = COALESCE((SELECT s.rubro_por_defecto FROM sitio s WHERE s.nombre = p.sitio), 'indumentaria')
+ WHERE p.rubro = 'belleza';
+ALTER TABLE productos
+    ADD CONSTRAINT chk_productos_rubro_domain
+        CHECK (rubro IS NULL OR rubro IN ('indumentaria', 'tecnologia', 'suplementos',
+                                          'oficina', 'construccion', 'hogar',
+                                          'deporte', 'juguetes', 'libros', 'perfumeria'));
+-- <<< rollback:V112
+```
+
+Las filas `Perfume`/`Desodorante` vuelven a `perfumeria`; cualquier otra fila de `belleza` (categorías posteriores) vuelve al `rubro_por_defecto` de su sitio o a
+`indumentaria`, como en el rollback de `V90`. Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V113` y antes que el de `V111`.
+
+---
+
+## `V113` — categorías de belleza
+
+`Maquillaje`, `Cuidado de la Piel` y `Cuidado del Cabello` entran al rubro `belleza` (`CategoryGroups.CATEGORIAS_BELLEZA`, junto con `Perfume` y `Desodorante`). Es el par
+de siempre: `BellezaClassifier` las produce y las filas de esta migración dejan que el FK `fk_productos_categoria` las acepte; sin ellas el upsert dice `"0 nuevos"`.
+`BellezaClassifier` corre **antes** de `NonTextileGuard` (que veta `crema`, `gel`, `shampoo` y `protector solar` a propósito para las prendas), así que cada regla parte de
+`KW_BELLEZA_VETO` (mascotas, autos, pintura, madera, telas, un `Perfume`/`Desodorante` en el nombre) y `Maquillaje` suma `KW_MAQUILLAJE_VETO` (sets de juguete como
+`Mi Primer Set De Maquillaje` o el plural `Set De Maquillajes` de las jugueterías, y los estuches/organizadores). Una hoja curada que ubica la fila **fuera** de belleza
+le gana a un nombre de belleza (un `shampoo` de auto o de perro), y también a `Perfume` (un LEGO con un frasco de perfume es `LEGO`).
+
+Sub-categorías (donde hay filas reales que las respaldan, Oncity 2026-11-19): `Maquillaje` = `Labios`, `Uñas`, `Ojos`, `Rostro`; `Cuidado de la Piel` = `Protector Solar`,
+`Corporal`, `Facial`; `Cuidado del Cabello` = `Tintura`, `Shampoo`, `Acondicionador`, `Tratamiento`; `Perfume` gana `Extracto` (`extrait`/`extracto`, 14 filas; "Extrait de
+Parfum" antecede a `Eau de Parfum`). Las categorías de belleza no reciben sub de deporte. Sin paso de datos: la base de dev no tiene filas que estas palabras muevan.
+
+### Rollback
+
+```sql
+-- >>> rollback:V113
+UPDATE productos p
+   SET categoria = 'Otros', sub_categoria = '',
+       rubro = COALESCE((SELECT s.rubro_por_defecto FROM sitio s WHERE s.nombre = p.sitio), 'indumentaria')
+ WHERE p.categoria IN ('Maquillaje', 'Cuidado de la Piel', 'Cuidado del Cabello');
+UPDATE sitio_categoria SET categoria = NULL WHERE categoria IN ('Maquillaje', 'Cuidado de la Piel', 'Cuidado del Cabello');
+DELETE FROM categoria_stats WHERE categoria IN ('Maquillaje', 'Cuidado de la Piel', 'Cuidado del Cabello');
+DELETE FROM categoria WHERE nombre IN ('Maquillaje', 'Cuidado de la Piel', 'Cuidado del Cabello');
+-- <<< rollback:V113
+```
+
+**El orden es obligatorio** (FK de `productos`, `sitio_categoria` y `categoria_stats` hacia `categoria`). Los productos vuelven a `Otros` y al rubro por defecto de su sitio; el
+próximo scrape los reclasifica. Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V112`.

@@ -108,7 +108,7 @@ public final class CategoryGroups {
     /** In the canon but in no rubro group: a keychain is sold by toy, fashion and gaming sites alike, so the rubro follows the site. */
     private static final Set<String> CATEGORIAS_SIN_RUBRO = Set.of("Llavero");
 
-    private static final Set<String> CATEGORIAS_PERFUMERIA = Set.of("Perfume","Desodorante");
+    private static final Set<String> CATEGORIAS_BELLEZA = Set.of("Perfume","Desodorante","Maquillaje","Cuidado de la Piel","Cuidado del Cabello");
 
     /**
      * Single source of truth injected into the tool schema {@code enum} and the system prompt so
@@ -126,7 +126,7 @@ public final class CategoryGroups {
         all.addAll(CATEGORIAS_OFICINA);
         all.addAll(CATEGORIAS_CONSTRUCCION);
         all.addAll(CATEGORIAS_HOGAR);
-        all.addAll(CATEGORIAS_PERFUMERIA);
+        all.addAll(CATEGORIAS_BELLEZA);
         all.addAll(CATEGORIAS_OTRAS);
         all.addAll(CATEGORIAS_SIN_RUBRO);
         return java.util.Collections.unmodifiableSet(all);
@@ -165,8 +165,8 @@ public final class CategoryGroups {
         return cat != null && CATEGORIAS_LIBROS.contains(cat);
     }
 
-    public static boolean esCategoriaPerfumeria(String cat) {
-        return cat != null && CATEGORIAS_PERFUMERIA.contains(cat);
+    public static boolean esCategoriaBelleza(String cat) {
+        return cat != null && CATEGORIAS_BELLEZA.contains(cat);
     }
 
     public static boolean esCategoriaTech(String cat) {

@@ -1,5 +1,6 @@
 package ar.scraper.aggregator.normalize;
 
+import ar.scraper.classification.CategoryGroups;
 import org.springframework.stereotype.Component;
 
 import org.apache.commons.lang3.StringUtils;
@@ -8,6 +9,7 @@ import org.apache.commons.lang3.StringUtils;
 public class CategoryClassifier {
 
     private static final NutricionClassifier NUTRICION = new NutricionClassifier();
+    private static final BellezaClassifier BELLEZA = new BellezaClassifier();
 
     private static final FamiliaClassifier[] FAMILIAS_DE_TIEMPO_LIBRE = {
         new CamarasClassifier(),
@@ -72,6 +74,9 @@ public class CategoryClassifier {
 
     private String resolverCategoria(String raw, String nombre, String categoriaDelArbol) {
         String fromName = clasificar(nombre);
+        // Beauty words (shampoo, crema, tintura) are the leak-prone ones: a curated leaf that puts the row elsewhere beats them.
+        if (CategoryGroups.esCategoriaBelleza(fromName) && StringUtils.isNotBlank(categoriaDelArbol)
+                && !CategoryGroups.esCategoriaBelleza(categoriaDelArbol)) return categoriaDelArbol;
         if (!fromName.isEmpty()) return fromName;
 
         if (StringUtils.isNotBlank(categoriaDelArbol)) return categoriaDelArbol;
@@ -109,6 +114,8 @@ public class CategoryClassifier {
         // Before the guard, which vetoes jewelry words on purpose (collar, anillo, broche: pet collars, rings, clasps).
         if (clasificable.lideraSinVeto(GarmentTaxonomy.KW_BIJOUTERIE_LIDER, GarmentTaxonomy.KW_BIJOUTERIE_VETO))
             return "Bijouterie";
+        String belleza = BELLEZA.clasificar(clasificable);
+        if (!belleza.isEmpty()) return belleza;
         if (NonTextileGuard.esClaramenteNoTextil(texto)) return "";
         return primeraCategoria(FAMILIAS_EN_ORDEN, clasificable);
     }

@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { renderPicks } from '@/test/renderPicks';
 import { fetchMejores, fetchMejoresPicks } from '@/api';
-import { PERFUMERIA_PROXIMAMENTE, PERFUME_SUBCATEGORIAS } from '@/lib/perfumeria';
+import { PERFUME_SUBCATEGORIAS } from '@/lib/belleza';
 
 vi.mock('@/api', async importOriginal => ({
   ...(await importOriginal()),
@@ -18,7 +18,7 @@ const pick = (n, sub) => ({
 });
 
 const perfume = {
-  categoria: 'Perfume', count: 4, rubro: 'perfumeria', imgCat: '', mediana: 1000,
+  categoria: 'Perfume', count: 4, rubro: 'belleza', imgCat: '', mediana: 1000,
   picks: [pick(1, 'Eau de Parfum'), pick(2, 'Eau de Toilette'), pick(3, 'Body Splash'), pick(4)],
 };
 const remera = { categoria: 'Remera', count: 9, rubro: 'indumentaria', imgCat: '', mediana: 1000, picks: [pick(9)] };
@@ -30,44 +30,30 @@ beforeEach(() => {
     addListener: vi.fn(), removeListener: vi.fn(),
   }));
   window.IntersectionObserver = class { observe() {} disconnect() {} };
-  fetchMejores.mockImplementation(async rubro => (rubro === 'perfumeria' ? [perfume] : [remera]));
+  fetchMejores.mockImplementation(async rubro => (rubro === 'belleza' ? [perfume] : [remera]));
   fetchMejoresPicks.mockResolvedValue({ picks: [], nextCursor: null, total: 0 });
 });
 
-const abrirPerfumeria = async user => {
-  await user.click(await screen.findByRole('button', { name: 'Perfumería' }));
+const abrirBelleza = async user => {
+  await user.click(await screen.findByRole('button', { name: 'Belleza' }));
   await screen.findByText('Perfume');
 };
 
-describe('PicksPanel — perfumería', () => {
-  it('offers Perfumería as a rubro entry', async () => {
+describe('PicksPanel — belleza', () => {
+  it('offers Belleza as a rubro entry', async () => {
     renderPicks();
-    expect(await screen.findByRole('button', { name: 'Perfumería' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Belleza' })).toBeInTheDocument();
   });
 
-  it('lists every mocked "Próximamente" card, greyed and not clickable', async () => {
-    const user = userEvent.setup();
-    renderPicks();
-    await abrirPerfumeria(user);
-
-    expect(PERFUMERIA_PROXIMAMENTE.map(c => c.label))
-      .toEqual(['Maquillaje', 'Cuidado de la piel', 'Cabello']);
-    for (const { label } of PERFUMERIA_PROXIMAMENTE) {
-      const card = screen.getByText(label).closest('[data-proximamente]');
-      expect(card).not.toBeNull();
-      expect(card).toHaveAttribute('aria-disabled', 'true');
-      expect(card.tagName).not.toBe('BUTTON');
-      await user.click(card);
-    }
-    expect(screen.getAllByText('Próximamente')).toHaveLength(3);
-    expect(fetchMejoresPicks).not.toHaveBeenCalled();
+  it('moves an old /picks/perfumeria link to /picks/belleza, keeping the category', async () => {
+    renderPicks('/picks/perfumeria/perfume');
+    await waitFor(() => expect(screen.getByTestId('ruta')).toHaveTextContent('/picks/belleza/perfume'));
   });
 
-  it('shows no Próximamente cards in other rubros', async () => {
+  it('shows no Próximamente placeholder cards, in Belleza or any other rubro', async () => {
     const user = userEvent.setup();
     renderPicks();
-    await user.click(await screen.findByRole('button', { name: 'Indumentaria' }));
-    await screen.findByText('Remera');
+    await abrirBelleza(user);
     expect(screen.queryByText('Próximamente')).not.toBeInTheDocument();
   });
 
@@ -83,7 +69,7 @@ describe('PicksPanel — perfumería', () => {
     });
     const user = userEvent.setup();
     renderPicks();
-    await abrirPerfumeria(user);
+    await abrirBelleza(user);
     await user.click(screen.getByText('Perfume'));
 
     for (const sub of PERFUME_SUBCATEGORIAS) {

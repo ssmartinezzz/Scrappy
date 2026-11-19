@@ -130,11 +130,12 @@ class RubroResolverEqualityParityTest {
         // V88 (Top, Top Deportivo): 274 -> 276. Son de indumentaria, como Corpino y Musculosa: ninguno de los 23 sitios
         // de V18 las nombra en su rubro_forzado.
         // V92 (Bijouterie): 276 -> 277. Accesorio de indumentaria, como Bufanda y Lentes: ninguno de los 23 sitios de V18 la nombra.
-        // V93 (Desodorante, Llavero): 277 -> 279. Desodorante joins Perfume in perfumeria; Llavero is in no group (the rubro follows the site).
+        // V93 (Desodorante, Llavero): 277 -> 279. Desodorante joins Perfume in belleza; Llavero is in no group (the rubro follows the site).
         // V94 (Vincha, Bandana, Traje Deportivo): 279 -> 282. Indumentaria, like Gorra and Traje.
         // V96 (Camisaco, LEGO, TCG, Wall Panel): 282 -> 286. Indumentaria, juguetes, juguetes, construccion.
         // V106 (Celular): 286 -> 287. De tecnología, como Tablet y Reloj: ninguno de los sitios de V18 la nombra en su rubro_forzado.
-        assertThat(cats).as("CategoryGroups.canonicalCategories()").hasSize(287);
+        // V113 (Maquillaje, Cuidado de la Piel, Cuidado del Cabello): 287 -> 290. Belleza, like Perfume and Desodorante.
+        assertThat(cats).as("CategoryGroups.canonicalCategories()").hasSize(290);
 
         List<String> rubrosExistentes = Arrays.asList(null, "", "tecnologia", "suplementos", "indumentaria");
 
@@ -150,7 +151,7 @@ class RubroResolverEqualityParityTest {
                             || CategoryGroups.esCategoriaDeporte(cat)
                             || CategoryGroups.esCategoriaJuguetes(cat)
                             || CategoryGroups.esCategoriaLibros(cat)
-                            || CategoryGroups.esCategoriaPerfumeria(cat)) {
+                            || CategoryGroups.esCategoriaBelleza(cat)) {
                         continue;
                     }
                     String oldResult = oldSubstringResolver(sitioKey, cat, rubroExistente);
@@ -163,7 +164,7 @@ class RubroResolverEqualityParityTest {
             }
         }
 
-        assertThat(total).isEqualTo(23L * 287 * 5);
+        assertThat(total).isEqualTo(23L * 290 * 5);
         assertThat(mismatches)
                 .as("old substring oracle vs new equality — mismatched (sitio, categoria, rubroPrevio) triples")
                 .isEmpty();

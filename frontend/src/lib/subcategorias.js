@@ -1,4 +1,4 @@
-import { PERFUME_SUBCATEGORIAS } from './perfumeria';
+import { CABELLO_SUBCATEGORIAS, MAQUILLAJE_SUBCATEGORIAS, PERFUME_SUBCATEGORIAS, PIEL_SUBCATEGORIAS } from './belleza';
 import { slugify } from './cat';
 
 // Sub-category chips of a category detail, keyed `<rubro>/<categoria>`. An entry is a stored `subCategoria` value, or
@@ -19,7 +19,10 @@ const SOCKETS = [c('am4', 'AM4'), c('am5', 'AM5'), c('lga1700', 'LGA1700'), c('l
 
 // Tecnología: the stored values are what SubcategoryResolver / V103 write into `productos.sub_categoria`.
 const CHIPS = {
-  'perfumeria/Perfume': PERFUME_SUBCATEGORIAS,
+  'belleza/Perfume': PERFUME_SUBCATEGORIAS,
+  'belleza/Maquillaje': MAQUILLAJE_SUBCATEGORIAS,
+  'belleza/Cuidado de la Piel': PIEL_SUBCATEGORIAS,
+  'belleza/Cuidado del Cabello': CABELLO_SUBCATEGORIAS,
   'juguetes/TCG': TCG_FRANQUICIAS,
   'tecnologia/CPU': SOCKETS,
   'tecnologia/Motherboard': SOCKETS,
