@@ -40,6 +40,9 @@ public class NormalizerService {
      * or food ("Set de bloques" is a Conjunto, "con Vestido" a Vestido) while the leaf is exact.
      */
     private static final Set<String> SITIOS_DONDE_LA_HOJA_JUGUETE_GANA = Set.of("elmundodeljuguete");
+    // Home-textile stores: their names read as clothing or kits ("Set x4 Individuales" is a Conjunto, "Funda de Acolchado"
+    // a Puffer, "Tejido" a Sweater), so only a home category from the name counts there; anything else yields to the leaf.
+    private static final Set<String> SITIOS_SOLO_HOGAR = Set.of("arredo");
     // Sites whose whole catalogue is one gender, whatever the name says. A toy store sells to kids: its
     // backpacks, shoes and dolls' dresses are not adult picks. Equus is a men's-only shop. Ayrun is women's
     // gymwear whose names carry no gender word ("Musculosa Seamless Animal").
@@ -98,6 +101,11 @@ public class NormalizerService {
                 && CategoryGroups.esCategoriaJuguetes(categoriaDelArbol);
     }
 
+    private static String soloHogar(String sitioKey, String categoria, String categoriaDelArbol) {
+        if (!SITIOS_SOLO_HOGAR.contains(sitioKey) || CategoryGroups.esCategoriaHogar(categoria)) return categoria;
+        return CategoryGroups.esCategoriaHogar(categoriaDelArbol) ? categoriaDelArbol : "Otros";
+    }
+
     private static boolean esOtrosEnSuSitio(String sitioKey, String nombre) {
         Set<String> palabras = PALABRAS_OTROS_POR_SITIO.get(sitioKey);
         if (palabras == null) return false;
@@ -125,7 +133,7 @@ public class NormalizerService {
                 ? CategoryClassifier.separarLego(delArbol, nombre)
                 : esOtrosEnSuSitio(sitioKey, nombre)
                         ? "Otros"
-                        : categoryClassifier.normalizarCategoria(p.categoria(), nombre, delArbol);
+                        : soloHogar(sitioKey, categoryClassifier.normalizarCategoria(p.categoria(), nombre, delArbol), delArbol);
         String rubro          = rubroResolver.resolver(sitioKey, cat, p.rubro());
         String genero         = generoFijo(sitioKey, p.genero())
                 .orElseGet(() -> genderResolver.resolver(p.genero(), nombre, cat, rubro));

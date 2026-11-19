@@ -3,6 +3,7 @@ export const LOGO_FILES_BY_NAME = {
   "adidas": "adidas.svg",
   "ambiancedeco": "ambiancedeco.png",
   "armytech": "armytech.png",
+  "arredo": "arredo.png",
   "asics": "asics.svg",
   "ayrun": "ayrun.webp",
   "baesics": "baesics.png",

@@ -181,6 +181,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V101` | Promos de financiación: `medio_pago` (lookup sembrado), `promo_financiacion` y `promo_financiacion_producto`; `sp_upsert_promos` vive en `R__sp_upsert_promos.sql` |
 | `V102` | `promo_financiacion.red_medio_pago_id`: la red de tarjeta que la promo exige además del banco o billetera; entra en la clave natural |
 | `V103` | `sub_categoria` de hardware por plataforma (`CPU`/`Motherboard`: socket; `RAM`: `notebook`/`ddr5`/`ddr4`/`ddr3`; `GPU`: fabricante; `Auricular`; `PC`: `gamer`/`oficina`), recategoriza lo que el sustantivo líder desmiente (`GPU`/`Auricular` que son coolers, soportes, combos) y limpia los deportes que el tier 2 le puso a categorías de tecnología |
+| `V104` | Seed de Arredo (VTEX, ropa de cama y deco, `rubro_por_defecto = 'hogar'`) y sus 36 hojas curadas en `sitio_categoria.categoria`; la regla `SITIOS_SOLO_HOGAR` de `NormalizerService` descarta nombres que no son de hogar |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -5339,4 +5340,31 @@ filas activas de tecnología, 0 diferencias. Es aproximado sólo para filas nuev
 Los `Combo de Actualización` que ya lo eran antes (traen una mother) no se mueven. Antes de `V103` `CPU`, `Motherboard`, `RAM`, `GPU`, `Auricular`
 y `PC` no tenían ninguna subcategoría, así que vaciar sus valores las deja como estaban; los dos `Joystick` recuperan `gamepad`. **No** restaura
 los `tenis` que el paso 2 le sacó a los `Videojuego` (eran la fuga que `V103` corrige; el jar anterior los vuelve a producir en el próximo
-`renormalizar`). Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V102`.
+`renormalizar`). Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V104` y antes que el de `V102`.
+
+---
+
+## `V104` — seed de Arredo y su mapeo de hojas
+
+Arredo (`www.arredo.com.ar`, VTEX): 589 productos (header `resources`, 2026-11-19), sábanas, toallas, cortinas, bazar y decoración. Sólo seed
+(`'vtex'` ya es plataforma válida) con `rubro_por_defecto = 'hogar'`; no es `monomarca`. No usa `rubro_forzado`: los rollbacks documentados de `V24`, `V27` y `V45` angostan ese CHECK y fallarían con un sitio forzado a `hogar`, y el guard textil le gana igual. Las 36 hojas con productos van a `sitio_categoria.categoria`,
+curadas a mano sobre categorías que ya existen (sin categorías nuevas). Las hojas mixtas (`Accesorios`, `Bazar`, `Objetos Decorativos`) llevan
+su categoría dominante, que sólo se usa si el nombre se abstiene. Quedan sin mapear `Batas` (sin categoría canónica de hogar) y los nodos
+`Infantil`. La migración usa CTE de lookup (`cat`, `nom`, `hoja`) para no repetir literales (Sonar S1192). Los nodos `En desuso`, `Packaging` y
+`Jardines Verticales` tienen 0 productos (`fq=C:<id>`), así que no hace falta excluirlos.
+
+`NormalizerService.SITIOS_SOLO_HOGAR` (`arredo`): en una tienda de textil de hogar el nombre sólo cuenta si da una categoría de hogar; si no
+(`Set x4 Individuales` → `Conjunto`, `Funda de Acolchado` → `Puffer`, `Tejido` → `Sweater`) manda la hoja, y sin hoja mapeada queda `Otros`.
+Medido sobre el scrape real, filas activas: `categoria != Otros` 89,0 % → 97,6 % (`Otros` 65 → 14), rubro `indumentaria` 30 → 0.
+
+### Rollback
+
+```sql
+-- >>> rollback:V104
+DELETE FROM sitio s WHERE s.sitio_key = 'arredo'
+  AND NOT EXISTS (SELECT 1 FROM productos p WHERE p.sitio_key = s.sitio_key);
+-- <<< rollback:V104
+```
+
+`sitio_categoria` cae en cascada con el sitio. Con productos ya scrapeados no borra nada (el FK de `productos` los protege). Ya no es el bloque
+más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V103`.

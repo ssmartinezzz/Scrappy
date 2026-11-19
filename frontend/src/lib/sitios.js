@@ -3,7 +3,7 @@ import { SITIO_LOGO_MARCA, getBrandLogoUrl } from './brandLogos.js';
 
 // /api/sitios returns the lowercase config key as `nombre`; this is what the UI shows.
 export const LABELS = {
-  ambiancedeco: 'Ambiance Deco', armytech: 'Armytech', ayrun: 'Ayrun', baesics: 'Baesics',
+  ambiancedeco: 'Ambiance Deco', arredo: 'Arredo', armytech: 'Armytech', ayrun: 'Ayrun', baesics: 'Baesics',
   barnes: 'Barnes', batuk: 'Batuk', bulks: 'Bulks', bullbenny: 'Bullbenny',
   burtonargentina: 'Burton', city: 'City', compragamer: 'CompraGamer', dcshoes: 'DC Shoes',
   dellorean: 'Dellorean', easy: 'Easy', eldon: 'Eldon', elmundodeljuguete: 'El Mundo del Juguete',
