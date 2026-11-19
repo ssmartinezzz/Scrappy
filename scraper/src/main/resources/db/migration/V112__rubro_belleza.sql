@@ -9,6 +9,9 @@ ALTER TABLE productos DROP CONSTRAINT chk_productos_rubro_domain;
 
 UPDATE productos SET rubro = 'belleza' WHERE rubro = 'perfumeria';
 
+-- The UPDATE queues V40's deferred catalog_version trigger; the ALTER below is refused while it is pending.
+SET CONSTRAINTS ALL IMMEDIATE;
+
 ALTER TABLE productos
     ADD CONSTRAINT chk_productos_rubro_domain
         CHECK (rubro IS NULL OR rubro IN ('indumentaria', 'tecnologia', 'suplementos',
