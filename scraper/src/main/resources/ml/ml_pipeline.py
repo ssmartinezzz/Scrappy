@@ -570,6 +570,49 @@ def assign_badges(hist, comp, mz, cheap, alta, trend, exp, ratio, desc_pct, es_o
     return badges
 
 
+# ─── Clave de agrupamiento de precios ─────────────────────────────────────────
+
+MIN_GROUP = 10   # mínimo de productos para usar la subcategoría directamente
+
+# Subcategorías que son una etiqueta de deporte puesta por coincidencia de nombre (SubcategoryResolver, tier 2),
+# no un tipo de producto: una remera "running" y una remera a secas valen lo mismo. No parten la distribución,
+# salvo en las categorías donde el deporte SÍ define el producto (una pelota de fútbol no es una de vóley).
+SUBS_DE_DEPORTE = frozenset({'natacion', 'hockey', 'futbol', 'padel', 'tenis', 'running', 'voley', 'basquet',
+                             'ciclismo', 'escalada', 'snowboarding'})
+CATEGORIAS_DONDE_EL_DEPORTE_ES_TIPO = frozenset({'pelota', 'paleta', 'zapatilla', 'botas', 'botines',
+                                                 'repuesto de bicicleta'})
+
+
+def sub_que_parte(nc, sub_nc):
+    """La sub (ya con norm_cat) que parte la distribución de `nc`, o '' si no la parte."""
+    if not sub_nc or sub_nc == 'general':
+        return ''
+    if sub_nc in SUBS_DE_DEPORTE and nc not in CATEGORIAS_DONDE_EL_DEPORTE_ES_TIPO:
+        return ''
+    return sub_nc
+
+
+def clave_de_precio(nc, rubro, sub_nc, cat_counts, sub_counts, parents):
+    """Claves de agrupamiento de precios de un producto (categoría ya normalizada con norm_cat).
+
+    Devuelve (clave_de_categoria, clave_de_sub). La primera es la de siempre y todo producto aporta a ella,
+    así que quien no tiene sub conserva exactamente su puntaje. La segunda es `<clave>|<sub>` si la sub parte
+    y esa (categoría, sub) tiene al menos MIN_GROUP productos; si no, es None y el producto se puntúa contra
+    la categoría (con su cadena de padres). Mezclar subs miente: Cooler líquida ($222k) y pasta ($16,8k).
+    """
+    if rubro == 'tecnologia':
+        base = f"tech|{nc}"
+    elif cat_counts.get(nc, 0) >= MIN_GROUP:
+        base = nc
+    else:
+        parent = parents.get(nc)
+        base = parent if parent and cat_counts.get(parent, 0) >= MIN_GROUP else nc
+    sub = sub_que_parte(nc, sub_nc)
+    if sub and sub_counts.get((nc, sub), 0) >= MIN_GROUP:
+        return base, f"{base}|{sub}"
+    return base, None
+
+
 # ─── Main ─────────────────────────────────────────────────────────────────────
 
 def main():
@@ -661,25 +704,29 @@ def main():
         'perfume':      'nutricion',
     }
 
-    MIN_GROUP = 10   # mínimo de productos para usar la subcategoría directamente
-
-    # Paso 1: contar por categoría para decidir si usar o subir a padre
+    # Paso 1: contar por categoría (y por sub) para decidir si usar o subir a padre
     cat_counts = defaultdict(int)
+    sub_counts = defaultdict(int)
     for p in productos:
-        cat_counts[norm_cat(p.get('categoria'))] += 1
+        nc = norm_cat(p.get('categoria'))
+        cat_counts[nc] += 1
+        sub = sub_que_parte(nc, norm_cat(p.get('subCategoria')) if p.get('subCategoria') else '')
+        if sub:
+            sub_counts[(nc, sub)] += 1
 
-    def elegir_cat(cat_raw, rubro):
-        """Elige la clave de agrupamiento: subcategoría si tiene suficientes muestras,
-        sino la categoría padre para estadísticas más robustas."""
-        nc = norm_cat(cat_raw)
-        if rubro == 'tecnologia':
-            return f"tech|{nc}"
-        if cat_counts.get(nc, 0) >= MIN_GROUP:
-            return nc
-        parent = CAT_PARENTS.get(nc)
-        if parent and cat_counts.get(parent, 0) >= MIN_GROUP:
-            return parent
-        return nc   # usar igualmente, incluso si es pequeño
+    def claves(p, rubro):
+        """(clave de categoría con género, clave de sub con género o None) de un producto."""
+        cat    = (p.get('categoria') or 'General').strip() or 'General'
+        genero = (p.get('genero') or '').strip()
+        nc     = norm_cat(cat)
+        sub_nc = norm_cat(p.get('subCategoria')) if p.get('subCategoria') else ''
+        base, clave_sub = clave_de_precio(nc, rubro, sub_nc, cat_counts, sub_counts, CAT_PARENTS)
+        # Para ropa, añadir género como dimensión secundaria solo si grupo grande
+        con_genero = rubro != 'tecnologia' and genero
+        clave_cat = f"{base}|{genero}" if con_genero and cat_counts.get(nc, 0) >= 20 else base
+        if clave_sub and con_genero and sub_counts.get((nc, sub_que_parte(nc, sub_nc)), 0) >= 20:
+            clave_sub = f"{clave_sub}|{genero}"
+        return clave_cat, clave_sub
 
     # Precio por unidad (pack/combo aware): unidades>1 → precio_unit = precio/unidades;
     # unidades==1 (default, producto sin pack) → precio_unit == precio, sin cambios de
@@ -693,14 +740,11 @@ def main():
 
     grupos_precios = defaultdict(list)
     for p in productos:
-        cat   = (p.get('categoria') or 'General').strip() or 'General'
         rubro = (p.get('rubro') or 'indumentaria').strip()
-        genero = (p.get('genero') or '').strip()
-        key = elegir_cat(cat, rubro)
-        # Para ropa, añadir género como dimensión secundaria solo si grupo grande
-        if rubro != 'tecnologia' and genero and cat_counts.get(norm_cat(cat), 0) >= 20:
-            key = f"{key}|{genero}"
-        grupos_precios[key].append(precio_unitario(p))
+        clave_cat, clave_sub = claves(p, rubro)
+        grupos_precios[clave_cat].append(precio_unitario(p))
+        if clave_sub:
+            grupos_precios[clave_sub].append(precio_unitario(p))
 
     # Clave del output 'categoriaStats' persistido en categoria_stats (V16,
     # close-1nf-and-3nf-foundation design DD6): la categoria CANÓNICA (V13),
@@ -783,18 +827,12 @@ def main():
         genero = (p.get('genero') or '').strip()
 
         # Usar la misma lógica de agrupamiento que en la construcción de stats
-        cat_nc   = norm_cat(cat)
-        key_base = elegir_cat(cat, rubro)
-        if rubro != 'tecnologia' and genero and cat_counts.get(cat_nc, 0) >= 20:
-            key_full = f"{key_base}|{genero}"
-            st = (stats_grupos.get(key_full)
-                  or stats_grupos.get(key_base)
-                  or stats_cats.get(cat_nc)
-                  or PriceStats([precio_unit]))
-        else:
-            st = (stats_grupos.get(key_base)
-                  or stats_cats.get(cat_nc)
-                  or PriceStats([precio_unit]))
+        cat_nc = norm_cat(cat)
+        clave_cat, clave_sub = claves(p, rubro)
+        st = ((clave_sub and stats_grupos.get(clave_sub))
+              or stats_grupos.get(clave_cat)
+              or stats_cats.get(cat_nc)
+              or PriceStats([precio_unit]))
 
         # Scores estadísticos — calculados sobre precio_unit (precio/unidades cuando
         # es un pack/combo; precio_unit == precio cuando unidades==1, sin cambio de
