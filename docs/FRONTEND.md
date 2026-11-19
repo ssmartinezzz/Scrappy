@@ -211,9 +211,10 @@ a nivel `AppLayout`, no rutas.
   `*{transition:none!important}` durante el cambio y lo quita dos frames después
   (como `disableTransitionOnChange` de next-themes); sin eso, los `transition: all`
   animan cientos de elementos a la vez (~400 ms con 300 cards).
-- **iOS:** en touch o `<768px` los campos tienen `font-size` mínimo de 16px con
-  `!important` (por debajo, Safari hace zoom al enfocar, y varios campos fijan
-  `font` inline). `color-scheme` y los dos `<meta name="theme-color">` siguen el tema.
+- **iOS:** en touch o `<768px` los campos tienen `font-size` mínimo de 16px (por
+  debajo, Safari hace zoom al enfocar). Nunca fijes el tamaño de un campo inline
+  (`style={{ font: … }}`): un estilo inline le gana a esa regla. Usá una clase
+  (`text-[.82rem]`). `color-scheme` y los dos `<meta name="theme-color">` siguen el tema.
 
 ---
 

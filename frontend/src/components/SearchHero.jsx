@@ -35,10 +35,11 @@ const SearchHero = forwardRef(function SearchHero({
           <input
             value={val} onChange={handleInput}
             placeholder={`Buscar entre ${total > 0 ? total.toLocaleString('es-AR')+' productos' : 'productos'}...`}
+            className="text-[.82rem]"
             style={{
               width:'100%', padding:'7px 12px 7px 32px', borderRadius:8,
               border:'1.5px solid var(--bd2)', background:'var(--s2)',
-              color:'var(--t1)', font:'.82rem var(--font)', outline:'none',
+              color:'var(--t1)', fontFamily:'var(--font)', outline:'none',
               boxSizing:'border-box',
             }}/>
           <span style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)',
@@ -46,9 +47,10 @@ const SearchHero = forwardRef(function SearchHero({
         </div>
 
         <select value={orden} onChange={e => onOrden(e.target.value)}
+          className="text-[.75rem]"
           style={{
             padding:'7px 8px', borderRadius:8, border:'1.5px solid var(--bd2)',
-            background:'var(--s2)', color:'var(--t3)', font:'.75rem var(--font)',
+            background:'var(--s2)', color:'var(--t3)', fontFamily:'var(--font)',
             flexShrink:0,
           }}>
           {ORDEN_OPTS.map(o => (

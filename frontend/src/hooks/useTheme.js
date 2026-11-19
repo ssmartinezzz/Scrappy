@@ -26,10 +26,10 @@ function systemPrefersDark() {
 // are off; the style is removed on the next frame.
 function withoutTransitions() {
   const style = document.createElement('style');
-  style.setAttribute('data-theme-switch', '');
+  style.dataset.themeSwitch = '';
   style.textContent = '*,*::before,*::after{transition:none!important}';
   document.head.appendChild(style);
-  void window.getComputedStyle(document.body).opacity;
+  document.body.getBoundingClientRect(); // forces a reflow
   const remove = () => style.remove();
   if (typeof window.requestAnimationFrame === 'function') window.requestAnimationFrame(() => window.requestAnimationFrame(remove));
   else setTimeout(remove, 0);

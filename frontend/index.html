@@ -15,8 +15,10 @@
         if (t === 'dark') r.classList.add('dark');
         r.style.colorScheme = t;
         var c = t === 'dark' ? '#16130F' : '#FBF7EF', m = document.querySelectorAll('meta[name="theme-color"]');
-        for (var i = 0; i < m.length; i++) m[i].setAttribute('content', c);
-      } catch (e) {}
+        for (var el of m) el.setAttribute('content', c);
+      } catch (e) {
+        // Storage blocked (private mode): keep the CSS default, light; useTheme retries on mount.
+      }
     })();
   </script>
   <meta name="apple-mobile-web-app-title" content="Scrappy">

@@ -95,9 +95,9 @@ select:not([multiple]) { padding-right: 28px; background-repeat: no-repeat; back
   box-shadow: 0 0 0 1000px var(--s2) inset; transition: background-color 9999s ease-out; }
 @media (max-width: 767px), (pointer: coarse) {
   :is(input:not([type=checkbox],[type=radio],[type=range],[type=file],[type=color]), select, textarea) {
-    /* !important: several fields (SearchHero, pickers) set `font` inline, and
-       an inline style beats any selector — iOS would zoom on focus. */
-    font-size: max(16px, 1em) !important; }
+    /* Never set a field's font size inline: an inline style beats this rule
+       and iOS zooms on focus. Use a class (e.g. text-[.82rem]) instead. */
+    font-size: max(16px, 1em); }
 }
 button, a, [role=button], label, summary { -webkit-tap-highlight-color: transparent; }
 

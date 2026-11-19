@@ -359,9 +359,10 @@ export default function MarcasPanel({ onProductClick }) {
 
         {/* Sort */}
         <select value={sort} onChange={e => setSort(e.target.value)}
+          className="text-[.72rem]"
           style={{
             padding:'5px 8px', borderRadius:8, border:'1.5px solid var(--bd2)',
-            background:'var(--s2)', color:'var(--t3)', font:'.72rem var(--font)',
+            background:'var(--s2)', color:'var(--t3)', fontFamily:'var(--font)',
           }}>
           {SORT_OPTS.map(o => (
             <option key={o.v} value={o.v}>{o.l}</option>
@@ -371,9 +372,10 @@ export default function MarcasPanel({ onProductClick }) {
         {/* Search */}
         <input value={q} onChange={e => setQ(e.target.value)}
           placeholder="Buscar marca..."
+          className="text-[.75rem]"
           style={{
             padding:'5px 10px', borderRadius:8, border:'1.5px solid var(--bd2)',
-            background:'var(--s3)', color:'var(--t1)', font:'.75rem var(--font)',
+            background:'var(--s3)', color:'var(--t1)', fontFamily:'var(--font)',
             outline:'none', width:130, marginLeft:'auto',
           }}/>
       </div>

@@ -54,8 +54,9 @@ export default function SavedPcCard({ pc, onDelete, onRename }) {
             onChange={e => setEditName(e.target.value)}
             onBlur={confirmEdit}
             onKeyDown={handleKeyDown}
+            className="text-[.82rem]"
             style={{
-              flex:1, fontSize:'.82rem', fontWeight:700, color:'var(--t1)',
+              flex:1, fontWeight:700, color:'var(--t1)',
               background:'var(--s3)', border:'1px solid var(--p2)',
               borderRadius:4, padding:'2px 8px',
             }}
