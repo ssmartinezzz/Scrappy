@@ -20,8 +20,8 @@
   --sem-positive: #2E7D52; --sem-negative: #C0392B; --sem-warn: #D08A1E;
   --sem-oferta:   #8E5BD6; --sem-trend:    #D2622A; --sem-gym:  #6E9B2E;
   --sem-pack:     #8E5BD6;
-  --font:'Segoe UI',system-ui,sans-serif;
-  --mono:'Cascadia Code','JetBrains Mono',Consolas,'SF Mono',Menlo,monospace;
+  --font:'Geist Variable','Segoe UI',system-ui,sans-serif;
+  --mono:'Geist Mono Variable','Cascadia Code','JetBrains Mono',Consolas,'SF Mono',Menlo,monospace;
   --rc:  12px; --rb: 8px;
   /* ===== BREAKPOINT SYSTEM (mobile-first / min-width) =====
      Base styles target the smallest screen. min-width queries layer up.
@@ -48,7 +48,36 @@
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html, body, #root { height: 100%; }
-body { background: var(--bg); color: var(--t1); font-family: var(--font); font-size: 14px; }
+/* Fluid root: every rem in this file (and Tailwind's) scales with the viewport. */
+html { font-size: clamp(15px, .9rem + .25vw, 17px); }
+body { background: var(--bg); color: var(--t1); font-family: var(--font); font-size: .9375rem;
+  -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: 'kern', 'liga', 'calt'; }
+
+/* ===== FORM CONTROLS (iOS Safari first) =====
+   :where() keeps the look at zero specificity so component classes still win;
+   the :is(...) rules below are deliberately heavier than a lone class: iOS
+   zooms the page when a focused field is under 16px, so the floor must beat
+   `.price-input { font: .75rem }` and Tailwind text-[.7rem] on inputs. */
+:where(input:not([type=checkbox],[type=radio],[type=range],[type=file],[type=color]), select, textarea) {
+  -webkit-appearance: none; appearance: none; border-radius: var(--rb);
+  background-color: var(--s2); color: var(--t1); border: 1.5px solid var(--bd2); }
+:where(input, textarea)::placeholder { color: var(--t4); opacity: 1; }
+:is(input:not([type=checkbox],[type=radio],[type=range],[type=file],[type=color]), select, textarea):focus-visible {
+  outline: 2px solid var(--p); outline-offset: 1px; }
+select:not([multiple]) { padding-right: 28px; background-repeat: no-repeat; background-size: 5px 5px, 5px 5px;
+  background-position: calc(100% - 15px) 55%, calc(100% - 10px) 55%;
+  background-image: linear-gradient(45deg, transparent 50%, var(--t3) 50%), linear-gradient(135deg, var(--t3) 50%, transparent 50%); }
+:is(input, select, textarea):-webkit-autofill {
+  -webkit-text-fill-color: var(--t1); caret-color: var(--t1);
+  box-shadow: 0 0 0 1000px var(--s2) inset; transition: background-color 9999s ease-out; }
+@media (max-width: 767px), (pointer: coarse) {
+  :is(input:not([type=checkbox],[type=radio],[type=range],[type=file],[type=color]), select, textarea) {
+    /* !important: several fields (SearchHero, pickers) set `font` inline, and
+       an inline style beats any selector — iOS would zoom on focus. */
+    font-size: max(16px, 1em) !important; }
+}
+button, a, [role=button], label, summary { -webkit-tap-highlight-color: transparent; }
 
 /* ===== TOPBAR ===== */
 /* Topbar meta widgets (IPC, ML banners, training pills) — visible at md+, hidden below */
