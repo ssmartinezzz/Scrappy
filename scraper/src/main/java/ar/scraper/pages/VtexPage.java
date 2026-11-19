@@ -345,11 +345,24 @@ public class VtexPage extends StorePage implements CatalogPage, ArbolDeCategoria
         }
     }
 
-    private static final String FETCH_JS = """
+    /**
+     * A WAF that rate-limits can hold the connection open without answering, and {@code page.evaluate} has no
+     * timeout of its own: without the abort, Nike hung a whole run. Status 0 takes the ordinary retry path.
+     */
+    private static final int FETCH_TIMEOUT_MS = 30_000;
+    private static final String FETCH_JS = fetchJs(FETCH_TIMEOUT_MS);
+
+    static String fetchJs(int timeoutMs) {
+        return """
             async path => {
-              const r = await fetch(path, {credentials: 'same-origin'});
-              return {status: r.status, body: r.ok ? await r.text() : '', resources: r.headers.get('resources')};
-            }""";
+              try {
+                const r = await fetch(path, {credentials: 'same-origin', signal: AbortSignal.timeout(%d)});
+                return {status: r.status, body: r.ok ? await r.text() : '', resources: r.headers.get('resources')};
+              } catch (e) {
+                return {status: 0, body: '', resources: null};
+              }
+            }""".formatted(timeoutMs);
+    }
 
     @SuppressWarnings("unchecked")
     private RespuestaApi viaFetch(String url) {
