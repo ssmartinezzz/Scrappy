@@ -270,6 +270,7 @@ public class SubcategoryResolver {
         String n = " " + normalizarAcentos(nombre) + " ";
 
         if (hardware.handles(categoria)) return hardware.resolver(categoria, nombre);
+        if ("Celular".equals(categoria)) return subDeCelular(n);
 
         List<String[]> tier1 = SUBCATEG_TIER1.get(categoria);
         if (tier1 != null) {
@@ -306,6 +307,31 @@ public class SubcategoryResolver {
         }
 
         return "";
+    }
+
+    /** Sub of a phone row: what it is (the keyword that comes first in the name wins), or Smartphone when it reads as a phone. */
+    private static final String[][] SUB_CELULAR = {
+        {"Repuesto", " boton ", " tapa trasera ", " puerto de carga ", " bandeja ", " repuesto ", " kit de reparacion ", " modulo "},
+        {"Funda", " funda ", " fundas ", " case ", " carcasa ", " carcasas ", " estuche ", " cover ", " bumper ", " forro "},
+        {"Protector", " protector ", " protectores ", " vidrio ", " templado ", " film ", " mica ", " hidrogel "},
+        {"Cargador", " cargador ", " cargadores ", " adaptador ", " power bank ", " bateria externa ", " bateria portatil ", " base de carga "},
+        {"Cable", " cable ", " cables "},
+        {"Soporte", " soporte ", " soportes ", " holder ", " pop socket ", " popsocket ", " grip ", " anillo ", " tripode ", " palo selfie ", " ventosa "}
+    };
+    private static final java.util.regex.Pattern SENAL_DE_TELEFONO = java.util.regex.Pattern.compile(
+        " (?:celular|celulares|smartphone|smartphones|iphone|galaxy [asmzf]\\d{1,3}|galaxy z|moto [ge]\\d*|redmi|poco|5g|4g)\\b| galaxy xcover|\\d+ ?gb ");
+
+    private static String subDeCelular(String n) {
+        String mejor = "";
+        int posicion = Integer.MAX_VALUE;
+        for (String[] sub : SUB_CELULAR) {
+            for (int i = 1; i < sub.length; i++) {
+                int at = n.indexOf(sub[i]);
+                if (at >= 0 && at < posicion) { posicion = at; mejor = sub[0]; }
+            }
+        }
+        if (!mejor.isEmpty()) return mejor;
+        return SENAL_DE_TELEFONO.matcher(n).find() ? "Smartphone" : "";
     }
 
     private String normalizarAcentos(String s) {

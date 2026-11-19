@@ -10,6 +10,8 @@ final class NutricionTempranaClassifier implements FamiliaClassifier {
 
     @Override
     public String clasificar(TextoClasificable texto) {
+        // "Remera adidas Cookie" and "Zapatillas Timberland Maple Grove" name a garment, not a food.
+        if (texto.empiezaCon(GarmentTaxonomy.KW_ROPA_O_CALZADO_LIDER)) return "";
         if (!texto.contiene(GarmentTaxonomy.KW_ALIMENTO_TEMPRANO)
                 && !texto.contiene(GarmentTaxonomy.KW_MARCA_ALIMENTO))
             return "";

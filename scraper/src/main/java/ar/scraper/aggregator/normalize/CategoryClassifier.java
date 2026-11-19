@@ -22,6 +22,7 @@ public class CategoryClassifier {
     };
 
     private static final FamiliaClassifier[] FAMILIAS_EN_ORDEN = {
+        new CelularClassifier(),
         new PiletaClassifier(),
         new AutomotorClassifier(),
         new ParrillaClassifier(),
@@ -88,7 +89,9 @@ public class CategoryClassifier {
             String aliasCompleto = CategoryAliases.canonical(cleaned);
             if (aliasCompleto != null) return aliasCompleto;
         }
-        if (TextoClasificable.tieneIndicadorPeso(nombre)) return "Alimentos";
+        // A trailing weight or volume says food only when nothing else describes the row: "Fondo Galvite 0,5 L"
+        // under a "Pinturas" leaf is paint, and abstaining is honest.
+        if (StringUtils.isBlank(raw) && TextoClasificable.tieneIndicadorPeso(nombre)) return "Alimentos";
         return "Otros";
     }
 

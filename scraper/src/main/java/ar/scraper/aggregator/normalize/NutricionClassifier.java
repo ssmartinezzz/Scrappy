@@ -4,6 +4,8 @@ final class NutricionClassifier implements FamiliaClassifier {
 
     @Override
     public String clasificar(TextoClasificable texto) {
+        // "Zapatillas Timberland Maple Grove" is a shoe: a food word after a garment noun is a model name.
+        if (texto.empiezaCon(GarmentTaxonomy.KW_ROPA_O_CALZADO_LIDER)) return "";
         String t = sinMarcasQueNombranProteina(texto.normalizado());
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_CREATINA))         return "Creatina";
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_PROTEINA_BARRA))   return "Barra Proteica";

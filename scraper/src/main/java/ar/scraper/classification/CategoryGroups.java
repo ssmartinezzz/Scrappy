@@ -50,7 +50,7 @@ public final class CategoryGroups {
         "Cooler","Fuente","Motherboard","Red","Cable","Impresión","Mousepad",
         "Joystick","Micrófono","UPS","Tablet","Cámara","Reloj",
         "Mini PC", "Combo de Actualización", "TV y Audio",
-        "Consola", "Videojuego"
+        "Consola", "Videojuego", "Celular"
     );
 
     /** Aparte de {@code INDUMENTARIA_O_CALZADO_EXTRA} a propósito: una pelota no es ropa. */
