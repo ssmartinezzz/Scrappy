@@ -352,7 +352,7 @@ export default function MarcasPanel({ onProductClick }) {
               padding:'4px 9px', borderRadius:16, border:'none',
               cursor:'pointer', fontSize:'.7rem', fontWeight:700,
               background: rubro===r.key ? 'var(--p)' : 'var(--s2)',
-              color: rubro===r.key ? '#fff' : 'var(--t4)',
+              color: rubro===r.key ? 'var(--on-accent)' : 'var(--t4)',
             }}>{r.icon}</button>
           ))}
         </div>

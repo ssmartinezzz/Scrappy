@@ -58,7 +58,7 @@ export default function AvisosBajaPrecio() {
         Avisarme por mail cuando un favorito baje más de 5%
       </Label>
       {fallo && (
-        <span role="alert" style={{ fontSize: '.7rem', color: 'var(--danger, #c0392b)' }}>
+        <span role="alert" style={{ fontSize: '.7rem', color: 'var(--r)' }}>
           No se pudo guardar. Probá de nuevo.
         </span>
       )}

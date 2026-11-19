@@ -354,7 +354,7 @@ export default function SplashPanel({
                   className={cn(
                     'rounded-btn p-[13px] text-[.92rem] font-extrabold tracking-tight transition-all',
                     selected.length > 0
-                      ? 'cursor-pointer bg-gradient-to-br from-primary to-primary2 text-white shadow-[0_4px_20px_color-mix(in_srgb,var(--p)_40%,transparent)]'
+                      ? 'cursor-pointer bg-gradient-to-br from-primary to-primary2 text-on-accent shadow-[0_4px_20px_color-mix(in_srgb,var(--p)_40%,transparent)]'
                       : 'cursor-not-allowed bg-s3 text-t4'
                   )}>
                   ▶ Iniciar scraping — {selected.length} sitios
@@ -517,11 +517,11 @@ export default function SplashPanel({
                   Borrar datos
                 </div>
                 <div className="flex flex-wrap gap-[7px]">
-                  <button className="btn-sm cursor-pointer border-none bg-danger text-white"
+                  <button className="btn-sm cursor-pointer border-none bg-danger text-on-accent"
                     onClick={handleBorrarCatalogo}>
                     🗑 Borrar catálogo y historial
                   </button>
-                  <button className="btn-sm cursor-pointer border-none bg-warning text-white"
+                  <button className="btn-sm cursor-pointer border-none bg-warning text-on-accent"
                     onClick={handleBorrarMl}>
                     🗑 Borrar solo datos ML
                   </button>

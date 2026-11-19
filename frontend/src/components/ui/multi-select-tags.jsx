@@ -38,7 +38,7 @@ function Chip({ tag, isSelected, onToggle, reduceMotion }) {
         'inline-flex min-h-[44px] shrink-0 cursor-pointer items-center gap-[6px] rounded-btn px-[14px] py-[8px] text-[.9rem]',
         '[touch-action:manipulation] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary',
         isSelected
-          ? 'border border-transparent bg-primary text-white'
+          ? 'border border-transparent bg-primary text-on-accent'
           : 'border border-bd2 bg-s2 text-t2 hover:border-primary'
       )}
     >

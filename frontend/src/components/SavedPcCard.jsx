@@ -92,7 +92,7 @@ export default function SavedPcCard({ pc, onDelete, onRename }) {
               border:'1px solid var(--bd)',
             }}>
               <span style={{
-                fontSize:'.62rem', fontWeight:700, color:'#fff', background:'var(--p)',
+                fontSize:'.62rem', fontWeight:700, color:'var(--on-accent)', background:'var(--p)',
                 borderRadius:999, padding:'2px 8px', textTransform:'uppercase',
                 letterSpacing:'.04em', whiteSpace:'nowrap', flexShrink:0,
               }}>{slotLabel(p.slot)}</span>

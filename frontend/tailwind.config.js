@@ -19,6 +19,7 @@ export default {
         success: 'var(--g)',
         danger: 'var(--r)',
         warning: 'var(--y)',
+        'on-accent': 'var(--on-accent)',
       },
       borderRadius: {
         card: 'var(--rc)',

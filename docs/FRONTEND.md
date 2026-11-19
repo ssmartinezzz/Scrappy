@@ -189,6 +189,34 @@ a nivel `AppLayout`, no rutas.
 
 ---
 
+## Tema, tipografía y campos
+
+- **Fuente:** Geist / Geist Mono vía `@fontsource-variable/*`, empaquetadas en el
+  build (sin CDN: la instalación portable corre offline).
+- **Tamaño:** `html { font-size: clamp(15px, .9rem + .25vw, 17px) }`; todo en `rem`
+  escala con el viewport. Un `font-size` en `px` no escala.
+- **Modo oscuro:** clase `dark` en `<html>`, que redefine los tokens (`--bg`,
+  `--s*`, `--t*`, `--p`, `--sem-*`…) en `:root.dark`. Lo maneja
+  `hooks/useTheme.js` (localStorage `theme`, si no `prefers-color-scheme`); el
+  script inline de `index.html` lo aplica antes del primer paint. El botón es
+  `ThemeToggle`, en el Topbar antes del menú de usuario.
+- **Colores nuevos:** siempre con un token, nunca hex. `lib/colors.js` → `SEMANTIC`
+  devuelve `var(--sem-*)`, así que un sufijo de alpha (`${color}33`) no anda: se usa
+  `color-mix(in srgb, <color> 20%, transparent)`.
+- **`--on-accent`:** el color de texto/icono sobre un relleno de acento (`--p`, `--g`,
+  `--r`, `--y`, `--sem-*`): blanco en claro, tinta oscura en oscuro (allá los acentos
+  son claros y el blanco no llega a 4.5:1). Nunca `#fff`/`text-white` sobre un acento:
+  `text-on-accent`. El blanco se queda sólo sobre fotos, scrims oscuros y logos.
+- **Cambio de tema sin transiciones:** `useTheme` inyecta
+  `*{transition:none!important}` durante el cambio y lo quita dos frames después
+  (como `disableTransitionOnChange` de next-themes); sin eso, los `transition: all`
+  animan cientos de elementos a la vez (~400 ms con 300 cards).
+- **iOS:** en touch o `<768px` los campos tienen `font-size` mínimo de 16px con
+  `!important` (por debajo, Safari hace zoom al enfocar, y varios campos fijan
+  `font` inline). `color-scheme` y los dos `<meta name="theme-color">` siguen el tema.
+
+---
+
 ## Promos de pago: badge, iconos y detalle
 
 Las promos llegan hechas del servidor (ver [`API_REFERENCE.md`](./API_REFERENCE.md): `mejorPromo` y `medios` en cada fila de `/api/data`, `promos` en

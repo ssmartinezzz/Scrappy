@@ -43,7 +43,7 @@ function Avatar({ username, className = '' }) {
     <span
       aria-hidden="true"
       className={`flex shrink-0 items-center justify-center rounded-full
-                  bg-primary font-bold leading-none text-white ${className}`}>
+                  bg-primary font-bold leading-none text-on-accent ${className}`}>
       {iniciales(username)}
     </span>
   );

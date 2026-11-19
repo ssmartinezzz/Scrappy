@@ -294,7 +294,7 @@ function CatalogoRoute() {
               padding:'12px 20px', borderRadius:999,
               border:'1px solid var(--p)',
               background: gpuRunning ? 'var(--s3)' : 'var(--p)',
-              color: gpuRunning ? 'var(--t3)' : '#fff',
+              color: gpuRunning ? 'var(--t3)' : 'var(--on-accent)',
               fontWeight:800, fontSize:'.82rem',
               cursor: gpuRunning ? 'not-allowed' : 'pointer',
               boxShadow:'0 4px 18px color-mix(in srgb, var(--p) 35%, transparent)',

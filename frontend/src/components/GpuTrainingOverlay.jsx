@@ -117,7 +117,7 @@ export default function GpuTrainingOverlay({ training, onClose }) {
             </span>
             <button onClick={onClose} style={{
               padding:'8px 16px', borderRadius:8,
-              border:`1px solid ${SEMANTIC.negative}66`,
+              border:`1px solid color-mix(in srgb, ${SEMANTIC.negative} 40%, transparent)`,
               background:`color-mix(in srgb, ${SEMANTIC.negative} 12%, transparent)`,
               color: SEMANTIC.negative,
               cursor:'pointer', fontSize:'.78rem', fontWeight:700,

@@ -32,7 +32,7 @@ describe('IpcBadge', () => {
     );
 
     const dot = container.querySelector('[data-testid="ipc-badge-dot"]');
-    expect(dot).toHaveStyle({ background: '#D08A1E' });
+    expect(dot).toHaveStyle({ background: 'var(--sem-warn)' });
   });
 
   it('renders a dash and a grey ring/dot when there is no IPC data, but keeps the USD line', () => {

@@ -179,7 +179,7 @@ function ChipGroup({ label, options, value, onChange }) {
               'inline-flex min-h-[44px] cursor-pointer items-center rounded-btn px-[16px] py-[8px] text-[.9rem]',
               '[touch-action:manipulation] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary',
               value === o.value
-                ? 'border border-transparent bg-primary text-white'
+                ? 'border border-transparent bg-primary text-on-accent'
                 : 'border border-bd2 bg-s2 text-t2 hover:border-primary'
             )}
           >
@@ -201,7 +201,7 @@ function ToggleChip({ label, pressed, onToggle }) {
         'inline-flex min-h-[44px] cursor-pointer items-center rounded-btn px-[16px] py-[8px] text-[.9rem]',
         '[touch-action:manipulation] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary',
         pressed
-          ? 'border border-transparent bg-primary text-white'
+          ? 'border border-transparent bg-primary text-on-accent'
           : 'border border-bd2 bg-s2 text-t2 hover:border-primary'
       )}
     >
@@ -421,7 +421,7 @@ export default function PcsPanel({ onSavePc } = {}) {
                 'inline-flex min-h-[44px] cursor-pointer items-center rounded-btn px-[16px] py-[8px] text-[.9rem]',
                 '[touch-action:manipulation] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary',
                 gama === g.value
-                  ? 'border border-transparent bg-primary text-white'
+                  ? 'border border-transparent bg-primary text-on-accent'
                   : 'border border-bd2 bg-s2 text-t2 hover:border-primary'
               )}
             >
@@ -531,7 +531,7 @@ export default function PcsPanel({ onSavePc } = {}) {
               'text-[.9rem] font-bold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary',
               loading
                 ? 'cursor-not-allowed bg-s3 text-t3'
-                : 'cursor-pointer bg-primary text-white hover:bg-primary2'
+                : 'cursor-pointer bg-primary text-on-accent hover:bg-primary2'
             )}
           >
             {loading ? 'Buscando...' : 'Generar'}
@@ -600,7 +600,7 @@ export default function PcsPanel({ onSavePc } = {}) {
                           <Cpu size={38} aria-hidden="true" />
                         </div>
                       )}
-                      <span className="absolute left-[8px] top-[8px] rounded-full bg-primary px-[9px] py-[3px] text-[.68rem] font-bold uppercase tracking-[.07em] text-white">
+                      <span className="absolute left-[8px] top-[8px] rounded-full bg-primary px-[9px] py-[3px] text-[.68rem] font-bold uppercase tracking-[.07em] text-on-accent">
                         {slotLabel(pick.slot)}
                       </span>
                     </div>
@@ -673,7 +673,7 @@ export default function PcsPanel({ onSavePc } = {}) {
                 className={cn(
                   'inline-flex min-h-[44px] items-center rounded-btn border-[1.5px] border-primary bg-transparent px-[26px]',
                   'text-[.88rem] font-semibold text-primary transition-colors',
-                  'hover:bg-primary hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary',
+                  'hover:bg-primary hover:text-on-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary',
                   loading ? 'cursor-not-allowed opacity-60 hover:bg-transparent hover:text-primary' : 'cursor-pointer'
                 )}
               >
@@ -689,7 +689,7 @@ export default function PcsPanel({ onSavePc } = {}) {
                     'text-[.88rem] font-bold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary',
                     saving
                       ? 'cursor-not-allowed bg-s3 text-t3'
-                      : 'cursor-pointer bg-primary text-white hover:bg-primary2'
+                      : 'cursor-pointer bg-primary text-on-accent hover:bg-primary2'
                   )}
                 >
                   {saving ? 'Guardando...' : '⭐ Guardar PC'}

@@ -373,7 +373,7 @@ function PriceContext({ product: p, st }) {
           // border color is per-item runtime data (item.color comes from the ML
           // context computation above) — not a static design token, kept inline
           // per the established Pill/chip exception.
-          <div key={item.text} style={{ border: `1px solid ${item.color}22` }}
+          <div key={item.text} style={{ border: `1px solid color-mix(in srgb, ${item.color} 13%, transparent)` }}
                className="flex items-start gap-2.5 rounded-lg bg-s2 px-[.75rem] py-[.5rem] text-[.73rem] text-t3">
             <span className="flex-shrink-0 text-[.85rem]">{item.icon}</span>
             <span>{highlightPrices(item.text, item.color)}</span>
