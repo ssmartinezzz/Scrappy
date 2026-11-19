@@ -185,6 +185,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V105` | Seed de Sportline (VTEX, retail deportivo multimarca) y 90 hojas de accesorios curadas en `sitio_categoria.categoria` |
 | `V106` | Categoría `Celular` (rubro tecnología): teléfonos y accesorios atados a un teléfono, con `sub_categoria` Smartphone, Funda, Protector, Cargador, Cable, Soporte y Repuesto |
 | `V107` | Seed de Samsung (VTEX, tienda oficial `monomarca`, `rubro_por_defecto = 'tecnologia'`), su fila en `marca` y 87 hojas curadas; la hoja gana sobre el nombre |
+| `V108` | Seed de Prestigio (VTEX, ferretería y hogar mixto, `rubro_por_defecto = 'construccion'`) y 97 hojas curadas; el nodo `Colores` (muestras de pintura) se excluye |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -5453,5 +5454,29 @@ DELETE FROM marca m WHERE m.nombre = 'Samsung'
 -- <<< rollback:V107
 ```
 
-`sitio_categoria` cae en cascada con el sitio. Con productos ya scrapeados no borra nada. Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO,
-antes que el de `V106`.
+`sitio_categoria` cae en cascada con el sitio. Con productos ya scrapeados no borra nada. Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V108` y antes que el de `V106`.
+
+---
+
+## `V108` — seed de Prestigio y su mapeo de hojas
+
+Prestigio (`www.prestigio.com.ar`, VTEX): 2660 productos en el header, 2662 en un scrape real (90 s), **2487** tras excluir el nodo `Colores`
+(175 muestras de color de pintura, no productos). Mixto: `rubro_forzado` en `NULL` y `rubro_por_defecto = 'construccion'` (como Easy), así que decide
+`RubroResolver` por categoría. Las 97 hojas (CTE de lookup, sin categorías nuevas) van a `Pintura`, `Piso`, `Bazar`, `Mueble`, electrodomésticos, etc.; la
+hoja gana sobre el nombre (`NormalizerService.SITIOS_DONDE_LA_HOJA_GANA`). Sin mapear: `Infantil`, las raíces `Accesorios`, `Pinturas` e `Iluminación`,
+`Paletas y Accesorios` (raquetas, pelotas y bolsos de pádel en una hoja) y `Notebooks y Tablets`.
+
+Medido (filas activas, mismo scrape): `categoria != Otros` 75,5 % (2662 filas, clasificador previo) → 93,1 % (hojas curadas, con muestras) → **99,6 %** (2487
+filas, sin `Colores`: 9 `Otros`); `suplementos` 9 (67 antes de arreglar los litros) → 0; `indumentaria` 10 (bolsos de pádel).
+
+### Rollback
+
+```sql
+-- >>> rollback:V108
+DELETE FROM sitio s WHERE s.sitio_key = 'prestigio'
+  AND NOT EXISTS (SELECT 1 FROM productos p WHERE p.sitio_key = s.sitio_key);
+-- <<< rollback:V108
+```
+
+`sitio_categoria` cae en cascada con el sitio; con productos ya scrapeados no borra nada. Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO,
+antes que el de `V107`.

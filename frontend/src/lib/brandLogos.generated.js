@@ -70,6 +70,7 @@ export const LOGO_FILES_BY_NAME = {
   "oneplaceworld": "oneplaceworld.webp",
   "optimum nutrition": "optimum-nutrition.svg",
   "penalty": "penalty.svg",
+  "prestigio": "prestigio.svg",
   "puma": "puma.svg",
   "quiksilver": "quiksilver.png",
   "reebok": "reebok.svg",

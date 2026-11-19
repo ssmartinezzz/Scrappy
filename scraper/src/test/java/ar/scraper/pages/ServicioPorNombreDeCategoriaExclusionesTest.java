@@ -56,6 +56,14 @@ class ServicioPorNombreDeCategoriaExclusionesTest {
     }
 
     @Test
+    @DisplayName("the Colores swatch nodes are excluded on Prestigio only")
+    void coloresIsExcludedOnlyOnPrestigio() {
+        assertThat(ServicioPorNombreDeCategoria.para("Prestigio").esServicio("Colores")).isTrue();
+        assertThat(ServicioPorNombreDeCategoria.para("Prestigio").esServicio("Pinturas")).isFalse();
+        assertThat(ServicioPorNombreDeCategoria.para("Easy").esServicio("Colores")).isFalse();
+    }
+
+    @Test
     @DisplayName("on El Mundo del Juguete only the exact Bolsas node goes; longer names do not")
     void bolsasIsAnExactMatch() {
         var criterio = ServicioPorNombreDeCategoria.para("Elmundodeljuguete");

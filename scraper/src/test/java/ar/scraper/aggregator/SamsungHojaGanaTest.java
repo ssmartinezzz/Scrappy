@@ -75,6 +75,22 @@ class SamsungHojaGanaTest {
     }
 
     @Test
+    @DisplayName("Prestigio is curated too: a Procesador 400 W under Procesadoras y Mixer is a kitchen appliance, not a CPU")
+    void prestigioLeafBeatsTheCpuName() {
+        SiteRegistry registry = SiteRegistry.forTesting(Map.of(
+                "prestigio", new SiteRegistry.Sitio("Prestigio", "prestigio", "vtex", false, null, "db", false, "construccion")));
+        SitioCategoriaPort arbol = mock(SitioCategoriaPort.class);
+        when(arbol.categoriaPorOrigen("Prestigio")).thenReturn(Map.of(9, "Pequeño Electrodoméstico"));
+        NormalizerService prestigio = new NormalizerService(new PackQuantityDetector(), new CategoryClassifier(), new BrandExtractor(),
+                new GenderResolver(), new SizeNormalizer(), new SubcategoryResolver(), new RubroResolver(registry),
+                new GymratTagger(), new SportResolver(), registry, arbol);
+        Product p = Product.builder().sitio("Prestigio").nombre("Procesador 400 W AM115").url("https://x/p").sitioCategoriaOrigenId(9).build();
+        Product n = prestigio.normalizar(List.of(p)).get(0);
+        assertThat(n.categoria()).isEqualTo("Pequeño Electrodoméstico");
+        assertThat(n.rubro()).isEqualTo("hogar");
+    }
+
+    @Test
     @DisplayName("other stores keep the name first")
     void otherStoresKeepNameFirst() {
         assertThat(normalizar("Otra", "Cajón Inferior de Freezer", PARTES).categoria()).isEqualTo("Organización");
