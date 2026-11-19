@@ -51,7 +51,7 @@ async function prepararElSplash({ page, context }) {
 
   await login(page, admin);
   await navegarEnLaApp(page, '/splash');
-  const iniciar = page.getByRole('button', { name: /Iniciar scraping/ });
+  const iniciar = page.getByRole('button', { name: /^Iniciar$/ });
   await expect(iniciar).toBeEnabled();
 
   return { iniciar, lecturas, correr: () => { status = RUNNING; } };

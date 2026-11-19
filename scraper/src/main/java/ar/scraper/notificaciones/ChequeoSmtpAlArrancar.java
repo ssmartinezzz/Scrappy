@@ -4,7 +4,6 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
@@ -25,15 +24,8 @@ public class ChequeoSmtpAlArrancar {
     private final Executor ejecutor;
 
     @Autowired
-    public ChequeoSmtpAlArrancar(DiagnosticoSmtp diagnostico,
-                                 @Value("${smtp.host:}") String host,
-                                 @Value("${smtp.port:587}") int port,
-                                 @Value("${smtp.username:}") String username,
-                                 @Value("${smtp.password:}") String password,
-                                 @Value("${smtp.from-address:}") String from,
-                                 @Value("${smtp.starttls-required:true}") boolean starttlsObligatorio) {
-        this(diagnostico, new ConfiguracionSmtp(host, port, username, password, from, starttlsObligatorio),
-                tarea -> Thread.ofVirtual().name("smtp-chequeo").start(tarea));
+    public ChequeoSmtpAlArrancar(DiagnosticoSmtp diagnostico, ConfiguracionSmtp configuracion) {
+        this(diagnostico, configuracion, tarea -> Thread.ofVirtual().name("smtp-chequeo").start(tarea));
     }
 
     ChequeoSmtpAlArrancar(DiagnosticoSmtp diagnostico, ConfiguracionSmtp configuracion, Executor ejecutor) {

@@ -327,7 +327,7 @@ export default function SplashPanel({
             {showProgress && (
               <div className="flex flex-col gap-1.5">
                 <div className="mb-0.5 flex justify-between text-[.7rem] text-t4">
-                  <span>{scrapeMsg || 'Procesando...'}</span>
+                  <span>{scrapeMsg || 'Procesando…'}</span>
                   <span className="font-bold text-primary2">
                     {total > 0 && <span className="mr-[8px] font-normal text-t4">{terminados}/{total} sitios</span>}
                     {Math.round(pct)}%
@@ -341,31 +341,29 @@ export default function SplashPanel({
                 </div>
                 {totalProds > 0 && (
                   <button className="btn-primary p-2.5 text-[.82rem]" onClick={onGoToApp}>
-                    👁 Ver {totalProds.toLocaleString('es-AR')} productos disponibles
+                    Ver catálogo
                   </button>
                 )}
               </div>
             )}
 
             {/* Launch — one element: pinned to the bottom on mobile, inline in the card on desktop */}
-            {!isRunning && (
-              <div className="fixed inset-x-0 bottom-0 z-20 flex flex-col gap-[7px] border-t border-border bg-s1 p-[12px] lg:static lg:z-auto lg:border-0 lg:bg-transparent lg:p-0">
-                <button onClick={handleScrape} disabled={selected.length === 0}
-                  className={cn(
-                    'rounded-btn p-[13px] text-[.92rem] font-extrabold tracking-tight transition-all',
-                    selected.length > 0
-                      ? 'cursor-pointer bg-gradient-to-br from-primary to-primary2 text-on-accent shadow-[0_4px_20px_color-mix(in_srgb,var(--p)_40%,transparent)]'
-                      : 'cursor-not-allowed bg-s3 text-t4'
-                  )}>
-                  ▶ Iniciar scraping — {selected.length} sitios
+            <div className="fixed inset-x-0 bottom-0 z-20 flex flex-col gap-[7px] border-t border-border bg-s1 p-[12px] lg:static lg:z-auto lg:border-0 lg:bg-transparent lg:p-0">
+              <button onClick={handleScrape} disabled={isRunning || selected.length === 0}
+                className={cn(
+                  'rounded-btn p-[13px] text-[.92rem] font-extrabold tracking-tight transition-all',
+                  selected.length > 0 && !isRunning
+                    ? 'cursor-pointer bg-gradient-to-br from-primary to-primary2 text-on-accent shadow-[0_4px_20px_color-mix(in_srgb,var(--p)_40%,transparent)]'
+                    : 'cursor-not-allowed bg-s3 text-t4'
+                )}>
+                {isRunning ? 'Corriendo…' : 'Iniciar'}
+              </button>
+              {!isRunning && totalProds > 0 && (
+                <button className="btn-sm btn-ghost hidden p-[8px] text-[.75rem] text-t4 lg:block" onClick={onGoToApp}>
+                  Ver catálogo →
                 </button>
-                {totalProds > 0 && (
-                  <button className="btn-sm btn-ghost hidden p-[8px] text-[.75rem] text-t4 lg:block" onClick={onGoToApp}>
-                    Ver resultados anteriores ({totalProds.toLocaleString('es-AR')}) →
-                  </button>
-                )}
-              </div>
-            )}
+              )}
+            </div>
           </aside>
 
           {/* ── Right column: toolbar + rubro cards ──────────────── */}

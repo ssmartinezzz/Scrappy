@@ -417,8 +417,8 @@ del relay retira como `FALLIDA` lo que ya estaba encolado.
 ## POST /notificaciones/correo-prueba
 
 **Sólo ADMIN.** Verifica el SMTP de punta a punta: abre la conexión (para que un fallo nombre su causa) y manda un mail fijo
-a `destino` (body opcional `{ "destino": "x@y.z" }`; por defecto el email de quien llama). El botón **Probar mail** de
-`/admin/manage/users` llama a esto.
+a `destino` (body opcional `{ "destino": "x@y.z" }`; por defecto el email de quien llama). El botón **Enviar prueba** del panel
+**Correo saliente** de `/admin/manage/users` llama a esto.
 
 | | |
 |---|---|
@@ -433,6 +433,15 @@ Un ADMIN puede mandar el mail fijo a cualquier dirección; el contenido no es su
 cada envío deja una línea `[ADMIN]` en el log con quién lo pidió y el destino enmascarado. Al arrancar con
 `SMTP_HOST` el backend hace la misma verificación de conexión en un hilo aparte y deja **una** línea `[SMTP]` en el log (OK, o
 el motivo y la pista); nunca bloquea ni tumba el arranque. Ninguna línea lleva direcciones completas ni secretos.
+
+
+## GET /notificaciones/smtp
+
+**Sólo ADMIN.** La configuración del SMTP en sólo lectura, para el panel **Correo saliente** de `/admin/manage/users`.
+`data: { configurado, host, puerto, remitente, starttls, usuarioConfigurado, problema }`: `configurado` es que `SMTP_HOST` esté
+cargado, `remitente` va enmascarado (`a**@example.com`) y `problema` es lo primero que está mal en una configuración a medias
+(o `null`). **Nunca** devuelve la contraseña ni el usuario: `usuarioConfigurado` sólo dice si hay uno. No se edita desde la web;
+la configuración vive en el entorno del backend (`SMTP_*`) y en la CLI, «Configurar mail».
 
 
 ## GET/POST /notificaciones/baja/{token}

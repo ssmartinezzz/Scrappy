@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -10,9 +10,12 @@ vi.mock('../api', () => ({
   reactivarUsuario: vi.fn(),
   cambiarEmailUsuario: vi.fn(),
   enviarCorreoDePrueba: vi.fn(),
+  fetchEstadoSmtp: vi.fn(),
 }));
 
-import { cambiarEmailUsuario, enviarCorreoDePrueba, fetchUsuarios } from '../api';
+import {
+  cambiarEmailUsuario, desactivarUsuario, enviarCorreoDePrueba, fetchEstadoSmtp, fetchUsuarios,
+} from '../api';
 import UsuariosAdminPanel from './UsuariosAdminPanel';
 
 // Forma real de GET /api/usuarios (UsuarioAdminEndpoints.listar): `roles` es un
@@ -24,9 +27,15 @@ const CUENTAS = [
   { id: '4', username: 'exempleado', email: 'ex@x.com', activo: false, esServicio: false, roles: ['VIEWER'] },
 ];
 
+const SMTP = {
+  configurado: true, host: 'smtp.x.com', puerto: 587, remitente: 'a**@x.com',
+  starttls: true, usuarioConfigurado: true, problema: null,
+};
+
 beforeEach(() => {
   vi.clearAllMocks();
   fetchUsuarios.mockResolvedValue(CUENTAS);
+  fetchEstadoSmtp.mockResolvedValue(SMTP);
 });
 
 async function renderPanel() {
@@ -151,25 +160,125 @@ describe('UsuariosAdminPanel — email de una cuenta', () => {
   });
 });
 
-describe('UsuariosAdminPanel — mail de prueba', () => {
-  it('manda el mail de prueba y muestra el resultado enmascarado', async () => {
-    const user = userEvent.setup();
-    enviarCorreoDePrueba.mockResolvedValue({ ok: true, body: { mensaje: 'Mail de prueba enviado a a**@x.com.' } });
+describe('UsuariosAdminPanel — tabla', () => {
+  it('muestra las cinco columnas con su título, el email en la suya', async () => {
     await renderPanel();
 
-    await user.click(screen.getByRole('button', { name: /probar mail/i }));
+    for (const titulo of ['Cuenta', 'Email', 'Rol', 'Estado', 'Acciones']) {
+      expect(screen.getByRole('columnheader', { name: titulo })).toBeInTheDocument();
+    }
+    expect(screen.getByText('lucia@x.com')).toBeInTheDocument();
+  });
 
-    expect(enviarCorreoDePrueba).toHaveBeenCalledTimes(1);
-    expect(await screen.findByText('Mail de prueba enviado a a**@x.com.')).toBeInTheDocument();
+  it('ordena por email', async () => {
+    const user = userEvent.setup();
+    await renderPanel();
+
+    await user.click(screen.getByRole('button', { name: 'Email' }));
+
+    const filas = screen.getAllByRole('row').slice(1).map(f => f.textContent);
+    expect(filas[0]).toContain('cli');          // sin email: el vacío ordena primero
+    expect(filas[1]).toContain('admin@x.com');
+  });
+});
+
+describe('UsuariosAdminPanel — desactivar pide confirmación', () => {
+  it('abre el aviso con la explicación y no desactiva hasta confirmar', async () => {
+    const user = userEvent.setup();
+    desactivarUsuario.mockResolvedValue({ ok: true, body: {} });
+    await renderPanel();
+
+    await user.click(screen.getAllByRole('button', { name: 'Desactivar' })[0]);
+
+    const aviso = await screen.findByRole('dialog');
+    expect(aviso).toHaveTextContent(/Desactivar no borra/);
+    expect(aviso).toHaveTextContent(/última cuenta ADMIN/);
+    expect(desactivarUsuario).not.toHaveBeenCalled();
+
+    await user.click(within(aviso).getByRole('button', { name: 'Desactivar' }));
+
+    expect(desactivarUsuario).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  });
+
+  it('cancelar no llama al backend', async () => {
+    const user = userEvent.setup();
+    await renderPanel();
+
+    await user.click(screen.getAllByRole('button', { name: 'Desactivar' })[0]);
+    await user.click(await screen.findByRole('button', { name: 'Cancelar' }));
+
+    expect(desactivarUsuario).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  });
+});
+
+describe('UsuariosAdminPanel — correo saliente', () => {
+  it('queda plegado y no lee el SMTP hasta que se abre', async () => {
+    await renderPanel();
+
+    expect(fetchEstadoSmtp).not.toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: 'Enviar prueba' })).not.toBeInTheDocument();
+  });
+
+  it('muestra el estado del SMTP en sólo lectura, sin ningún campo de contraseña', async () => {
+    const user = userEvent.setup();
+    await renderPanel();
+
+    await user.click(screen.getByRole('button', { name: /correo saliente/i }));
+
+    expect(await screen.findByText('smtp.x.com')).toBeInTheDocument();
+    expect(screen.getByText('587')).toBeInTheDocument();
+    expect(screen.getByText('Configurado')).toBeInTheDocument();
+    expect(screen.queryByLabelText(/contraseña/i)).not.toBeInTheDocument();
+  });
+
+  it('manda el mail de prueba al destino pedido y muestra el resultado enmascarado', async () => {
+    const user = userEvent.setup();
+    enviarCorreoDePrueba.mockResolvedValue({ ok: true, body: { mensaje: 'Mail de prueba enviado a o**@x.com.' } });
+    await renderPanel();
+
+    await user.click(screen.getByRole('button', { name: /correo saliente/i }));
+    await user.type(await screen.findByLabelText(/Enviar prueba a/), 'otro@x.com');
+    await user.click(screen.getByRole('button', { name: 'Enviar prueba' }));
+
+    expect(enviarCorreoDePrueba).toHaveBeenCalledExactlyOnceWith('otro@x.com');
+    expect(await screen.findByText('Mail de prueba enviado a o**@x.com.')).toBeInTheDocument();
+  });
+
+  it('con el destino vacío deja que el backend elija el suyo', async () => {
+    const user = userEvent.setup();
+    enviarCorreoDePrueba.mockResolvedValue({ ok: true, body: { mensaje: 'ok' } });
+    await renderPanel();
+
+    await user.click(screen.getByRole('button', { name: /correo saliente/i }));
+    await user.click(await screen.findByRole('button', { name: 'Enviar prueba' }));
+
+    expect(enviarCorreoDePrueba).toHaveBeenCalledExactlyOnceWith(undefined);
   });
 
   it('muestra el motivo y la pista cuando el SMTP falla', async () => {
     const user = userEvent.setup();
-    enviarCorreoDePrueba.mockResolvedValue({ ok: false, body: { mensaje: 'No se pudo conectar a smtp.x.com:587. Revisá el puerto.' } });
+    enviarCorreoDePrueba.mockResolvedValue({
+      ok: false, body: { mensaje: 'No se pudo conectar a smtp.x.com:587.', pista: 'Revisá el puerto.' },
+    });
     await renderPanel();
 
-    await user.click(screen.getByRole('button', { name: /probar mail/i }));
+    await user.click(screen.getByRole('button', { name: /correo saliente/i }));
+    await user.click(await screen.findByRole('button', { name: 'Enviar prueba' }));
 
     expect(await screen.findByText(/no se pudo conectar a smtp.x.com:587/i)).toBeInTheDocument();
+    expect(screen.getByText('Revisá el puerto.')).toBeInTheDocument();
+  });
+
+  it('avisa cuando no pudo leer la configuración, sin romper el envío', async () => {
+    const user = userEvent.setup();
+    fetchEstadoSmtp.mockResolvedValue(null);
+    await renderPanel();
+
+    await user.click(screen.getByRole('button', { name: /correo saliente/i }));
+
+    expect(await screen.findByText(/No pude leer la configuración/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Enviar prueba' })).toBeEnabled();
   });
 });

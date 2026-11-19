@@ -97,6 +97,8 @@ public final class ApiRoutePolicy {
             new RoutePolicy(Set.of(HttpMethod.PUT), List.of("/api/config"), Access.ADMIN),
             new RoutePolicy(Set.of(HttpMethod.POST), List.of("/api/notificaciones/correo-prueba"), Access.ADMIN,
                     "sends a real mail, possibly to an address the caller picks"),
+            new RoutePolicy(Set.of(HttpMethod.GET), List.of("/api/notificaciones/smtp"), Access.ADMIN,
+                    "mail server settings (host, port, masked sender); never the secrets"),
             new RoutePolicy(Set.of(HttpMethod.POST, HttpMethod.DELETE),
                     List.of("/api/sitios", "/api/sitios/**"), Access.ADMIN,
                     "GET /api/sitios is not matched here — method specificity, no carve-out needed"),

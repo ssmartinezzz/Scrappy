@@ -8,15 +8,18 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   flexRender, getCoreRowModel, getPaginationRowModel, getSortedRowModel, useReactTable,
 } from '@tanstack/react-table';
-import { ChevronDown, ChevronUp, Mail, Pencil, RefreshCw, Search, UserPlus, X } from 'lucide-react';
+import { ChevronDown, ChevronUp, Pencil, RefreshCw, Search, UserPlus, X } from 'lucide-react';
 
 import {
-  cambiarEmailUsuario, cambiarRolUsuario, crearUsuario, desactivarUsuario, enviarCorreoDePrueba,
-  fetchUsuarios, reactivarUsuario,
+  cambiarEmailUsuario, cambiarRolUsuario, crearUsuario, desactivarUsuario, fetchUsuarios, reactivarUsuario,
 } from '../api';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Checkbox } from './ui/checkbox';
+import CorreoSalientePanel from './CorreoSalientePanel';
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from './ui/dialog';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import {
@@ -60,7 +63,9 @@ function EmailEditable({ usuario, ejecutar, deshabilitado }) {
   if (!editando) {
     return (
       <span className="flex min-w-0 items-center gap-1">
-        <span className="truncate text-t3 text-xs">{usuario.email || 'sin email'}</span>
+        <span className={`truncate text-sm ${usuario.email ? 'text-t2' : 'text-t4'}`}>
+          {usuario.email || 'sin email'}
+        </span>
         {!usuario.esServicio && (
           <button
             aria-label={`Editar email de ${usuario.username}`}
@@ -68,7 +73,7 @@ function EmailEditable({ usuario, ejecutar, deshabilitado }) {
             onClick={() => setEditando(true)}
             type="button"
           >
-            <Pencil aria-hidden="true" className="h-3 w-3" />
+            <Pencil aria-hidden="true" className="h-[16px] w-[16px]" />
           </button>
         )}
       </span>
@@ -77,7 +82,7 @@ function EmailEditable({ usuario, ejecutar, deshabilitado }) {
 
   return (
     <form
-      className="flex items-center gap-1"
+      className="flex flex-wrap items-center gap-1"
       onSubmit={e => {
         e.preventDefault();
         setEditando(false);
@@ -87,7 +92,7 @@ function EmailEditable({ usuario, ejecutar, deshabilitado }) {
     >
       <Input
         aria-label={`Email de ${usuario.username}`}
-        className="h-7 text-xs"
+        className="h-7 w-48 text-xs"
         onChange={e => setValor(e.target.value)}
         type="email"
         value={valor}
@@ -104,18 +109,24 @@ const COLUMNS = [
     id: 'username',
     accessorKey: 'username',
     header: 'Cuenta',
-    cell: ({ row, table }) => {
+    cell: ({ row }) => {
       const u = row.original;
-      const { ejecutar, ocupado } = table.options.meta;
       return (
         <div className="flex items-center gap-2">
           <Avatar username={u.username} />
-          <div className="flex min-w-0 flex-col">
-            <span className="truncate font-medium text-t1">{u.username}</span>
-            <EmailEditable deshabilitado={ocupado === u.username} ejecutar={ejecutar} usuario={u} />
-          </div>
+          <span className="truncate font-medium text-t1">{u.username}</span>
         </div>
       );
+    },
+  },
+  {
+    id: 'email',
+    accessorFn: u => u.email || '',
+    header: 'Email',
+    cell: ({ row, table }) => {
+      const { ejecutar, ocupado } = table.options.meta;
+      const u = row.original;
+      return <EmailEditable deshabilitado={ocupado === u.username} ejecutar={ejecutar} usuario={u} />;
     },
   },
   {
@@ -143,14 +154,14 @@ const COLUMNS = [
   },
   {
     id: 'acciones',
-    header: () => <span className="sr-only">Acciones</span>,
+    header: 'Acciones',
     enableSorting: false,
     cell: ({ row, table }) => {
-      const { ejecutar, ocupado } = table.options.meta;
+      const { ejecutar, ocupado, pedirDesactivar } = table.options.meta;
       const u = row.original;
       const enVuelo = ocupado === u.username;
       return (
-        <div className="flex flex-wrap items-center justify-end gap-1">
+        <div className="flex flex-nowrap items-center justify-end gap-1">
           <Label className="sr-only" htmlFor={`rol-${u.id}`}>Rol de {u.username}</Label>
           <Select
             disabled={enVuelo}
@@ -169,8 +180,7 @@ const COLUMNS = [
             <Button
               className="text-danger hover:border-danger hover:text-danger"
               disabled={enVuelo}
-              onClick={() => ejecutar(u.username,
-                () => desactivarUsuario(u.username), 'Cuenta desactivada.')}
+              onClick={() => pedirDesactivar(u.username)}
               size="sm"
               variant="ghost"
             >
@@ -205,8 +215,8 @@ function HeaderContent({ header }) {
     >
       {content}
       {{
-        asc:  <ChevronUp aria-hidden="true" className="h-4 w-4 shrink-0 opacity-60" />,
-        desc: <ChevronDown aria-hidden="true" className="h-4 w-4 shrink-0 opacity-60" />,
+        asc:  <ChevronUp aria-hidden="true" className="h-[16px] w-[16px] shrink-0 opacity-60" />,
+        desc: <ChevronDown aria-hidden="true" className="h-[16px] w-[16px] shrink-0 opacity-60" />,
       }[header.column.getIsSorted()] ?? null}
     </button>
   );
@@ -218,6 +228,7 @@ export default function UsuariosAdminPanel() {
   const [aviso, setAviso]       = useState(null);   // { ok, texto }
   const [ocupado, setOcupado]   = useState('');     // username en vuelo, o 'nuevo'
   const [creando, setCreando]   = useState(false);
+  const [aDesactivar, setADesactivar] = useState('');   // username pendiente de confirmar
   const [form, setForm]         = useState({ username: '', password: '', email: '', role: 'VIEWER' });
 
   const [busqueda, setBusqueda]         = useState('');
@@ -274,7 +285,7 @@ export default function UsuariosAdminPanel() {
 
   const table = useReactTable({
     columns: COLUMNS,
-    meta: { ejecutar, ocupado },
+    meta: { ejecutar, ocupado, pedirDesactivar: setADesactivar },
     data: filtradas,
     state: { sorting, pagination },
     onSortingChange: setSorting,
@@ -302,7 +313,7 @@ export default function UsuariosAdminPanel() {
 
   return (
     <div className="mx-auto w-full max-w-6xl px-2 py-3">
-      {/* En mobile los dos botones se van a una fila propia y se reparten el
+      {/* En mobile los botones se van a una fila propia y se reparten el
           ancho. Antes iban en la misma fila que el título con `gap-1`, así que
           en pantallas angostas se apretaban contra el borde. */}
       <header className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -311,23 +322,16 @@ export default function UsuariosAdminPanel() {
           <h1 className="font-display text-display-2 text-t1">Cuentas</h1>
         </div>
         <div className="flex w-full gap-1 sm:w-auto">
-          <Button
-            className="flex-1 sm:flex-none"
-            disabled={ocupado === 'mail'}
-            onClick={() => ejecutar('mail', () => enviarCorreoDePrueba(), 'Mail de prueba enviado.')}
-            variant="ghost"
-          >
-            <Mail aria-hidden="true" className="mr-1 h-4 w-4" strokeWidth={2} />
-            {ocupado === 'mail' ? 'Enviando…' : 'Probar mail'}
-          </Button>
           <Button className="flex-1 sm:flex-none" onClick={cargar} variant="ghost">
-            <RefreshCw aria-hidden="true" className="mr-1 h-4 w-4" strokeWidth={2} /> Recargar
+            <RefreshCw aria-hidden="true" className="mr-1 h-[16px] w-[16px]" strokeWidth={2} /> Recargar
           </Button>
           <Button className="flex-1 sm:flex-none" onClick={() => setCreando(v => !v)}>
-            <UserPlus aria-hidden="true" className="mr-1 h-4 w-4" strokeWidth={2.5} /> Nueva cuenta
+            <UserPlus aria-hidden="true" className="mr-1 h-[16px] w-[16px]" strokeWidth={2.5} /> Nueva cuenta
           </Button>
         </div>
       </header>
+
+      <CorreoSalientePanel />
 
       {aviso && (
         <output
@@ -391,15 +395,15 @@ export default function UsuariosAdminPanel() {
 
       {/* Buscador + filtro de estado */}
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        <div className="relative min-w-0 flex-1 sm:max-w-xs">
+        <div className="relative min-w-[240px] flex-1 sm:min-w-0 sm:max-w-xs">
           <Search
             aria-hidden="true"
-            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-t4"
+            className="pointer-events-none absolute left-[12px] top-1/2 h-[16px] w-[16px] -translate-y-1/2 text-t4"
             strokeWidth={2}
           />
           <Input
             aria-label="Buscar por usuario o email"
-            className="px-9"
+            className="h-11 pl-[36px] pr-[44px] sm:h-9 sm:pr-[36px]"
             onChange={e => setBusqueda(e.target.value)}
             placeholder="Buscar usuario o email…"
             value={busqueda}
@@ -407,16 +411,17 @@ export default function UsuariosAdminPanel() {
           {busqueda && (
             <button
               aria-label="Limpiar búsqueda"
-              className="absolute right-0 top-0 flex h-9 w-9 items-center justify-center text-t4 hover:text-t1"
+              className="absolute right-0 top-0 flex h-11 w-11 items-center sm:h-9 sm:w-9 justify-center text-t4 hover:text-t1"
               onClick={() => setBusqueda('')}
               type="button"
             >
-              <X aria-hidden="true" className="h-4 w-4" strokeWidth={2} />
+              <X aria-hidden="true" className="h-[16px] w-[16px]" strokeWidth={2} />
             </button>
           )}
         </div>
         <div className="flex items-center gap-2">
           <Checkbox
+            className="h-[18px] w-[18px]"
             checked={verInactivas}
             id="ver-inactivas"
             onCheckedChange={v => setVerInactivas(v === true)}
@@ -439,12 +444,12 @@ export default function UsuariosAdminPanel() {
       {usuarios !== null && (
         <>
           <div className="overflow-x-auto rounded-card border border-border bg-s2">
-            <Table>
+            <Table className="min-w-[760px]">
               <TableHeader>
                 {table.getHeaderGroups().map(hg => (
                   <TableRow key={hg.id}>
                     {hg.headers.map(header => (
-                      <TableHead key={header.id}>
+                      <TableHead className="whitespace-nowrap font-semibold text-t2" key={header.id}>
                         <HeaderContent header={header} />
                       </TableHead>
                     ))}
@@ -456,7 +461,7 @@ export default function UsuariosAdminPanel() {
                   table.getRowModel().rows.map(row => (
                     <TableRow key={row.id}>
                       {row.getVisibleCells().map(cell => (
-                        <TableCell key={cell.id}>
+                        <TableCell className="px-[12px] py-[8px]" key={cell.id}>
                           {flexRender(cell.column.columnDef.cell, cell.getContext())}
                         </TableCell>
                       ))}
@@ -495,7 +500,7 @@ export default function UsuariosAdminPanel() {
                         size="icon"
                         variant="outline"
                       >
-                        <ChevronUp aria-hidden="true" className="h-4 w-4 -rotate-90" strokeWidth={2} />
+                        <ChevronUp aria-hidden="true" className="h-[16px] w-[16px] -rotate-90" strokeWidth={2} />
                       </Button>
                     </PaginationItem>
                     {showLeftEllipsis && <PaginationItem><PaginationEllipsis /></PaginationItem>}
@@ -524,7 +529,7 @@ export default function UsuariosAdminPanel() {
                         size="icon"
                         variant="outline"
                       >
-                        <ChevronDown aria-hidden="true" className="h-4 w-4 -rotate-90" strokeWidth={2} />
+                        <ChevronDown aria-hidden="true" className="h-[16px] w-[16px] -rotate-90" strokeWidth={2} />
                       </Button>
                     </PaginationItem>
                   </PaginationContent>
@@ -549,11 +554,31 @@ export default function UsuariosAdminPanel() {
         </>
       )}
 
-      <p className="mt-3 text-t4 text-xs">
-        Desactivar no borra: la cuenta conserva su auditoría y sus datos personales, y su
-        próximo request es rechazado. La última cuenta ADMIN activa no se puede desactivar
-        ni degradar — el backend lo niega.
-      </p>
+      <Dialog onOpenChange={abierto => { if (!abierto) setADesactivar(''); }} open={aDesactivar !== ''}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Desactivar a {aDesactivar}</DialogTitle>
+            <DialogDescription>
+              Desactivar no borra: la cuenta conserva su auditoría y sus datos personales, y su
+              próximo request es rechazado. Se puede reactivar cuando quieras. La última cuenta
+              ADMIN activa no se puede desactivar ni degradar: el backend lo niega.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-1 max-sm:[&>button]:h-11">
+            <Button onClick={() => setADesactivar('')} variant="ghost">Cancelar</Button>
+            <Button
+              className="bg-danger hover:bg-danger"
+              onClick={() => {
+                const username = aDesactivar;
+                setADesactivar('');
+                ejecutar(username, () => desactivarUsuario(username), 'Cuenta desactivada.');
+              }}
+            >
+              Desactivar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

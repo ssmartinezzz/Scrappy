@@ -3,6 +3,11 @@
 Served as static files by the frontend (`/brand-logos/<file>`); the brand → file map lives in `src/lib/brandLogos.js`.
 Adding one: drop the file here, add it to `BRAND_LOGO_FILES` (and to `LOGOS_SOBRE_OSCURO` if it is white/light).
 
+A store needs no wiring: a file named `<site key>.<ext>` here is picked up through `src/lib/brandLogos.generated.js`.
+`node scripts/fetch-site-logos.mjs` downloads the logo from the store's own homepage for every site in
+`config.properties` that has none and regenerates that file (`--check` only lists the missing ones). Still check the
+result by eye and add white marks to `LOGOS_SOBRE_OSCURO`. Stores behind a WAF (403) need the file dropped in by hand.
+
 | Brand | File | Source | License |
 |---|---|---|---|
 | Adidas | `adidas.svg` | https://cdn.jsdelivr.net/npm/simple-icons@16.35.0/icons/adidas.svg | CC0 simple-icons |
@@ -69,3 +74,27 @@ Adding one: drop the file here, add it to `BRAND_LOGO_FILES` (and to `LOGOS_SOBR
 | Vayzenhome | `vayzenhome.png` | https://vayzenhome.com/ (store header logo) | brand site |
 | Mrplacadeco | `mrplacadeco.png` | https://www.mrplacadeco.com/ (store header logo) | brand site |
 | Ambiancedeco | `ambiancedeco.png` | https://www.ambiancedeco.com.ar/ (store header logo) | brand site |
+| Ayrun | `ayrun.webp` | https://acdn-us.mitiendanube.com/stores/001/756/547/themes/common/logo-179694154926073495-1784134295-eb467f1b0751830255b1819b371826411784134295-480-0.webp | store site |
+| Burton | `burtonargentina.webp` | https://acdn-us.mitiendanube.com/stores/006/391/590/themes/common/logo-1890182272-1755718627-17a48bd80ff1b03a21cbaec25e3989d01755718627-480-0.webp | store site |
+| Baesics | `baesics.png` | https://baesics.ar/cdn/shop/files/Logo_web_f21a8516-4a7b-46d8-8875-83fef7ca83d7.png?height=36&v=1778691075 | store site |
+| Dellorean | `dellorean.webp` | https://acdn-us.mitiendanube.com/stores/006/255/725/themes/common/logo-1617557643-1767640550-ea209a5fba299e0a13bdfb9b0e8c533d1767640551-320-0.webp | store site |
+| Entreno | `entreno.webp` | https://acdn-us.mitiendanube.com/stores/006/011/728/themes/common/logo-71597579-1748284392-847b58a9e014af6b3bbc5ca96f5bfec51748284392-480-0.webp | store site |
+| Armytech | `armytech.png` | https://www.armytech.com.ar/img/logo-1683567127.jpg | store site |
+| El Mundo del Juguete | `elmundodeljuguete.png` | https://mundojuguete.vtexassets.com/assets/vtex.file-manager-graphql/images/6ff20bb7-e07e-49a7-9979-38e50a70f977___f3d8d83b1477f02bbedd456246292e7f.png | store site |
+| GamerFactory | `gamerfactory.svg` | https://www.gamerfactory.com.ar/logo.svg | store site |
+| Equus | `equus.svg` | https://equusio.vtexassets.com/assets/vtex.file-manager-graphql/images/6c39b8dc-b1db-4ed6-aae1-476523311603___9e78c770efb9e6ab77d82c3effada5bf.svg | store site |
+| Hadriatica | `hadriatica.png` | https://dcdn-us.mitiendanube.com/stores/113/368/themes/common/logo-977581553-1656244794-7d4c0553735abf1d247b45a80bc96ff21656244794-480-0.png?0 | store site |
+| Las Pepas | `laspepas.svg` | https://laspepas.com.ar/static/version1793041027/frontend/Mgs/laspepas/es_AR/images/logo.svg | store site |
+| Kevingston | `kevingston.png` | https://images.kevingston.com/imagenes/varios/fav-eshop-24-apple-180x180-touch-icon.png | store site |
+| Maximus | `maximus.png` | https://www.maximus.com.ar/Temp/App_WebSite/App_PictureFiles/apple-touch-icon.png | store site |
+| NotebooksPro | `notebookspro.webp` | https://notebookspro.ar/wp-content/uploads/2024/04/Logo-Notebooks-Proooks-Pro.webp | store site |
+| Morashop | `morashop.png` | https://d2az8otjr0j19j.cloudfront.net/templates/002/268/228/twig/static/images/morashop-icono-180.png | store site |
+| One Place World | `oneplaceworld.webp` | https://acdn-us.mitiendanube.com/stores/006/103/959/themes/common/logo-7102246213814116682-1785512058-fe5d3fef9f79094c82cdd4313ade29f01785512058-320-0.webp | store site |
+| RocketHard | `rockethard.png` | https://statics.qloud.com.ar/rockethardstore-07-2020/153_22-09-2023-02-09-36-recurso-2.png | store site |
+| Zentra | `zentra.webp` | https://acdn-us.mitiendanube.com/stores/005/728/539/themes/common/logo-177958221-1742228719-5e5aca4ae570d959f06f940f706615e21742228719-320-0.webp | store site |
+| City | `city.webp` | https://www.somoscity.com.ar/brandlogos/city.webp | store site |
+| CompraGamer | `compragamer.png` | https://compragamer.com/favicon.ico | store site |
+| Sporting | `sporting.svg` | https://sporting.vtexassets.com/arquivos/logo-sporting-white.svg | store site |
+| Vaypol | `vaypol.webp` | https://www.vaypol.com.ar/brandlogos/vaypol.webp | store site |
+| King of the Kongo | `kingofthekongo.webp` | https://acdn-us.mitiendanube.com/stores/219/431/themes/common/logo-3825714704076569041-1790371576-82ef3042ce34e21fbe74c881bce1bf181790371576-320-0.webp | store site |
+| Easy | `easy.svg` | https://arcencohogareasy.vtexassets.com/assets/vtex.file-manager-graphql/images/70762c9e-9f1a-4061-9113-144b83dd8370___389e812d088de026179c879e8ddb85da.svg | store site |

@@ -1,6 +1,12 @@
 // Brand logos are static files in public/brand-logos/ (sources and licenses in its
 // README.md). Clearbit's free logo API, which this used to call, no longer resolves.
-// A brand without an entry falls back to the initials badge.
+// A brand without a logo falls back to the initials badge.
+//
+// Two ways a file gets served: an entry in BRAND_LOGO_FILES (hand-curated brand marks), or just
+// being in the folder: scripts/fetch-site-logos.mjs regenerates brandLogos.generated.js from it,
+// so a store's `<key>.<ext>` needs no wiring here.
+import { LOGO_FILES_BY_NAME } from './brandLogos.generated.js';
+
 export const BRAND_LOGO_FILES = {
   "adidas": "adidas.svg",
   "puma": "puma.svg",
@@ -68,16 +74,26 @@ export const BRAND_LOGO_FILES = {
   "ambiancedeco": "ambiancedeco.png",
 };
 
+// Site keys whose logo is filed under a different brand name; everything else matches as-is.
+export const SITIO_LOGO_MARCA = { underarmour: 'under armour', dcshoes: 'dc' };
+
 // White or light-grey marks: they need a dark plate behind them.
 export const LOGOS_SOBRE_OSCURO = new Set([
   'barnes', 'bulks', 'crudda', 'foreverbstrd', 'labs nutrition', 'mervick', 'mrplacadeco', 'vayzenhome',
+  'armytech', 'ayrun', 'entreno', 'equus', 'hadriatica', 'notebookspro', 'oneplaceworld', 'sporting', 'vaypol',
 ]);
 
 const clave = marca => (marca || '').trim().toLowerCase().replace(/\s+/g, ' ');
 
+/** File name (inside public/brand-logos) of the brand's logo, or undefined. */
+export function brandLogoFile(marca) {
+  const k = clave(marca);
+  return BRAND_LOGO_FILES[k] ?? LOGO_FILES_BY_NAME[k];
+}
+
 /** Same-origin URL of the brand's logo, or null when there is none. */
 export function getBrandLogoUrl(marca) {
-  const file = BRAND_LOGO_FILES[clave(marca)];
+  const file = brandLogoFile(marca);
   return file ? `${import.meta.env.BASE_URL}brand-logos/${file}` : null;
 }
 

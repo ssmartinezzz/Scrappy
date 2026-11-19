@@ -1959,6 +1959,26 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /api/notificaciones/smtp:
+    get:
+      tags: [Notificaciones]
+      summary: Read-only SMTP settings, for the "Correo saliente" panel. ADMIN only.
+      description: >
+        Never carries the password or the username; `usuarioConfigurado` says whether one is set and
+        `remitente` is masked like every address the API answers with. Nothing here is editable:
+        the settings live in the backend environment (`SMTP_*`).
+      x-access: ADMIN
+      responses:
+        "200":
+          description: >
+            `data`: `{ configurado, host, puerto, remitente, starttls, usuarioConfigurado, problema }`.
+            `configurado` is `SMTP_HOST` being set; `problema` is the first thing wrong with a half-set
+            configuration, or null.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+
   /api/notificaciones/preferencia:
     get:
       tags: [Notificaciones]

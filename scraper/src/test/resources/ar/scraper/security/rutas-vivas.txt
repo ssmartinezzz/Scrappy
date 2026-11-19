@@ -44,6 +44,7 @@ GET /api/notificaciones/baja/{token}
 POST /api/notificaciones/correo-prueba
 GET /api/notificaciones/preferencia
 PUT /api/notificaciones/preferencia
+GET /api/notificaciones/smtp
 POST /api/ml/aplicar
 POST /api/ml/entrenar
 GET /api/ml/estado

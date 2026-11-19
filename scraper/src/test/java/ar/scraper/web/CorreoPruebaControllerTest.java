@@ -2,6 +2,7 @@ package ar.scraper.web;
 
 import ar.scraper.api.ApiException;
 import ar.scraper.db.UsuarioRepository;
+import ar.scraper.notificaciones.ConfiguracionSmtp;
 import ar.scraper.notificaciones.DiagnosticoSmtp;
 import ar.scraper.notificaciones.EstadoSmtp;
 import ar.scraper.security.ActorResolver;
@@ -38,6 +39,9 @@ import static org.mockito.Mockito.when;
 @DisplayName("CorreoPruebaController — an ADMIN sends a test mail and learns why it did not arrive")
 class CorreoPruebaControllerTest {
 
+    private static final ConfiguracionSmtp CONFIGURADO =
+            new ConfiguracionSmtp("smtp.example.com", 587, "avisos@example.com", "s3cr3t-pass", "avisos@example.com", true);
+
     private DiagnosticoSmtp diagnostico;
     private UsuarioRepository usuarios;
     private CorreoPruebaController controller;
@@ -59,7 +63,7 @@ class CorreoPruebaControllerTest {
     void setUp() {
         diagnostico = mock(DiagnosticoSmtp.class);
         usuarios = mock(UsuarioRepository.class);
-        controller = new CorreoPruebaController(diagnostico, usuarios, new ActorResolver(), reloj);
+        controller = new CorreoPruebaController(diagnostico, CONFIGURADO, usuarios, new ActorResolver(), reloj);
         SujetoDePrueba.entrar("ADMIN");
         log.start();
         logger.addAppender(log);
@@ -165,7 +169,7 @@ class CorreoPruebaControllerTest {
     void topePorActor() {
         ActorResolver otro = mock(ActorResolver.class);
         when(otro.current()).thenReturn("segundo-admin");
-        CorreoPruebaController deOtro = new CorreoPruebaController(diagnostico, usuarios, otro, reloj);
+        CorreoPruebaController deOtro = new CorreoPruebaController(diagnostico, CONFIGURADO, usuarios, otro, reloj);
         when(diagnostico.enviarPrueba("x@example.com")).thenReturn(EstadoSmtp.ok("enviado"));
         for (int i = 0; i < 5; i++) {
             controller.enviar(Map.of("destino", "x@example.com"));
@@ -183,5 +187,44 @@ class CorreoPruebaControllerTest {
 
         assertThat(log.list).extracting(ILoggingEvent::getFormattedMessage).singleElement().asString()
                 .contains("test-admin", "v**@example.com").doesNotContain("victima@example.com");
+    }
+
+    @Test
+    @DisplayName("the SMTP settings are readable but never carry the password, the username or the full sender")
+    void configuracionSinSecretos() {
+        var resp = controller.configuracion();
+
+        var data = Wire.data(resp);
+        assertThat(data.get("configurado").asBoolean()).isTrue();
+        assertThat(data.get("host").asText()).isEqualTo("smtp.example.com");
+        assertThat(data.get("puerto").asInt()).isEqualTo(587);
+        assertThat(data.get("starttls").asBoolean()).isTrue();
+        assertThat(data.get("usuarioConfigurado").asBoolean()).isTrue();
+        assertThat(data.get("remitente").asText()).isEqualTo("a**@example.com");
+        assertThat(Wire.body(resp).toString()).doesNotContain("s3cr3t-pass").doesNotContain("avisos@example.com");
+    }
+
+    @Test
+    @DisplayName("without SMTP_HOST the settings say not configured and carry no problem to fix")
+    void configuracionSinHost() {
+        var sinHost = new CorreoPruebaController(diagnostico, new ConfiguracionSmtp("", 587, "", "", "", true),
+                usuarios, new ActorResolver(), reloj);
+
+        var data = Wire.data(sinHost.configuracion());
+
+        assertThat(data.get("configurado").asBoolean()).isFalse();
+        assertThat(data.get("usuarioConfigurado").asBoolean()).isFalse();
+        assertThat(data.get("host").isNull()).isTrue();
+        assertThat(data.get("problema").isNull()).isTrue();
+    }
+
+    @Test
+    @DisplayName("a half-set configuration reports what is wrong with it")
+    void configuracionConProblema() {
+        var incompleta = new CorreoPruebaController(diagnostico,
+                new ConfiguracionSmtp("smtp.example.com", 587, "u@example.com", "", "", true),
+                usuarios, new ActorResolver(), reloj);
+
+        assertThat(Wire.data(incompleta.configuracion()).get("problema").asText()).contains("SMTP_PASSWORD");
     }
 }
