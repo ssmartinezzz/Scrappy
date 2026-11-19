@@ -169,6 +169,7 @@ public final class GarmentTaxonomy {
         " camiseta "," camisetas "," calza "," calzas "," medias "," mochila "," mochilas "," bolso "," bolsos "," gorra "," gorras ",
         " botines "," botin "," ojotas "," sandalias "," chomba "," chombas "," bermuda "," pollera "," vestido "," top "," camisa "," jogging "
     };
+    public static final String[] KW_ROPA_INTERIOR_LIDER = { " ropa interior " };
     public static final String[] KW_PIERNAS_LIDER = {
         " pantalon"," short "," shorts "," bermuda"," jogging "," jean "," jeans "," calza "," calzas "," pollera "
     };

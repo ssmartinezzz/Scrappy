@@ -80,7 +80,15 @@ public class SubcategoryResolver {
             new String[]{"triangular",  "triangular", "triangulo"},
             new String[]{"bralette",    "bralette"}
         ));
+        // Sportline sells socks by cut: invisibles (14 rows), soquetes (5) and caña alta / caña baja (3 each).
+        SUBCATEG_TIER1.put("Toalla", Arrays.<String[]>asList(
+            new String[]{"Bata", "bata", "batas"}
+        ));
         SUBCATEG_TIER1.put("Medias", Arrays.<String[]>asList(
+            new String[]{"invisibles", "invisible", "invisibles"},
+            new String[]{"soquete",    "soquete", "soquetes"},
+            new String[]{"caña alta",  "cana alta"},
+            new String[]{"caña baja",  "cana baja"},
             new String[]{"deportivas",  "deportivas", "sport", "running"},
             new String[]{"compresión",  "compresion"},
             new String[]{"tobilleras",  "tobilleras", "tobillo"}

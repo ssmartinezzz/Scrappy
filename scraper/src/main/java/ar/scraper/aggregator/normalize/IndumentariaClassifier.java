@@ -15,6 +15,12 @@ final class IndumentariaClassifier implements FamiliaClassifier {
         if (texto.contiene(GarmentTaxonomy.KW_BOMBACHA) && !texto.contiene(GarmentTaxonomy.KW_BOMBACHA_VETO))
             return "Bombacha";
         if (texto.contiene(GarmentTaxonomy.KW_CALZONCILLO)) return "Calzoncillos";
+        // "Ropa Interior Puma Sport Active Hombre": the generic noun leads, the gender picks the garment. A laundry bag
+        // or a clothes-line peg set that merely mentions it does not lead.
+        if (texto.sinPrefijoDeVentaEmpiezaCon(GarmentTaxonomy.KW_ROPA_INTERIOR_LIDER)) {
+            if (texto.contiene(" hombre ")) return "Calzoncillos";
+            if (texto.contiene(" mujer ")) return "Bombacha";
+        }
         if (texto.contiene(GarmentTaxonomy.KW_TOP_DEPORTIVO)) return "Top Deportivo";
         if (texto.contiene(GarmentTaxonomy.KW_CORPINO))     return "Corpino";
         if (esMalla(texto)) return "Malla";

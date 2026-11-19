@@ -188,6 +188,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V108` | Seed de Prestigio (VTEX, ferretería y hogar mixto, `rubro_por_defecto = 'construccion'`) y 97 hojas curadas; el nodo `Colores` (muestras de pintura) se excluye |
 | `V109` | Seed de Naldo (VTEX, tienda por departamentos, `rubro_por_defecto = 'hogar'`) y 133 hojas curadas; la hoja gana sobre el nombre |
 | `V110` | Seed de Cetrogar (VTEX, electro y muebles, `rubro_por_defecto = 'tecnologia'`) y 125 hojas curadas; el nodo `Garantias` se excluye |
+| `V111` | Dos hojas que el nombre no ubica: `ROPA INTERIOR` de Sportline (hombre `Calzoncillos`, mujer `Bombacha`) y `Batas` de Arredo (`Toalla`, sub `Bata`) |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -5527,5 +5528,30 @@ DELETE FROM sitio s WHERE s.sitio_key = 'cetrogar'
 -- <<< rollback:V110
 ```
 
-`sitio_categoria` cae en cascada con el sitio; con productos ya scrapeados no borra nada. Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO,
-antes que el de `V109`.
+`sitio_categoria` cae en cascada con el sitio; con productos ya scrapeados no borra nada. Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V111` y antes que el de `V109`.
+
+---
+
+## `V111` — ropa interior de Sportline y batas de Arredo
+
+Las 8 filas `ROPA INTERIOR` de Sportline (`Ropa Interior Under Armour Ua Cotton Hombre`) caían en `Otros`: el sustantivo genérico no está en ninguna lista de keywords
+(no era un acento, una puntuación ni un veto del guard no textil: simplemente ninguna regla lo nombra). `IndumentariaClassifier` ahora lee un `Ropa Interior` **al frente**
+más el género (`hombre` → `Calzoncillos`, `mujer` → `Bombacha`); una bolsa de lavado o un tendedero "de ropa interior" no lideran con esa frase y no cambian. Esta migración
+es el respaldo por hoja (hombre `1000177` → `Calzoncillos`, mujer `1000178` → `Bombacha`; unisex, niños y bebés quedan sin mapear). Las 9 batas de Arredo (hoja `15`
+y sus hijas `61`, `62`) van a `Toalla` (textil de baño; no hay categoría de pijama) con la sub-categoría `Bata`.
+
+Sub-categorías, sólo donde hay filas que las respaldan: `Medias` gana `invisibles` (14 filas de Sportline), `soquete` (5), `caña alta` y `caña baja` (3 cada una); `Toalla` gana
+`Bata` (9). No se crea `tres cuartos` (ninguna fila real lo nombra); `Calzoncillos` y `Bombacha` ya tenían las suyas (`boxer`/`slip`/`brief`, `colaless` y compañía).
+
+### Rollback
+
+```sql
+-- >>> rollback:V111
+DELETE FROM sitio_categoria WHERE padre_id IS NULL AND categoria IS NOT NULL
+  AND ((sitio_key = 'arredo' AND origen_id IN (15, 61, 62)) OR (sitio_key = 'sportline' AND origen_id IN (1000177, 1000178)));
+UPDATE sitio_categoria SET categoria = NULL
+ WHERE (sitio_key = 'arredo' AND origen_id IN (15, 61, 62)) OR (sitio_key = 'sportline' AND origen_id IN (1000177, 1000178));
+-- <<< rollback:V111
+```
+
+Un scrape que ya cargó esos nodos les deja `padre_id`: ahí el `UPDATE` sólo borra la categoría. Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V110`.
