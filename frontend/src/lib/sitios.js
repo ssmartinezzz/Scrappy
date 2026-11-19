@@ -1,8 +1,8 @@
-import { RUBROS } from './rubros';
-import { getBrandLogoUrl } from './brandLogos';
+import { RUBROS } from './rubros.js';
+import { SITIO_LOGO_MARCA, getBrandLogoUrl } from './brandLogos.js';
 
 // /api/sitios returns the lowercase config key as `nombre`; this is what the UI shows.
-const LABELS = {
+export const LABELS = {
   ambiancedeco: 'Ambiance Deco', armytech: 'Armytech', ayrun: 'Ayrun', baesics: 'Baesics',
   barnes: 'Barnes', batuk: 'Batuk', bulks: 'Bulks', bullbenny: 'Bullbenny',
   burtonargentina: 'Burton', city: 'City', compragamer: 'CompraGamer', dcshoes: 'DC Shoes',
@@ -18,9 +18,6 @@ const LABELS = {
   vayzenhome: 'Vayzen Home', vcp: 'VCP', venex: 'Venex', zentra: 'Zentra',
 };
 
-// Site keys whose brand differs from the key; everything else matches as-is.
-const LOGO_MARCA = { underarmour: 'under armour', dcshoes: 'dc' };
-
 const collator = new Intl.Collator('es', { sensitivity: 'base' });
 
 const fold = (s) => (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
@@ -34,7 +31,7 @@ export function sitioLabel(key) {
 }
 
 export function sitioLogoMarca(key) {
-  return LOGO_MARCA[key] || key;
+  return SITIO_LOGO_MARCA[key] || key;
 }
 
 export function sitioLogoUrl(key) {

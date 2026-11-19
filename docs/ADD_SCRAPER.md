@@ -333,6 +333,7 @@ el test falla aunque la base esté bien. Al agregar la primera red nueva hay que
 - [ ] La migración que la siembra está en la `List.of(...)` de `SitioSeedSyncTest`
 - [ ] Verificar que la URL responde (no da 404 ni timeout)
 - [ ] Confirmar el rango de precios (sitios premium pueden estar sobre $300k)
+- [ ] Frontend: una entrada en `LABELS` (`frontend/src/lib/sitios.js`) y el logo con `node scripts/fetch-site-logos.mjs` (revisar a ojo; si es blanco, sumarlo a `LOGOS_SOBRE_OSCURO`). `npm test` falla mientras falte alguno de los dos
 - [ ] Primer run: revisar log `[SITIO] NOMBRE → X productos` con fotos
 - [ ] Promos: la plataforma ya tiene fuente de sitio; si la home no publica pagos, `[promos] lectura de … fallida` es esperable y no es un error del alta (ver § Promos de pago)
 - [ ] Si fotos = 0/X: revisar extractor de imágenes
