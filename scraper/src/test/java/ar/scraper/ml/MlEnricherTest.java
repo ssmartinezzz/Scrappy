@@ -676,4 +676,18 @@ class MlEnricherTest {
         assertThat(result).hasSize(1);
         assertThat(result.get(0).visual()).isEqualTo(visual);
     }
+
+    @Test
+    @DisplayName("the products sent to the pipeline carry sub_categoria, which keys Celular's price distribution")
+    void serializedProductsCarrySubCategoria() throws Exception {
+        Product telefono = Product.builder().sitio("Samsung").nombre("Galaxy A57 5G").precio(1199999.0)
+                .url("https://shop.samsung.com.ar/galaxy-a57-5g/p").categoria("Celular").subCategoria("Smartphone")
+                .build();
+        Product sinSub = telefono.toBuilder().url("https://x/2").subCategoria(null).build();
+
+        JsonNode filas = MAPPER.readTree(new MlEnricher().serializarProductos(List.of(telefono, sinSub)));
+
+        assertThat(filas.get(0).path("subCategoria").asText()).isEqualTo("Smartphone");
+        assertThat(filas.get(1).path("subCategoria").asText()).isEmpty();
+    }
 }

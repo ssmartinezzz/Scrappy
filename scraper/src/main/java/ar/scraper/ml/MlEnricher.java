@@ -121,6 +121,7 @@ public class MlEnricher {
                 n.put("precioOriginal", p.precioOriginal());
                 n.put("categoria",      p.categoria()      != null ? p.categoria()      : "");
                 n.put("genero",         p.genero()         != null ? p.genero()         : "");
+                n.put("subCategoria",   p.subCategoria()   != null ? p.subCategoria()   : "");
                 n.put("sitio",          p.sitio());
                 n.put("marca",          p.marca()          != null ? p.marca()          : "");
                 n.put("img",            p.imagenUrl()      != null ? p.imagenUrl()      : "");

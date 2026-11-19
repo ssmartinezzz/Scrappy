@@ -362,6 +362,20 @@ z-score modificado + 25% distancia a mediana/IQR → `price_segment`
 (budget/standard/premium/luxury). **Todo el scoring usa precio unitario**
 (`precio/cantidadUnidades`); display, descuento e historial usan precio de góndola.
 
+**Sub-categoría en la clave de precios.** Un producto con `sub_categoria` se puntúa contra su
+(categoría, sub) cuando ese grupo tiene al menos `MIN_GROUP` (10) filas; si no, contra la categoría
+(con su cadena de padres). Todo producto sigue aportando a la distribución de su categoría, así que
+quien no tiene sub conserva exactamente su puntaje. Mezclar subs miente: Cooler líquida (mediana
+$222k) y pasta ($16,8k), CPU am5 ($637k) y am4 ($276k). Las etiquetas de deporte de
+`SubcategoryResolver` (tier 2: `running`, `hockey`, `tenis`...) se ponen por coincidencia de nombre
+sobre cualquier categoría, no son un tipo de producto, y **no** parten la distribución, salvo en
+`CATEGORIAS_DONDE_EL_DEPORTE_ES_TIPO` (Pelota, Paleta, Zapatilla, Botas, Botines, Repuesto de
+Bicicleta). Java manda `subCategoria` en `MlEnricher.serializarProductos`. Medido sobre las 82.653
+filas activas (2026-11-19): 0 filas sin sub cambian, 9.729 filas con sub sí (tecnología 57 %, el resto
+< 9 % salvo libros 24 % y deporte 16 %). `categoria_stats` sigue siendo por categoría (display).
+Nota: `MlEnricher` no manda `rubro` ni `cantidadUnidades`, así que la rama `tech|` y el precio
+unitario por pack no corren en producción; no se tocó.
+
 **Badges (multi-badge, no exclusivo):** condiciones independientes, no una cadena
 `elif`. Prioridad (el principal es el primero del set): `all_time_low` >
 `below_market` > `verified_deal` > `trending` > `price_dropping` > `above_market`
