@@ -137,4 +137,5 @@ def test_quien_no_tiene_sub_conserva_el_puntaje_de_siempre(tmp_path, monkeypatch
     todos = ml_pipeline.PriceStats([f['precio'] for f in filas])
     for f in filas[24:]:
         assert scores[f['url']]['pctil'] == todos.percentile_rank(f['precio'])
-    assert scores['http://c/0']['pctil'] < 10 and scores['http://c/100']['pctil'] < 10
+    assert scores['http://c/0']['pctil'] < 10
+    assert scores['http://c/100']['pctil'] < 10
