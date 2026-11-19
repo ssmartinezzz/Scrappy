@@ -46,6 +46,16 @@ class ServicioPorNombreDeCategoriaExclusionesTest {
     }
 
     @Test
+    @DisplayName("Samsung Care (warranties and plans, 169 rows) and its voucher and membership nodes are excluded on Samsung only")
+    void samsungCareIsExcludedOnlyOnSamsung() {
+        for (String nodo : List.of("Samsung Care", "Membership", "Members", "Evouchers", "Hidden", "Teste")) {
+            assertThat(ServicioPorNombreDeCategoria.para("Samsung").esServicio(nodo)).as(nodo).isTrue();
+            assertThat(ServicioPorNombreDeCategoria.para("Easy").esServicio(nodo)).as(nodo + " on Easy").isFalse();
+        }
+        assertThat(ServicioPorNombreDeCategoria.para("Samsung").esServicio("Microondas")).isFalse();
+    }
+
+    @Test
     @DisplayName("on El Mundo del Juguete only the exact Bolsas node goes; longer names do not")
     void bolsasIsAnExactMatch() {
         var criterio = ServicioPorNombreDeCategoria.para("Elmundodeljuguete");

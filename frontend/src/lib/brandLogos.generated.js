@@ -75,6 +75,7 @@ export const LOGO_FILES_BY_NAME = {
   "reebok": "reebok.svg",
   "rockethard": "rockethard.png",
   "salomon": "salomon.svg",
+  "samsung": "samsung.ico",
   "saucony": "saucony.png",
   "sporting": "sporting.svg",
   "sportline": "sportline.webp",

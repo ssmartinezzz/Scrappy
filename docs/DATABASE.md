@@ -184,6 +184,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V104` | Seed de Arredo (VTEX, ropa de cama y deco, `rubro_por_defecto = 'hogar'`) y sus 36 hojas curadas en `sitio_categoria.categoria`; la regla `SITIOS_SOLO_HOGAR` de `NormalizerService` descarta nombres que no son de hogar |
 | `V105` | Seed de Sportline (VTEX, retail deportivo multimarca) y 90 hojas de accesorios curadas en `sitio_categoria.categoria` |
 | `V106` | Categoría `Celular` (rubro tecnología): teléfonos y accesorios atados a un teléfono, con `sub_categoria` Smartphone, Funda, Protector, Cargador, Cable, Soporte y Repuesto |
+| `V107` | Seed de Samsung (VTEX, tienda oficial `monomarca`, `rubro_por_defecto = 'tecnologia'`), su fila en `marca` y 87 hojas curadas; la hoja gana sobre el nombre |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -5420,4 +5421,37 @@ DELETE FROM categoria WHERE nombre = 'Celular';
 ```
 
 **El orden es obligatorio** (FK de `productos`, `sitio_categoria` y `categoria_stats` hacia `categoria`). Los productos vuelven a `Otros` y el próximo
-scrape los reclasifica. Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V105`.
+scrape los reclasifica. Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V107` y antes que el de `V105`.
+
+---
+
+## `V107` — seed de Samsung y su mapeo de hojas
+
+Tienda oficial de Samsung Argentina (VTEX, `shop.samsung.com.ar`): 759 productos en el header, 453 en un scrape real tras excluir `Samsung Care` (169 filas
+de garantías y planes, `ServicioPorNombreDeCategoria`). Es `monomarca` (`NormalizerService` asigna `marca = sitio.nombre`), así que la migración inserta
+`'Samsung'` en `marca` (no existía y no está en `BrandExtractor.MARCAS`; sin la fila `fk_productos_marca` rechaza todo el sitio, ver `V52`). Mixto, con
+`rubro_forzado` en `NULL` y `rubro_por_defecto = 'tecnologia'`: los electrodomésticos salen `hogar` por categoría. Las 87 hojas (CTE de lookup, sin categorías
+nuevas) van de teléfonos y accesorios a `Celular`, `Tablet`, `Reloj`, `Auricular`, `Notebook`, `Monitor`, `Mouse`, `TV y Audio`, `Heladera`, `Lavarropas`,
+`Cocina y Horno`, `Campana y Extractor`, `Aspiradora` y `Aire Acondicionado`; los repuestos de electrodomésticos y los accesorios de tablet y TV, sin
+categoría canónica, van a `Otros` explícito (hojas 137, 150, 166, 184, 186, 193, 258-264 y 274-279). Queda sin mapear la 215 (SmartThings: sensores, hubs y
+lámparas Philips Hue en un solo nodo; decide el nombre). Para este sitio **la hoja gana sobre el nombre**, salvo que el nombre diga `Tablet`, `Notebook`,
+`Reloj`, `Auricular`, `Monitor`, `TV y Audio`, `PC`, `Mini PC`, `Consola` o `Cámara`: así un TV `Mini LED` no es un `Bolso` ni un cajón de heladera una
+`Organización`. `Servicios DA` no se excluye: es un tag sobre electrodomésticos reales.
+
+Medido (filas activas, mismo scrape): `categoria != Otros` 33,0 % (702 filas, clasificador previo) → 43,3 % (con `Celular` y `V106`) → 91,4 % (453 filas, hoja
+curada y sin `Samsung Care`); 38 filas en `indumentaria` y 16 en `suplementos` → 0. Muestra de 8 filas por categoría revisada a mano (Celular 179, TV y Audio
+73, Reloj 40, Monitor 33, Heladera 24, Lavarropas 18, Tablet 15).
+
+### Rollback
+
+```sql
+-- >>> rollback:V107
+DELETE FROM sitio s WHERE s.sitio_key = 'samsung'
+  AND NOT EXISTS (SELECT 1 FROM productos p WHERE p.sitio_key = s.sitio_key);
+DELETE FROM marca m WHERE m.nombre = 'Samsung'
+  AND NOT EXISTS (SELECT 1 FROM productos p WHERE p.marca = m.nombre);
+-- <<< rollback:V107
+```
+
+`sitio_categoria` cae en cascada con el sitio. Con productos ya scrapeados no borra nada. Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO,
+antes que el de `V106`.

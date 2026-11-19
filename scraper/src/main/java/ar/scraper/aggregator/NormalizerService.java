@@ -47,6 +47,9 @@ public class NormalizerService {
     // a Galaxy Tab on a phone series leaf is a Tablet, a watch a Reloj.
     private static final Set<String> OTROS_EQUIPOS_QUE_NO_CEDEN = Set.of(
             "Tablet", "Notebook", "Reloj", "Auricular", "Monitor", "TV y Audio", "PC", "Mini PC", "Consola", "Cámara");
+    // Stores whose tree is curated end to end: the leaf outranks the name (a fridge drawer is not an office organizer,
+    // a Mini LED TV is not a bag), except where the name says another device.
+    private static final Set<String> SITIOS_DONDE_LA_HOJA_GANA = Set.of("samsung");
     // Sites whose whole catalogue is one gender, whatever the name says. A toy store sells to kids: its
     // backpacks, shoes and dolls' dresses are not adult picks. Equus is a men's-only shop. Ayrun is women's
     // gymwear whose names carry no gender word ("Musculosa Seamless Animal").
@@ -110,9 +113,10 @@ public class NormalizerService {
         return CategoryGroups.esCategoriaHogar(categoriaDelArbol) ? categoriaDelArbol : "Otros";
     }
 
-    private static String celularDelArbol(String categoriaDelArbol, String categoria) {
-        return "Celular".equals(categoriaDelArbol) && !OTROS_EQUIPOS_QUE_NO_CEDEN.contains(categoria)
-                ? "Celular" : categoria;
+    private static String celularDelArbol(String sitioKey, String categoriaDelArbol, String categoria) {
+        boolean hojaGana = "Celular".equals(categoriaDelArbol) || SITIOS_DONDE_LA_HOJA_GANA.contains(sitioKey);
+        return hojaGana && StringUtils.isNotBlank(categoriaDelArbol) && !OTROS_EQUIPOS_QUE_NO_CEDEN.contains(categoria)
+                ? categoriaDelArbol : categoria;
     }
 
     private static boolean esOtrosEnSuSitio(String sitioKey, String nombre) {
@@ -138,7 +142,7 @@ public class NormalizerService {
         String nombre = StringUtils.defaultString(p.nombre());
         String sitioKey       = sitioKey(p.sitio());
         String delArbol       = categoriaDelArbol(p, categoriasDelArbol);
-        String cat            = celularDelArbol(delArbol, hojaJugueteGana(sitioKey, delArbol)
+        String cat            = celularDelArbol(sitioKey, delArbol, hojaJugueteGana(sitioKey, delArbol)
                 ? CategoryClassifier.separarLego(delArbol, nombre)
                 : esOtrosEnSuSitio(sitioKey, nombre)
                         ? "Otros"

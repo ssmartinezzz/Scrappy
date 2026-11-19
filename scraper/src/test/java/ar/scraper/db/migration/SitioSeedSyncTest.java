@@ -61,8 +61,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 @Epic("Persistence")
 @Feature("Site registry")
-@Story("V18 ∪ V24 ∪ V27 ∪ V28 ∪ V30 ∪ V43 ∪ V44 ∪ V45 ∪ V54 ∪ V61 ∪ V62 ∪ V74 ∪ V75 ∪ V77 ∪ V86 ∪ V87 ∪ V91 ∪ V95 ∪ V98 ∪ V104 ∪ V105 seed covers every config.properties site")
-@DisplayName("sitio seed sync (V18 ∪ V24 ∪ V27 ∪ V28 ∪ V30 ∪ V43 ∪ V44 ∪ V45 ∪ V54 ∪ V61 ∪ V62 ∪ V74 ∪ V75 ∪ V77 ∪ V86 ∪ V87 ∪ V91 ∪ V95 ∪ V98 ∪ V104 ∪ V105, no DB)")
+@Story("V18 ∪ V24 ∪ V27 ∪ V28 ∪ V30 ∪ V43 ∪ V44 ∪ V45 ∪ V54 ∪ V61 ∪ V62 ∪ V74 ∪ V75 ∪ V77 ∪ V86 ∪ V87 ∪ V91 ∪ V95 ∪ V98 ∪ V104 ∪ V105 ∪ V107 seed covers every config.properties site")
+@DisplayName("sitio seed sync (V18 ∪ V24 ∪ V27 ∪ V28 ∪ V30 ∪ V43 ∪ V44 ∪ V45 ∪ V54 ∪ V61 ∪ V62 ∪ V74 ∪ V75 ∪ V77 ∪ V86 ∪ V87 ∪ V91 ∪ V95 ∪ V98 ∪ V104 ∪ V105 ∪ V107, no DB)")
 class SitioSeedSyncTest {
 
     private static final String V18 = "/db/migration/V18__sitio_lookup_table.sql";
@@ -85,6 +85,7 @@ class SitioSeedSyncTest {
     private static final String V95 = "/db/migration/V95__seed_underarmour_nike.sql";
     private static final String V104 = "/db/migration/V104__seed_arredo.sql";
     private static final String V105 = "/db/migration/V105__seed_sportline.sql";
+    private static final String V107 = "/db/migration/V107__seed_samsung.sql";
     private static final String V98 = "/db/migration/V98__seed_ayrun.sql";
 
     private record SeedRow(String nombre, String sitioKey, String plataforma,
@@ -177,7 +178,7 @@ class SitioSeedSyncTest {
      */
     private static List<SeedRow> seedRows() {
         List<SeedRow> rows = new ArrayList<>();
-        for (String migration : List.of(V18, V24, V27, V28, V30, V43, V44, V45, V54, V61, V62, V74, V75, V77, V86, V87, V91, V95, V98, V104, V105)) {
+        for (String migration : List.of(V18, V24, V27, V28, V30, V43, V44, V45, V54, V61, V62, V74, V75, V77, V86, V87, V91, V95, V98, V104, V105, V107)) {
             rows.addAll(seedRowsFrom(migration));
         }
         assertThat(rows).as("at least one seed row parsed across V18 ∪ V24 ∪ V27 ∪ V28").isNotEmpty();
