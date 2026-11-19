@@ -6,6 +6,7 @@ import ar.scraper.notificaciones.Enmascarar;
 import ar.scraper.security.VentanaDeslizante;
 import ar.scraper.db.UsuarioRepository;
 import ar.scraper.api.ApiException;
+import ar.scraper.notificaciones.ConfiguracionSmtp;
 import ar.scraper.notificaciones.DiagnosticoSmtp;
 import ar.scraper.notificaciones.EstadoSmtp;
 import ar.scraper.security.ActorResolver;
@@ -16,6 +17,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -33,17 +35,36 @@ public class CorreoPruebaController {
     private static final Duration VENTANA = Duration.ofHours(1);
     private static final int ENVIOS_POR_HORA = 5;
 
+    /** What the SMTP panel shows. No password, no username value, and the sender is masked like every address we answer with. */
+    public record ConfiguracionVista(boolean configurado, String host, int puerto, String remitente,
+                                     boolean starttls, boolean usuarioConfigurado, String problema) {}
+
     private final DiagnosticoSmtp diagnostico;
+    private final ConfiguracionSmtp configuracion;
     private final UsuarioRepository usuarios;
     private final ActorResolver actorResolver;
     private final VentanaDeslizante envios;
 
-    public CorreoPruebaController(DiagnosticoSmtp diagnostico, UsuarioRepository usuarios,
-                                  ActorResolver actorResolver, Clock reloj) {
+    public CorreoPruebaController(DiagnosticoSmtp diagnostico, ConfiguracionSmtp configuracion,
+                                  UsuarioRepository usuarios, ActorResolver actorResolver, Clock reloj) {
         this.diagnostico = diagnostico;
+        this.configuracion = configuracion;
         this.usuarios = usuarios;
         this.actorResolver = actorResolver;
         this.envios = new VentanaDeslizante(reloj, VENTANA);
+    }
+
+    @GetMapping("/smtp")
+    public ResponseEntity<ApiResponse<ConfiguracionVista>> configuracion() {
+        boolean hayHost = StringUtils.isNotBlank(configuracion.host());
+        return ResponseEntity.ok(ApiResponse.ok(new ConfiguracionVista(
+                hayHost,
+                StringUtils.trimToNull(configuracion.host()),
+                configuracion.port(),
+                StringUtils.isBlank(configuracion.from()) ? null : Enmascarar.direccion(configuracion.from()),
+                configuracion.starttlsObligatorio(),
+                StringUtils.isNotBlank(configuracion.username()),
+                hayHost ? configuracion.problema().orElse(null) : null)));
     }
 
     @PostMapping("/correo-prueba")

@@ -785,6 +785,12 @@ export function cambiarEmailUsuario(username, email) {
   });
 }
 
+/** → `{ configurado, host, puerto, remitente, starttls, usuarioConfigurado, problema }` (never a secret), or null. */
+export async function fetchEstadoSmtp() {
+  const r = await authedFetch(`${BASE}/api/notificaciones/smtp`);
+  return softUnwrap(r);
+}
+
 /** `{ ok, status, body: { mensaje } }` in both outcomes: a failed SMTP carries the reason and the fix. */
 export async function enviarCorreoDePrueba(destino) {
   const r = await authedFetch(`${BASE}/api/notificaciones/correo-prueba`, {
@@ -794,9 +800,9 @@ export async function enviarCorreoDePrueba(destino) {
   });
   try {
     const data = await unwrap(r);
-    return { ok: true, status: r.status, body: { mensaje: data?.mensaje } };
+    return { ok: true, status: r.status, body: { mensaje: data?.mensaje, pista: data?.pista } };
   } catch (e) {
     if (!(e instanceof ApiError)) throw e;
-    return { ok: false, status: r.status, body: { error: e.code, mensaje: e.message } };
+    return { ok: false, status: r.status, body: { error: e.code, mensaje: e.message, pista: e.details?.pista } };
   }
 }

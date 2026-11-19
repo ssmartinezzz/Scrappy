@@ -4,6 +4,7 @@ import {
   cambiarEmailUsuario,
   deleteSavedPc,
   enviarCorreoDePrueba,
+  fetchEstadoSmtp,
   fetchData,
   fetchIndices,
   fetchMejores,
@@ -409,6 +410,21 @@ describe('Test mail', () => {
     await expect(enviarCorreoDePrueba()).resolves.toEqual({
       ok: false, status: 502, body: { error: 'smtp_fallo', mensaje: 'No se pudo conectar. Revisá el puerto.' },
     });
+  });
+});
+
+describe('SMTP status', () => {
+  it('fetchEstadoSmtp GETs the read-only settings and unwraps them', async () => {
+    global.fetch = vi.fn().mockResolvedValue(envelope({ configurado: true, host: 'smtp.example.com', puerto: 587 }));
+
+    await expect(fetchEstadoSmtp()).resolves.toMatchObject({ configurado: true, host: 'smtp.example.com' });
+    expect(calledUrl().pathname).toBe('/api/notificaciones/smtp');
+  });
+
+  it('fetchEstadoSmtp gives null when the backend refuses', async () => {
+    global.fetch = vi.fn().mockResolvedValue(errorResponse(403, 'prohibido', 'No.'));
+
+    await expect(fetchEstadoSmtp()).resolves.toBeNull();
   });
 });
 

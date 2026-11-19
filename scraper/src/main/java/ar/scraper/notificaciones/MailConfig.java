@@ -10,6 +10,16 @@ import org.springframework.context.annotation.Configuration;
 public class MailConfig {
 
     @Bean
+    ConfiguracionSmtp configuracionSmtp(@Value("${smtp.host:}") String host,
+                                        @Value("${smtp.port:587}") int port,
+                                        @Value("${smtp.username:}") String username,
+                                        @Value("${smtp.password:}") String password,
+                                        @Value("${smtp.from-address:}") String from,
+                                        @Value("${smtp.starttls-required:true}") boolean starttlsObligatorio) {
+        return new ConfiguracionSmtp(host, port, username, password, from, starttlsObligatorio);
+    }
+
+    @Bean
     MailPort mailPort(@Value("${smtp.host:}") String host,
                       @Value("${smtp.port:587}") int port,
                       @Value("${smtp.username:}") String username,
