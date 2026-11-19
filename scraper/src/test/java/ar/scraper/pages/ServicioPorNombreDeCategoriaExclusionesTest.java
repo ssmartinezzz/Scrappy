@@ -64,6 +64,16 @@ class ServicioPorNombreDeCategoriaExclusionesTest {
     }
 
     @Test
+    @DisplayName("the Garantias nodes are excluded on Cetrogar only")
+    void garantiasIsExcludedOnlyOnCetrogar() {
+        for (String nodo : List.of("Garantias", "Garantia Extendida", "Compra Protegida")) {
+            assertThat(ServicioPorNombreDeCategoria.para("Cetrogar").esServicio(nodo)).as(nodo).isTrue();
+            assertThat(ServicioPorNombreDeCategoria.para("Easy").esServicio(nodo)).as(nodo + " on Easy").isFalse();
+        }
+        assertThat(ServicioPorNombreDeCategoria.para("Cetrogar").esServicio("Lavarropas")).isFalse();
+    }
+
+    @Test
     @DisplayName("on El Mundo del Juguete only the exact Bolsas node goes; longer names do not")
     void bolsasIsAnExactMatch() {
         var criterio = ServicioPorNombreDeCategoria.para("Elmundodeljuguete");

@@ -14,6 +14,7 @@ export const LOGO_FILES_BY_NAME = {
   "bullbenny": "bullbenny.png",
   "burtonargentina": "burtonargentina.webp",
   "cellucor": "cellucor.png",
+  "cetrogar": "cetrogar.ico",
   "champion": "champion.png",
   "city": "city.webp",
   "columbia": "columbia.png",

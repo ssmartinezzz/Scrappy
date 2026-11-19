@@ -187,6 +187,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V107` | Seed de Samsung (VTEX, tienda oficial `monomarca`, `rubro_por_defecto = 'tecnologia'`), su fila en `marca` y 87 hojas curadas; la hoja gana sobre el nombre |
 | `V108` | Seed de Prestigio (VTEX, ferretería y hogar mixto, `rubro_por_defecto = 'construccion'`) y 97 hojas curadas; el nodo `Colores` (muestras de pintura) se excluye |
 | `V109` | Seed de Naldo (VTEX, tienda por departamentos, `rubro_por_defecto = 'hogar'`) y 133 hojas curadas; la hoja gana sobre el nombre |
+| `V110` | Seed de Cetrogar (VTEX, electro y muebles, `rubro_por_defecto = 'tecnologia'`) y 125 hojas curadas; el nodo `Garantias` se excluye |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -5503,5 +5504,28 @@ DELETE FROM sitio s WHERE s.sitio_key = 'naldo'
 -- <<< rollback:V109
 ```
 
+`sitio_categoria` cae en cascada con el sitio; con productos ya scrapeados no borra nada. Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V110` y antes que el de `V108`.
+
+---
+
+## `V110` — seed de Cetrogar y su mapeo de hojas
+
+Cetrogar (`www.cetrogar.com.ar`, VTEX): 6270 productos en el header, **6029** en un scrape real (158 s; el nodo `Garantias` se excluye, tiene un producto de prueba a $1000).
+`rubro_forzado` en `NULL` y `rubro_por_defecto = 'tecnologia'` (los electrodomésticos y muebles salen `hogar` por categoría: 4314 filas contra 1368 de tecnología).
+125 hojas curadas (CTE de lookup, sin categorías nuevas): cada hoja toma la categoría que domina sus filas (>= 60 %) salvo las curadas a mano (celulares y accesorios,
+textiles Arredo, cuidado personal, hornitos, accesorios de TV); la hoja gana sobre el nombre (`NormalizerService.SITIOS_DONDE_LA_HOJA_GANA`). Quedan sin mapear
+`Accesorios para PC`, los accesorios gamer, `Indumentaria`, `Cascos` e `Internet Satelital`.
+
+Medido (filas activas, mismo scrape): `categoria != Otros` 89,2 % (654 `Otros`, clasificador previo) → 97,1 % (177); `indumentaria` 122 → 61. Muestra de 32 filas revisada a mano.
+
+### Rollback
+
+```sql
+-- >>> rollback:V110
+DELETE FROM sitio s WHERE s.sitio_key = 'cetrogar'
+  AND NOT EXISTS (SELECT 1 FROM productos p WHERE p.sitio_key = s.sitio_key);
+-- <<< rollback:V110
+```
+
 `sitio_categoria` cae en cascada con el sitio; con productos ya scrapeados no borra nada. Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO,
-antes que el de `V108`.
+antes que el de `V109`.

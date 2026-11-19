@@ -103,3 +103,4 @@ result by eye and add white marks to `LOGOS_SOBRE_OSCURO`. Stores behind a WAF (
 | Samsung | `samsung.ico` | https://cdn.samsung.com/etc/designs/smg/global/imgs/favicon.ico | store site |
 | Prestigio | `prestigio.svg` | https://prestigio.vtexassets.com/arquivos/logo-blanco-prestigio.svg | store site |
 | Naldo | `naldo.svg` | https://naldoar.vtexassets.com/assets/vtex/assets-builder/naldoar.store/6.0.67/logos/sucursales___8f26d6b1a35b03c21c8b67bffd499376.svg | store site |
+| Cetrogar | `cetrogar.ico` | https://www.cetrogar.com.ar/favicon.ico | store site |
