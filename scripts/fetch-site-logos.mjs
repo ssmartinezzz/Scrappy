@@ -66,6 +66,18 @@ async function cargarLado() {
 
 const ES_NOMBRE = /[\w:-]/;
 
+/** End index (exclusive) of the value that starts at `i`, and where its text begins. */
+function finDelValor(etiqueta, i) {
+  const comilla = etiqueta[i];
+  if (comilla === '"' || comilla === "'") {
+    const fin = etiqueta.indexOf(comilla, i + 1);
+    return { desde: i + 1, fin: fin === -1 ? etiqueta.length : fin };
+  }
+  let fin = i;
+  while (fin < etiqueta.length && !/[\s>]/.test(etiqueta[fin])) fin++;
+  return { desde: i, fin };
+}
+
 /** Reads `name=value` pairs left to right in one pass; a regex here backtracks on long tags. */
 function atributos(etiqueta) {
   const attrs = {};
@@ -74,17 +86,8 @@ function atributos(etiqueta) {
     const inicio = i;
     while (i < etiqueta.length && ES_NOMBRE.test(etiqueta[i])) i++;
     if (i === inicio || etiqueta[i] !== '=') { i = Math.max(i, inicio + 1); continue; }
-    const nombre = etiqueta.slice(inicio, i).toLowerCase();
-    const comilla = etiqueta[++i];
-    let fin;
-    if (comilla === '"' || comilla === "'") {
-      fin = etiqueta.indexOf(comilla, ++i);
-      if (fin === -1) fin = etiqueta.length;
-    } else {
-      fin = i;
-      while (fin < etiqueta.length && !/[\s>]/.test(etiqueta[fin])) fin++;
-    }
-    attrs[nombre] = etiqueta.slice(i, fin).replaceAll('&amp;', '&');
+    const { desde, fin } = finDelValor(etiqueta, i + 1);
+    attrs[etiqueta.slice(inicio, i).toLowerCase()] = etiqueta.slice(desde, fin).replaceAll('&amp;', '&');
     i = fin + 1;
   }
   return attrs;
