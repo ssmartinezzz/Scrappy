@@ -557,3 +557,20 @@ tokens **alfabéticos**: el tokenizer descarta dígitos, así que un vocabulario
 regresión.
 
 ---
+
+## Fugas del clasificador por nombre: Kit, Knit, Lamp, Cookie, Set y litros
+
+Seis reglas del clasificador compartido leían una palabra de modelo o de tela como otro producto (medido sobre Sportline y la base de dev):
+
+- **El primer sustantivo manda.** Con una prenda, calzado o bolso al frente (`KW_ROPA_O_CALZADO_LIDER`), `Kit`, `Lamp`, `Cookie`, `Maple`, `Pack` y `Set`
+  son parte del nombre (`Pantalón adidas Kit`, `Remera Snauwaert Lamp`, `Zapatillas Timberland Maple Grove`, `Medias Topper Pack X 3`): ni `Conjunto`,
+  ni `Iluminación`, ni `Alimentos`. Con un pantalón o short al frente (`KW_PIERNAS_LIDER`) las palabras de torso (`fleece`) no lo vuelven buzo.
+- **`knit` ya no es `Sweater`** (`Remera Heavy Knit`, `Zapatillas Puma Knit`); `tejido` y `lana` siguen.
+- **`Set`, `Kit`, `Combo` y `Pack` sólo hacen `Conjunto` si hay una prenda** (`KW_CONJUNTO_DEBIL` + torso, piernas o ropa suelta); `conjunto`, `total look` y
+  `dos piezas` siempre (`KW_CONJUNTO_FUERTE`). Un `Set Lijas` o un `Set X 2 Velas` se abstiene y decide la hoja curada.
+- **Un peso o volumen al final dice "alimento" sólo si nada más describe la fila** (`raw` vacío): `Fondo Galvite 0,5 L` bajo `Pinturas` es pintura.
+
+Medido sobre las 82.654 filas activas de la base de dev (clasificador viejo contra nuevo, mismas entradas, sin `raw`): **1.850 filas cambian** (2,2 %): 1.759
+salen de `Conjunto` (477 a `Otros`, 369 a `Juguete`, el resto a su categoría: `Accesorio de Herramienta`, `Medias`, `Pantalón`, `Remera`, `Decoración`...),
+86 de `Sweater` y 5 de `Alimentos`; `Conjunto` baja de 2.122 a 363. Ninguna fila entra a `Conjunto`. El clasificador tarda ~45 ms más sobre las 82.654
+filas (≈0,5 µs por fila, ~9 %). Quedan mal, y ya lo estaban: `Set De Tenis` (zapatilla) y `Metal Machines ... Pack` (zapatilla running).

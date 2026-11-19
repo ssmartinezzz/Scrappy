@@ -52,7 +52,9 @@ class GarmentTaxonomyFlatDerivationGuardTest {
         {"campera","jacket","chaqueta","cortaviento","rompeviento",
          "windbreaker","anorak","softshell","shell",
          " bomber ","track jacket","tricota"},
-        {"sweater","pulover","pullover","jersey","knit","tejido",
+        // shared-classifier-leaks — "knit" left KW_SWEATER on purpose: it is a model or fabric word in sport names
+        // ("Remera Heavy Knit", "Zapatillas Puma Knit"), not a sweater.
+        {"sweater","pulover","pullover","jersey","tejido",
          "tricot","cardigan"," lana","merino","crochet"},
         {" buzo "," buzos ","hoodie","hoody","sweatshirt","sudadera",
          "fleece","polar","zip hoodie","full zip","half zip","canguro"},

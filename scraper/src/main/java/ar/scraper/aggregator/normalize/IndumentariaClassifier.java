@@ -19,26 +19,29 @@ final class IndumentariaClassifier implements FamiliaClassifier {
         if (texto.contiene(GarmentTaxonomy.KW_CORPINO))     return "Corpino";
         if (esMalla(texto)) return "Malla";
 
-        if (texto.contiene(GarmentTaxonomy.KW_PUFFER))   return "Puffer";
-        if (texto.contiene(GarmentTaxonomy.KW_PILOTO) && !texto.contiene(GarmentTaxonomy.KW_PILOTO_VETO)) return "Piloto";
-        if (texto.contiene(GarmentTaxonomy.KW_TRAJE) && !texto.contiene(GarmentTaxonomy.KW_TRAJE_VETO)) return "Traje";
-        if (texto.contiene(GarmentTaxonomy.KW_CAMISACO)) return "Camisaco";
-        if ((texto.contiene(GarmentTaxonomy.KW_SACO)
-                || texto.sinPrefijoDeVentaEmpiezaCon(GarmentTaxonomy.KW_SACO_BLAZER_LIDER))
-                && !texto.contiene(GarmentTaxonomy.KW_SACO_VETO)) return "Saco";
-        if (texto.contiene(GarmentTaxonomy.KW_CHALECO))  return "Chaleco";
-        if (texto.contiene(GarmentTaxonomy.KW_CAMPERA))  return "Campera";
-        if (texto.contiene(GarmentTaxonomy.KW_SWEATER) && !texto.contiene(GarmentTaxonomy.KW_SWEATER_VETO)) return "Sweater";
-        if (texto.contiene(GarmentTaxonomy.KW_BUZO) && !texto.contiene(GarmentTaxonomy.KW_BUZO_VETO)) return "Buzo";
-        if (texto.contiene(GarmentTaxonomy.KW_CASACA))   return "Casaca";
-        if (texto.contiene(GarmentTaxonomy.KW_CHOMBA)
-                || (texto.contiene(GarmentTaxonomy.KW_CHOMBA_MARCA) && esContextoChomba(texto)))
-            return "Chomba";
-        String top = clasificarTop(texto);
-        if (!top.isEmpty()) return top;
-        if (texto.contiene(GarmentTaxonomy.KW_MUSCULOSA)) return "Musculosa";
-        if (texto.contiene(GarmentTaxonomy.KW_CAMISA) && !texto.contiene(GarmentTaxonomy.KW_CAMISA_VETO)) return "Camisa";
-        if (texto.contiene(GarmentTaxonomy.KW_REMERA) && !texto.contiene(GarmentTaxonomy.KW_REMERA_VETO)) return "Remera";
+        // A leading lower-body noun wins over a torso word that is only fabric or model ("Pantalón Rival Fleece").
+        if (!texto.empiezaCon(GarmentTaxonomy.KW_PIERNAS_LIDER)) {
+            if (texto.contiene(GarmentTaxonomy.KW_PUFFER))   return "Puffer";
+            if (texto.contiene(GarmentTaxonomy.KW_PILOTO) && !texto.contiene(GarmentTaxonomy.KW_PILOTO_VETO)) return "Piloto";
+            if (texto.contiene(GarmentTaxonomy.KW_TRAJE) && !texto.contiene(GarmentTaxonomy.KW_TRAJE_VETO)) return "Traje";
+            if (texto.contiene(GarmentTaxonomy.KW_CAMISACO)) return "Camisaco";
+            if ((texto.contiene(GarmentTaxonomy.KW_SACO)
+                    || texto.sinPrefijoDeVentaEmpiezaCon(GarmentTaxonomy.KW_SACO_BLAZER_LIDER))
+                    && !texto.contiene(GarmentTaxonomy.KW_SACO_VETO)) return "Saco";
+            if (texto.contiene(GarmentTaxonomy.KW_CHALECO))  return "Chaleco";
+            if (texto.contiene(GarmentTaxonomy.KW_CAMPERA))  return "Campera";
+            if (texto.contiene(GarmentTaxonomy.KW_SWEATER) && !texto.contiene(GarmentTaxonomy.KW_SWEATER_VETO)) return "Sweater";
+            if (texto.contiene(GarmentTaxonomy.KW_BUZO) && !texto.contiene(GarmentTaxonomy.KW_BUZO_VETO)) return "Buzo";
+            if (texto.contiene(GarmentTaxonomy.KW_CASACA))   return "Casaca";
+            if (texto.contiene(GarmentTaxonomy.KW_CHOMBA)
+                    || (texto.contiene(GarmentTaxonomy.KW_CHOMBA_MARCA) && esContextoChomba(texto)))
+                return "Chomba";
+            String top = clasificarTop(texto);
+            if (!top.isEmpty()) return top;
+            if (texto.contiene(GarmentTaxonomy.KW_MUSCULOSA)) return "Musculosa";
+            if (texto.contiene(GarmentTaxonomy.KW_CAMISA) && !texto.contiene(GarmentTaxonomy.KW_CAMISA_VETO)) return "Camisa";
+            if (texto.contiene(GarmentTaxonomy.KW_REMERA) && !texto.contiene(GarmentTaxonomy.KW_REMERA_VETO)) return "Remera";
+        }
 
         if (texto.contiene(GarmentTaxonomy.KW_CALZA) || texto.contiene(GarmentTaxonomy.KW_CALZA_BIKER)) return "Calza";
         if (texto.contiene(GarmentTaxonomy.KW_BAGGY))    return "Baggy";

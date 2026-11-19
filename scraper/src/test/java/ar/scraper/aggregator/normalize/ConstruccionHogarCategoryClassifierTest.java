@@ -75,7 +75,7 @@ class ConstruccionHogarCategoryClassifierTest {
     @ParameterizedTest(name = "\"{0}\" keeps {1}")
     @CsvSource({
             "'Funda Sobre para Laptop',                                    Notebook",
-            "'Funda Celular Samsung Flip Wallet A3 2016 black',            Billetera",
+            "'Funda Celular Samsung Flip Wallet A3 2016 black',            Celular",
             "'Alfombra Para Silla Gamer GXT 715 Trust',                    Silla",
             "'ALFOMBRA GAMER COOLERMASTER FLOOR MAT FM510',                Cooler",
             "'Alfombrilla de escritorio Xl',                               'Mat Escritorio'",

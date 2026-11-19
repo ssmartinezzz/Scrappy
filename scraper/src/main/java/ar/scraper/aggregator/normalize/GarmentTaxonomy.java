@@ -152,7 +152,7 @@ public final class GarmentTaxonomy {
     };
 
     public static final String[] KW_SWEATER = {
-        "sweater","pulover","pullover","jersey","knit","tejido",
+        "sweater","pulover","pullover","jersey","tejido",
         "tricot","cardigan"," lana","merino","crochet"
     };
 
@@ -163,6 +163,18 @@ public final class GarmentTaxonomy {
 
     // Variantes con espacio/"de" en set/kit/pack evitan falsos positivos por substring ("settler",
     // "kitsch", "package").
+    /** El primer sustantivo es una prenda, calzado o bolso: lo que sigue ("Kit", "Lamp", "Cookie") es modelo o estampa, no otro producto. */
+    public static final String[] KW_ROPA_O_CALZADO_LIDER = {
+        " remera "," remeras "," zapatilla"," short "," shorts "," pantalon"," buzo "," buzos "," campera "," camperas "," musculosa "," musculosas ",
+        " camiseta "," camisetas "," calza "," calzas "," medias "," mochila "," mochilas "," bolso "," bolsos "," gorra "," gorras ",
+        " botines "," botin "," ojotas "," sandalias "," chomba "," chombas "," bermuda "," pollera "," vestido "," top "," camisa "," jogging "
+    };
+    public static final String[] KW_PIERNAS_LIDER = {
+        " pantalon"," short "," shorts "," bermuda"," jogging "," jean "," jeans "," calza "," calzas "," pollera "
+    };
+    /** Marcas fuertes de conjunto: el nombre lo dice. Las débiles (combo, set, kit, pack) sólo cuentan si hay una prenda. */
+    public static final String[] KW_CONJUNTO_FUERTE = { "conjunto","dos piezas","2 piezas","total look" };
+    public static final String[] KW_CONJUNTO_DEBIL = { "combo"," set ","set de"," kit "," pack " };
     public static final String[] KW_CONJUNTO = {
         // "set "/"kit "/"pack " sin espacio adelante se comían "Sun(set)", "Mind(set)",
         // "Wind(kit)", "Triple(kit)" y "Doy(pack)" — un doypack de creatina y una campera

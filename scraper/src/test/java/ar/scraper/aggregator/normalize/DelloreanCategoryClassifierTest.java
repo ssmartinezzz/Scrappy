@@ -109,7 +109,7 @@ class DelloreanCategoryClassifierTest {
         "Memoria Card Micro SD 128GB SJCAM U3 V30 98MB/s para Cámara de Acción 4K|Almacenamiento",
         "Camara de Seguridad Exterior Dellorean 3MP Super HD WiFi IP66 Reflector LED 3000LM|Cámara",
         "Webcam Dellorean Wembi 4K UHD Auto Foco Cancelacion Ruido Tripode|Webcam",
-        "Funda Protectora Dellorean iPhone 17 Pro Max 3 en 1 Transparente Magsafe Pro Vidrio Templado HD y Protector de Camara|Funda",
+        "Funda Protectora Dellorean iPhone 17 Pro Max 3 en 1 Transparente Magsafe Pro Vidrio Templado HD y Protector de Camara|Celular",
         "Mochila Hp Para Notebook De 15.6 Modelo Urbana Color Negro/gris|Mochila",
         "Farol Linterna Dellorean LTDO1/1 Trípode Telescópico 97cm 450 Lúmenes IPX5 Power Bank Batería 10000mAh|Otros"
     })

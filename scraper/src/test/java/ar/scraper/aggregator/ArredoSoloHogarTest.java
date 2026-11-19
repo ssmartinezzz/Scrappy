@@ -85,7 +85,7 @@ class ArredoSoloHogarTest {
                 new BrandExtractor(), new GenderResolver(), new SizeNormalizer(), new SubcategoryResolver(),
                 new RubroResolver(registry), new GymratTagger(), new SportResolver(), registry,
                 mock(SitioCategoriaPort.class));
-        Product p = Product.builder().sitio("Otro").nombre("Set x4 Individuales Fibra Natural Lisos").url("https://x/o").build();
-        assertThat(otro.normalizar(List.of(p)).get(0).categoria()).isEqualTo("Conjunto");
+        Product p = Product.builder().sitio("Otro").nombre("Portaplato Tejido Liso").url("https://x/o").build();
+        assertThat(otro.normalizar(List.of(p)).get(0).categoria()).isEqualTo("Sweater");
     }
 }

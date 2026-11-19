@@ -15,10 +15,21 @@ final class ConjuntoClassifier implements FamiliaClassifier {
         GarmentTaxonomy.KW_POLLERA, GarmentTaxonomy.KW_PANTALON
     };
 
+    private static final String[][] ROPA_SUELTA = {
+        GarmentTaxonomy.KW_MEDIAS, GarmentTaxonomy.KW_CALZONCILLO, GarmentTaxonomy.KW_BOMBACHA, GarmentTaxonomy.KW_CORPINO,
+        GarmentTaxonomy.KW_MALLA, GarmentTaxonomy.KW_GORRO, GarmentTaxonomy.KW_GORRA
+    };
+
     @Override
     public String clasificar(TextoClasificable texto) {
-        if (texto.contiene(GarmentTaxonomy.KW_CONJUNTO)) return "Conjunto";
+        if (texto.contiene(GarmentTaxonomy.KW_CONJUNTO_FUERTE)) return "Conjunto";
+        // A leading garment noun is one garment: "Pantalón Topper Pro Fleece", "Medias Topper Pack X 3" and
+        // "Short adidas Workout All Set" carry the other garment, the pack or the set as fabric or model name.
+        if (texto.empiezaCon(GarmentTaxonomy.KW_ROPA_O_CALZADO_LIDER)) return "";
         if (contieneAlguno(texto, TORSO) && contieneAlguno(texto, PIERNAS)) return "Conjunto";
+        // "Set x4 Individuales" or "Kit de Reparación" is a kit of something, not a garment set.
+        if (texto.contiene(GarmentTaxonomy.KW_CONJUNTO_DEBIL) && (contieneAlguno(texto, TORSO)
+                || contieneAlguno(texto, PIERNAS) || contieneAlguno(texto, ROPA_SUELTA))) return "Conjunto";
         return "";
     }
 

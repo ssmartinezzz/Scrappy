@@ -77,22 +77,22 @@ class ToyLeafWinsOverNameTest {
     @Test
     @DisplayName("a leaf mapped to a non-toy category does not beat the name")
     void nonToyLeafKeepsNameFirst() {
-        assertThat(normalizar("Elmundodeljuguete", "Set De Bloques 120 Piezas", HOJA_NO_JUGUETE).categoria())
-                .isEqualTo(nombreAmbiguo("Set De Bloques 120 Piezas"));
+        assertThat(normalizar("Elmundodeljuguete", "Bebote Realista con Vestido", HOJA_NO_JUGUETE).categoria())
+                .isEqualTo(nombreAmbiguo("Bebote Realista con Vestido"));
     }
 
     @Test
     @DisplayName("an unmapped leaf keeps the name classification")
     void unmappedLeafKeepsNameFirst() {
-        assertThat(normalizar("Elmundodeljuguete", "Set De Bloques 120 Piezas", HOJA_SIN_MAPEAR).categoria())
-                .isEqualTo(nombreAmbiguo("Set De Bloques 120 Piezas"));
+        assertThat(normalizar("Elmundodeljuguete", "Bebote Realista con Vestido", HOJA_SIN_MAPEAR).categoria())
+                .isEqualTo(nombreAmbiguo("Bebote Realista con Vestido"));
     }
 
     @Test
     @DisplayName("the same product on another VTEX site keeps the name classification")
     void otherSitesKeepNameFirst() {
-        assertThat(normalizar("Easy", "Set De Bloques 120 Piezas", HOJA_JUGUETE).categoria())
-                .isEqualTo(nombreAmbiguo("Set De Bloques 120 Piezas"));
+        assertThat(normalizar("Easy", "Bebote Realista con Vestido", HOJA_JUGUETE).categoria())
+                .isEqualTo(nombreAmbiguo("Bebote Realista con Vestido"));
     }
 
     @Test
