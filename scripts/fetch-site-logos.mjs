@@ -64,12 +64,28 @@ async function cargarLado() {
 
 // ── HTML ────────────────────────────────────────────────────────────────────
 
+const ES_NOMBRE = /[\w:-]/;
+
+/** Reads `name=value` pairs left to right in one pass; a regex here backtracks on long tags. */
 function atributos(etiqueta) {
   const attrs = {};
-  // Attributes are written `name=value` with no spaces around `=` in every homepage this reads.
-  for (const [, nombre, crudo] of etiqueta.matchAll(/([\w:-]+)=("[^"]*"|'[^']*'|[^\s>]+)/g)) {
-    const valor = /^["']/.test(crudo) ? crudo.slice(1, -1) : crudo;
-    attrs[nombre.toLowerCase()] = valor.replaceAll('&amp;', '&');
+  let i = 0;
+  while (i < etiqueta.length) {
+    const inicio = i;
+    while (i < etiqueta.length && ES_NOMBRE.test(etiqueta[i])) i++;
+    if (i === inicio || etiqueta[i] !== '=') { i = Math.max(i, inicio + 1); continue; }
+    const nombre = etiqueta.slice(inicio, i).toLowerCase();
+    const comilla = etiqueta[++i];
+    let fin;
+    if (comilla === '"' || comilla === "'") {
+      fin = etiqueta.indexOf(comilla, ++i);
+      if (fin === -1) fin = etiqueta.length;
+    } else {
+      fin = i;
+      while (fin < etiqueta.length && !/[\s>]/.test(etiqueta[fin])) fin++;
+    }
+    attrs[nombre] = etiqueta.slice(i, fin).replaceAll('&amp;', '&');
+    i = fin + 1;
   }
   return attrs;
 }
