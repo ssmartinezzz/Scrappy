@@ -8,130 +8,103 @@
 -- Leaf mapping: no new categories. The name classifier is already right on apparel and footwear (Otros was 110 of 6918);
 -- what it abstained on were the ACCESORIOS leaves (mouth guards, hockey sticks, rackets, jump ropes, mats, whistles...),
 -- mapped here by leaf name under every gender. Left unmapped on purpose: ROPA INTERIOR (8 rows, no canonical category).
--- Lookup CTEs instead of a literal per row: a string repeated three times is Sonar S1192.
+-- One text blob (sitio_key|origen_id|nombre|categoria per line) split by the INSERT, not a literal per row: a string repeated
+-- three times is Sonar S1192, and a long VALUES list of near-identical tuples is what Sonar CPD reads as duplicated code.
 INSERT INTO sitio (nombre, sitio_key, plataforma, es_premium, rubro_forzado, origen) VALUES
     ('Sportline', 'sportline', 'vtex', false, NULL, 'config')
 ON CONFLICT (nombre) DO NOTHING;
 
-WITH cat(k, categoria) AS (VALUES
-    (1, 'Accesorio Deportivo'),
-    (2, 'Accesorio de Fitness'),
-    (3, 'Bolso'),
-    (4, 'Equipamiento Deportivo'),
-    (5, 'Pesas')),
-nom(k, nombre) AS (VALUES
-    (1, 'BOCHA'),
-    (2, 'BOTINEROS'),
-    (3, 'CINTAS'),
-    (4, 'CORDONES'),
-    (5, 'ESPUMAS'),
-    (6, 'FITNESS'),
-    (7, 'GIMNASIOS'),
-    (8, 'GRIPS'),
-    (9, 'INFLADORES - PICOS'),
-    (10, 'MUSCULACION'),
-    (11, 'PALOS HOCKEY'),
-    (12, 'PROTECTORES'),
-    (13, 'RAQUETAS'),
-    (14, 'SILBATOS'),
-    (15, 'SOGA DE SALTAR'),
-    (16, 'TAPIS DE YOGA'),
-    (17, 'TAPÓN DE NARIZ'),
-    (18, 'TAPÓN DE OÍDO')),
-hoja(origen_id, n, c) AS (VALUES
-    (1000041, 2, 3),
-    (1000042, 2, 3),
-    (1000043, 2, 3),
-    (1000080, 7, 2),
-    (1000081, 7, 2),
-    (1000082, 7, 2),
-    (1000095, 9, 4),
-    (1000096, 9, 4),
-    (1000097, 9, 4),
-    (1000119, 11, 4),
-    (1000120, 11, 4),
-    (1000121, 11, 4),
-    (1000131, 12, 4),
-    (1000132, 12, 4),
-    (1000133, 12, 4),
-    (1000228, 4, 1),
-    (1000229, 4, 1),
-    (1000230, 4, 1),
-    (1000237, 8, 4),
-    (1000238, 8, 4),
-    (1000239, 8, 4),
-    (1000249, 14, 4),
-    (1000250, 14, 4),
-    (1000251, 14, 4),
-    (1000258, 5, 1),
-    (1000259, 5, 1),
-    (1000260, 5, 1),
-    (1000282, 18, 4),
-    (1000283, 18, 4),
-    (1000284, 18, 4),
-    (1000285, 17, 4),
-    (1000286, 17, 4),
-    (1000287, 17, 4),
-    (1000303, 15, 2),
-    (1000304, 15, 2),
-    (1000305, 15, 2),
-    (1000312, 16, 2),
-    (1000313, 16, 2),
-    (1000314, 16, 2),
-    (1000318, 1, 4),
-    (1000319, 1, 4),
-    (1000320, 1, 4),
-    (1000350, 1, 4),
-    (1000353, 2, 3),
-    (1000360, 4, 1),
-    (1000365, 5, 1),
-    (1000367, 7, 2),
-    (1000370, 8, 4),
-    (1000374, 9, 4),
-    (1000386, 11, 4),
-    (1000391, 12, 4),
-    (1000399, 14, 4),
-    (1000402, 15, 2),
-    (1000405, 16, 2),
-    (1000406, 17, 4),
-    (1000407, 18, 4),
-    (1000418, 1, 4),
-    (1000421, 2, 3),
-    (1000425, 3, 2),
-    (1000428, 4, 1),
-    (1000433, 5, 1),
-    (1000435, 7, 2),
-    (1000438, 8, 4),
-    (1000442, 9, 4),
-    (1000454, 11, 4),
-    (1000459, 12, 4),
-    (1000467, 14, 4),
-    (1000469, 15, 2),
-    (1000471, 16, 2),
-    (1000472, 17, 4),
-    (1000473, 18, 4),
-    (1000711, 6, 2),
-    (1000712, 6, 2),
-    (1000713, 6, 2),
-    (1000714, 6, 2),
-    (1000715, 6, 2),
-    (1000726, 10, 5),
-    (1000727, 10, 5),
-    (1000728, 10, 5),
-    (1000729, 10, 5),
-    (1000730, 10, 5),
-    (1000743, 13, 4),
-    (1000744, 13, 4),
-    (1000745, 13, 4),
-    (1000746, 13, 4),
-    (1000747, 13, 4),
-    (1000752, 17, 4),
-    (1000753, 17, 4),
-    (1000754, 18, 4),
-    (1000755, 18, 4))
+WITH linea(l) AS (SELECT regexp_split_to_table('sportline|1000041|BOTINEROS|Bolso
+sportline|1000042|BOTINEROS|Bolso
+sportline|1000043|BOTINEROS|Bolso
+sportline|1000080|GIMNASIOS|Accesorio de Fitness
+sportline|1000081|GIMNASIOS|Accesorio de Fitness
+sportline|1000082|GIMNASIOS|Accesorio de Fitness
+sportline|1000095|INFLADORES - PICOS|Equipamiento Deportivo
+sportline|1000096|INFLADORES - PICOS|Equipamiento Deportivo
+sportline|1000097|INFLADORES - PICOS|Equipamiento Deportivo
+sportline|1000119|PALOS HOCKEY|Equipamiento Deportivo
+sportline|1000120|PALOS HOCKEY|Equipamiento Deportivo
+sportline|1000121|PALOS HOCKEY|Equipamiento Deportivo
+sportline|1000131|PROTECTORES|Equipamiento Deportivo
+sportline|1000132|PROTECTORES|Equipamiento Deportivo
+sportline|1000133|PROTECTORES|Equipamiento Deportivo
+sportline|1000228|CORDONES|Accesorio Deportivo
+sportline|1000229|CORDONES|Accesorio Deportivo
+sportline|1000230|CORDONES|Accesorio Deportivo
+sportline|1000237|GRIPS|Equipamiento Deportivo
+sportline|1000238|GRIPS|Equipamiento Deportivo
+sportline|1000239|GRIPS|Equipamiento Deportivo
+sportline|1000249|SILBATOS|Equipamiento Deportivo
+sportline|1000250|SILBATOS|Equipamiento Deportivo
+sportline|1000251|SILBATOS|Equipamiento Deportivo
+sportline|1000258|ESPUMAS|Accesorio Deportivo
+sportline|1000259|ESPUMAS|Accesorio Deportivo
+sportline|1000260|ESPUMAS|Accesorio Deportivo
+sportline|1000282|TAPÓN DE OÍDO|Equipamiento Deportivo
+sportline|1000283|TAPÓN DE OÍDO|Equipamiento Deportivo
+sportline|1000284|TAPÓN DE OÍDO|Equipamiento Deportivo
+sportline|1000285|TAPÓN DE NARIZ|Equipamiento Deportivo
+sportline|1000286|TAPÓN DE NARIZ|Equipamiento Deportivo
+sportline|1000287|TAPÓN DE NARIZ|Equipamiento Deportivo
+sportline|1000303|SOGA DE SALTAR|Accesorio de Fitness
+sportline|1000304|SOGA DE SALTAR|Accesorio de Fitness
+sportline|1000305|SOGA DE SALTAR|Accesorio de Fitness
+sportline|1000312|TAPIS DE YOGA|Accesorio de Fitness
+sportline|1000313|TAPIS DE YOGA|Accesorio de Fitness
+sportline|1000314|TAPIS DE YOGA|Accesorio de Fitness
+sportline|1000318|BOCHA|Equipamiento Deportivo
+sportline|1000319|BOCHA|Equipamiento Deportivo
+sportline|1000320|BOCHA|Equipamiento Deportivo
+sportline|1000350|BOCHA|Equipamiento Deportivo
+sportline|1000353|BOTINEROS|Bolso
+sportline|1000360|CORDONES|Accesorio Deportivo
+sportline|1000365|ESPUMAS|Accesorio Deportivo
+sportline|1000367|GIMNASIOS|Accesorio de Fitness
+sportline|1000370|GRIPS|Equipamiento Deportivo
+sportline|1000374|INFLADORES - PICOS|Equipamiento Deportivo
+sportline|1000386|PALOS HOCKEY|Equipamiento Deportivo
+sportline|1000391|PROTECTORES|Equipamiento Deportivo
+sportline|1000399|SILBATOS|Equipamiento Deportivo
+sportline|1000402|SOGA DE SALTAR|Accesorio de Fitness
+sportline|1000405|TAPIS DE YOGA|Accesorio de Fitness
+sportline|1000406|TAPÓN DE NARIZ|Equipamiento Deportivo
+sportline|1000407|TAPÓN DE OÍDO|Equipamiento Deportivo
+sportline|1000418|BOCHA|Equipamiento Deportivo
+sportline|1000421|BOTINEROS|Bolso
+sportline|1000425|CINTAS|Accesorio de Fitness
+sportline|1000428|CORDONES|Accesorio Deportivo
+sportline|1000433|ESPUMAS|Accesorio Deportivo
+sportline|1000435|GIMNASIOS|Accesorio de Fitness
+sportline|1000438|GRIPS|Equipamiento Deportivo
+sportline|1000442|INFLADORES - PICOS|Equipamiento Deportivo
+sportline|1000454|PALOS HOCKEY|Equipamiento Deportivo
+sportline|1000459|PROTECTORES|Equipamiento Deportivo
+sportline|1000467|SILBATOS|Equipamiento Deportivo
+sportline|1000469|SOGA DE SALTAR|Accesorio de Fitness
+sportline|1000471|TAPIS DE YOGA|Accesorio de Fitness
+sportline|1000472|TAPÓN DE NARIZ|Equipamiento Deportivo
+sportline|1000473|TAPÓN DE OÍDO|Equipamiento Deportivo
+sportline|1000711|FITNESS|Accesorio de Fitness
+sportline|1000712|FITNESS|Accesorio de Fitness
+sportline|1000713|FITNESS|Accesorio de Fitness
+sportline|1000714|FITNESS|Accesorio de Fitness
+sportline|1000715|FITNESS|Accesorio de Fitness
+sportline|1000726|MUSCULACION|Pesas
+sportline|1000727|MUSCULACION|Pesas
+sportline|1000728|MUSCULACION|Pesas
+sportline|1000729|MUSCULACION|Pesas
+sportline|1000730|MUSCULACION|Pesas
+sportline|1000743|RAQUETAS|Equipamiento Deportivo
+sportline|1000744|RAQUETAS|Equipamiento Deportivo
+sportline|1000745|RAQUETAS|Equipamiento Deportivo
+sportline|1000746|RAQUETAS|Equipamiento Deportivo
+sportline|1000747|RAQUETAS|Equipamiento Deportivo
+sportline|1000752|TAPÓN DE NARIZ|Equipamiento Deportivo
+sportline|1000753|TAPÓN DE NARIZ|Equipamiento Deportivo
+sportline|1000754|TAPÓN DE OÍDO|Equipamiento Deportivo
+sportline|1000755|TAPÓN DE OÍDO|Equipamiento Deportivo', '\n')),
+campo(f) AS (SELECT string_to_array(l, '|') FROM linea)
 INSERT INTO sitio_categoria (sitio_key, origen_id, nombre, categoria)
-SELECT 'sportline', h.origen_id, nom.nombre, cat.categoria
-  FROM hoja h
-  JOIN nom ON nom.k = h.n
-  JOIN cat ON cat.k = h.c
+SELECT f[1], f[2]::int, f[3], f[4] FROM campo
 ON CONFLICT (sitio_key, origen_id) DO UPDATE SET categoria = EXCLUDED.categoria;
