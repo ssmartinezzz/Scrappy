@@ -186,6 +186,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V106` | Categoría `Celular` (rubro tecnología): teléfonos y accesorios atados a un teléfono, con `sub_categoria` Smartphone, Funda, Protector, Cargador, Cable, Soporte y Repuesto |
 | `V107` | Seed de Samsung (VTEX, tienda oficial `monomarca`, `rubro_por_defecto = 'tecnologia'`), su fila en `marca` y 87 hojas curadas; la hoja gana sobre el nombre |
 | `V108` | Seed de Prestigio (VTEX, ferretería y hogar mixto, `rubro_por_defecto = 'construccion'`) y 97 hojas curadas; el nodo `Colores` (muestras de pintura) se excluye |
+| `V109` | Seed de Naldo (VTEX, tienda por departamentos, `rubro_por_defecto = 'hogar'`) y 133 hojas curadas; la hoja gana sobre el nombre |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -5478,5 +5479,29 @@ DELETE FROM sitio s WHERE s.sitio_key = 'prestigio'
 -- <<< rollback:V108
 ```
 
+`sitio_categoria` cae en cascada con el sitio; con productos ya scrapeados no borra nada. Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V109` y antes que el de `V107`.
+
+---
+
+## `V109` — seed de Naldo y su mapeo de hojas
+
+Naldo (`www.naldo.com.ar`, VTEX, tienda por departamentos): 4328 productos en el header, **4307** en un scrape real (187 s). `rubro_forzado` en `NULL` y
+`rubro_por_defecto = 'hogar'` (pregunta abierta: las 419 filas sin categoría son neumáticos, motos, cochecitos y cunas, no tecnología). 133 hojas curadas
+(CTE de lookup, sin categorías nuevas): cada hoja toma la categoría que domina sus filas (>= 60 %) salvo las curadas a mano; la hoja gana sobre el nombre
+(`NormalizerService.SITIOS_DONDE_LA_HOJA_GANA`). Cochecitos, cunas, butacas, `Bebes y Niños` y motos van a `Otros` explícito; `Aberturas` y la hoja `Accesorios`
+(cámaras, routers y e-readers juntos) quedan sin mapear.
+
+Medido (filas activas, mismo scrape): `categoria != Otros` 78,8 % (911 `Otros`, clasificador previo) → 90,3 % (419); `indumentaria` 97 → 70 filas.
+Muestra de 36 filas revisada a mano (`Celular`, `Reloj`, `Heladera`, `Accesorio de Auto`, `Aire Acondicionado`, `Puerta`...).
+
+### Rollback
+
+```sql
+-- >>> rollback:V109
+DELETE FROM sitio s WHERE s.sitio_key = 'naldo'
+  AND NOT EXISTS (SELECT 1 FROM productos p WHERE p.sitio_key = s.sitio_key);
+-- <<< rollback:V109
+```
+
 `sitio_categoria` cae en cascada con el sitio; con productos ya scrapeados no borra nada. Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO,
-antes que el de `V107`.
+antes que el de `V108`.

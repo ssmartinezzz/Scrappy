@@ -62,6 +62,7 @@ export const LOGO_FILES_BY_NAME = {
   "morashop": "morashop.png",
   "mrplacadeco": "mrplacadeco.png",
   "muecas": "muecas.png",
+  "naldo": "naldo.svg",
   "natuliv": "natuliv.svg",
   "new balance": "new-balance.svg",
   "nike": "nike.svg",

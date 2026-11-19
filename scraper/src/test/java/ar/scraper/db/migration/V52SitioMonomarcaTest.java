@@ -45,7 +45,7 @@ class V52SitioMonomarcaTest extends PostgresTestBase {
 
     private static final List<String> MULTIMARCA = List.of(
             "zentra", "sporting", "entreno", "morashop", "vaypol", "city", "dcshoes", "maximus", "fullh4rd",
-            "arredo", "sportline", "prestigio");
+            "arredo", "sportline", "prestigio", "naldo");
 
     @Test
     @DisplayName("exactly the own-label stores are monomarca, and every one has its marca row")
