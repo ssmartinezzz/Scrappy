@@ -14,8 +14,8 @@ Kafka) está en [`ARCHITECTURE.md`](./ARCHITECTURE.md); el esquema, en [`DATABAS
    contraseña no puede quedar legible por otros usuarios). La contraseña no se muestra.
 3. `stop` y `start`: el backend lee `.env` sólo al arrancar.
 4. Mirá el log del backend (`logs backend`): tiene que haber **una** línea `[SMTP] OK: …`.
-5. Probá el envío: `mail test tu@mail.com`, o el botón **Probar mail** en
-   `/admin/manage/users`. Tiene que llegar un mail de prueba.
+5. Probá el envío: `mail test tu@mail.com`, o **Enviar prueba** en el panel
+   **Correo saliente** de `/admin/manage/users`. Tiene que llegar un mail de prueba.
 
 Después, cada cuenta que quiera avisos necesita un **email cargado** (lo carga un ADMIN con
 el lápiz del panel de cuentas) y el aviso activado en `/favoritos`.
@@ -62,7 +62,7 @@ hace falta tocar; el resto tiene un default que sirve.
 
 - **Al arrancar**: con `SMTP_HOST` puesto, el backend revisa la configuración y prueba la
   conexión en un hilo aparte. Deja **una** línea `[SMTP]`; nunca demora ni tumba el arranque.
-- **Bajo demanda**: `mail test [destino]` en el CLI o **Probar mail** en el panel de cuentas
+- **Bajo demanda**: `mail test [destino]` en el CLI o **Enviar prueba** en el panel **Correo saliente** de cuentas
   (`POST /api/notificaciones/correo-prueba`, sólo ADMIN). Sin destino manda al email del ADMIN
   que llama; el CLI manda al remitente configurado. La respuesta enmascara las direcciones.
 - **En la base**: `SELECT estado, count(*) FROM notificacion_precio GROUP BY 1;` o los paneles
