@@ -1,5 +1,6 @@
 package ar.scraper.classification;
 
+import java.util.Map;
 import java.util.Set;
 import org.apache.commons.lang3.StringUtils;
 
@@ -147,6 +148,19 @@ public final class CategoryGroups {
 
     public static boolean esCategoriaSuplemento(String cat) {
         return cat != null && CATEGORIAS_SUPLEMENTO.contains(cat);
+    }
+
+    /**
+     * (categoria, sub_categoria) -> rubro, for a category whose rubro depends on what it is: a dining, garden or
+     * children's chair is a home product, a gaming or office chair is not ({@code Silla} is an office category).
+     * {@code ""} when the pair has no entry. {@link RubroResolver} applies it only on a site with no forced rubro.
+     */
+    private static final Map<String, String> RUBRO_POR_SUBCATEGORIA = Map.of(
+            "Silla|comedor", "hogar", "Silla|exterior", "hogar", "Silla|infantil", "hogar");
+
+    public static String rubroDeSubcategoria(String cat, String sub) {
+        if (cat == null || sub == null) return "";
+        return RUBRO_POR_SUBCATEGORIA.getOrDefault(cat + "|" + sub, "");
     }
 
     public static boolean esCategoriaConstruccion(String cat) {

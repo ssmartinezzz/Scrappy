@@ -195,6 +195,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V115` | Seed de Somos Rex (Magento 2, ferretería y pinturería, `rubro_por_defecto = 'construccion'`); sin hojas: el listado de Magento no trae categoría |
 | `V116` | Seed de Sommier Center (Magento 2, colchones y camas, `rubro_por_defecto = 'hogar'`); sin hojas |
 | `V117` | Categoría `Pila` (rubro hogar): pilas AA/AAA/botón y recargables, sin paso de datos |
+| `V118` | `sub_categoria` de `Silla` (gamer, oficina, infantil, exterior, comedor) y rubro `hogar` para las de hogar; en las filas activas e inactivas, sin tocar los sitios con `rubro_forzado` |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -5737,3 +5738,41 @@ DELETE FROM categoria WHERE nombre = 'Pila';
 
 **El orden es obligatorio** (FK de `productos`, `sitio_categoria` y `categoria_stats` hacia `categoria`). Los productos vuelven a `Otros` y el próximo scrape los reclasifica. Es el bloque más
 nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V116`.
+
+---
+
+## `V118` — `sub_categoria` y rubro de las sillas
+
+`Silla` es una categoría de oficina (`CategoryGroups.categoriasOficina`), así que las 960 sillas activas de la base de dev eran `oficina` (874) o `tecnologia` (86, los sitios que lo fuerzan): una silla de
+comedor, de jardín o de bebé figuraba como mueble de oficina. Ahora `SubcategoryResolver` les da `sub_categoria` por nombre (minúscula, como las de `V103`) con este orden de precedencia (el primero que
+coincide gana): `gamer` (`gamer`, `gaming`, `throne`), `oficina` (`oficina`, `ergonómica`, `ejecutiva`, `escritorio`, `giratoria`, `mesh`, `pc`...), `infantil` (`bebé`, `comer`, `niños`, `montessori`,
+`maxi cosi`, `booster`...), `exterior` fuerte (`jardín`, `exterior`, `outdoor`, `playa`, `camping`, `director`, `pesca`, `rattan`, `outzen`...), `comedor` (`comedor`, `eames`, `tulip`, `banqueta`, `taburete`,
+`bar`, `mecedora`...) y, último, `plegable` suelto (`exterior`): "silla de comedor plegable" es de comedor y "sillón director ejecutivo" de oficina. Sin señal no hay sub (abstención: el comportamiento de hoy).
+
+El rubro sale de una tabla de datos, `CategoryGroups.rubroDeSubcategoria`: `Silla|comedor`, `Silla|exterior` y `Silla|infantil` son `hogar`; `gamer` y `oficina` no tienen entrada (siguen en `oficina`).
+`RubroResolver.resolver(sitio, categoria, rubroPrevio, sub)` la consulta **sólo en un sitio sin `rubro_forzado`**, justo antes de la rama que manda las categorías de oficina a `oficina`: todas las
+ramas forzadas (`tecnologia`, `oficina`, `suplementos`, `construccion`, `hogar`) devuelven antes, así que un sitio forzado se comporta exactamente como antes. `NormalizerService` resuelve la sub **antes**
+del rubro (la sub sólo depende de nombre y categoría) y `ProductRepository.aplicarReclasificacionAuditada` pasa la sub que recibe.
+
+La migración hace lo mismo sobre las filas guardadas: un blob de una línea (`prioridad|sub|palabras`) y un `position(' palabra ' IN ' nombre ')` con los acentos de `AccentStripper` quitados y la puntuación
+conservada, igual que Java (`comedor/jardin` es un solo token). Una transacción, `SET CONSTRAINTS ALL IMMEDIATE` antes del `UPDATE` (trigger diferido de `V40`); activas e inactivas; las bloqueadas
+(`bloqueado_por`) no se tocan, como en `V103`.
+
+Copia de la base de dev (1.009 filas `Silla`, 960 activas, `scraper_ownpages`): antes todas sin sub, `oficina` 896 y `tecnologia` 113; después `comedor` 217 (214 `hogar` + 3 `oficina` de un sitio forzado), `exterior` 179,
+`infantil` 74 (las tres `hogar`), `gamer` 183 (74 `oficina` + 109 `tecnologia`), `oficina` 157 y 199 sin sub (196 `oficina` + 3 `tecnologia`). La comparación del `UPDATE` contra `SubcategoryResolver` y `RubroResolver` sobre las
+1.009 filas da **0 diferencias** (`V118SillaSubcategoriaTest` hace lo mismo sobre filas sintéticas de un sitio libre y dos forzados).
+
+### Rollback
+
+```sql
+-- >>> rollback:V118
+UPDATE productos p
+   SET sub_categoria = '',
+       rubro = CASE WHEN COALESCE(s.rubro_forzado, '') = '' THEN 'oficina' ELSE p.rubro END
+  FROM sitio s
+ WHERE s.sitio_key = p.sitio_key AND p.categoria = 'Silla' AND p.bloqueado_por IS NULL;
+-- <<< rollback:V118
+```
+
+Las sillas de un sitio libre vuelven a `oficina` y las de un sitio forzado conservan su rubro; el próximo scrape las reclasifica. Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes
+que el de `V117`. No cambia ningún esquema, así que los rollbacks viejos de la plataforma no lo necesitan.

@@ -159,7 +159,8 @@ public class NormalizerService {
                 : esOtrosEnSuSitio(sitioKey, nombre)
                         ? "Otros"
                         : soloHogar(sitioKey, categoryClassifier.normalizarCategoria(p.categoria(), nombre, delArbol), delArbol));
-        String rubro          = rubroResolver.resolver(sitioKey, cat, p.rubro());
+        String subCategoria   = subcategoryResolver.resolver(nombre, cat);
+        String rubro          = rubroResolver.resolver(sitioKey, cat, p.rubro(), subCategoria);
         String genero         = generoFijo(sitioKey, p.genero())
                 .orElseGet(() -> genderResolver.resolver(p.genero(), nombre, cat, rubro));
         List<String> talles = sizeNormalizer.normalizar(p.talles());
@@ -168,7 +169,6 @@ public class NormalizerService {
         String deporte        = sportResolver.resolver(nombre, cat, rubro);
         boolean marcaPremium  = siteRegistry.esPremium(sitioKey);
         int cantidadUnidades  = packQuantityDetector.detectar(nombre, cat);
-        String subCategoria   = subcategoryResolver.resolver(nombre, cat);
 
         return p.toBuilder()
                 .nombre(nombre)
