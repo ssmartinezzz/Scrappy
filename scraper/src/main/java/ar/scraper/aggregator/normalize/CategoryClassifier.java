@@ -43,7 +43,9 @@ public class CategoryClassifier {
         new TextilDecoClassifier(),
         new NutricionTempranaClassifier(NUTRICION),
         new OficinaClassifier(),
+        new EcosistemaAppleClassifier(),
         new TechClassifier(),
+        new AccesorioSueltoClassifier(),
         new TrajeDeportivoClassifier(),
         new ConjuntoClassifier(),
         new EquipamientoDeportivoClassifier(),
@@ -121,6 +123,8 @@ public class CategoryClassifier {
             return "Iluminación";
         if (clasificable.lideraSinVeto(GarmentTaxonomy.KW_ALMOHADA_LIDER, GarmentTaxonomy.KW_ALMOHADA_VETO))
             return "Ropa de Cama";
+        // Before the guard too: it vetoes " gel " (cosmetics), and "Iron Gel Turbo" is an energy gel.
+        if (clasificable.contiene(GarmentTaxonomy.KW_GEL_ENERGETICO)) return "Suplemento";
         if (NonTextileGuard.esClaramenteNoTextil(texto)) return "";
         return primeraCategoria(FAMILIAS_EN_ORDEN, clasificable);
     }

@@ -37,7 +37,8 @@ final class TechClassifier implements FamiliaClassifier {
                 || (texto.contiene(GarmentTaxonomy.KW_RED_SWITCH) && texto.contiene(GarmentTaxonomy.KW_RED_CONTEXTO)))
             return "Red";
         if (texto.empiezaLiteralmenteCon(GarmentTaxonomy.KW_CABLE_LIDER)
-                && !texto.contiene(GarmentTaxonomy.KW_CABLE_VETO))
+                && (!texto.contiene(GarmentTaxonomy.KW_CABLE_VETO) || texto.contiene(GarmentTaxonomy.KW_CONECTOR)
+                    || texto.empiezaLiteralmenteCon(GarmentTaxonomy.KW_CABLE_DE_CARGA_LIDER)))
             return "Cable";
         if (!texto.sinPrefijoDeVentaEmpiezaCon(GarmentTaxonomy.KW_CARGADOR_LIDER)
                 && (texto.contiene(GarmentTaxonomy.KW_NOTEBOOK) || esFormaDeNotebook(texto)))
@@ -45,6 +46,9 @@ final class TechClassifier implements FamiliaClassifier {
         if (texto.contiene(GarmentTaxonomy.KW_TABLET))                       return "Tablet";
         if (texto.contiene(GarmentTaxonomy.KW_CAMARA))                       return "Cámara";
         if (texto.contiene(GarmentTaxonomy.KW_PC))                           return "PC";
+        // "Auriculares ... Monitor III de Marshall": the model name is not the device.
+        if (texto.empiezaCon(GarmentTaxonomy.KW_AURICULAR_LIDER) && texto.contiene(GarmentTaxonomy.KW_MONITOR))
+            return "Auricular";
         if (texto.contiene(GarmentTaxonomy.KW_MONITOR))                      return "Monitor";
         if (texto.contiene(GarmentTaxonomy.KW_GPU) && !texto.empiezaCon(GarmentTaxonomy.KW_NO_GPU_LIDER))
             return "GPU";

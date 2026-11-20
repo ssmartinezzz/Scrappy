@@ -1698,6 +1698,7 @@ public final class GarmentTaxonomy {
     public static final String[] KW_PROTEINA_BARRA = {
         "barra proteica","protein bar","barra de proteina","barita proteica",
         "bar proteico","barrita proteica","barrita de proteina","barritas de proteina",
+        " snack bar "," iron bar "," energy bar "," super bar "," veggie bar "," crudda bar ",
         "barras de proteina","barras proteina","barra de whey","crisp bar","layered bar"
     };
 
@@ -1785,12 +1786,15 @@ public final class GarmentTaxonomy {
     };
 
     public static final String[] KW_PRE_WORKOUT_SUP = {
-        "pre workout","preworkout","pre-workout","pre entreno","cafeina en polvo"
+        "pre workout","preworkout","pre-workout","pre entreno","cafeina en polvo","oxido nitrico","nitric oxide"
     };
 
     public static final String[] KW_BCAA_SUP = {
         "bcaa","aminoacido","amino acid","glutamina","glutamine"
     };
+
+    /** "Amino 9000", "BSN Amino X": suelto, no en un combo ("Combo ... + Amino Energy" sigue en Suplemento). */
+    public static final String[] KW_AMINO_SUELTO = { " amino "," aminos " };
 
     public static final String[] KW_VITAMINAS = {
         "vitamina ","vitamin ","vitaminas ","vitamins ",
@@ -1799,11 +1803,12 @@ public final class GarmentTaxonomy {
 
     public static final String[] KW_QUEMADORES = {
         "quemador de grasa","fat burner","termogenico","l-carnitina","l carnitina",
-        "carnitina"," cla ","lipo6","lipo 6","lipo-6"
+        "carnitina"," cla ","lipo6","lipo 6","lipo-6"," ripped max "," black cuts "
     };
 
     public static final String[] KW_GAINERS = {
-        "mass gainer","hipercalorico","gainer","true-mass","true mass"
+        "mass gainer","hipercalorico","gainer","true-mass","true mass",
+        "maxi gain","mega gain","weight gain","serious mass"
     };
 
     public static final String[] KW_SUPLEMENTO = {
@@ -1817,8 +1822,11 @@ public final class GarmentTaxonomy {
         "barra proteica","barra energetica","snack proteico",
         "magnesio","magnesium","citrato de magnesio",
         "quemador","fat burner","termogenico","l-carnitina","carnitina"," cla ",
-        "suplemento","supplement","nutri","proteico","proteica"
+        "suplemento","supplement","nutri","proteico","proteica"," zma "," recovery drink "," full recovery "
     };
+
+    /** Geles energéticos ("Iron Gel Turbo"): corren antes del guard no-textil, que veta " gel " (cosmética). */
+    public static final String[] KW_GEL_ENERGETICO = { " iron gel ", " gel energetico ", " energy gel ", " gel de carbohidratos " };
 
     public static final String[] KW_COMIDA = {
         "yerba","cafe"," te verde","infusion","cereal","granola",
@@ -1827,7 +1835,7 @@ public final class GarmentTaxonomy {
         "salsa ","ketchup","mostaza","condimento","aderezo","mayonesa","vinagre",
         "maple","jarabe de arce","sirope","topping proteico","topping fit",
         "pudding","chia ","semillas","fruta","miel","mermelada","dulce de",
-        "snack saludable","galletita","galleta","tostada","pan proteico"
+        "snack saludable"," crackers "," cracker ","galletita","galleta","tostada","pan proteico"
     };
 
     // Leading nouns of women's fashion that had no keyword (Las Pepas: 130 of 144 `Otros`). Leading only: "Remera con
@@ -1931,6 +1939,11 @@ public final class GarmentTaxonomy {
         " patchcord ", " conversor ", " prolongador ", " extension usb "
     };
 
+    /** "Cable de carga magnético 4-en-1 ..." es un cable aunque el veto de {@link #KW_CABLE_VETO} lea " magnetico". */
+    public static final String[] KW_CABLE_DE_CARGA_LIDER = { " cable de carga ", " cables de carga " };
+    /** Un cable que nombra un conector USB o Lightning es un cable aunque el veto de {@link #KW_CABLE_VETO} lea " magnetico". */
+    public static final String[] KW_CONECTOR = { " lightning ", " usb ", " usb-c ", " usb‑c ", " usb c " };
+
     public static final String[] KW_CABLE_VETO = { " control de bloqueo"," riego"," pulgada"," tanque"," taladro"," rodillo"," espatula"," magnetico"," angular"," copa"," fijacion"," velador"," perilla"," heavy duty"," union doble" };
     public static final String[] KW_GABINETE_VETO = { " bano"," cocina"," colgante"," herramienta"," mueble"," zapatero"," cm "," embutir"," puertas"," medidor"," modulos"," ip65"," monofasico"," trifasico"," din "," gas "," entrada gabinete" };
     public static final String[] KW_FUENTE_VETO = { " horno"," vidrio"," loza"," ensalad"," servir"," madera"," tira" };
@@ -1962,6 +1975,38 @@ public final class GarmentTaxonomy {
      * Líder ⇒ Mini PC, antes de {@link #KW_PC_LIDER} y del bloque CPU/Monitor. "nuc"/"brix"/ "cubi"
      * cubren los barebones que no se anuncian como "mini pc".
      */
+    // Equipos de Apple que Macstation vende bajo el nombre del modelo, sin decir el tipo ("iPad Air 11" (M4) Wi-Fi", "iMac 24"").
+    // Líderes: una funda "para iPad" o un cable "para MacBook" no son el equipo.
+    public static final String[] KW_APPLE_PC_LIDER = { " imac ", " mac pro " };
+    public static final String[] KW_APPLE_MINIPC_LIDER = { " mac mini ", " mac studio " };
+    public static final String[] KW_APPLE_MONITOR_LIDER = { " studio display ", " pro display xdr " };
+    public static final String[] KW_APPLE_TABLET_LIDER = { " ipad " };
+    public static final String[] KW_APPLE_AURICULAR_LIDER = { " airpods ", " earpods ", " apple airpods ", " apple earpods " };
+    public static final String[] KW_APPLE_RELOJ_LIDER = { " apple watch " };
+    public static final String[] KW_APPLE_TV_LIDER = { " apple tv " };
+    // Modelos que se anuncian sin decir "parlante" ni "auriculares" (Beats, JBL).
+    public static final String[] KW_PARLANTE_MODELO_LIDER = {
+        " beats pill ", " jbl clip ", " jbl go ", " jbl flip ", " jbl charge ", " jbl boombox "
+    };
+    public static final String[] KW_AURICULAR_MODELO_LIDER = {
+        " beats solo ", " beats studio ", " beats flex ", " beats fit ", " powerbeats "
+    };
+    /** Correa de reloj: Reloj, como las del resto del catálogo (no hay categoría de accesorio de reloj). */
+    public static final String[] KW_CORREA_RELOJ_LIDER = { " correa ", " banda ", " pulsera " };
+    /** Lo que se vende para un equipo de Apple; con {@link #KW_APPLE_EQUIPO_REF} lo ata a ese equipo. */
+    public static final String[] KW_ACCESORIO_DE_EQUIPO = {
+        " funda "," fundas "," case "," estuche "," smart folio "," protector "," protectores "," film "," filtro "," lapiz ",
+        " stylus "," bumper "," forro "," soporte "," base "," cover "
+    };
+    public static final String[] KW_APPLE_EQUIPO_REF = { " ipad ", " macbook ", " airpods ", " apple watch ", " airtag " };
+    /** Una funda o un protector que dice para qué modelo es ("para 15 Pro Max", "con MagSafe"), sin decir iPhone. */
+    public static final String[] KW_FUNDA_DE_TELEFONO = { " funda "," fundas "," case "," protector " };
+    public static final String[] KW_CABLE_MENCIONADO = { " cable ", " cables " };
+    /** Un teclado o un mouse "para iPad" sigue siendo Teclado o Mouse. */
+    public static final String[] KW_ACCESORIO_DE_EQUIPO_VETO = {
+        " teclado ", " keyboard ", " mouse ", " tablet ", " celular ", " notebook ", " laptop "
+    };
+
     public static final String[] KW_MINIPC_LIDER = { " mini pc ", " minipc ", " nuc ", " brix ", " cubi " };
 
     /**
@@ -2461,7 +2506,9 @@ public final class GarmentTaxonomy {
     /** Con alguna de estas el nombre es de otro producto (tablet, reloj, auriculares, notebook) o un juguete: nunca Celular. */
     public static final String[] KW_CELULAR_VETO = {
         " tab "," tablet "," pad "," book "," watch "," fit "," band "," buds "," earbuds "," notebook "," laptop "," joystick ",
-        " juguete "," juguetes "," infantil "," interactivo "," ditoys "," juego "," sonidos "
+        " juguete "," juguetes "," infantil "," interactivo "," ditoys "," juego "," sonidos ",
+        // MagSafe 3 is the Mac charging port; an AirPods case is not a phone accessory.
+        " magsafe 3 "," airpods "
     };
 
     public static boolean anyMatch(String text, String[] keywords) {
