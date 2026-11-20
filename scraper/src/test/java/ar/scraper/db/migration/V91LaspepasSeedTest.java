@@ -39,6 +39,12 @@ class V91LaspepasSeedTest extends PostgresTestBase {
             c.setAutoCommit(false);
             try (Statement st = c.createStatement()) {
                 // V115 and V116 seeded two more magento rows: newest first.
+                // V121-V123 added the sfcc platform and its two sites on top: they go before anything else.
+                st.execute(DocumentedRollback.sqlFor("V123"));
+                st.execute(DocumentedRollback.sqlFor("V122"));
+                st.execute(DocumentedRollback.sqlFor("V121"));
+                // V117 (Pila) sits above V116 and changes no platform data: it runs right after the sfcc ones.
+                st.execute(DocumentedRollback.sqlFor("V117"));
                 st.execute(DocumentedRollback.sqlFor("V116"));
                 st.execute(DocumentedRollback.sqlFor("V115"));
                 st.execute(DocumentedRollback.sqlFor("V91"));

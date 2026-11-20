@@ -86,6 +86,12 @@ class V27RollbackRoundTripTest extends PostgresTestBase {
                 // everything below: newest rollback first, or narrowing hits that row.
                 // V91 widened it once more (19 values, a `laspepas` row): it goes first of all.
                 // V115 and V116 seeded two more magento rows: newest first.
+                // V121-V123 added the sfcc platform and its two sites on top: they go before anything else.
+                st.execute(DocumentedRollback.sqlFor("V123"));
+                st.execute(DocumentedRollback.sqlFor("V122"));
+                st.execute(DocumentedRollback.sqlFor("V121"));
+                // V117 (Pila) sits above V116 and changes no platform data: it runs right after the sfcc ones.
+                st.execute(DocumentedRollback.sqlFor("V117"));
                 st.execute(DocumentedRollback.sqlFor("V116"));
                 st.execute(DocumentedRollback.sqlFor("V115"));
                 st.execute(DocumentedRollback.sqlFor("V91"));
@@ -136,6 +142,12 @@ class V27RollbackRoundTripTest extends PostgresTestBase {
                 // everything below: newest rollback first, or narrowing hits that row.
                 // V91 widened it once more (19 values, a `laspepas` row): it goes first of all.
                 // V115 and V116 seeded two more magento rows: newest first.
+                // V121-V123 added the sfcc platform and its two sites on top: they go before anything else.
+                st.execute(DocumentedRollback.sqlFor("V123"));
+                st.execute(DocumentedRollback.sqlFor("V122"));
+                st.execute(DocumentedRollback.sqlFor("V121"));
+                // V117 (Pila) sits above V116 and changes no platform data: it runs right after the sfcc ones.
+                st.execute(DocumentedRollback.sqlFor("V117"));
                 st.execute(DocumentedRollback.sqlFor("V116"));
                 st.execute(DocumentedRollback.sqlFor("V115"));
                 st.execute(DocumentedRollback.sqlFor("V91"));
