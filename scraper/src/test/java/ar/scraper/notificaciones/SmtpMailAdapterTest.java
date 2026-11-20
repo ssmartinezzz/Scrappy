@@ -122,11 +122,14 @@ class SmtpMailAdapterTest {
         }
         try (FakeSmtpServer smtp = new FakeSmtpServer()) {
             SmtpMailAdapter adaptador = new SmtpMailAdapter("127.0.0.1", smtp.puerto(), "", "", "avisos@example.com");
+            // Warm-up batch: class loading, the JavaMail session and the first handshake cost ~0.5 s cold on a CI runner,
+            // which spread over 20 mails reads like a stall. A real Nagle + delayed-ACK stall is >= 40 ms on every mail.
+            adaptador.enviar(lote.subList(0, 5));
             long inicio = System.nanoTime();
             adaptador.enviar(lote);
             double msPorMail = (System.nanoTime() - inicio) / 1e6 / lote.size();
 
-            assertThat(smtp.mensajes()).hasSize(20);
+            assertThat(smtp.mensajes()).hasSize(25);
             assertThat(smtp.mensajes().getFirst().length).isGreaterThan(8192);
             assertThat(msPorMail).as("ms per mail").isLessThan(20.0);
         }
