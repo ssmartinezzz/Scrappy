@@ -20,6 +20,8 @@ Antes de codear, determinar la plataforma del sitio:
 ¿403 "Attention Required" sólo   → WAF por huella HTTP: VtexPage cae solo a fetch en la
   en page.request(), sin           página, ver Caso 3  {nike}
   `cf-mitigated`, y el navegador carga?
+¿`demandware` en el HTML y rutas   → Salesforce Commerce Cloud: ver Caso 11  {dexter, moov}
+  `/on/demandware.store/Sites-`?
 ¿Otro?                          → Necesita Page custom
 ```
 
@@ -461,6 +463,25 @@ del listado, no una API: Magento suele bloquear `/graphql` (403) y `/rest/V1` (4
   layout nuevo nunca es un "0 productos" silencioso.
 - Catálogos extra: `sitio.NOMBRE.urls_extra=` separados por coma. Género, infantil y exclusiones son reglas de la tienda
   (ver Las Pepas en [`SITES.md`](./SITES.md)).
+
+---
+
+## Caso 11: Sitio Salesforce Commerce Cloud (Demandware)
+
+Plataforma `sfcc` (`V121`), página `SfccPage` (familia simple). Cómo reconocerla: `demandware` ~250 veces en el HTML de la home y rutas `/on/demandware.store/Sites-<Id>-Site/es_AR/...`. Ninguna otra
+plataforma sirve: no hay `/products.json`, ni API VTEX, ni `wp-json`.
+
+- **Fuente**: el controlador `Search-UpdateGrid?cgid=root&srule=lowest-price&start=N&sz=100` devuelve sólo tarjetas (sin browser, sin JSON), y `root` es todo el catálogo. El id del sitio (`Sites-Dexter-Site`) se lee de la
+  home, no se configura. La página igual abre la home en Playwright y hace los `fetch` desde ahí (mismo origen, pasa Cloudflare). Una página pasada el final trae 0 tarjetas.
+- **El orden importa**: la relevancia por defecto perdió ~20 de 9.940 tarjetas por reordenamientos entre pedidos; `lowest-price` no. El total anunciado sale de `Search-Show?cgid=root` (`<span class="count">`);
+  si llegan menos de 98 % se registra un truncamiento (no se descarta el run).
+- **Tarjeta**: `<div class="product" data-pid>`; nombre en `a.link`; precio en `span.sales > span.value[content]` (una tarjeta de rango trae dos: se toma el primero, el menor); `precioOriginal` sólo de
+  `strike-through list` si es mayor; imagen en `img.tile-image` (`?sw=600&sh=600`); la marca del payload no es una `marca` sembrada (rompe `fk_productos_marca`), la completa `BrandExtractor`.
+- **Categoría y género**: la tarjeta no trae categoría; su `productGtmData` (atributo entre comillas simples: un nombre con `'` rompe un regex `[^']*`) lista hasta cinco ids mezclados con campañas. Los de taxonomía
+  (`hombre-calzado-zapatillas`) dan la hoja sin género (`calzado-zapatillas`, hash estable como `origen_id`) y el género (los dos adultos = `unisex`). ~7 % pierde el id en el corte de cinco y queda sin hoja.
+- **Fallar fuerte**: 0 tarjetas en la primera página, una home sin `Sites-<Id>-Site` o un fallo en la primera página lanzan `SfccPayloadException`; un fallo posterior corta con truncamiento.
+- Alta de un sitio: fila de seed con `plataforma = 'sfcc'` y `config.properties` (`url`, `activo`); curar con `sitio_categoria` sólo las hojas donde el nombre falla (ver `V122`/`V123` y
+  `NormalizerService.SITIOS_DONDE_LA_HOJA_GANA`). Para sacar las hojas de un sitio nuevo: volcar el crawl y agrupar por `sitioCategoriaOrigenId`.
 
 ---
 

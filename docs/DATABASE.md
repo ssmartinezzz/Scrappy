@@ -197,6 +197,8 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V117` | Categoría `Pila` (rubro hogar): pilas AA/AAA/botón y recargables, sin paso de datos |
 | `V118` | `sub_categoria` de `Silla` (gamer, oficina, infantil, exterior, comedor) y rubro `hogar` para las de hogar; en las filas activas e inactivas, sin tocar los sitios con `rubro_forzado` |
 | `V121` | Plataforma `sfcc` (Salesforce Commerce Cloud): `sitio_plataforma_check` pasa a 20 valores; sin sitios (los siembran `V122` y `V123`) |
+| `V122` | Seed de Dexter (SFCC, retail deportivo multimarca, sin `rubro_por_defecto`) y 115 hojas de accesorios curadas; calzado e indumentaria quedan sin mapear (decide el nombre) |
+| `V123` | Seed de Moov (SFCC, mismo grupo, más urbano) y 27 hojas de accesorios curadas |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -5737,8 +5739,8 @@ DELETE FROM categoria WHERE nombre = 'Pila';
 -- <<< rollback:V117
 ```
 
-**El orden es obligatorio** (FK de `productos`, `sitio_categoria` y `categoria_stats` hacia `categoria`). Los productos vuelven a `Otros` y el próximo scrape los reclasifica. Es el bloque más
-nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V116`.
+**El orden es obligatorio** (FK de `productos`, `sitio_categoria` y `categoria_stats` hacia `categoria`). Los productos vuelven a `Otros` y el próximo scrape los reclasifica. Ya no es el bloque
+más nuevo: en una cadena de rollbacks corre después del de `V118` y antes que el de `V116`.
 
 ---
 
@@ -5799,4 +5801,58 @@ ALTER TABLE sitio ADD CONSTRAINT sitio_plataforma_check
 -- <<< rollback:V121
 ```
 
-El orden es obligatorio: mientras haya una fila `sfcc` el CHECK angosto la rechaza, así que corren antes los rollbacks de `V123` y `V122` (que borran Moov y Dexter). Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V118` (que no cambia esquema).
+El orden es obligatorio: mientras haya una fila `sfcc` el CHECK angosto la rechaza, así que corren antes los rollbacks de `V123` y `V122` (que borran Moov y Dexter). Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V122` y antes que el de `V118` (que no cambia esquema).
+
+---
+
+## `V122` — seed de Dexter y su mapeo de hojas
+
+Dexter (`dexter.com.ar`, Salesforce Commerce Cloud): retail deportivo multimarca (calzado, indumentaria y accesorios de fútbol, running, training, natación, tenis y pádel, hockey, ciclismo, outdoor). `SfccPage` pagina
+`Search-UpdateGrid?cgid=root&srule=lowest-price` de a 100 tarjetas (el orden por relevancia perdió ~20 de 9.940 tarjetas por reordenamientos entre pedidos; por precio no). Scrape real (2026-11-20, 77 s) **9.941 productos**,
+los 9.941 que anuncia el sitio. Sin `rubro_forzado` ni `rubro_por_defecto` (como Sportline): decide `RubroResolver` por categoría.
+
+La tarjeta no trae categoría, pero su payload de tracking lista hasta cinco ids, mezclados con campañas (`cyberweek`, `marcas-nike`). Los de taxonomía son
+`<hombre|mujer|categorias-infantil-nino|-nina>-<calzado|indumentaria|accesorios>[-<hoja>]`: la hoja sin género (`calzado-zapatillas`) es la categoría del sitio y su `origen_id` es un hash de esa clave
+(`SfccPage.idDeHoja`, estable porque `String.hashCode()` está especificado), así que una fila sirve a hombre, mujer e infantil. El género sale del prefijo (los dos adultos = `unisex`). 93 % de las tarjetas (9.252) trae un id de
+taxonomía; el 7 % restante lo pierde en el corte de cinco ids y queda sin hoja ni género (decide el nombre).
+
+Hojas: sin categorías nuevas. El clasificador por nombre ya acierta en calzado e indumentaria (esas hojas quedan sin mapear, así conserva `Zapatilla Running` vs `Zapatilla Urbana`), pero se abstenía o fallaba en los accesorios:
+palos de hockey, raquetas, protectores bucales, silbatos y sogas caían a `Otros`; un pack de medias era `Conjunto` (283 filas); guantes de arquero, `Botines` o `Guante de Trabajo`; antiparras de natación, `Protección Personal`.
+La hoja curada le gana al nombre en esta tienda (`NormalizerService.SITIOS_DONDE_LA_HOJA_GANA`). 115 hojas mapeadas.
+
+Medido (9.941 filas, activas): `categoria != Otros` **96,9 %** (clasificador previo, sin hojas; 307 `Otros`) → **99,8 %** (21 `Otros`, ninguno con hoja); `Conjunto` pasa de 397 a 99 (los packs de medias son `Medias`).
+Rubros: `indumentaria` 9.227, `deporte` 599, `hogar` 109 (botellas, toallas y conservadoras: `Termo y Botella`/`Toalla`/`Conservadora` son categorías de hogar), resto 6. Género: hombre 3.746, mujer 2.487, unisex 2.285,
+infantil 1.252, vacío 171. Muestra al azar de 32 filas revisada a mano: 32 con categoría, rubro y género razonables. **Huecos que siguen** (clasificador compartido, pregunta abierta): `Zapatillas Asics Gel ...` (6 filas) queda en `Otros`
+aunque el nombre dice zapatillas, y `Ciclista` / `Body` / `Tapabocas` no tienen categoría.
+
+### Rollback
+
+```sql
+-- >>> rollback:V122
+DELETE FROM sitio s WHERE s.sitio_key = 'dexter'
+  AND NOT EXISTS (SELECT 1 FROM productos p WHERE p.sitio_key = s.sitio_key);
+-- <<< rollback:V122
+```
+
+`sitio_categoria` cae en cascada con el sitio; con productos ya scrapeados no borra nada. No toca el CHECK de plataforma (`sfcc` viene de `V121`). Ya no es el bloque más nuevo: corre después del de `V123` y antes que el de `V121`.
+
+---
+
+## `V123` — seed de Moov y su mapeo de hojas
+
+Moov (`moov.com.ar`): mismo grupo y misma tienda SFCC que Dexter, más urbana (zapatillas, indumentaria, mochilas, gorras y medias de Nike, adidas, Puma, Converse, Fila). Scrape real (2026-11-20, 39 s) **3.614 productos**, los 3.614 que anuncia el sitio.
+El 95 % de las tarjetas (3.440) trae hoja; los `origen_id` son los mismos hashes que los de Dexter y las filas van por sitio. Sin `rubro_forzado` ni `rubro_por_defecto`. 27 hojas de accesorios mapeadas (packs de medias, cordones, kits de limpieza, morrales).
+
+Medido (3.614 filas): `categoria != Otros` **98,6 %** (50 `Otros`) → **99,8 %** (6 `Otros`); `Conjunto` baja de 111 a 19. Rubros: `indumentaria` 3.597, `hogar` 12, `deporte` 4, `suplementos` 1. Género: hombre 1.492, mujer 1.110, unisex 585,
+infantil 378, vacío 49. Muestra al azar de 32 filas revisada a mano: 32 razonables.
+
+### Rollback
+
+```sql
+-- >>> rollback:V123
+DELETE FROM sitio s WHERE s.sitio_key = 'moov'
+  AND NOT EXISTS (SELECT 1 FROM productos p WHERE p.sitio_key = s.sitio_key);
+-- <<< rollback:V123
+```
+
+Con productos ya scrapeados no borra nada. No toca el CHECK de plataforma. Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V122`.
