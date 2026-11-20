@@ -199,6 +199,10 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V121` | Plataforma `sfcc` (Salesforce Commerce Cloud): `sitio_plataforma_check` pasa a 20 valores; sin sitios (los siembran `V122` y `V123`) |
 | `V122` | Seed de Dexter (SFCC, retail deportivo multimarca, sin `rubro_por_defecto`) y 115 hojas de accesorios curadas; calzado e indumentaria quedan sin mapear (decide el nombre) |
 | `V123` | Seed de Moov (SFCC, mismo grupo, más urbano) y 27 hojas de accesorios curadas |
+| `V124` | Plataforma `odoo` (Odoo `website_sale`): `sitio_plataforma_check` pasa a 21 valores; sin sitios (los siembran `V125` y `V126`) |
+| `V125` | Seed de Macstation (Odoo, revendedor Apple, `rubro_por_defecto = 'tecnologia'`); sin hojas: el listado no trae categoría |
+| `V126` | Seed de Gentech (Odoo, marca propia de suplementos, `monomarca`, `rubro_por_defecto = 'suplementos'`) y su fila en `marca`; sin hojas |
+| `V127` | Categoría `Accesorio Apple` (rubro tecnología): lo que se vende para un iPad, un Mac, AirPods, un AirTag o un Apple Watch, con `sub_categoria` iPad, MacBook, AirPods y Apple Watch; reubica las filas guardadas que la regla reclama |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -5855,4 +5859,95 @@ DELETE FROM sitio s WHERE s.sitio_key = 'moov'
 -- <<< rollback:V123
 ```
 
-Con productos ya scrapeados no borra nada. No toca el CHECK de plataforma. Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V122`.
+Con productos ya scrapeados no borra nada. No toca el CHECK de plataforma. Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V124` y antes que el de `V122`.
+
+---
+
+## `V124` — plataforma `odoo`
+
+Macstation (`macstation.com.ar`) y Gentech (`gentech.com.ar`) corren Odoo `website_sale`. `OdooPage` lee el listado renderizado en el servidor (`/shop`, `/shop/page/N`), así que hace falta un valor de plataforma propio:
+`sitio_plataforma_check` (CHECK, no tabla, como `V6`) pasa a 21 valores. Los sitios se siembran en `V125` (Macstation) y `V126` (Gentech). Las otras copias del vocabulario viajan en el mismo commit:
+`SitiosRepository.PLATAFORMAS_VALIDAS`, `ScraperFactory.PAGINAS`, `PlatformVocabularySyncTest` (puntero) y `ScraperFactoryPlatformTest`.
+
+### Rollback
+
+```sql
+-- >>> rollback:V124
+ALTER TABLE sitio DROP CONSTRAINT sitio_plataforma_check;
+ALTER TABLE sitio ADD CONSTRAINT sitio_plataforma_check
+    CHECK (plataforma IN ('tiendanube','shopify','vtex','vaypol','woocommerce',
+                          'monkyforce','maximus','fullh4rd','compragamer',
+                          'qloud','oscommerce','inpro','morashop','prestashop',
+                          'gamerfactory','ambiancedeco','hadriatica','kevingston','magento','sfcc'));
+-- <<< rollback:V124
+```
+
+El orden es obligatorio: mientras haya una fila `odoo` el CHECK angosto la rechaza, así que corren antes los rollbacks de `V126` y `V125` (que borran Gentech y Macstation). Ya no es el bloque más nuevo: en una cadena de rollbacks corre después de los de `V126` y `V125`
+y antes que el de `V123` (que no cambia esquema).
+
+---
+
+## `V125` — seed de Macstation
+
+Macstation (`macstation.com.ar`, Odoo `website_sale`): revendedor Apple (Mac, iPad, iPhone, Watch, AirPods) con accesorios de terceros (fundas, cables, mochilas de Targus, ItSkins, UAG, Adam Elements, Speck). `OdooPage` pagina
+`/shop/page/N` (20 tarjetas, 47 páginas; `?ppg=` se ignora). Scrape real (2026-11-20, 67 s por HTTP plano) **932 tarjetas, 930 productos**: `10% / 20% de descuento tarjeta de crédito` son dos "productos" de $1,21 que `OdooPage` descarta.
+`rubro_por_defecto = 'tecnologia'` y no `rubro_forzado` (uno forzado rompería los rollbacks documentados de `V24`/`V27`/`V45`, que angostan ese CHECK). Sin `monomarca`: Apple es la mayoría, pero no todo. Sin hojas: el listado Odoo
+no trae id de categoría, así que decide el nombre.
+
+### Rollback
+
+```sql
+-- >>> rollback:V125
+DELETE FROM sitio s WHERE s.sitio_key = 'macstation'
+  AND NOT EXISTS (SELECT 1 FROM productos p WHERE p.sitio_key = s.sitio_key);
+-- <<< rollback:V125
+```
+
+Con productos ya scrapeados no borra nada. No toca el CHECK de plataforma (`odoo` viene de `V124`). Ya no es el bloque más nuevo: corre después del de `V126` y antes que el de `V124`.
+
+---
+
+## `V126` — seed de Gentech
+
+Gentech (`gentech.com.ar`, Odoo `website_sale`, otro tema que Macstation): una sola marca de suplementos (GenTech / AFA). Scrape real (2026-11-20, 3 s por HTTP plano, `Accept-Language: es-AR`) **45 productos** en 3 páginas (21 + 21 + 3):
+sin el idioma el sitio redirige a `/en/shop` y formatea los precios como `43,900.00`, y `OdooPage` lee los dos formatos. Tienda de marca propia: `monomarca = true` (`NormalizerService` asigna `marca = sitio.nombre`; los nombres casi nunca dicen
+Gentech) y `Gentech` es una fila de `marca`, o `fk_productos_marca` (`V52`) rechaza todos los productos y el scrape dice "0 nuevos". `rubro_por_defecto = 'suplementos'` y no `rubro_forzado` (mismo motivo que `V125`). Sin hojas.
+
+### Rollback
+
+```sql
+-- >>> rollback:V126
+DELETE FROM sitio s WHERE s.sitio_key = 'gentech'
+  AND NOT EXISTS (SELECT 1 FROM productos p WHERE p.sitio_key = s.sitio_key);
+DELETE FROM marca m WHERE m.nombre = 'Gentech'
+  AND NOT EXISTS (SELECT 1 FROM productos p WHERE p.marca = m.nombre);
+-- <<< rollback:V126
+```
+
+Con productos ya scrapeados no borra nada. No toca el CHECK de plataforma. Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V127` y antes que el de `V125`.
+
+---
+
+## `V127` — categoría `Accesorio Apple`
+
+Lo que se vende **para** un equipo de Apple (fundas, correas, protectores de pantalla, soportes, el Apple Pencil) no tenía categoría: caía en `Otros`, en `Reloj` (las correas), en `Tablet` (el Pencil) o, por un color del nombre, en `Jean`, `Botas` o
+`Calza`. `Accesorio Apple` es de tecnología (`CategoryGroups.CATEGORIAS_TECH`) y su `sub_categoria` es el equipo que el nombre nombra primero: `iPad` (también el Apple Pencil), `MacBook` (Mac, iMac), `AirPods` y `Apple Watch` (también "para caja de
+44 mm"). Un AirTag y sus accesorios no tienen sub: no es cosa de AirPods. Un accesorio que además nombra un iPhone sigue siendo de `Celular` (la convención de siempre), y uno genérico de tablet o notebook que no nombra un equipo de Apple se queda donde
+está. Es el par de siempre: `EcosistemaAppleClassifier` (+ `SubcategoryResolver`) y la fila de esta migración; sin la fila el upsert dice `"0 nuevos"`. En la lista de `NormalizerService.OTROS_EQUIPOS_QUE_NO_CEDEN`: el nombre le gana a una hoja `Celular`.
+
+Como `V103` y `V118`, la migración también **reubica las filas ya guardadas** con la misma regla que el clasificador (un solo literal `clave|palabras`, sin salto de línea: Sonar), sin tocar las bloqueadas a mano ni las de
+`Llavero`, `Organización`, `Juguete`, `LEGO` y `Figura Coleccionable` (sus reglas de sustantivo líder corren antes). El rubro de una fila movida es el que `RubroResolver` da a una categoría de tecnología (un sitio con rubro forzado lo conserva). Es
+idempotente. Probado sobre una copia de la base de dev (`pg_dump`) más las 930 filas de Macstation del scrape del 2026-11-20: el clasificador viejo contra el nuevo cambia **264 filas** (238 de Macstation, 26 de Oncity: correas, fundas y Apple Pencil), todas pasan a `Accesorio Apple` y ninguna cambia otra cosa (de `Otros` 168, `Reloj` 89, `Tablet` 4, `Celular` 3); la migración sobre esa copia deja **264** filas en `Accesorio Apple`, con la misma sub y el mismo rubro que el resolver de Java: 0 diferencias. Dos reglas de Java corren antes (`OrganizacionHogarClassifier`: "Funda Organizadora ... para Cargador MacBook"; la `NonTextileGuard`: una "Pulsera ... para Apple Watch" no llega a la regla), y por eso `organizadora`/`organizador` son del veto y `pulsera` no es líder de correa.
+
+### Rollback
+
+```sql
+-- >>> rollback:V127
+UPDATE productos SET categoria = 'Otros', sub_categoria = '' WHERE categoria = 'Accesorio Apple';
+UPDATE sitio_categoria SET categoria = NULL WHERE categoria = 'Accesorio Apple';
+DELETE FROM categoria_stats WHERE categoria = 'Accesorio Apple';
+DELETE FROM categoria WHERE nombre = 'Accesorio Apple';
+-- <<< rollback:V127
+```
+
+**El orden es obligatorio** (FK de `productos`, `sitio_categoria` y `categoria_stats` hacia `categoria`). Los productos vuelven a `Otros` y el próximo scrape los reclasifica. Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V126`.

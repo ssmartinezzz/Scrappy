@@ -16,7 +16,8 @@ const marca = { marca: 'Nike', count: 100, rubro: 'indumentaria', img: '', media
 
 let observers;
 beforeEach(() => {
-  vi.clearAllMocks();
+  // reset, not clear: clearAllMocks keeps unconsumed mockResolvedValueOnce answers, so one failed test fed the next.
+  vi.resetAllMocks();
   observers = [];
   window.IntersectionObserver = class {
     constructor(cb) { this.cb = cb; observers.push(this); }
@@ -26,7 +27,9 @@ beforeEach(() => {
   fetchMarcasBrowser.mockResolvedValue({ marcas: [marca], nextCursor: null, total: 1 });
 });
 
+// The observer is created in a passive effect, which can still be pending when the text it waits for is on screen.
 const tocarCentinela = async () => {
+  await waitFor(() => expect(observers.some(o => !o.gone)).toBe(true));
   const vivo = observers.filter(o => !o.gone).at(-1);
   await act(async () => { vivo.cb([{ isIntersecting: true }]); });
 };

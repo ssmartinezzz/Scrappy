@@ -316,6 +316,7 @@ public class SubcategoryResolver {
 
         if (hardware.handles(categoria)) return hardware.resolver(categoria, nombre);
         if ("Celular".equals(categoria)) return subDeCelular(n);
+        if ("Accesorio Apple".equals(categoria)) return subDeAccesorioApple(n);
 
         List<String[]> tier1 = SUBCATEG_TIER1.get(categoria);
         if (tier1 != null) {
@@ -377,6 +378,28 @@ public class SubcategoryResolver {
         }
         if (!mejor.isEmpty()) return mejor;
         return SENAL_DE_TELEFONO.matcher(n).find() ? "Smartphone" : "";
+    }
+
+    /** Device an Apple accessory is for; the one named first wins. AirTag has no sub: it is not an AirPods thing. */
+    private static final String[][] SUB_ACCESORIO_APPLE = {
+        {"iPad", " ipad ", " apple pencil "},
+        {"MacBook", " macbook ", " imac ", " para mac "},
+        {"AirPods", " airpods ", " earpods "},
+        {"Apple Watch", " apple watch "}
+    };
+
+    private static String subDeAccesorioApple(String n) {
+        String mejor = "";
+        int posicion = Integer.MAX_VALUE;
+        for (String[] sub : SUB_ACCESORIO_APPLE) {
+            for (int i = 1; i < sub.length; i++) {
+                int at = n.indexOf(sub[i]);
+                if (at >= 0 && at < posicion) { posicion = at; mejor = sub[0]; }
+            }
+        }
+        java.util.regex.Matcher caja = EcosistemaAppleClassifier.CAJA_DE_RELOJ.matcher(n);
+        if (caja.find() && caja.start() < posicion) mejor = "Apple Watch";
+        return mejor;
     }
 
     private String normalizarAcentos(String s) {

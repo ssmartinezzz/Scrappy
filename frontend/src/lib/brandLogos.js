@@ -80,7 +80,7 @@ export const SITIO_LOGO_MARCA = { underarmour: 'under armour', dcshoes: 'dc' };
 // White or light-grey marks: they need a dark plate behind them.
 export const LOGOS_SOBRE_OSCURO = new Set([
   'barnes', 'bulks', 'crudda', 'foreverbstrd', 'labs nutrition', 'mervick', 'mrplacadeco', 'vayzenhome',
-  'armytech', 'ayrun', 'entreno', 'equus', 'hadriatica', 'notebookspro', 'oneplaceworld', 'prestigio', 'sommiercenter', 'sporting', 'vaypol',
+  'armytech', 'ayrun', 'entreno', 'equus', 'hadriatica', 'macstation', 'notebookspro', 'oneplaceworld', 'prestigio', 'sommiercenter', 'sporting', 'vaypol',
 ]);
 
 const clave = marca => (marca || '').trim().toLowerCase().replace(/\s+/g, ' ');

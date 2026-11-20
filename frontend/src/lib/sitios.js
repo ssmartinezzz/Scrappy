@@ -15,7 +15,7 @@ export const LABELS = {
   monkyforce: 'Monkyforce', morashop: 'Morashop', mrplacadeco: 'MrPlacaDeco', naldo: 'Naldo', nike: 'Nike',
   notebookspro: 'NotebooksPro', oncity: 'Oncity', oneplaceworld: 'One Place World', rockethard: 'RocketHard', prestigio: 'Prestigio', samsung: 'Samsung', sportline: 'Sportline',
   somosrex: 'Somos Rex', sommiercenter: 'Sommier Center', sporting: 'Sporting', tussy: 'Tussy', underarmour: 'Under Armour', vaypol: 'Vaypol',
-  dexter: 'Dexter', moov: 'Moov',
+  dexter: 'Dexter', moov: 'Moov', macstation: 'Macstation', gentech: 'Gentech',
   vayzenhome: 'Vayzen Home', vcp: 'VCP', venex: 'Venex', zentra: 'Zentra',
 };
 

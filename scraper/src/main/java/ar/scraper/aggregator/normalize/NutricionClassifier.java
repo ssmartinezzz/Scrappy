@@ -28,6 +28,7 @@ final class NutricionClassifier implements FamiliaClassifier {
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_COLAGENO))         return "Colágeno";
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_MAGNESIO))         return "Magnesio";
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_BCAA_SUP))         return "BCAA";
+        if (!esCombo(t) && GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_AMINO_SUELTO)) return "BCAA";
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_VITAMINAS))        return "Vitaminas";
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_QUEMADORES))       return "Quemadores";
         if (GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_SUPLEMENTO)
@@ -37,6 +38,10 @@ final class NutricionClassifier implements FamiliaClassifier {
                 && !GarmentTaxonomy.anyMatch(t, GarmentTaxonomy.KW_COMIDA_VETO))
             return "Alimentos";
         return "";
+    }
+
+    private static boolean esCombo(String t) {
+        return t.startsWith(" combo ") || t.startsWith(" kit ") || t.contains(" + ");
     }
 
     private static String sinMarcasQueNombranProteina(String t) {

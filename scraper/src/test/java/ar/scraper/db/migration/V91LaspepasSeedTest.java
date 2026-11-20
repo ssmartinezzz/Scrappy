@@ -39,7 +39,11 @@ class V91LaspepasSeedTest extends PostgresTestBase {
             c.setAutoCommit(false);
             try (Statement st = c.createStatement()) {
                 // V115 and V116 seeded two more magento rows: newest first.
-                // V121-V123 added the sfcc platform and its two sites on top: they go before anything else.
+                // V121-V126 added the sfcc and odoo platforms and their four sites on top: they go before anything else.
+                st.execute(DocumentedRollback.sqlFor("V127"));
+                st.execute(DocumentedRollback.sqlFor("V126"));
+                st.execute(DocumentedRollback.sqlFor("V125"));
+                st.execute(DocumentedRollback.sqlFor("V124"));
                 st.execute(DocumentedRollback.sqlFor("V123"));
                 st.execute(DocumentedRollback.sqlFor("V122"));
                 st.execute(DocumentedRollback.sqlFor("V121"));

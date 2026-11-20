@@ -9,6 +9,8 @@ import java.util.regex.Pattern;
 final class CelularClassifier implements FamiliaClassifier {
 
     private static final Pattern TIE_GALAXY = Pattern.compile(" galaxy [asmzf]\\d{1,3}\\b| galaxy z ");
+    // Cases sold "para 15 Pro Max" without saying iPhone (Speck, Case-Mate): the model numbers 11-17 with a suffix.
+    private static final Pattern PARA_MODELO_IPHONE = Pattern.compile(" para (?:el )?1[1-7] ?(?:pro|plus|max|mini|air)\\b");
     private static final Pattern GALAXY_BOOK = Pattern.compile(" galaxy book ?\\d");
     private static final Pattern MODELO_GALAXY = Pattern.compile(
         " galaxy (?:[asmzf]\\d{1,3}\\b|z (?:fold|flip)|xcover|note ?\\d+)");
@@ -25,6 +27,7 @@ final class CelularClassifier implements FamiliaClassifier {
         if (texto.contiene(GarmentTaxonomy.KW_CELULAR_VETO)) return "";
         if (accesorio) {
             return texto.contiene(GarmentTaxonomy.KW_CELULAR_ATADO) || TIE_GALAXY.matcher(texto.normalizado()).find()
+                    || PARA_MODELO_IPHONE.matcher(texto.normalizado()).find()
                 ? "Celular" : "";
         }
         if (texto.sinPrefijoDeVentaEmpiezaCon(GarmentTaxonomy.KW_CELULAR_LIDER)
