@@ -98,4 +98,21 @@ class MagentoHomeSitesTaxonomyTest {
         assertThat(categoria(nombre)).isNotIn("Pintura", "Adhesivo", "Herramienta Manual", "Herramienta Eléctrica",
                 "Pequeño Electrodoméstico", "Impermeabilizante", "Accesorio de Pintura", "Ropa de Cama");
     }
+
+    @ParameterizedTest(name = "{0}")
+    @DisplayName("Pila: AA, AAA and button cells are Pila, a kitchen sink 'pila' is not")
+    @CsvSource(delimiter = '|', value = {
+            "Pilas Philco AA Alcalina X8 Unidades|Pila",
+            "Pila Alcalina AA 4 Un Energizer|Pila",
+            "Pila Por Unidad Cr2025 Philips Controles Relojes|Pila",
+    })
+    void pila(String nombre, String esperada) {
+        assertThat(categoria(nombre)).isEqualTo(esperada);
+    }
+
+    @Test
+    @DisplayName("a kitchen sink is not a battery")
+    void pilaDeCocina() {
+        assertThat(categoria("Pila de Cocina Doble Acero Inox 120 cm")).isNotEqualTo("Pila");
+    }
 }

@@ -194,6 +194,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V114` | Seed de Oncity (VTEX, tienda por departamentos, `rubro_por_defecto = 'hogar'`) y 325 hojas curadas; el nodo `Supermercado` se excluye (espera al rubro `supermercado`) |
 | `V115` | Seed de Somos Rex (Magento 2, ferretería y pinturería, `rubro_por_defecto = 'construccion'`); sin hojas: el listado de Magento no trae categoría |
 | `V116` | Seed de Sommier Center (Magento 2, colchones y camas, `rubro_por_defecto = 'hogar'`); sin hojas |
+| `V117` | Categoría `Pila` (rubro hogar): pilas AA/AAA/botón y recargables, sin paso de datos |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -5713,5 +5714,26 @@ DELETE FROM sitio s WHERE s.sitio_key = 'sommiercenter'
 -- <<< rollback:V116
 ```
 
-Con productos ya scrapeados no borra nada. Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V115`.
+Con productos ya scrapeados no borra nada. Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V117` y antes que el de `V115`.
 
+---
+
+## `V117` — categoría `Pila`
+
+Las pilas no tenían categoría: 57 filas activas de 3 sitios caen en `Otros` (medido 2026-11-20). `Pila` es de hogar (`CategoryGroups.CATEGORIAS_HOGAR`, como los demás consumibles del
+hogar): `HogarClassifier` la produce cuando el nombre **empieza** con `pila`/`pilas` (alcalinas, recargables, de botón) y no habla de una pileta de cocina (`KW_PILA_VETO`: `cocina`,
+`lavadero`, `inox`, `bacha`...). Es el par de siempre: el keyword y la fila de esta migración; sin la fila el upsert dice `"0 nuevos"`. Sin paso de datos: el próximo scrape es la fuente de verdad.
+
+### Rollback
+
+```sql
+-- >>> rollback:V117
+UPDATE productos SET categoria = 'Otros' WHERE categoria = 'Pila';
+UPDATE sitio_categoria SET categoria = NULL WHERE categoria = 'Pila';
+DELETE FROM categoria_stats WHERE categoria = 'Pila';
+DELETE FROM categoria WHERE nombre = 'Pila';
+-- <<< rollback:V117
+```
+
+**El orden es obligatorio** (FK de `productos`, `sitio_categoria` y `categoria_stats` hacia `categoria`). Los productos vuelven a `Otros` y el próximo scrape los reclasifica. Es el bloque más
+nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V116`.

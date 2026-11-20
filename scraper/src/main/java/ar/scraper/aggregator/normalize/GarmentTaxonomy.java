@@ -1552,6 +1552,12 @@ public final class GarmentTaxonomy {
         " auto "," moto "," camioneta"," celular"," bicicleta"," bici "," tortuga"," terrario"," acuario"," mascota"," bebe",
         " camping"," linterna"," juguete"," uv "
     };
+    public static final String[] KW_PILA_LIDER = {
+        " pila "," pilas "," pila alcalina"," pilas alcalinas"," pila recargable"," pilas recargables"," pila de boton"
+    };
+    public static final String[] KW_PILA_VETO = {
+        " cocina"," lavadero"," lavar"," inox"," bacha"," mesada"," bano"," pileta"," sifon"," griferia"
+    };
     public static final String[] KW_ALMOHADA_LIDER = { " almohada "," almohadas " };
     public static final String[] KW_ALMOHADA_VETO = {
         " hombre"," mujer"," campera"," chaleco"," buzo"," nino"," nina"," viaje"," masaje"," deportiv"," running"," sleeping",

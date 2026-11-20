@@ -92,7 +92,7 @@ public final class CategoryGroups {
         "Sanitario", "Grifería", "Ducha", "Bañera", "Mampara", "Vanitory", "Bacha", "Accesorio de Baño",
         "Mueble", "Placard", "Cama", "Colchón", "Mesa", "Sillón", "Estantería", "Caja y Canasto", "Basurero",
         "Tendedero", "Colgador", "Artículo de Limpieza", "Sistema Modular", "Espejo", "Cortina", "Ropa de Cama",
-        "Toalla", "Decoración", "Bazar",
+        "Toalla", "Decoración", "Bazar", "Pila",
         "Planta", "Semilla", "Tierra y Fertilizante", "Maceta", "Riego", "Pulverizador", "Cerco y Media Sombra",
         "Decoración de Jardín", "Herramienta de Jardín", "Máquina de Jardín", "Gazebo y Sombrilla", "Reposera y Hamaca", "Mueble de Exterior", "Depósito de Jardín",
         "Parrilla", "Accesorio de Parrilla", "Carbón y Leña", "Pileta", "Inflable", "Químico de Pileta", "Accesorio de Pileta",
