@@ -57,6 +57,10 @@ const CHIPS = {
   // V130: bedding by product type, mattress by size in plazas (the value keeps no "½": its slug would collide with 1 Plaza).
   'hogar/Ropa de Cama': ['Acolchado', 'Almohada', 'Cubrecama', 'Frazada y Manta', 'Funda', 'Juego de Sábanas', 'Plumón', 'Protector'],
   'hogar/Colchón': ['1 Plaza', '1 1/2 Plaza', '2 Plazas', '2 1/2 Plazas', 'Queen', 'King'],
+  // V131: the names of a ferretería.
+  'construccion/Herramienta Manual': ['Albañilería', 'Corte y Limado', 'Destornillador y Puntas', 'Engrampadora y Remachadora',
+    'Espátula y Rasqueta', 'Juego y Set', 'Llave y Tubo', 'Martillo y Maza', 'Medición', 'Pinza y Alicate', 'Pistola de Silicona',
+    'Prensa y Morsa'],
 };
 
 export function subChipsDe(rubro, categoria) {

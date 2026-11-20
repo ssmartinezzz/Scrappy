@@ -19,7 +19,7 @@ public class SubcategoryResolver {
 
     private final HardwareSubcategoryResolver hardware = new HardwareSubcategoryResolver();
     private static final List<LeadingNounRules> POR_SUSTANTIVO = List.of(ElectroSubcategoryResolver.REGLAS,
-        HogarSubcategoryResolver.REGLAS, CamaSubcategoryResolver.REGLAS);
+        HogarSubcategoryResolver.REGLAS, CamaSubcategoryResolver.REGLAS, HerramientaSubcategoryResolver.REGLAS);
 
     /**
      * {@code entry[1..n]} = keywords to match (accent/case-insensitive, space-padded for

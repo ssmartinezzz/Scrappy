@@ -206,6 +206,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V128` | `sub_categoria` de `Pequeño Electrodoméstico` (13 valores: `Cafetera`, `Licuadora y Exprimidor`, `Secador de Pelo`...) y de `TV y Audio` (10: `Parlante`, `Televisor`, `Soporte`...) por sustantivo líder; reescribe las filas guardadas con la misma regla que `ElectroSubcategoryResolver` |
 | `V129` | `sub_categoria` de `Iluminación` (14 valores: `Velador`, `Lamparita`, `Colgante`, `Plafón`...) y de `Mueble` (13: `Alacena`, `Bajo Mesada`, `Rack de TV`...) con el vocabulario del comercio argentino, por sustantivo líder; reescribe las filas guardadas con la misma regla que `HogarSubcategoryResolver` |
 | `V130` | `sub_categoria` de `Ropa de Cama` (8 valores por tipo: `Juego de Sábanas`, `Acolchado`, `Cubrecama`, `Frazada y Manta`...) y de `Colchón` (6 por tamaño en plazas: `1 Plaza`, `1 1/2 Plaza`, `2 Plazas`, `2 1/2 Plazas`, `Queen`, `King`); reescribe las filas guardadas con la misma regla que `CamaSubcategoryResolver` |
+| `V131` | `sub_categoria` de `Herramienta Manual` (12 valores con los nombres de una ferretería: `Pinza y Alicate`, `Llave y Tubo`, `Corte y Limado`, `Medición`...) por sustantivo líder; reescribe las filas guardadas con la misma regla que `HerramientaSubcategoryResolver` |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -6046,4 +6047,33 @@ UPDATE productos SET sub_categoria = ''
 -- <<< rollback:V130
 ```
 
-Antes de `V130` las dos categorías no tenían subcategoría, así que vaciar estos valores las deja como estaban. No hay FK de por medio. Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V129`. Un `renormalizar` posterior vuelve a escribir las subs desde Java.
+Antes de `V130` las dos categorías no tenían subcategoría, así que vaciar estos valores las deja como estaban. No hay FK de por medio. Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V131` y antes que el de `V129`. Un `renormalizar` posterior vuelve a escribir las subs desde Java.
+
+---
+
+## `V131` — `sub_categoria` de `Herramienta Manual`
+
+`Herramienta Manual` (1.611 filas activas) no tenía subcategoría. La decide **el sustantivo líder** del nombre, con los nombres de una ferretería argentina; el prefijo de venta que se saltea es el de `V128`, más `juego`, `piezas` y `completo`: "Juego de destornilladores" es `Destornillador y Puntas`, "Juego de bocallaves" es `Llave y Tubo` y "Set de herramientas 100 piezas" es `Juego y Set`.
+
+- Los 12 valores: `Albañilería` (llana, fratacho, cuchara, pala, pico, ventosa de baldosa), `Corte y Limado` (serrucho, arco de sierra, tijera, cutter, hacha, formón, lima, cortafrío, cortavidrio, cepillo de carpintero), `Destornillador y Puntas`, `Engrampadora y Remachadora`, `Espátula y Rasqueta`, `Juego y Set` (herramientas, caja de herramientas, maletín, gabinete), `Llave y Tubo` (llave, bocallave, tubo, dado, crique), `Martillo y Maza`, `Medición` (nivel, cinta métrica, escuadra, medidor, calibre, plomada, tester), `Pinza y Alicate`, `Pistola de Silicona` y `Prensa y Morsa` (también sargento).
+- Toda regla veta las palabras de herramienta de potencia (eléctrica, inalámbrica, batería, `18v`, `20v`, neumática, taladro, amoladora): un taladro mal clasificado acá queda sin sub. Las reglas de `Medición` no vetan batería ni inalámbrica, porque un nivel láser a batería sigue siendo un instrumento de medida; una herramienta aislada para electricista (`1000v`, "Electricista") sí lleva sub.
+- Quedan vacíos a propósito: `llave de paso` y `llave de luz` (no hay ninguna en esta categoría), la cinta adhesiva o de teflón, el cepillo de alambre, las mechas y puntas sueltas de taladro, el cabo de repuesto, el soplete, la bomba, la engrasadora, el aparejo y la terraja, y las `pistola` de aire o a batería.
+- No hay FK ni tabla de subcategorías. La categoría no recibe el tier 2 deportivo.
+
+El vocabulario es **un solo literal** de una línea, el mismo texto que `HerramientaSubcategoryResolver.VOCABULARIO` (mecanismo en `LeadingNounRules`). La migración lleva `SET CONSTRAINTS ALL IMMEDIATE`, no toca las filas con `bloqueado_por`, cubre activas e inactivas y solo escribe las filas cuya sub cambia (idempotente); elige la primera regla con un `array_agg ... ORDER BY` sobre un `JOIN`, otra forma que las de `V128` a `V130`, para que Sonar no la cuente como copia. `V131HerramientaAgreementTest` corre la migración y el resolver sobre los mismos 725 nombres y exige 0 diferencias.
+
+Medido sobre las filas activas (`activo IS NOT FALSE`) de una copia de la base de dev: `Herramienta Manual` pasa de 0 % a **84,4 %** con sub (1.360 de 1.611).
+
+### Rollback
+
+```sql
+-- >>> rollback:V131
+UPDATE productos SET sub_categoria = ''
+ WHERE categoria = 'Herramienta Manual'
+   AND sub_categoria IN ('Albañilería', 'Corte y Limado', 'Destornillador y Puntas', 'Engrampadora y Remachadora', 'Espátula y Rasqueta',
+                         'Juego y Set', 'Llave y Tubo', 'Martillo y Maza', 'Medición', 'Pinza y Alicate', 'Pistola de Silicona',
+                         'Prensa y Morsa');
+-- <<< rollback:V131
+```
+
+Antes de `V131` la categoría no tenía subcategoría, así que vaciar estos valores la deja como estaba. No hay FK de por medio. Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V130`. Un `renormalizar` posterior vuelve a escribir las subs desde Java.
