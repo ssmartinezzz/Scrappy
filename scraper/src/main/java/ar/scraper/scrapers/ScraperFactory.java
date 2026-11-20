@@ -14,6 +14,7 @@ import ar.scraper.pages.KevingstonPage;
 import ar.scraper.pages.MagentoPage;
 import ar.scraper.pages.MonkyforcePage;
 import ar.scraper.pages.MorashopPage;
+import ar.scraper.pages.OdooPage;
 import ar.scraper.pages.OsCommercePage;
 import ar.scraper.pages.PrestashopPage;
 import ar.scraper.pages.QloudPage;
@@ -79,6 +80,7 @@ public class ScraperFactory {
             entry("kevingston",  simple(KevingstonPage::new)),
             entry("magento",     paginated(MagentoPage::new)),
             entry("sfcc",        simple(SfccPage::new)),
+            entry("odoo",        simple(OdooPage::new)),
             entry(TIENDANUBE,    paginated(TiendanubePage::new)));
 
     /** Platforms whose registry value wins over a VTEX or Shopify URL; the rest yield to the URL. */

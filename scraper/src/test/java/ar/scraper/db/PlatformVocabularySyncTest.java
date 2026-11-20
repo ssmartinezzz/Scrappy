@@ -42,7 +42,7 @@ class PlatformVocabularySyncTest {
 
     /** Newest migration that redefines `sitio_plataforma_check` — update this pointer, never leave two truths. */
     private static final String NEWEST_PLATAFORMA_MIGRATION =
-            "/db/migration/V121__platform_vocabulary_sfcc.sql";
+            "/db/migration/V124__platform_vocabulary_odoo.sql";
 
     private static final Pattern CHECK_LIST = Pattern.compile(
             "CHECK\\s*\\(\\s*plataforma\\s+IN\\s*\\(([^)]*)\\)\\s*\\)", Pattern.CASE_INSENSITIVE);

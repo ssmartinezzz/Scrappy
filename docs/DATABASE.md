@@ -199,6 +199,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V121` | Plataforma `sfcc` (Salesforce Commerce Cloud): `sitio_plataforma_check` pasa a 20 valores; sin sitios (los siembran `V122` y `V123`) |
 | `V122` | Seed de Dexter (SFCC, retail deportivo multimarca, sin `rubro_por_defecto`) y 115 hojas de accesorios curadas; calzado e indumentaria quedan sin mapear (decide el nombre) |
 | `V123` | Seed de Moov (SFCC, mismo grupo, más urbano) y 27 hojas de accesorios curadas |
+| `V124` | Plataforma `odoo` (Odoo `website_sale`): `sitio_plataforma_check` pasa a 21 valores; sin sitios (los siembran `V125` y `V126`) |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -5855,4 +5856,29 @@ DELETE FROM sitio s WHERE s.sitio_key = 'moov'
 -- <<< rollback:V123
 ```
 
-Con productos ya scrapeados no borra nada. No toca el CHECK de plataforma. Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V122`.
+Con productos ya scrapeados no borra nada. No toca el CHECK de plataforma. Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V124` y antes que el de `V122`.
+
+---
+
+## `V124` — plataforma `odoo`
+
+Macstation (`macstation.com.ar`) y Gentech (`gentech.com.ar`) corren Odoo `website_sale`. `OdooPage` lee el listado renderizado en el servidor (`/shop`, `/shop/page/N`), así que hace falta un valor de plataforma propio:
+`sitio_plataforma_check` (CHECK, no tabla, como `V6`) pasa a 21 valores. Los sitios se siembran en `V125` (Macstation) y `V126` (Gentech). Las otras copias del vocabulario viajan en el mismo commit:
+`SitiosRepository.PLATAFORMAS_VALIDAS`, `ScraperFactory.PAGINAS`, `PlatformVocabularySyncTest` (puntero) y `ScraperFactoryPlatformTest`.
+
+### Rollback
+
+```sql
+-- >>> rollback:V124
+ALTER TABLE sitio DROP CONSTRAINT sitio_plataforma_check;
+ALTER TABLE sitio ADD CONSTRAINT sitio_plataforma_check
+    CHECK (plataforma IN ('tiendanube','shopify','vtex','vaypol','woocommerce',
+                          'monkyforce','maximus','fullh4rd','compragamer',
+                          'qloud','oscommerce','inpro','morashop','prestashop',
+                          'gamerfactory','ambiancedeco','hadriatica','kevingston','magento','sfcc'));
+-- <<< rollback:V124
+```
+
+El orden es obligatorio: mientras haya una fila `odoo` el CHECK angosto la rechaza, así que corren antes los rollbacks de `V126` y `V125` (que borran Gentech y Macstation). Ya no es el bloque más nuevo: en una cadena de rollbacks corre después de los de `V126` y `V125`
+y antes que el de `V123` (que no cambia esquema).
+
