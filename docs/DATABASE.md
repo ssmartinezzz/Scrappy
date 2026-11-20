@@ -196,6 +196,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V116` | Seed de Sommier Center (Magento 2, colchones y camas, `rubro_por_defecto = 'hogar'`); sin hojas |
 | `V117` | Categoría `Pila` (rubro hogar): pilas AA/AAA/botón y recargables, sin paso de datos |
 | `V118` | `sub_categoria` de `Silla` (gamer, oficina, infantil, exterior, comedor) y rubro `hogar` para las de hogar; en las filas activas e inactivas, sin tocar los sitios con `rubro_forzado` |
+| `V121` | Plataforma `sfcc` (Salesforce Commerce Cloud): `sitio_plataforma_check` pasa a 20 valores; sin sitios (los siembran `V122` y `V123`) |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -5774,5 +5775,28 @@ UPDATE productos p
 -- <<< rollback:V118
 ```
 
-Las sillas de un sitio libre vuelven a `oficina` y las de un sitio forzado conservan su rubro; el próximo scrape las reclasifica. Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes
+Las sillas de un sitio libre vuelven a `oficina` y las de un sitio forzado conservan su rubro; el próximo scrape las reclasifica. Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V121` y antes
 que el de `V117`. No cambia ningún esquema, así que los rollbacks viejos de la plataforma no lo necesitan.
+
+---
+
+## `V121` — plataforma `sfcc`
+
+Dexter (`dexter.com.ar`) y Moov (`moov.com.ar`), del mismo grupo, corren Salesforce Commerce Cloud (Demandware). `SfccPage` lee el controlador `Search-UpdateGrid`, así que
+hace falta un valor de plataforma propio: `sitio_plataforma_check` (CHECK, no tabla, como `V6`) pasa a 20 valores. Los sitios se siembran en `V122` (Dexter) y `V123` (Moov). Las otras
+copias del vocabulario viajan en el mismo commit: `SitiosRepository.PLATAFORMAS_VALIDAS`, `ScraperFactory.PAGINAS`, `PlatformVocabularySyncTest` (puntero) y `ScraperFactoryPlatformTest`.
+
+### Rollback
+
+```sql
+-- >>> rollback:V121
+ALTER TABLE sitio DROP CONSTRAINT sitio_plataforma_check;
+ALTER TABLE sitio ADD CONSTRAINT sitio_plataforma_check
+    CHECK (plataforma IN ('tiendanube','shopify','vtex','vaypol','woocommerce',
+                          'monkyforce','maximus','fullh4rd','compragamer',
+                          'qloud','oscommerce','inpro','morashop','prestashop',
+                          'gamerfactory','ambiancedeco','hadriatica','kevingston','magento'));
+-- <<< rollback:V121
+```
+
+El orden es obligatorio: mientras haya una fila `sfcc` el CHECK angosto la rechaza, así que corren antes los rollbacks de `V123` y `V122` (que borran Moov y Dexter). Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V118` (que no cambia esquema).
