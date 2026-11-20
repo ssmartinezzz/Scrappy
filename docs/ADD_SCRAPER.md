@@ -22,6 +22,8 @@ Antes de codear, determinar la plataforma del sitio:
   `cf-mitigated`, y el navegador carga?
 ¿`demandware` en el HTML y rutas   → Salesforce Commerce Cloud: ver Caso 11  {dexter, moov}
   `/on/demandware.store/Sites-`?
+¿`/shop`, `/shop/page/N` y             → Odoo website_sale: ver Caso 12  {macstation, gentech}
+  `oe_product_cart` en el HTML?
 ¿Otro?                          → Necesita Page custom
 ```
 
@@ -482,6 +484,23 @@ plataforma sirve: no hay `/products.json`, ni API VTEX, ni `wp-json`.
 - **Fallar fuerte**: 0 tarjetas en la primera página, una home sin `Sites-<Id>-Site` o un fallo en la primera página lanzan `SfccPayloadException`; un fallo posterior corta con truncamiento.
 - Alta de un sitio: fila de seed con `plataforma = 'sfcc'` y `config.properties` (`url`, `activo`); curar con `sitio_categoria` sólo las hojas donde el nombre falla (ver `V122`/`V123` y
   `NormalizerService.SITIOS_DONDE_LA_HOJA_GANA`). Para sacar las hojas de un sitio nuevo: volcar el crawl y agrupar por `sitioCategoriaOrigenId`.
+
+---
+
+## Caso 12: Sitio Odoo (`website_sale`)
+
+Plataforma `odoo` (`V124`), página `OdooPage` (familia simple). Cómo reconocerla: listado en `/shop`, páginas en `/shop/page/N`, tarjetas `form.oe_product_cart` y rutas `/web/image/product.template/<id>/...`. Es HTML renderizado
+en el servidor, sin API ni JSON: HTTP plano, sin Cloudflare.
+
+- **Paginación**: `?ppg=` se ignora, así que se pagina todo. Una página pasada el final **repite la última** en vez de venir vacía: el corte es el último número de `/shop/page/N` de la primera página, o la primera página sin URLs
+  nuevas. Una página vacía antes de la última anunciada registra un truncamiento (no se descarta el run); 0 tarjetas en la primera lanza `OdooPayloadException`.
+- **Dos temas, un parser**: nombre de `itemprop="name"@content` (Macstation: el `<p>` visible viene acortado), si no el span de `o_wsale_products_item_title`, si no el `aria-label` del form (Gentech). Precio de
+  `itemprop="price"` (numérico) o del primer `oe_currency_value` fuera de un `<del>`; el precio de lista es un `<del>` sin `d-none` (Macstation deja uno oculto en cada tarjeta).
+- **Locale**: el contexto de Playwright ya es `es-AR` (`105.900,00`); sin ese idioma Odoo redirige a `/en/shop` y formatea `43,900.00`. `OdooPage.monto` lee los dos (el último separador es decimal salvo que le sigan tres dígitos) y la
+  URL del producto pierde el prefijo `/en` para que la clave del upsert no dependa del idioma.
+- **Basura**: Macstation lista sus descuentos con tarjeta como productos de $1,21 (`10% de descuento tarjeta de crédito`); `DESCUENTO_COMO_PRODUCTO` los descarta.
+- **Sin categoría**: la tarjeta no trae id de categoría, así que no hay árbol `sitio_categoria` que curar; decide el nombre (ver las preguntas abiertas de `macstation` en `docs/SITES.md`). El sitio sí publica un árbol en `/shop/category/<slug>-<id>` (por ejemplo `accesorios-accesorios-ipad-180`), pero leerlo exige un pedido por categoría para saber a cuál pertenece cada tarjeta; no se lee. Lo que sale del nombre: `EcosistemaAppleClassifier` (equipos por modelo, correas de reloj, accesorios de iPad/MacBook/AirPods como `Otros` explícito) y `AccesorioSueltoClassifier` (fundas de iPhone sin la palabra), con sus controles en `OdooSitesTaxonomyTest`.
+- Alta de un sitio: fila de seed con `plataforma = 'odoo'` y `config.properties` (`url` = el host, sin `/shop`; `activo`). Una tienda de marca propia lleva `monomarca = true` y su fila en `marca` (ver `V126`).
 
 ---
 
