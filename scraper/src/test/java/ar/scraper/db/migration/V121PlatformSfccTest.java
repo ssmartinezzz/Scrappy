@@ -36,6 +36,9 @@ class V121PlatformSfccTest extends PostgresTestBase {
         try (Connection c = dataSource().getConnection()) {
             c.setAutoCommit(false);
             try (Statement st = c.createStatement()) {
+                // the two sfcc sites sit on top of the platform value: newest first
+                st.execute(DocumentedRollback.sqlFor("V123"));
+                st.execute(DocumentedRollback.sqlFor("V122"));
                 st.execute(DocumentedRollback.sqlFor("V121"));
                 assertThat(check(st)).doesNotContain("sfcc").contains("magento");
             } finally {

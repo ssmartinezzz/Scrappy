@@ -4,11 +4,15 @@ import ar.scraper.db.support.PostgresTestBase;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.Statement;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -34,12 +38,22 @@ class V122V123SeedSfccSitesTest extends PostgresTestBase {
         }
     }
 
-    private Map<String, Integer> leavesPerCategory(String key) throws Exception {
+    private static String migracion(String archivo) throws IOException {
+        try (InputStream in = Objects.requireNonNull(V122V123SeedSfccSitesTest.class
+                .getResourceAsStream("/db/migration/" + archivo))) {
+            return new String(in.readAllBytes(), StandardCharsets.UTF_8);
+        }
+    }
+
+    /** The test base truncates sitio_categoria between tests, so the migration is applied again (it is an upsert). */
+    private Map<String, Integer> leavesPerCategory(String key, String archivo) throws Exception {
         Map<String, Integer> porCategoria = new LinkedHashMap<>();
-        try (Connection c = dataSource().getConnection(); Statement st = c.createStatement();
-             ResultSet rs = st.executeQuery("SELECT categoria, count(*) FROM sitio_categoria WHERE " + sitioDe(key)
+        try (Connection c = dataSource().getConnection(); Statement st = c.createStatement()) {
+            st.execute(migracion(archivo));
+            try (ResultSet rs = st.executeQuery("SELECT categoria, count(*) FROM sitio_categoria WHERE " + sitioDe(key)
                      + " GROUP BY categoria ORDER BY categoria")) {
-            while (rs.next()) porCategoria.put(rs.getString(1), rs.getInt(2));
+                while (rs.next()) porCategoria.put(rs.getString(1), rs.getInt(2));
+            }
         }
         return porCategoria;
     }
@@ -66,7 +80,7 @@ class V122V123SeedSfccSitesTest extends PostgresTestBase {
     @Test
     @DisplayName("Dexter: 115 accessory leaves map onto categories that exist in the canon, with the expected spread")
     void mapsDexterLeaves() throws Exception {
-        assertThat(leavesPerCategory("dexter")).containsExactlyInAnyOrderEntriesOf(Map.ofEntries(
+        assertThat(leavesPerCategory("dexter", "V122__seed_dexter.sql")).containsExactlyInAnyOrderEntriesOf(Map.ofEntries(
                     Map.entry("Accesorio Deportivo", 27),
                     Map.entry("Accesorio de Fitness", 13),
                     Map.entry("Artículo de Camping", 2),
@@ -104,7 +118,7 @@ class V122V123SeedSfccSitesTest extends PostgresTestBase {
     @Test
     @DisplayName("Moov: 27 accessory leaves map onto categories that exist in the canon, with the expected spread")
     void mapsMoovLeaves() throws Exception {
-        assertThat(leavesPerCategory("moov")).containsExactlyInAnyOrderEntriesOf(Map.ofEntries(
+        assertThat(leavesPerCategory("moov", "V123__seed_moov.sql")).containsExactlyInAnyOrderEntriesOf(Map.ofEntries(
                     Map.entry("Accesorio Deportivo", 4),
                     Map.entry("Accesorio de Fitness", 1),
                     Map.entry("Artículo de Limpieza", 2),
@@ -132,6 +146,8 @@ class V122V123SeedSfccSitesTest extends PostgresTestBase {
         try (Connection c = dataSource().getConnection()) {
             c.setAutoCommit(false);
             try (Statement st = c.createStatement()) {
+                st.execute(migracion("V122__seed_dexter.sql"));
+                st.execute(migracion("V123__seed_moov.sql"));
                 int sitiosAntes = count(st, "SELECT count(*) FROM sitio");
                 int otrasHojas = count(st, "SELECT count(*) FROM sitio_categoria WHERE sitio_key NOT IN ('dexter', 'moov')");
 
