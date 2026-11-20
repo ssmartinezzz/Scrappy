@@ -200,6 +200,8 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V122` | Seed de Dexter (SFCC, retail deportivo multimarca, sin `rubro_por_defecto`) y 115 hojas de accesorios curadas; calzado e indumentaria quedan sin mapear (decide el nombre) |
 | `V123` | Seed de Moov (SFCC, mismo grupo, más urbano) y 27 hojas de accesorios curadas |
 | `V124` | Plataforma `odoo` (Odoo `website_sale`): `sitio_plataforma_check` pasa a 21 valores; sin sitios (los siembran `V125` y `V126`) |
+| `V125` | Seed de Macstation (Odoo, revendedor Apple, `rubro_por_defecto = 'tecnologia'`); sin hojas: el listado no trae categoría |
+| `V126` | Seed de Gentech (Odoo, marca propia de suplementos, `monomarca`, `rubro_por_defecto = 'suplementos'`) y su fila en `marca`; sin hojas |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -5882,3 +5884,43 @@ ALTER TABLE sitio ADD CONSTRAINT sitio_plataforma_check
 El orden es obligatorio: mientras haya una fila `odoo` el CHECK angosto la rechaza, así que corren antes los rollbacks de `V126` y `V125` (que borran Gentech y Macstation). Ya no es el bloque más nuevo: en una cadena de rollbacks corre después de los de `V126` y `V125`
 y antes que el de `V123` (que no cambia esquema).
 
+---
+
+## `V125` — seed de Macstation
+
+Macstation (`macstation.com.ar`, Odoo `website_sale`): revendedor Apple (Mac, iPad, iPhone, Watch, AirPods) con accesorios de terceros (fundas, cables, mochilas de Targus, ItSkins, UAG, Adam Elements, Speck). `OdooPage` pagina
+`/shop/page/N` (20 tarjetas, 47 páginas; `?ppg=` se ignora). Scrape real (2026-11-20, 67 s por HTTP plano) **932 tarjetas, 930 productos**: `10% / 20% de descuento tarjeta de crédito` son dos "productos" de $1,21 que `OdooPage` descarta.
+`rubro_por_defecto = 'tecnologia'` y no `rubro_forzado` (uno forzado rompería los rollbacks documentados de `V24`/`V27`/`V45`, que angostan ese CHECK). Sin `monomarca`: Apple es la mayoría, pero no todo. Sin hojas: el listado Odoo
+no trae id de categoría, así que decide el nombre.
+
+### Rollback
+
+```sql
+-- >>> rollback:V125
+DELETE FROM sitio s WHERE s.sitio_key = 'macstation'
+  AND NOT EXISTS (SELECT 1 FROM productos p WHERE p.sitio_key = s.sitio_key);
+-- <<< rollback:V125
+```
+
+Con productos ya scrapeados no borra nada. No toca el CHECK de plataforma (`odoo` viene de `V124`). Ya no es el bloque más nuevo: corre después del de `V126` y antes que el de `V124`.
+
+---
+
+## `V126` — seed de Gentech
+
+Gentech (`gentech.com.ar`, Odoo `website_sale`, otro tema que Macstation): una sola marca de suplementos (GenTech / AFA). Scrape real (2026-11-20, 3 s por HTTP plano, `Accept-Language: es-AR`) **45 productos** en 3 páginas (21 + 21 + 3):
+sin el idioma el sitio redirige a `/en/shop` y formatea los precios como `43,900.00`, y `OdooPage` lee los dos formatos. Tienda de marca propia: `monomarca = true` (`NormalizerService` asigna `marca = sitio.nombre`; los nombres casi nunca dicen
+Gentech) y `Gentech` es una fila de `marca`, o `fk_productos_marca` (`V52`) rechaza todos los productos y el scrape dice "0 nuevos". `rubro_por_defecto = 'suplementos'` y no `rubro_forzado` (mismo motivo que `V125`). Sin hojas.
+
+### Rollback
+
+```sql
+-- >>> rollback:V126
+DELETE FROM sitio s WHERE s.sitio_key = 'gentech'
+  AND NOT EXISTS (SELECT 1 FROM productos p WHERE p.sitio_key = s.sitio_key);
+DELETE FROM marca m WHERE m.nombre = 'Gentech'
+  AND NOT EXISTS (SELECT 1 FROM productos p WHERE p.marca = m.nombre);
+-- <<< rollback:V126
+```
+
+Con productos ya scrapeados no borra nada. No toca el CHECK de plataforma. Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V125`.

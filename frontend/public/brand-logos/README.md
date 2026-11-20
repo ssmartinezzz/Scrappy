@@ -109,3 +109,4 @@ result by eye and add white marks to `LOGOS_SOBRE_OSCURO`. Stores behind a WAF (
 | Sommier Center | `sommiercenter.svg` | https://sommiercenter.com/static/version1795089625/frontend/SommierCenter/ias/es_AR/images/logo.svg | store site |
 | Dexter | `dexter.png` | https://www.dexter.com.ar/on/demandware.static/Sites-Dexter-Site/-/default/dw5342ded0/images/favicons/favicon-196x196.png | store site |
 | Moov | `moov.png` | https://www.moov.com.ar/on/demandware.static/Sites-Moov-Site/-/default/dw4242d707/images/favicons/favicon-196x196.png | store site |
+| Macstation | `macstation.png` | https://www.macstation.com.ar/web/image/471783-d8ea53cc/LOGO%20MENU%20WEB%20%281%29.png | store site (white mark: `LOGOS_SOBRE_OSCURO`) |

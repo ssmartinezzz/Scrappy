@@ -55,6 +55,7 @@ export const LOGO_FILES_BY_NAME = {
   "laspepas": "laspepas.svg",
   "le coq sportif": "le-coq-sportif.svg",
   "leguilab": "leguilab.png",
+  "macstation": "macstation.png",
   "maximus": "maximus.png",
   "mervick": "mervick.png",
   "midway": "midway.png",

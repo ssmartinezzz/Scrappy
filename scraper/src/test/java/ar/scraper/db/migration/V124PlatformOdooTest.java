@@ -36,6 +36,9 @@ class V124PlatformOdooTest extends PostgresTestBase {
         try (Connection c = dataSource().getConnection()) {
             c.setAutoCommit(false);
             try (Statement st = c.createStatement()) {
+                // the two odoo sites sit on top of the platform value: newest first
+                st.execute(DocumentedRollback.sqlFor("V126"));
+                st.execute(DocumentedRollback.sqlFor("V125"));
                 st.execute(DocumentedRollback.sqlFor("V124"));
                 assertThat(check(st)).doesNotContain("odoo").contains("sfcc");
             } finally {
