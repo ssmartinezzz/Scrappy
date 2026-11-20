@@ -538,7 +538,7 @@ public final class GarmentTaxonomy {
     };
     public static final String[] KW_MOLDURA_LIDER = {
         " moldura "," cinta/moldura "," zocalo "," zocalos "," guardacanto"," listel",
-        " guarda decorativa"," guarda de pared"
+        " guarda decorativa"," guarda de pared"," cornisa "," atenneas "
     };
     public static final String[] KW_PISO = {
         " piso autoadhesivo"," piso pvc"," piso vinilico"," pisos vinilicos"," piso spc",
@@ -574,7 +574,7 @@ public final class GarmentTaxonomy {
     public static final String[] KW_PORCELANATO_LIDER = { " porcelanato"," porcelanatos"," porc " };
     public static final String[] KW_PASTINA_LIDER = { " pastina "," pastinas " };
     public static final String[] KW_REVESTIMIENTO_LIDER = {
-        " revestimiento "," revestimientos "," base coat"," placa pvc"
+        " revestimiento "," revestimientos "," base coat"," placa pvc"," vadex "
     };
     public static final String[] KW_TABLERO_LIDER = {
         " placa mdf"," placas mdf"," placa osb"," placa de osb"," placa fenolica"," placa melaminica",
@@ -610,7 +610,7 @@ public final class GarmentTaxonomy {
     public static final String[] KW_IMPERMEABILIZANTE_LIDER = {
         " impermeabilizante "," impermeabilizantes "," membrana asfaltica"," membrana aluminio"," membrana geo"," membrana liquida"," membrana fibrada"," membrana poliuretanica"," membrana impermeabilizante"," membrana no crack"," membrana para techo"," antihumedad",
         " hidrofugo"," pintura impermeabilizante"," pintura impermeable"," aerosol membrana",
-        " pintura asfaltica"," emulsion asfaltica"
+        " pintura asfaltica"," emulsion asfaltica"," membrana "," recuplast frentes"," plavicon "," liquitech "
     };
     public static final String[] KW_CHAPA_LIDER = {
         " chapa acanalada"," chapas acanaladas"," chapa galvanizada"," chapa trapezoidal",
@@ -646,7 +646,9 @@ public final class GarmentTaxonomy {
         " pintura "," latex interior"," latex exterior"," latex acrilico"," latex lavable"," latex para"," latex cielorraso"," latex satinado"," esmalte sintetico"," esmalte al agua"," esmalte acrilico",
         " esmalte antioxido"," esmalte convertidor"," barniz "," barnices "," lasur "," impregnante ",
         " impregnantes "," fijador al agua"," fijador sellador"," fijador sintetico"," fijador acrilico"," fijador de pared"," entonador "," entonadores "," colorante liquido",
-        " colorante universal"," convertidor de oxido"," antioxido"
+        " colorante universal"," convertidor de oxido"," antioxido",
+        " cetol "," esmalte "," laca "," latex "," tinta para madera"," tinta madera",
+        " recufloor "," baslac "," casablanca "," pisos acrilico"," fondo blanco"," plastificante para pisos"," plastificante de pisos"," aerosol rust"
     };
     public static final String[] KW_PINTURA_VETO = {
         " facial"," corporal"," dedos"," cara "," rostro"," tela "," unas"," pelo"," cabello"

@@ -20,6 +20,8 @@ import java.util.regex.Pattern;
  * page, {@code ?p=N}, and a page past the end has no cards. {@code baseUrl} plus {@code extraUrls} are catalogue
  * URLs, each paged until a page has no cards (or repeats the previous one).
  *
+ * <p>Somos Rex prices a card as {@code defaultPromoPrice} (its promo layer) instead of {@code finalPrice}.
+ *
  * <p>The same product is listed under several catalogue paths ({@code /ss27/ver-todo/x-09} and
  * {@code /shop/carteras/ver-todo-carteras/x-09}), so the crawl dedups on the last path segment and keeps the first
  * url, not on the url the upsert keys on.
@@ -30,7 +32,7 @@ public class MagentoPage extends StorePage implements CatalogPage {
     private static final Pattern ENLACE = Pattern.compile(
             "<a class=\"product-item-link\" href=\"([^\"]+)\"[^>]*>([^<]*)</a>");
     private static final Pattern PRECIO = Pattern.compile(
-            "<[a-z]+[^>]*data-price-type=\"(finalPrice|oldPrice)\"[^>]*>");
+            "<[a-z]+[^>]*data-price-type=\"(finalPrice|defaultPromoPrice|oldPrice)\"[^>]*>");
     private static final Pattern MONTO = Pattern.compile("data-price-amount=\"([0-9.]+)\"");
     private static final Pattern IMG = Pattern.compile("<img\\b[^>]*>");
     private static final Pattern ATRIBUTO_SRC = Pattern.compile("\\ssrc=\"([^\"]+)\"");
@@ -132,7 +134,7 @@ public class MagentoPage extends StorePage implements CatalogPage {
             String nombre = HtmlUtils.htmlUnescape(enlace.group(2)).trim();
             if (url.isEmpty() || nombre.isEmpty() || esMascota(url, nombre)) continue;
 
-            Double precio = monto(card, "finalPrice");
+            Double precio = Optional.ofNullable(monto(card, "finalPrice")).orElseGet(() -> monto(card, "defaultPromoPrice"));
             if (precio == null || precio <= 0 || precio < precioMin || precio > precioMax) continue;
             Double anterior = monto(card, "oldPrice");
 

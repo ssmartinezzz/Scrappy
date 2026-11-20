@@ -38,6 +38,8 @@ class V91LaspepasSeedTest extends PostgresTestBase {
         try (Connection c = dataSource().getConnection()) {
             c.setAutoCommit(false);
             try (Statement st = c.createStatement()) {
+                // V115 seeded another magento row: newest first.
+                st.execute(DocumentedRollback.sqlFor("V115"));
                 st.execute(DocumentedRollback.sqlFor("V91"));
 
                 assertThat(count(st, "SELECT count(*) FROM sitio WHERE sitio_key = 'laspepas'")).isZero();

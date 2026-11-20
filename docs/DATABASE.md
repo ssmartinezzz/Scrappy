@@ -192,6 +192,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V112` | El rubro `perfumeria` pasa a llamarse `belleza`: `chk_productos_rubro_domain` se re-lista completo y las filas guardadas se mueven |
 | `V113` | Categorías `Maquillaje`, `Cuidado de la Piel` y `Cuidado del Cabello` (rubro `belleza`) con sus sub-categorías; `Perfume` gana la sub `Extracto` |
 | `V114` | Seed de Oncity (VTEX, tienda por departamentos, `rubro_por_defecto = 'hogar'`) y 325 hojas curadas; el nodo `Supermercado` se excluye (espera al rubro `supermercado`) |
+| `V115` | Seed de Somos Rex (Magento 2, ferretería y pinturería, `rubro_por_defecto = 'construccion'`); sin hojas: el listado de Magento no trae categoría |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -5648,4 +5649,33 @@ DELETE FROM sitio s WHERE s.sitio_key = 'oncity'
 -- <<< rollback:V114
 ```
 
-`sitio_categoria` cae en cascada con el sitio; con productos ya scrapeados no borra nada. Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V113`.
+`sitio_categoria` cae en cascada con el sitio; con productos ya scrapeados no borra nada. Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V115` y antes que el de `V113`.
+
+---
+
+## `V115` — seed de Somos Rex
+
+Somos Rex (`somosrex.com`, Magento 2): ferretería, pinturería, electro, jardín e iluminación. `MagentoPage` lee 13 listados de departamento (24 tarjetas por página, `?p=N`;
+`max_paginas = 200`, el departamento de pinturas pasa de 130 páginas) y toma el precio de `data-price-type="defaultPromoPrice"` cuando no hay `finalPrice`: el tema pone el precio
+bajo la capa de promoción y, sin esa lectura, **cada tarjeta se descartaba**. Scrape real (2026-11-20, 1.720 s = 29 min) **4.584 productos distintos**; el `sitemap.xml` es de 2022 y
+no sirve. Mixto: `rubro_forzado` en `NULL` y `rubro_por_defecto = 'construccion'` (el rubro de las pinturas y herramientas que el clasificador deja en `Otros`). Sin hojas curadas: un
+listado de Magento no trae id de categoría, no hay árbol en `sitio_categoria`. El nombre es la única señal, y para esta tienda se endureció en dos puntos: (1) `NormalizerService.SITIOS_SOLO_HOGAR_Y_OBRA`
+deja pasar sólo categorías de hogar, obra y deporte (un esmalte de 400 ml o un `Weber 20 Kg` salían como `Alimentos` con rubro `suplementos`, un `Rodillo Lana` como `Sweater`), y (2) las
+marcas de pintura que encabezan el nombre (`Cetol`, `Recuplast Frentes`, `Vadex`, `Recufloor`...) y `latex`/`esmalte`/`laca`/`membrana` entran como keywords de las categorías existentes (`Pintura`, `Impermeabilizante`,
+`Revestimiento`, `Moldura`), sin categorías nuevas. El género queda vacío (`GENERO_FIJO_POR_SITIO`): `MagentoPage` etiqueta toda tarjeta `mujer` por Las Pepas.
+
+Medido (4.584 filas): `categoria != Otros` **75,3 %** (clasificador previo, con 310 `Alimentos` de pintura y rubros `suplementos` 310 / `oficina` 78 / `indumentaria` 37 / `tecnologia` 17) →
+**77,0 %** (1.056 `Otros`; rubros `construccion` 3.939, `hogar` 623, `deporte` 22). Muestra al azar de 50 filas revisada a mano: 33 con la categoría correcta, 16 `Otros` honestos (rodillos de repuesto, escuadras, selladores y herramientas sin nombre de categoría) y 1 dudosa
+(un sellador de pileta en `Accesorio de Pileta`). **Huecos que siguen en `Otros`** (pregunta abierta): `Silla` no es categoría de hogar, así que las ~30 sillas de jardín y camping caen a `Otros`; y las marcas de pintura que no encabezan el nombre.
+
+### Rollback
+
+```sql
+-- >>> rollback:V115
+DELETE FROM sitio s WHERE s.sitio_key = 'somosrex'
+  AND NOT EXISTS (SELECT 1 FROM productos p WHERE p.sitio_key = s.sitio_key);
+-- <<< rollback:V115
+```
+
+Con productos ya scrapeados no borra nada. No toca el CHECK de plataforma (`magento` viene de `V91`). Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V114`.
+
