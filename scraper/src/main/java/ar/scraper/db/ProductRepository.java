@@ -667,7 +667,7 @@ class ProductRepository implements ProductPort {
         if (url == null) return false;
         String sitioKey = SiteClassification.sitioKey(previo != null ? previo.sitio() : "");
         String rubroPrevio = previo != null ? previo.rubro() : null;
-        String rubro = rubroResolver.resolver(sitioKey, categoria, rubroPrevio);
+        String rubro = rubroResolver.resolver(sitioKey, categoria, rubroPrevio, subCategoria);
         java.time.OffsetDateTime ahora = Timestamps.now();
 
         try {

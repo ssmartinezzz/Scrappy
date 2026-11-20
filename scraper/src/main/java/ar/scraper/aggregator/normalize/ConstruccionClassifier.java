@@ -12,7 +12,9 @@ final class ConstruccionClassifier implements FamiliaClassifier {
                 || texto.sinPrefijoDeVentaEmpiezaCon(GarmentTaxonomy.KW_PLANTA_ARTIFICIAL_LIDER))
             return "Planta Artificial";
         if (texto.sinPrefijoDeVentaEmpiezaCon(GarmentTaxonomy.KW_CESPED_LIDER))   return "Césped Sintético";
-        if (texto.sinPrefijoDeVentaEmpiezaCon(GarmentTaxonomy.KW_ADHESIVO_LIDER)) return "Adhesivo";
+        if (texto.sinPrefijoDeVentaEmpiezaCon(GarmentTaxonomy.KW_ADHESIVO_LIDER)
+                && !texto.contiene(GarmentTaxonomy.KW_ADHESIVO_VETO))
+            return "Adhesivo";
         if (texto.sinPrefijoDeVentaEmpiezaCon(GarmentTaxonomy.KW_MOLDURA_LIDER))  return "Moldura";
         String material = clasificarMaterial(texto);
         if (!material.isEmpty()) return material;

@@ -61,8 +61,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 @Epic("Persistence")
 @Feature("Site registry")
-@Story("V18 ∪ V24 ∪ V27 ∪ V28 ∪ V30 ∪ V43 ∪ V44 ∪ V45 ∪ V54 ∪ V61 ∪ V62 ∪ V74 ∪ V75 ∪ V77 ∪ V86 ∪ V87 ∪ V91 ∪ V95 ∪ V98 ∪ V104 ∪ V105 ∪ V107 ∪ V108 ∪ V109 ∪ V110 ∪ V114 seed covers every config.properties site")
-@DisplayName("sitio seed sync (V18 ∪ V24 ∪ V27 ∪ V28 ∪ V30 ∪ V43 ∪ V44 ∪ V45 ∪ V54 ∪ V61 ∪ V62 ∪ V74 ∪ V75 ∪ V77 ∪ V86 ∪ V87 ∪ V91 ∪ V95 ∪ V98 ∪ V104 ∪ V105 ∪ V107 ∪ V108 ∪ V109 ∪ V110 ∪ V114, no DB)")
+@Story("V18 ∪ V24 ∪ V27 ∪ V28 ∪ V30 ∪ V43 ∪ V44 ∪ V45 ∪ V54 ∪ V61 ∪ V62 ∪ V74 ∪ V75 ∪ V77 ∪ V86 ∪ V87 ∪ V91 ∪ V95 ∪ V98 ∪ V104 ∪ V105 ∪ V107 ∪ V108 ∪ V109 ∪ V110 ∪ V114 ∪ V115 ∪ V116 seed covers every config.properties site")
+@DisplayName("sitio seed sync (V18 ∪ V24 ∪ V27 ∪ V28 ∪ V30 ∪ V43 ∪ V44 ∪ V45 ∪ V54 ∪ V61 ∪ V62 ∪ V74 ∪ V75 ∪ V77 ∪ V86 ∪ V87 ∪ V91 ∪ V95 ∪ V98 ∪ V104 ∪ V105 ∪ V107 ∪ V108 ∪ V109 ∪ V110 ∪ V114 ∪ V115 ∪ V116, no DB)")
 class SitioSeedSyncTest {
 
     private static final String V18 = "/db/migration/V18__sitio_lookup_table.sql";
@@ -90,6 +90,8 @@ class SitioSeedSyncTest {
     private static final String V109 = "/db/migration/V109__seed_naldo.sql";
     private static final String V110 = "/db/migration/V110__seed_cetrogar.sql";
     private static final String V114 = "/db/migration/V114__seed_oncity.sql";
+    private static final String V115 = "/db/migration/V115__seed_somosrex.sql";
+    private static final String V116 = "/db/migration/V116__seed_sommiercenter.sql";
     private static final String V98 = "/db/migration/V98__seed_ayrun.sql";
 
     private record SeedRow(String nombre, String sitioKey, String plataforma,
@@ -182,7 +184,7 @@ class SitioSeedSyncTest {
      */
     private static List<SeedRow> seedRows() {
         List<SeedRow> rows = new ArrayList<>();
-        for (String migration : List.of(V18, V24, V27, V28, V30, V43, V44, V45, V54, V61, V62, V74, V75, V77, V86, V87, V91, V95, V98, V104, V105, V107, V108, V109, V110, V114)) {
+        for (String migration : List.of(V18, V24, V27, V28, V30, V43, V44, V45, V54, V61, V62, V74, V75, V77, V86, V87, V91, V95, V98, V104, V105, V107, V108, V109, V110, V114, V115, V116)) {
             rows.addAll(seedRowsFrom(migration));
         }
         assertThat(rows).as("at least one seed row parsed across V18 ∪ V24 ∪ V27 ∪ V28").isNotEmpty();

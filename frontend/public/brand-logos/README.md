@@ -105,3 +105,5 @@ result by eye and add white marks to `LOGOS_SOBRE_OSCURO`. Stores behind a WAF (
 | Naldo | `naldo.svg` | https://naldoar.vtexassets.com/assets/vtex/assets-builder/naldoar.store/6.0.67/logos/sucursales___8f26d6b1a35b03c21c8b67bffd499376.svg | store site |
 | Cetrogar | `cetrogar.ico` | https://www.cetrogar.com.ar/favicon.ico | store site |
 | Oncity | `oncity.png` | https://aremsaprod.vtexassets.com/arquivos/OnCity_positivo_header.png | store site |
+| Somos Rex | `somosrex.png` | https://somosrex.com/media/logo/stores/1/Logo1200transp.png | store site |
+| Sommier Center | `sommiercenter.svg` | https://sommiercenter.com/static/version1795089625/frontend/SommierCenter/ias/es_AR/images/logo.svg | store site |

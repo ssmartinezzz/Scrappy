@@ -42,7 +42,12 @@ public class NormalizerService {
     private static final Set<String> SITIOS_DONDE_LA_HOJA_JUGUETE_GANA = Set.of("elmundodeljuguete");
     // Home-textile stores: their names read as clothing or kits ("Set x4 Individuales" is a Conjunto, "Funda de Acolchado"
     // a Puffer, "Tejido" a Sweater), so only a home category from the name counts there; anything else yields to the leaf.
-    private static final Set<String> SITIOS_SOLO_HOGAR = Set.of("arredo");
+    private static final Set<String> SITIOS_SOLO_HOGAR = Set.of("arredo", "sommiercenter");
+    // A hardware and paint store: the same guard, but building and sports categories count too (a padel racket, a drill). Its
+    // listing has no category, so a "20 Kg" paint reads as food and "Rodillo Lana" as a sweater unless the guard is there.
+    private static final Set<String> SITIOS_SOLO_HOGAR_Y_OBRA = Set.of("somosrex");
+    // What such a store sells besides the building and home lines: chairs, TVs bundled with a rack, work clothes.
+    private static final Set<String> CATEGORIAS_DE_OBRA_Y_HOGAR_EXTRA = Set.of("Silla", "TV y Audio", "Pantalón", "Camisa");
     // A curated "Celular" leaf (phones and their accessories) outranks the name unless the name says another device:
     // a Galaxy Tab on a phone series leaf is a Tablet, a watch a Reloj.
     private static final Set<String> OTROS_EQUIPOS_QUE_NO_CEDEN = Set.of(
@@ -52,9 +57,11 @@ public class NormalizerService {
     private static final Set<String> SITIOS_DONDE_LA_HOJA_GANA = Set.of("samsung", "prestigio", "naldo", "cetrogar", "oncity");
     // Sites whose whole catalogue is one gender, whatever the name says. A toy store sells to kids: its
     // backpacks, shoes and dolls' dresses are not adult picks. Equus is a men's-only shop. Ayrun is women's
-    // gymwear whose names carry no gender word ("Musculosa Seamless Animal").
+    // gymwear whose names carry no gender word ("Musculosa Seamless Animal"). Somos Rex and Sommier Center are
+    // hardware and bedding on the Magento page that tags every card "mujer" (Laspepas): blank, they have no gender.
     private static final Map<String, String> GENERO_FIJO_POR_SITIO =
-            Map.of("elmundodeljuguete", "infantil", "equus", "hombre", "laspepas", "mujer", "ayrun", "mujer");
+            Map.of("elmundodeljuguete", "infantil", "equus", "hombre", "laspepas", "mujer", "ayrun", "mujer",
+                    "somosrex", "", "sommiercenter", "");
     // Fixed-gender sites whose scraper tags a kids line apart: that tag outranks the fixed gender.
     private static final Set<String> SITIOS_CON_LINEA_INFANTIL = Set.of("laspepas");
 
@@ -109,7 +116,12 @@ public class NormalizerService {
     }
 
     private static String soloHogar(String sitioKey, String categoria, String categoriaDelArbol) {
-        if (!SITIOS_SOLO_HOGAR.contains(sitioKey) || CategoryGroups.esCategoriaHogar(categoria)) return categoria;
+        boolean yObra = SITIOS_SOLO_HOGAR_Y_OBRA.contains(sitioKey);
+        if (!yObra && !SITIOS_SOLO_HOGAR.contains(sitioKey)) return categoria;
+        if (CategoryGroups.esCategoriaHogar(categoria)
+                || (yObra && (CategoryGroups.esCategoriaConstruccion(categoria) || CategoryGroups.esCategoriaDeporte(categoria)
+                    || CATEGORIAS_DE_OBRA_Y_HOGAR_EXTRA.contains(categoria))))
+            return categoria;
         return CategoryGroups.esCategoriaHogar(categoriaDelArbol) ? categoriaDelArbol : "Otros";
     }
 
@@ -147,7 +159,8 @@ public class NormalizerService {
                 : esOtrosEnSuSitio(sitioKey, nombre)
                         ? "Otros"
                         : soloHogar(sitioKey, categoryClassifier.normalizarCategoria(p.categoria(), nombre, delArbol), delArbol));
-        String rubro          = rubroResolver.resolver(sitioKey, cat, p.rubro());
+        String subCategoria   = subcategoryResolver.resolver(nombre, cat);
+        String rubro          = rubroResolver.resolver(sitioKey, cat, p.rubro(), subCategoria);
         String genero         = generoFijo(sitioKey, p.genero())
                 .orElseGet(() -> genderResolver.resolver(p.genero(), nombre, cat, rubro));
         List<String> talles = sizeNormalizer.normalizar(p.talles());
@@ -156,7 +169,6 @@ public class NormalizerService {
         String deporte        = sportResolver.resolver(nombre, cat, rubro);
         boolean marcaPremium  = siteRegistry.esPremium(sitioKey);
         int cantidadUnidades  = packQuantityDetector.detectar(nombre, cat);
-        String subCategoria   = subcategoryResolver.resolver(nombre, cat);
 
         return p.toBuilder()
                 .nombre(nombre)

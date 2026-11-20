@@ -253,6 +253,21 @@ public class SubcategoryResolver {
             new String[]{"Acondicionador", "acondicionador", "enjuague"},
             new String[]{"Tratamiento",    "mascara", "mascarilla", "tratamiento", "ampolla", "ampollas", "keratina", "botox", "peinar"}
         ));
+        // Chairs, lowercase like the PC subs of V103. Order is precedence: a gaming chair is gamer before office ("silla gamer de
+        // escritorio"), a baby chair is infantil before its eames/tulip model, a camping banqueta is exterior before banqueta.
+        // "plegable" alone is the weakest garden signal, so it comes last: "silla de comedor plegable" is comedor.
+        SUBCATEG_TIER1.put("Silla", Arrays.<String[]>asList(
+            new String[]{"gamer",    "gamer", "gamers", "gaming", "throne"},
+            new String[]{"oficina",  "oficina", "ergonomica", "ergonomico", "ejecutiva", "ejecutivo", "escritorio", "operativa",
+                                     "operativo", "giratoria", "presidente", "gerencial", "mesh", "neumatica", "secretarial", "pc"},
+            new String[]{"infantil", "bebe", "bebes", "bebesit", "infantil", "infantiles", "infanti", "nino", "ninos", "nina", "ninas",
+                                     "montessori", "comer", "maxi cosi", "high chair", "booster"},
+            new String[]{"exterior", "jardin", "exterior", "outdoor", "outdoors", "playa", "camping", "reposera", "director", "pesca",
+                                     "pescador", "rattan", "ratan", "textileno", "outzen", "keter"},
+            new String[]{"comedor",  "comedor", "cocina", "eames", "eams", "tulip", "banqueta", "banquetas", "banquito", "taburete",
+                                     "taburetes", "stool", "bar", "mecedora", "desayunadora", "barra", "comedor/jardin"},
+            new String[]{"exterior", "plegable", "plegables"}
+        ));
         SUBCATEG_TIER1.put("Botines", Arrays.<String[]>asList(
             new String[]{"futsal",  "futsal", "papi", "salon", "ic"},
             new String[]{"campo",   "campo", "fg", "cesped"}

@@ -192,6 +192,10 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V112` | El rubro `perfumeria` pasa a llamarse `belleza`: `chk_productos_rubro_domain` se re-lista completo y las filas guardadas se mueven |
 | `V113` | Categorías `Maquillaje`, `Cuidado de la Piel` y `Cuidado del Cabello` (rubro `belleza`) con sus sub-categorías; `Perfume` gana la sub `Extracto` |
 | `V114` | Seed de Oncity (VTEX, tienda por departamentos, `rubro_por_defecto = 'hogar'`) y 325 hojas curadas; el nodo `Supermercado` se excluye (espera al rubro `supermercado`) |
+| `V115` | Seed de Somos Rex (Magento 2, ferretería y pinturería, `rubro_por_defecto = 'construccion'`); sin hojas: el listado de Magento no trae categoría |
+| `V116` | Seed de Sommier Center (Magento 2, colchones y camas, `rubro_por_defecto = 'hogar'`); sin hojas |
+| `V117` | Categoría `Pila` (rubro hogar): pilas AA/AAA/botón y recargables, sin paso de datos |
+| `V118` | `sub_categoria` de `Silla` (gamer, oficina, infantil, exterior, comedor) y rubro `hogar` para las de hogar; en las filas activas e inactivas, sin tocar los sitios con `rubro_forzado` |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -5648,4 +5652,127 @@ DELETE FROM sitio s WHERE s.sitio_key = 'oncity'
 -- <<< rollback:V114
 ```
 
-`sitio_categoria` cae en cascada con el sitio; con productos ya scrapeados no borra nada. Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V113`.
+`sitio_categoria` cae en cascada con el sitio; con productos ya scrapeados no borra nada. Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V115` y antes que el de `V113`.
+
+---
+
+## `V115` — seed de Somos Rex
+
+Somos Rex (`somosrex.com`, Magento 2): ferretería, pinturería, electro, jardín e iluminación. `MagentoPage` lee 13 listados de departamento (24 tarjetas por página, `?p=N`;
+`max_paginas = 200`, el departamento de pinturas pasa de 130 páginas) y toma el precio de `data-price-type="defaultPromoPrice"` cuando no hay `finalPrice`: el tema pone el precio
+bajo la capa de promoción y, sin esa lectura, **cada tarjeta se descartaba**. Scrape real (2026-11-20, 1.720 s = 29 min) **4.584 productos distintos**; el `sitemap.xml` es de 2022 y
+no sirve. Mixto: `rubro_forzado` en `NULL` y `rubro_por_defecto = 'construccion'` (el rubro de las pinturas y herramientas que el clasificador deja en `Otros`). Sin hojas curadas: un
+listado de Magento no trae id de categoría, no hay árbol en `sitio_categoria`. El nombre es la única señal, y para esta tienda se endureció en dos puntos: (1) `NormalizerService.SITIOS_SOLO_HOGAR_Y_OBRA`
+deja pasar sólo categorías de hogar, obra y deporte (un esmalte de 400 ml o un `Weber 20 Kg` salían como `Alimentos` con rubro `suplementos`, un `Rodillo Lana` como `Sweater`), y (2) las
+marcas de pintura que encabezan el nombre (`Cetol`, `Recuplast Frentes`, `Vadex`, `Recufloor`...) y `latex`/`esmalte`/`laca`/`membrana` entran como keywords de las categorías existentes (`Pintura`, `Impermeabilizante`,
+`Revestimiento`, `Moldura`), sin categorías nuevas. El género queda vacío (`GENERO_FIJO_POR_SITIO`): `MagentoPage` etiqueta toda tarjeta `mujer` por Las Pepas.
+
+Medido (4.584 filas): `categoria != Otros` **75,3 %** (clasificador previo, con 310 `Alimentos` de pintura y rubros `suplementos` 310 / `oficina` 78 / `indumentaria` 37 / `tecnologia` 17) →
+**77,0 %** (1.056 `Otros`; rubros `construccion` 3.939, `hogar` 623, `deporte` 22). Muestra al azar de 50 filas revisada a mano: 33 con la categoría correcta, 16 `Otros` honestos (rodillos de repuesto, escuadras, selladores y herramientas sin nombre de categoría) y 1 dudosa
+(un sellador de pileta en `Accesorio de Pileta`). **Pasada de taxonomía (2026-11-20, mismas 4.584 filas):** `categoria != Otros` 77,0 % → **87,9 %** (554 `Otros`). Los grupos que caían a `Otros` se ubicaron en categorías que ya existen,
+con *keywords* que **encabezan** el nombre (el espacio es el límite de palabra): pinturas y barnices por marca o producto (`Recuplast`, `Cetol`, `Casablanca`, `Baslac`, `Recufloor`, `Simil Madera`,
+`Plastificante`, `Fijador Interior`, `Esmalte Epoxi/Albalux/Aerosol`), `Impermeabilizante` (`Membrana en pasta`, `Albafrent Techos`, `Recuplast Perdura`), `Enduido` (`Enduplast`, `Anclaflex`),
+`Adhesivo` (cualquier nombre que empiece con `adhesivo`, más `Poxipol`, `Poxiran`, `La Gotita`, `Poximix`; veto de prótesis, uñas y bebé), `Accesorio de Pintura` (rodillos y pinceles con calificador
+`epoxi`/`púas`/`galgo`..., `Repuesto Rodillo`, `Bandeja para rodillo`), `Lija` (`Pack X50 Unidades`, `3M` como prefijo de venta, `Viruta`), `Cinta Adhesiva`, `Herramienta Eléctrica`
+(`Generador Eléctrico/Naftero`, `Llave de Impacto`, `Aparejo Eléctrico`, `Cepillo Eléctrico Carpintero`), `Herramienta Manual` (`Juego de Herramientas`, `Juego de Llaves`, `Engrampadora Manual`),
+`Pequeño Electrodoméstico` (`Multiprocesadora`, `Mixer Minipimer`, `Purificador de Agua`), `Calefactor` (`Salamandra`), `Termo y Botella` (`Mate Stanley`), `Conservadora` (`Lunchera`),
+`Limpieza de Auto` (`Pasta de Pulir`), `Cemento` (`Yeso`), `Iluminación` (la lámpara colgante ya no la veta `NonTextileGuard`) y `Silla`/`TV y Audio`/`Pantalón`/`Camisa` (permitidas en el filtro de la
+tienda). Rubros: `construccion` 3.806, `hogar` 683, `oficina` 60 (las sillas: `Silla` es de oficina en todo el catálogo), `deporte` 22, `indumentaria` 8 (ropa de trabajo), `tecnologia` 5 (TVs con rack). Muestra
+al azar de 36 filas: 27 con la categoría correcta y 9 `Otros` honestos (cuchillos x12, respirador, sellador híbrido, cantonera, raspador, membrana de marca). **Pregunta abierta:** las sillas de jardín
+quedan en rubro `oficina`; moverlas pide un cambio de diseño (`Silla` en el grupo de hogar para todo el catálogo).
+
+### Rollback
+
+```sql
+-- >>> rollback:V115
+DELETE FROM sitio s WHERE s.sitio_key = 'somosrex'
+  AND NOT EXISTS (SELECT 1 FROM productos p WHERE p.sitio_key = s.sitio_key);
+-- <<< rollback:V115
+```
+
+Con productos ya scrapeados no borra nada. No toca el CHECK de plataforma (`magento` viene de `V91`). Ya no es el bloque más nuevo: corre después del de `V116` y antes que el de `V114`.
+
+---
+
+## `V116` — seed de Sommier Center
+
+Sommier Center (`sommiercenter.com`, Magento 2): colchones, sommiers, camas, respaldos, almohadas y sábanas. 10 listados de departamento (25 tarjetas por página, `?p=N`) que se
+solapan: `MagentoPage` deduplica por slug. Scrape real (2026-11-20, 193 s) **448 productos distintos**. Mixto en nada: `rubro_forzado` en `NULL` y `rubro_por_defecto = 'hogar'`. Sin hojas curadas
+(mismo motivo que `V115`). Los nombres se leen como ropa (`Sommier 1 Plaza y Media` → `Medias`, `Combo ... + Almohadas` → `Organización`), así que `SITIOS_SOLO_HOGAR` (la regla de Arredo)
+deja pasar sólo categorías de hogar y manda el resto a `Otros`. Género vacío por `GENERO_FIJO_POR_SITIO`.
+
+Medido (448 filas): `categoria != Otros` **95,3 %** (clasificador previo, pero 24 de esas filas eran `Medias`/`Organización`/`Conjunto` y los rubros `indumentaria` 19 y `oficina` 4 sobraban) →
+**90,0 %** (45 `Otros`, todo `hogar`). **Pasada de taxonomía (2026-11-20):** `categoria != Otros` 90,0 % → **97,3 %** (12 `Otros`). `Respaldo` (10, el contexto ahora acepta `plaza`/`plazas`/`king`), `Base Sommier` y `Diván Cama` (`Cama`, 20) y las
+almohadas con `cervical` o `gel` (`Ropa de Cama`, 3: una regla antes del `NonTextileGuard` y sin el veto `cervical`, que sigue valiendo para el resto) salen de `Otros`. Quedan **los 12 `Combo ... + Colchón + Respaldo`**:
+un combo no es un tipo de producto y no tiene sustantivo líder, así que sigue en `Otros`. Muestra al azar de 36 filas: 36 bien; todo `hogar`.
+
+### Rollback
+
+```sql
+-- >>> rollback:V116
+DELETE FROM sitio s WHERE s.sitio_key = 'sommiercenter'
+  AND NOT EXISTS (SELECT 1 FROM productos p WHERE p.sitio_key = s.sitio_key);
+-- <<< rollback:V116
+```
+
+Con productos ya scrapeados no borra nada. Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V117` y antes que el de `V115`.
+
+---
+
+## `V117` — categoría `Pila`
+
+Las pilas no tenían categoría: 57 filas activas de 3 sitios caen en `Otros` (medido 2026-11-20). `Pila` es de hogar (`CategoryGroups.CATEGORIAS_HOGAR`, como los demás consumibles del
+hogar): `HogarClassifier` la produce cuando el nombre **empieza** con `pila`/`pilas` (alcalinas, recargables, de botón) y no habla de una pileta de cocina (`KW_PILA_VETO`: `cocina`,
+`lavadero`, `inox`, `bacha`...). Es el par de siempre: el keyword y la fila de esta migración; sin la fila el upsert dice `"0 nuevos"`. Sin paso de datos: el próximo scrape es la fuente de verdad.
+
+### Rollback
+
+```sql
+-- >>> rollback:V117
+UPDATE productos SET categoria = 'Otros' WHERE categoria = 'Pila';
+UPDATE sitio_categoria SET categoria = NULL WHERE categoria = 'Pila';
+DELETE FROM categoria_stats WHERE categoria = 'Pila';
+DELETE FROM categoria WHERE nombre = 'Pila';
+-- <<< rollback:V117
+```
+
+**El orden es obligatorio** (FK de `productos`, `sitio_categoria` y `categoria_stats` hacia `categoria`). Los productos vuelven a `Otros` y el próximo scrape los reclasifica. Es el bloque más
+nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V116`.
+
+---
+
+## `V118` — `sub_categoria` y rubro de las sillas
+
+`Silla` es una categoría de oficina (`CategoryGroups.categoriasOficina`), así que las 960 sillas activas de la base de dev eran `oficina` (874) o `tecnologia` (86, los sitios que lo fuerzan): una silla de
+comedor, de jardín o de bebé figuraba como mueble de oficina. Ahora `SubcategoryResolver` les da `sub_categoria` por nombre (minúscula, como las de `V103`) con este orden de precedencia (el primero que
+coincide gana): `gamer` (`gamer`, `gaming`, `throne`), `oficina` (`oficina`, `ergonómica`, `ejecutiva`, `escritorio`, `giratoria`, `mesh`, `pc`...), `infantil` (`bebé`, `comer`, `niños`, `montessori`,
+`maxi cosi`, `booster`...), `exterior` fuerte (`jardín`, `exterior`, `outdoor`, `playa`, `camping`, `director`, `pesca`, `rattan`, `outzen`...), `comedor` (`comedor`, `eames`, `tulip`, `banqueta`, `taburete`,
+`bar`, `mecedora`...) y, último, `plegable` suelto (`exterior`): "silla de comedor plegable" es de comedor y "sillón director ejecutivo" de oficina. Sin señal no hay sub (abstención: el comportamiento de hoy).
+
+El rubro sale de una tabla de datos, `CategoryGroups.rubroDeSubcategoria`: `Silla|comedor`, `Silla|exterior` y `Silla|infantil` son `hogar`; `gamer` y `oficina` no tienen entrada (siguen en `oficina`).
+`RubroResolver.resolver(sitio, categoria, rubroPrevio, sub)` la consulta **sólo en un sitio sin `rubro_forzado`**, justo antes de la rama que manda las categorías de oficina a `oficina`: todas las
+ramas forzadas (`tecnologia`, `oficina`, `suplementos`, `construccion`, `hogar`) devuelven antes, así que un sitio forzado se comporta exactamente como antes. `NormalizerService` resuelve la sub **antes**
+del rubro (la sub sólo depende de nombre y categoría) y `ProductRepository.aplicarReclasificacionAuditada` pasa la sub que recibe.
+
+La migración hace lo mismo sobre las filas guardadas: un blob de una línea (`prioridad|sub|palabras`) y un `position(' palabra ' IN ' nombre ')` con los acentos de `AccentStripper` quitados y la puntuación
+conservada, igual que Java (`comedor/jardin` es un solo token). Una transacción, `SET CONSTRAINTS ALL IMMEDIATE` antes del `UPDATE` (trigger diferido de `V40`); activas e inactivas; las bloqueadas
+(`bloqueado_por`) no se tocan, como en `V103`.
+
+Copia de la base de dev (1.009 filas `Silla`, 960 activas, `scraper_ownpages`): antes todas sin sub, `oficina` 896 y `tecnologia` 113; después `comedor` 217 (214 `hogar` + 3 `oficina` de un sitio forzado), `exterior` 179,
+`infantil` 74 (las tres `hogar`), `gamer` 183 (74 `oficina` + 109 `tecnologia`), `oficina` 157 y 199 sin sub (196 `oficina` + 3 `tecnologia`). La comparación del `UPDATE` contra `SubcategoryResolver` y `RubroResolver` sobre las
+1.009 filas da **0 diferencias** (`V118SillaSubcategoriaTest` hace lo mismo sobre filas sintéticas de un sitio libre y dos forzados).
+
+### Rollback
+
+```sql
+-- >>> rollback:V118
+UPDATE productos p
+   SET sub_categoria = '',
+       rubro = CASE WHEN COALESCE(s.rubro_forzado, '') = '' THEN 'oficina' ELSE p.rubro END
+  FROM sitio s
+ WHERE s.sitio_key = p.sitio_key AND p.categoria = 'Silla' AND p.bloqueado_por IS NULL;
+-- <<< rollback:V118
+```
+
+Las sillas de un sitio libre vuelven a `oficina` y las de un sitio forzado conservan su rubro; el próximo scrape las reclasifica. Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes
+que el de `V117`. No cambia ningún esquema, así que los rollbacks viejos de la plataforma no lo necesitan.

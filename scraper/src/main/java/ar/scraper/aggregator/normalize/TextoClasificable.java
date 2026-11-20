@@ -10,7 +10,7 @@ record TextoClasificable(String crudo, String normalizado, String sinPrefijoDeVe
         Pattern.compile("\\d+\\s*(g|ml|kg|mg|oz|l)\\s*$", Pattern.CASE_INSENSITIVE);
 
     private static final Pattern PREFIJO_DE_VENTA = Pattern.compile(
-        "^ (?:(?:pack|grande|chico|x|de|caja|promo|combo|outlet|m2|2x1|x?\\d+(?:[.,]\\d+)?)\\s+)+");
+        "^ (?:(?:pack|grande|chico|x|de|caja|promo|combo|outlet|m2|2x1|3m|unidades|x?\\d+(?:[.,]\\d+)?)\\s+)+");
 
     private static final String LIDER_OUTLET = " outlet ";
 

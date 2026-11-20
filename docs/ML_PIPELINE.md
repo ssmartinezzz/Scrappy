@@ -501,6 +501,9 @@ su franquicia (`pokemon`, `dragon ball`, `magic`, `yu-gi-oh`, `one piece`, `lorc
 `Wall Panel` (`KW_WALL_PANEL`: wall panel, wallpanel, panel wpc) corre antes de `Placa Decorativa` en `ConstruccionClassifier`; el "panel ranurado" de
 ferretería no es un wall panel.
 
+**Sillas** (`V118`). `Silla` tiene `sub_categoria` por nombre: `gamer`, `oficina`, `infantil`, `exterior`, `comedor` (en ese orden de precedencia; sin señal queda vacía). El rubro lo decide la tabla
+`CategoryGroups.rubroDeSubcategoria`: `comedor`, `exterior` e `infantil` son `hogar`, `gamer` y `oficina` siguen en `oficina`, y un sitio con `rubro_forzado` conserva el suyo. Detalle y medición en `docs/DATABASE.md` (`V118`).
+
 **Hardware por plataforma** (`V103`). `SubcategoryResolver` le da `sub_categoria` a `CPU` y `Motherboard` (`am4`, `am5`, `lga1700`, `lga1851`,
 `lga1200`, `lga1151`), `RAM` (`notebook`, `ddr5`, `ddr4`, `ddr3`), `GPU` (`nvidia`, `amd`, `intel`), `Auricular` (`inalámbrico`, `gamer`, `oficina`,
 `in-ear`) y `PC` (`gamer` si lleva GPU dedicada, `oficina` si no); `Gabinete` no tiene. Lee tokens alfanuméricos del nombre, no el nombre con

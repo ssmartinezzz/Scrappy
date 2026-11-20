@@ -529,16 +529,18 @@ public final class GarmentTaxonomy {
     public static final String[] KW_CESPED_LIDER = {
         " cesped sintetico "," cesped artificial "
     };
+    public static final String[] KW_ADHESIVO_VETO = { " protesis"," dental"," dentadura"," unas"," pestanas"," bebe"," vinilico decorativo" };
     public static final String[] KW_ADHESIVO_LIDER = {
         " adhesivo polimero"," adhesivo sellador"," adhesivo hibrido"," adhesivo de montaje",
         " cartucho adhesivo"," sellador "," adhesivo cementicio"," adhesivo impermeable",
         " adhesivo multimaterial"," adhesivo instantaneo"," adhesivo para ceramic",
         " adhesivo para porcelanato"," pegamento "," cola vinilica"," cola de contacto",
-        " cemento de contacto"," silicona "," espuma de poliuretano"," espuma poliuretano"
+        " cemento de contacto"," silicona "," espuma de poliuretano"," espuma poliuretano",
+        " adhesivo "," adhesivos "," poxipol"," poxiran"," la gotita"," poximix"
     };
     public static final String[] KW_MOLDURA_LIDER = {
         " moldura "," cinta/moldura "," zocalo "," zocalos "," guardacanto"," listel",
-        " guarda decorativa"," guarda de pared"
+        " guarda decorativa"," guarda de pared"," cornisa "," atenneas "
     };
     public static final String[] KW_PISO = {
         " piso autoadhesivo"," piso pvc"," piso vinilico"," pisos vinilicos"," piso spc",
@@ -574,7 +576,8 @@ public final class GarmentTaxonomy {
     public static final String[] KW_PORCELANATO_LIDER = { " porcelanato"," porcelanatos"," porc " };
     public static final String[] KW_PASTINA_LIDER = { " pastina "," pastinas " };
     public static final String[] KW_REVESTIMIENTO_LIDER = {
-        " revestimiento "," revestimientos "," base coat"," placa pvc"
+        " revestimiento "," revestimientos "," base coat"," placa pvc"," vadex ",
+        " polacrin revestimiento"
     };
     public static final String[] KW_TABLERO_LIDER = {
         " placa mdf"," placas mdf"," placa osb"," placa de osb"," placa fenolica"," placa melaminica",
@@ -601,7 +604,8 @@ public final class GarmentTaxonomy {
     };
     public static final String[] KW_CEMENTO_LIDER = {
         " cemento "," cementos "," cal hidraulica"," cal hidrat"," cal viva"," mortero "," morteros ",
-        " revoque "," hormigon "," plasticor"
+        " revoque "," hormigon "," plasticor",
+        " yeso "," yesos "
     };
     public static final String[] KW_HIERRO_LIDER = {
         " hierro redondo"," hierro nervado"," hierro aletado"," hierro adn"," hierros "," hierro del "," planchuela"," planchuelas",
@@ -610,7 +614,10 @@ public final class GarmentTaxonomy {
     public static final String[] KW_IMPERMEABILIZANTE_LIDER = {
         " impermeabilizante "," impermeabilizantes "," membrana asfaltica"," membrana aluminio"," membrana geo"," membrana liquida"," membrana fibrada"," membrana poliuretanica"," membrana impermeabilizante"," membrana no crack"," membrana para techo"," antihumedad",
         " hidrofugo"," pintura impermeabilizante"," pintura impermeable"," aerosol membrana",
-        " pintura asfaltica"," emulsion asfaltica"
+        " pintura asfaltica"," emulsion asfaltica"," recuplast frentes"," plavicon "," liquitech ",
+        " recuplast fibrado"," weber ceresita"," venda manto"," venda liquida"," venda de refuerzo"," sika top seal",
+        " venda manta",
+        " albafrent techos"," membrana en pasta"," membrana caucho"," recuplast impermeabilizante"," recuplast perdura"," recuplast sinteplast"
     };
     public static final String[] KW_CHAPA_LIDER = {
         " chapa acanalada"," chapas acanaladas"," chapa galvanizada"," chapa trapezoidal",
@@ -628,28 +635,38 @@ public final class GarmentTaxonomy {
     };
     public static final String[] KW_SOLERA_LIDER = { " solera " };
     public static final String[] KW_SOLERA_CALIFICADOR = { " mm"," rigid"," e0"," 35 "," 70 "," 90 " };
-    public static final String[] KW_ENDUIDO_LIDER = { " enduido "," enduidos "," masilla "," masillas " };
+    public static final String[] KW_ENDUIDO_LIDER = { " enduido "," enduidos "," masilla "," masillas ",
+        " enduplast"," anclaflex"," alba masilla"
+    };
     public static final String[] KW_DILUYENTE_LIDER = { " diluyente"," aguarras "," thinner " };
     public static final String[] KW_ACCESORIO_PINTURA_LIDER = {
-        " pinceleta"," set brocha"," protector de superficie"," bandeja para pintor"," bandeja pintor"
+        " pinceleta"," set brocha"," protector de superficie"," bandeja para pintor"," bandeja pintor",
+        " repuesto rodillo"," mini rodillo"," rodillin"," bandeja max"," bandeja para rodillo"," extensor telescopico"," pad aplicador"
     };
     public static final String[] KW_PINCEL_BROCHA_LIDER = { " pincel "," pinceles "," brocha "," brochas " };
     public static final String[] KW_PINCEL_BROCHA_CALIFICADOR = {
-        " n°"," cerda"," profesional"," para pintar"," de pintar"," pintor"," virola"
+        " n°"," cerda"," profesional"," para pintar"," de pintar"," pintor"," virola",
+        " persianero"," pata de cabra"," pincel serie"," singular"," zonda"," el galgo"," rosarpin"," atlas"," latex"," esmalte"," barniz"
     };
     public static final String[] KW_RODILLO_LIDER = { " rodillo "," rodillos " };
     public static final String[] KW_RODILLO_CALIFICADOR = {
         " antigota"," lanar"," lana "," microfibra"," pelo "," poliester"," n°"," simil"," texturado",
-        " para pintar"," de pintar"," pintor"
+        " para pintar"," de pintar"," pintor"," epoxi"," pua"," puas"," multiuso"," wolly"," lumar"," galgo"," esmalte"," barniz"," latex"
     };
     public static final String[] KW_PINTURA_LIDER = {
         " pintura "," latex interior"," latex exterior"," latex acrilico"," latex lavable"," latex para"," latex cielorraso"," latex satinado"," esmalte sintetico"," esmalte al agua"," esmalte acrilico",
         " esmalte antioxido"," esmalte convertidor"," barniz "," barnices "," lasur "," impregnante ",
         " impregnantes "," fijador al agua"," fijador sellador"," fijador sintetico"," fijador acrilico"," fijador de pared"," entonador "," entonadores "," colorante liquido",
-        " colorante universal"," convertidor de oxido"," antioxido"
+        " colorante universal"," convertidor de oxido"," antioxido",
+        " cetol "," laca "," latex "," tinta para madera"," tinta madera",
+        " recufloor "," baslac "," casablanca "," pisos acrilico"," fondo blanco"," plastificante para pisos"," plastificante de pisos"," aerosol rust",
+        " recuplast "," simil madera"," pisos vial"," recubrimiento acrilico"," plastificante "," plastificador "," imprimacion"," bloqueador de manchas"," bloqueador de humedad"," cielorraso antihongo"," revesta "," trimas primer"," alba pintura"," sw fijador"," sw acondicionador"," aerosol fluorescente"," aerosol alta temperatura"," rust oleum "," fondo al agua"," fondo para madera"," fondo sintetico",
+        " esmalte epoxi"," esmalte albalux"," esmalte aerosol"," esmalte en aerosol"," esmalte alquidico"," esmalte para metal"," esmalte para azulejos"," esmalte azulejos"," primer universal"," primer fijador"," primer 1k"," primer 2k",
+        " fijador interior"," fijador exterior"," fijador al aceite"," fijador aglutinante"
     };
     public static final String[] KW_PINTURA_VETO = {
-        " facial"," corporal"," dedos"," cara "," rostro"," tela "," unas"," pelo"," cabello"
+        " facial"," corporal"," dedos"," cara "," rostro"," tela "," unas"," pelo"," cabello",
+        " pestanas"," ojos"," labios"
     };
     public static final String[] KW_AEROSOL_LIDER = { " aerosol " };
     public static final String[] KW_AEROSOL_PINTURA_CALIFICADOR = {
@@ -820,14 +837,18 @@ public final class GarmentTaxonomy {
         " hormigonera"," hormigoneras"," mezcladora de cemento"," grupo electrogeno"," grupos electrogenos",
         " termofusora"," termofusoras"," clavadora"," clavadoras"," cepilladora"," fresadora"," pistola para pintar",
         " pistola de pintar"," equipo de pintar"," equipo de pintura"," mezclador de pintura"," mezclador electrico",
-        " sopladora"," vibrador de hormigon"," minitorno"," multiherramienta"
+        " sopladora"," vibrador de hormigon"," minitorno"," multiherramienta",
+        " llave de impacto"," llave criquet"," aparejo electrico"," equipo para pintar"," pistola aerografo"," pistola arenadora"," engrampadora neumatica",
+        " cepillo electrico carpintero"," generador electrico"," generador naftero"," generador movil"," generador portatil"," generador inverter"," generador diesel"," generador a nafta"
     };
     public static final String[] KW_ACCESORIO_HERRAMIENTA_LIDER = {
         " disco de corte"," disco de desbaste"," disco flap"," disco diamantado"," disco abrasivo",
         " broca "," brocas "," juego de mechas"," set de mechas"," punta para atornillar"," puntas para atornillar",
         " puntas de destornillador"," hoja de sierra"," hojas de sierra"," sierra copa"," sierra de copa"," electrodo ",
         " electrodos"," alambre para soldadura"," alambre de soldadura"," mandril"," cincel"," cinceles",
-        " cargador para bateria"
+        " cargador para bateria",
+        " disco desbaste"," disco removedor"," disco fenobond"," disco de pano",
+        " juego de accesorios para taladro"
     };
     public static final String[] KW_MECHA_LIDER = { " mecha "," mechas " };
     public static final String[] KW_MECHA_CALIFICADOR = {
@@ -840,14 +861,16 @@ public final class GarmentTaxonomy {
     public static final String[] KW_LIJA_LIDER = {
         " lija "," lijas "," hoja de lija"," hojas de lija"," banda de lija"," bandas de lija"," papel de lija",
         " disco de lija"," discos de lija"," set discos lija"," set de discos de lija"," tela esmeril"," rollo de lija",
-        " esponja de lija"," taco de lija"," taco lijador"
+        " esponja de lija"," taco de lija"," taco lijador",
+        " viruta "
     };
     public static final String[] KW_CAJA_HERRAMIENTAS_LIDER = {
         " caja de herramientas"," caja para herramientas"," caja portaherramientas"," caja porta herramientas",
         " cajas de herramientas"," gabinete para herramientas"," gabinete organizador de herramientas",
         " gabinete de herramientas"," carro portaherramientas"," carro porta herramientas"," carro de herramientas",
         " maletin de herramientas"," maletin portaherramientas"," bolso portaherramientas"," bolso para herramientas",
-        " organizador de herramientas"," banco de trabajo"," bancos de trabajo"," cinturon portaherramientas"," cinturon porta herramientas"
+        " organizador de herramientas"," banco de trabajo"," bancos de trabajo"," cinturon portaherramientas"," cinturon porta herramientas",
+        " set caja de herramientas"," set caja para herramientas"," carro organizador de herramientas"," mesa porta herramientas"
     };
     public static final String[] KW_HERRAMIENTA_MANUAL_LIDER = {
         " destornillador"," destornilladores"," martillo "," martillos "," maza de "," mazas de "," alicate"," alicates",
@@ -865,7 +888,9 @@ public final class GarmentTaxonomy {
         " piedra para afilar"," piedra de afilar"," machete"," machetes"," cuchilla metali"," cuchilla retractil"," balde para albanil"," balde albanil",
         " balde de albanil"," pistola calafateadora"," pistola aplicadora"," cortadora de ceramicos",
         " cortadora de azulejos"," cortavidrio"," cortador de vidrio"," cortatubos"," corta tubos"," cortacano",
-        " remachadora"," plomada"," set de herramientas"," juego de herramientas"," set herramientas"
+        " remachadora"," plomada"," set de herramientas"," juego de herramientas"," set herramientas",
+        " juego de herramientas"," set de herramientas"," juego herramientas"," set herramientas"," juego de tubos"," juego tubos"," juego de llaves"," set de llaves"," llaves allen"," llaves torx"," llave allen"," llave torx"," juego de pinzas"," cepillo acero"," tijera de aviacion",
+        " prensa carpintero"," prensa rapida"," prensa de banco"," engrampadora manual"," engrampadora metalica"
     };
     public static final String[] KW_CARRETILLA_LIDER = { " carretilla "," carretillas " };
     public static final String[] KW_CARRETILLA_CALIFICADOR = {
@@ -873,7 +898,8 @@ public final class GarmentTaxonomy {
     };
     public static final String[] KW_ESPATULA_LIDER = { " espatula "," espatulas " };
     public static final String[] KW_ESPATULA_CALIFICADOR = {
-        " flexible"," acero"," masilla"," enduido"," pintor"," albanil"
+        " flexible"," acero"," masilla"," enduido"," pintor"," albanil",
+        " enduir"," metalica"," skimming"," nro "
     };
     public static final String[] KW_ESPATULA_VETO = { " silicona"," cocina"," reposteria"," madera"," bambu"," nylon" };
     public static final String[] KW_NIVEL_LIDER = { " nivel "," niveles " };
@@ -895,7 +921,8 @@ public final class GarmentTaxonomy {
     public static final String[] KW_FIJACION_LIDER = {
         " alambre "," alambres "," tuerca "," tuercas "," arandela "," arandelas "," remache "," remaches ",
         " abrazadera "," abrazaderas "," caja de fijacion"," caja fijacion"," soporte l "," soporte angulo",
-        " angulo de fijacion"," grillete"," precinto "," precintos "," grilletes"," mosqueton"," mosquetones"," varilla roscada"," cable de acero"," cable acero"
+        " angulo de fijacion"," grillete"," precinto "," precintos "," grilletes"," mosqueton"," mosquetones"," varilla roscada"," cable de acero"," cable acero",
+        " set fijaciones"," set de fijaciones"
     };
     public static final String[] KW_BISAGRA_LIDER = { " bisagra "," bisagras " };
     public static final String[] KW_CERRADURA_LIDER = {
@@ -925,7 +952,9 @@ public final class GarmentTaxonomy {
         " cinta doble faz"," cinta de espuma"," cinta espuma"," cinta polietileno"," cinta de peligro",
         " cinta demarcatoria"," cinta de seguridad"," cinta antideslizante"," cinta de tela"," cinta de carrocero",
         " cinta de empalme"," cinta autoadhesiva"," cinta butilica"," cinta asfaltica"," cinta de montaje",
-        " cinta de vinilo"," tira adhesiva"
+        " cinta de vinilo"," tira adhesiva",
+        " cinta amarilla"," cinta microperforada"," cinta duct"," cinta automotriz"," cinta masking"," cinta para pintor",
+        " cinta automotor"
     };
     public static final String[] KW_GUANTE_LIDER = { " guante "," guantes ", " par de guantes" };
     public static final String[] KW_GUANTE_TRABAJO_CALIFICADOR = {
@@ -990,7 +1019,8 @@ public final class GarmentTaxonomy {
         " placard"," placares"," closet"," closets"," ropero"," roperos"," armario"," armarios"," guardarropa"
     };
     public static final String[] KW_CAMA_LIDER = {
-        " cama "," camas "," sommier"," sommiers"," cucheta"," cuchetas"," camarote"," cama box"
+        " cama "," camas "," sommier"," sommiers"," cucheta"," cuchetas"," camarote"," cama box",
+        " base sommier"," base de sommier"," divan cama"
     };
     public static final String[] KW_CAMA_VETO = {
         " perro"," gato"," mascota"," canil"," pet "," elastica"," solar"," inflable"," plegable de camping",
@@ -1061,7 +1091,8 @@ public final class GarmentTaxonomy {
         " limpia pisos"," sacapelusas"," bolsas para escombros"," bolsas de residuos"," bolsa de residuos",
         " bolsas para residuos"," bolsas de consorcio"," bolsas de basura"," bolsa de basura"," bloque adhesivo",
         " pala de residuos"," cepillo de limpieza"," lampazo"," lampazos"," pano de limpieza"," panos de limpieza",
-        " rejilla de piso"," desinfectante"," guante de limpieza"," guante limpieza"," guantes de limpieza"," lavandina"," detergente"
+        " rejilla de piso"," desinfectante"," guante de limpieza"," guante limpieza"," guantes de limpieza"," lavandina"," detergente",
+        " limpiador gel"," limpiador desengrasante"," limpiador acido"," desengrasante "
     };
     public static final String[] KW_LIMPIEZA_VETO = {
         " maquillaje"," corporal"," bano "," ducha"," facial"," exfoliante"," pelo"," cabello"," beauty"," cosmetic"
@@ -1124,7 +1155,8 @@ public final class GarmentTaxonomy {
     };
     public static final String[] KW_BAZAR_LIDER = {
         " frasco "," frascos "," copa de "," copas de "," copa "," copas "," juego de copas"," jarra "," jarras ",
-        " vajilla"," juego de vasos"," vasos de vidrio"," juego de platos"," juego de tazas"," vaso "," vasos "
+        " vajilla"," juego de vasos"," vasos de vidrio"," juego de platos"," juego de tazas"," vaso "," vasos ",
+        " espatula cocina"," espatula de cocina"," espatula de goma"
     };
     public static final String[] KW_BAZAR_VETO = {
         " shaker"," proteina"," medidora"," gimnasio"," suplemento"," perfume"," mundial"," trofeo"," copa del mundo",
@@ -1197,7 +1229,8 @@ public final class GarmentTaxonomy {
         " limpiadores y lava parabrisas"," brillo y lustre"," accesorios de limpieza automotor"," limpia llantas"," limpiador de llantas"," removedor de"," plumero para auto"," pano microfibra"," panos microfibra",
         " pano de microfibra"," panos de microfibra"," pano para auto"," kit de limpieza para auto"," aspiradora de auto",
         " aspiradora para auto"," aspiradora auto"," aspiradoras de auto",
-        " perfume para auto"," perfumes para auto"," perfume de auto"," perfume auto "
+        " perfume para auto"," perfumes para auto"," perfume de auto"," perfume auto ",
+        " pasta de pulir"," pasta para pulir"
     };
     public static final String[] KW_LIMPIEZA_AUTO_VETO = {
         " cartucho"," selladora"," selladores"," neutra"," acetica"," hogar"," depilar"," vela"," madera"," bano"," sanitario",
@@ -1238,7 +1271,8 @@ public final class GarmentTaxonomy {
         " calefactor "," calefactores "," estufa "," estufas "," caloventor "," caloventores "," panel calefactor",
         " panel electrico"," panel ceramico"," panel radiante"," panel vitroceramico"," panel de calefaccion"," convector ",
         " convectores "," radiador electrico"," hogar a lena"," hogar a gas"," hogar electrico"," hogar de lena"," hogar lena",
-        " hogar a"," hogar tiraje"," estufas, caloventores"," toallero electrico"," toallero calefactor"
+        " hogar a"," hogar tiraje"," estufas, caloventores"," toallero electrico"," toallero calefactor",
+        " salamandra "," salamandras "
     };
     public static final String[] KW_VENTILADOR_LIDER = {
         " ventilador "," ventiladores "," turboventilador "," enfriador de aire"," enfriadores de aire"
@@ -1282,7 +1316,10 @@ public final class GarmentTaxonomy {
         " freidora "," freidoras "," tostadora "," tostadoras "," sandwichera "," sandwicheras "," pava electrica",
         " cafetera "," cafeteras "," licuadora "," licuadoras "," batidora "," batidoras "," procesadora "," procesadoras ",
         " molinillo "," picadora "," fondue "," deshidratador "," deshidratadora "," maquina de pan"," fabrica de pastas",
-        " plancha de ropa"," plancha a vapor"," exprimidor electrico"," yogurtera "," pequenos electrodomesticos"
+        " plancha de ropa"," plancha a vapor"," exprimidor electrico"," yogurtera "," pequenos electrodomesticos",
+        " multiprocesadora"," multiprocesadoras"," minipimer",
+        " purificador de agua",
+        " mixer minipimer"," mixer de mano"
     };
 
     public static final String[] KW_PILETA_VETO = {
@@ -1362,11 +1399,13 @@ public final class GarmentTaxonomy {
     };
     public static final String[] KW_CONSERVADORA_LIDER = {
         " conservadora "," conservadoras "," bolsa cooler"," bolso cooler"," cooler para botella"," lunchera cooler"," bolsa termica",
-        " gel refrigerante"," gel frio"," gel para conservadora"," conservadoras y luncheras"
+        " gel refrigerante"," gel frio"," gel para conservadora"," conservadoras y luncheras",
+        " lunchera "
     };
     public static final String[] KW_TERMO_BOTELLA_LIDER = {
         " termo "," termos "," botella "," botellas "," vaso termico"," vaso termo"," vaso outdoor"," vaso de acero"," vaso acero"," vaso de plastico",
-        " vasos termicos"," mug "," vasos y botellas"," bidon termico"," bidon polipropileno"," bidon plastico"
+        " vasos termicos"," mug "," vasos y botellas"," bidon termico"," bidon polipropileno"," bidon plastico",
+        " mate stanley"," mate termico"
     };
     public static final String[] KW_TERMO_BOTELLA_VETO = {
         " tinta"," toner"," shaker"," proteina"," whey"," vino"," vinos"," ink"," impresora"," suplemento"," creatina"," pintura"," aceite"," agua mineral"," cerveza",
@@ -1490,7 +1529,9 @@ public final class GarmentTaxonomy {
         " almohadon"," silla"," sillon"," respaldo"," sofa"," cama"," cuerpos"," pana "," tusor "
     };
     public static final String[] KW_RESPALDO_LIDER = { " respaldo " };
-    public static final String[] KW_RESPALDO_CONTEXTO = { " cama "," modular "," cabecera " };
+    public static final String[] KW_RESPALDO_CONTEXTO = { " cama "," modular "," cabecera ",
+        " plaza "," plazas "," king "
+    };
     public static final String[] KW_ALMOHADON_LIDER = { " almohadon "," almohadones "," pillow "," cojin "," cojines " };
     public static final String[] KW_MANTA_LIDER = { " manta "," mantas " };
     public static final String[] KW_MANTEL_LIDER = {
@@ -1504,6 +1545,24 @@ public final class GarmentTaxonomy {
     };
     public static final String[] KW_FUNDA_VETO = { " gamer " };
 
+    public static final String[] KW_LUMINARIA_LIDER = {
+        " lampara "," lamparas "," panel plafon"," liston led"," luminaria"," luminarias "
+    };
+    public static final String[] KW_LUMINARIA_VETO = {
+        " auto "," moto "," camioneta"," celular"," bicicleta"," bici "," tortuga"," terrario"," acuario"," mascota"," bebe",
+        " camping"," linterna"," juguete"," uv "
+    };
+    public static final String[] KW_PILA_LIDER = {
+        " pila "," pilas "," pila alcalina"," pilas alcalinas"," pila recargable"," pilas recargables"," pila de boton"
+    };
+    public static final String[] KW_PILA_VETO = {
+        " cocina"," lavadero"," lavar"," inox"," bacha"," mesada"," bano"," pileta"," sifon"," griferia"
+    };
+    public static final String[] KW_ALMOHADA_LIDER = { " almohada "," almohadas " };
+    public static final String[] KW_ALMOHADA_VETO = {
+        " hombre"," mujer"," campera"," chaleco"," buzo"," nino"," nina"," viaje"," masaje"," deportiv"," running"," sleeping",
+        " camping"," bebe"," lactancia"," mascota"," perro"," gato"," talle"," inflable"
+    };
     public static final String[] KW_ILUMINACION = {
         "lampara"," lamp ","luminaria","paneles led","panel led","tira led","aro de luz"
     };

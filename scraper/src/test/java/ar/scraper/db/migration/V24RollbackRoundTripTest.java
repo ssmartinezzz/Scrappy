@@ -81,6 +81,9 @@ class V24RollbackRoundTripTest extends PostgresTestBase {
                 // V87 widened the plataforma CHECK to 18 values and seeded a `kevingston` row on top of
                 // everything below: newest rollback first, or narrowing hits that row.
                 // V91 widened it once more (19 values, a `laspepas` row): it goes first of all.
+                // V115 and V116 seeded two more magento rows: newest first.
+                st.execute(DocumentedRollback.sqlFor("V116"));
+                st.execute(DocumentedRollback.sqlFor("V115"));
                 st.execute(DocumentedRollback.sqlFor("V91"));
                 st.execute(DocumentedRollback.sqlFor("V87"));
                 st.execute(DocumentedRollback.sqlFor("V76"));

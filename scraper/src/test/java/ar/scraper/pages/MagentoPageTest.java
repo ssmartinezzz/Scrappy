@@ -98,6 +98,22 @@ class MagentoPageTest {
     }
 
     @Test
+    @DisplayName("a card priced only as defaultPromoPrice (Somos Rex) is read, with oldPrice as the original price")
+    void promoLayerPriceIsRead() {
+        String card = """
+                <li class="item product product-item"><a class="product-item-link" href="https://somosrex.com/copa-barone.html">
+                    Copa Barone 490ml x12 </a>
+                <span data-price-amount="37131.53" data-price-type="oldPrice"></span>
+                <span data-price-amount="25992.08" data-price-type="defaultPromoPrice"></span>
+                <span data-price-amount="21481.06" data-price-type="baseDefaultPromoPrice"></span></li>""";
+        assertThat(parse("<ol class=\"products\">" + card + "</ol>")).singleElement().satisfies(p -> {
+            assertThat(p.nombre()).isEqualTo("Copa Barone 490ml x12");
+            assertThat(p.precio()).isEqualTo(25_992.08);
+            assertThat(p.precioOriginal()).isEqualTo(37_131.53);
+        });
+    }
+
+    @Test
     @DisplayName("names are unescaped and trimmed")
     void unescapesNames() {
         String card = """

@@ -116,6 +116,11 @@ public class CategoryClassifier {
             return "Bijouterie";
         String belleza = BELLEZA.clasificar(clasificable);
         if (!belleza.isEmpty()) return belleza;
+        // Before the guard, which vetoes "colgante" (a pendant lamp) and "gel" (a gel pillow) and "cervical" on purpose.
+        if (clasificable.lideraSinVeto(GarmentTaxonomy.KW_LUMINARIA_LIDER, GarmentTaxonomy.KW_LUMINARIA_VETO))
+            return "Iluminación";
+        if (clasificable.lideraSinVeto(GarmentTaxonomy.KW_ALMOHADA_LIDER, GarmentTaxonomy.KW_ALMOHADA_VETO))
+            return "Ropa de Cama";
         if (NonTextileGuard.esClaramenteNoTextil(texto)) return "";
         return primeraCategoria(FAMILIAS_EN_ORDEN, clasificable);
     }

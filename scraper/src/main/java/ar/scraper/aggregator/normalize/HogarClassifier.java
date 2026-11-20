@@ -11,6 +11,7 @@ final class HogarClassifier implements FamiliaClassifier {
         if (texto.sinPrefijoDeVentaEmpiezaCon(GarmentTaxonomy.KW_RESPALDO_LIDER)
                 && texto.contiene(GarmentTaxonomy.KW_RESPALDO_CONTEXTO))
             return "Respaldo";
+        if (texto.lideraSinVeto(GarmentTaxonomy.KW_PILA_LIDER, GarmentTaxonomy.KW_PILA_VETO)) return "Pila";
         if (texto.sinPrefijoDeVentaEmpiezaCon(GarmentTaxonomy.KW_ALMOHADON_LIDER)) return "Almohadón";
         if (texto.sinPrefijoDeVentaEmpiezaCon(GarmentTaxonomy.KW_MANTA_LIDER))     return "Manta";
         if (texto.sinPrefijoDeVentaEmpiezaCon(GarmentTaxonomy.KW_MANTEL_LIDER))    return "Mantel";
