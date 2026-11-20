@@ -25,7 +25,8 @@ SET CONSTRAINTS ALL IMMEDIATE;
 INSERT INTO categoria (nombre) VALUES ('Accesorio Apple')
 ON CONFLICT (nombre) DO NOTHING;
 
-WITH linea(l) AS (SELECT regexp_split_to_table('dispositivo| mac mini , mac studio , imac , mac pro , studio display , pro display xdr , ipad , airpods , earpods , apple airpods , apple earpods , apple watch , apple tv , beats pill , jbl clip , jbl go , jbl flip , jbl charge , jbl boombox , beats solo , beats studio , beats flex , beats fit , powerbeats ;trackpad| trackpad ;lider| apple pencil , airtag ;correa| correa , banda ;accesorio| funda , fundas , case , estuche , smart folio , protector , protectores , film , filtro , lapiz , stylus , bumper , forro , soporte , base , cover , folio , vidrio , templado , todo terreno , dux , balance , puntas ;ref| ipad , macbook , imac , para mac , airpods , apple watch , airtag , apple pencil ;veto| teclado , keyboard , mouse , celular , notebook , laptop , iphone , organizadora , organizador ;sub:iPad| ipad , apple pencil ;sub:MacBook| macbook , imac , para mac ;sub:AirPods| airpods , earpods ;sub:Apple Watch| apple watch ', ';')),
+WITH k AS (SELECT 'Accesorio Apple'::text AS cat, ' caja de [0-9]{2} ?mm'::text AS caja_re),
+linea(l) AS (SELECT regexp_split_to_table('dispositivo| mac mini , mac studio , imac , mac pro , studio display , pro display xdr , ipad , airpods , earpods , apple airpods , apple earpods , apple watch , apple tv , beats pill , jbl clip , jbl go , jbl flip , jbl charge , jbl boombox , beats solo , beats studio , beats flex , beats fit , powerbeats ;trackpad| trackpad ;lider| apple pencil , airtag ;correa| correa , banda ;accesorio| funda , fundas , case , estuche , smart folio , protector , protectores , film , filtro , lapiz , stylus , bumper , forro , soporte , base , cover , folio , vidrio , templado , todo terreno , dux , balance , puntas ;ref| ipad , macbook , imac , para mac , airpods , apple watch , airtag , apple pencil ;veto| teclado , keyboard , mouse , celular , notebook , laptop , iphone , organizadora , organizador ;sub:iPad| ipad , apple pencil ;sub:MacBook| macbook , imac , para mac ;sub:AirPods| airpods , earpods ;sub:Apple Watch| apple watch ', ';')),
 campo(f) AS (SELECT string_to_array(l, '|') FROM linea),
 voc AS (SELECT f[1] AS clave, unnest(string_to_array(f[2], ',')) AS palabra FROM campo),
 base AS (
@@ -41,7 +42,7 @@ venta AS (
     FROM base b
 ),
 rasgo AS (
-  SELECT v.url, v.forzado, v.n,
+  SELECT v.url, v.forzado, v.n, k.caja_re,
          EXISTS (SELECT 1 FROM voc w WHERE w.clave = 'dispositivo' AND left(v.sin, length(w.palabra)) = w.palabra) AS dispositivo,
          EXISTS (SELECT 1 FROM voc w WHERE w.clave = 'trackpad' AND position(w.palabra IN v.n) > 0) AS trackpad,
          EXISTS (SELECT 1 FROM voc w WHERE w.clave = 'lider' AND left(v.sin, length(w.palabra)) = w.palabra) AS lider,
@@ -50,11 +51,11 @@ rasgo AS (
          EXISTS (SELECT 1 FROM voc w WHERE w.clave = 'ref' AND position(w.palabra IN v.n) > 0) AS ref,
          EXISTS (SELECT 1 FROM voc w WHERE w.clave = 'veto' AND position(w.palabra IN v.n) > 0) AS veto,
          position(' apple watch ' IN v.n) > 0 AS reloj,
-         substring(v.n FROM ' caja de [0-9]{2} ?mm') IS NOT NULL AS caja
-    FROM venta v
+         substring(v.n FROM k.caja_re) IS NOT NULL AS caja
+    FROM venta v CROSS JOIN k
 ),
 accesorio_apple AS (
-  SELECT r.url, r.forzado, r.n
+  SELECT r.url, r.forzado, r.n, r.caja_re
     FROM rasgo r
    WHERE NOT r.dispositivo AND NOT r.trackpad AND NOT r.veto
      AND (r.lider OR (r.correa AND (r.reloj OR r.caja)) OR (r.accesorio AND (r.ref OR r.caja)))
@@ -65,15 +66,15 @@ nuevo AS (
                      SELECT substr(w.clave, 5) AS sub, position(w.palabra IN a.n) AS pos
                        FROM voc w WHERE w.clave LIKE 'sub:%' AND position(w.palabra IN a.n) > 0
                      UNION ALL
-                     SELECT 'Apple Watch', position(substring(a.n FROM ' caja de [0-9]{2} ?mm') IN a.n)
-                      WHERE substring(a.n FROM ' caja de [0-9]{2} ?mm') IS NOT NULL) c
+                     SELECT 'Apple Watch', position(substring(a.n FROM a.caja_re) IN a.n)
+                      WHERE substring(a.n FROM a.caja_re) IS NOT NULL) c
                     ORDER BY c.pos LIMIT 1), '') AS sub
     FROM accesorio_apple a
 )
 UPDATE productos p
-   SET categoria = 'Accesorio Apple',
+   SET categoria = k.cat,
        sub_categoria = nuevo.sub,
        rubro = CASE WHEN nuevo.forzado <> '' THEN nuevo.forzado ELSE 'tecnologia' END
-  FROM nuevo
+  FROM nuevo CROSS JOIN k
  WHERE p.url = nuevo.url
-   AND (p.categoria, p.sub_categoria) IS DISTINCT FROM ('Accesorio Apple', nuevo.sub);
+   AND (p.categoria, p.sub_categoria) IS DISTINCT FROM (k.cat, nuevo.sub);
