@@ -41,6 +41,8 @@ public class SfccPage extends StorePage implements CatalogPage, ArbolDeCategoria
     private static final int POR_PAGINA = 100;
     private static final int MAX_PAGINAS = 200;
     private static final int PAUSA_MS = 300;
+    // Paging the default relevance order lost ~20 of 9,940 tiles to rank shuffles between requests; price is stable.
+    private static final String ORDEN = "lowest-price";
     // 2% slack: the count is read in a separate request and a product can go out of stock between the two.
     private static final double TOLERANCIA = 0.98;
     private static final String FETCH_TEXTO = "(u) => fetch(u).then(r => r.ok ? r.text() : '')";
@@ -101,6 +103,7 @@ public class SfccPage extends StorePage implements CatalogPage, ArbolDeCategoria
             log.debug("[{}] SFCC p{}: {}/{} tarjetas, {} acumulados", sitio, p + 1, crudos, total, result.size());
             page.waitForTimeout(PAUSA_MS);
         }
+        log.info("[{}] SFCC {} productos distintos, {} tarjetas, {} anunciados", sitio, result.size(), crudos, total);
         if (total > 0 && crudos < total * TOLERANCIA)
             registrarTruncamiento(crudos / POR_PAGINA + 1, new SfccPayloadException("llegaron " + crudos + " de " + total + " productos"));
         return result;
@@ -136,7 +139,7 @@ public class SfccPage extends StorePage implements CatalogPage, ArbolDeCategoria
     }
 
     String urlGrilla(String siteId, int inicio) {
-        return controlador(siteId, "Search-UpdateGrid") + "?cgid=root&start=" + inicio + "&sz=" + POR_PAGINA;
+        return controlador(siteId, "Search-UpdateGrid") + "?cgid=root&srule=" + ORDEN + "&start=" + inicio + "&sz=" + POR_PAGINA;
     }
 
     static Listado parseListado(String html, String sitio, String baseUrl, double precioMin, double precioMax) {
@@ -207,7 +210,7 @@ public class SfccPage extends StorePage implements CatalogPage, ArbolDeCategoria
         return generos.isEmpty() ? "" : "unisex";
     }
 
-    static int idDeHoja(String hoja) {
+    public static int idDeHoja(String hoja) {
         return ("sfcc:" + hoja).hashCode() & Integer.MAX_VALUE;
     }
 
