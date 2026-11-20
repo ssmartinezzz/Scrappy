@@ -90,6 +90,8 @@ class V27RollbackRoundTripTest extends PostgresTestBase {
                 st.execute(DocumentedRollback.sqlFor("V123"));
                 st.execute(DocumentedRollback.sqlFor("V122"));
                 st.execute(DocumentedRollback.sqlFor("V121"));
+                // V117 (Pila) sits above V116 and changes no platform data: it runs right after the sfcc ones.
+                st.execute(DocumentedRollback.sqlFor("V117"));
                 st.execute(DocumentedRollback.sqlFor("V116"));
                 st.execute(DocumentedRollback.sqlFor("V115"));
                 st.execute(DocumentedRollback.sqlFor("V91"));
@@ -144,6 +146,8 @@ class V27RollbackRoundTripTest extends PostgresTestBase {
                 st.execute(DocumentedRollback.sqlFor("V123"));
                 st.execute(DocumentedRollback.sqlFor("V122"));
                 st.execute(DocumentedRollback.sqlFor("V121"));
+                // V117 (Pila) sits above V116 and changes no platform data: it runs right after the sfcc ones.
+                st.execute(DocumentedRollback.sqlFor("V117"));
                 st.execute(DocumentedRollback.sqlFor("V116"));
                 st.execute(DocumentedRollback.sqlFor("V115"));
                 st.execute(DocumentedRollback.sqlFor("V91"));

@@ -5821,7 +5821,7 @@ palos de hockey, raquetas, protectores bucales, silbatos y sogas caían a `Otros
 La hoja curada le gana al nombre en esta tienda (`NormalizerService.SITIOS_DONDE_LA_HOJA_GANA`). 115 hojas mapeadas.
 
 Medido (9.941 filas, activas): `categoria != Otros` **96,9 %** (clasificador previo, sin hojas; 307 `Otros`) → **99,8 %** (21 `Otros`, ninguno con hoja); `Conjunto` pasa de 397 a 99 (los packs de medias son `Medias`).
-Rubros: `indumentaria` 9.227, `deporte` 599, `hogar` 109 (botellas, toallas y conservadoras: `Termo y Botella`/`Toalla`/`Conservadora` son categorías de hogar), resto 6. Género: hombre 3.746, mujer 2.487, unisex 2.285,
+Rubros: `indumentaria` 9.227, `deporte` 599, `hogar` 110 (botellas, toallas, conservadoras y una silla de camping: `Termo y Botella`/`Toalla`/`Conservadora` son categorías de hogar), resto 5. Género: hombre 3.746, mujer 2.487, unisex 2.285,
 infantil 1.252, vacío 171. Muestra al azar de 32 filas revisada a mano: 32 con categoría, rubro y género razonables. **Huecos que siguen** (clasificador compartido, pregunta abierta): `Zapatillas Asics Gel ...` (6 filas) queda en `Otros`
 aunque el nombre dice zapatillas, y `Ciclista` / `Body` / `Tapabocas` no tienen categoría.
 
