@@ -43,15 +43,6 @@ final class ElectroSubcategoryResolver {
         "tv|Parlante| parlante , parlantes , parlanteportatil , parl.port , parl.portatil , bafle , bafles , altavoz , altavoces , bocina , bocinas , speaker , speakers , subwoofer , torre , tower , sistema portatil , sistema portable , sistema de sonido , monitores , par de monitores , jbl , beats ";
 
     // V128 skips the common sale words plus the brands and pack words that never name the product.
-    private static final LeadingNounRules REGLAS = new LeadingNounRules(VOCABULARIO,
+    static final LeadingNounRules REGLAS = new LeadingNounRules(VOCABULARIO,
         Map.of(PEQUENO_ELECTRO, "pe", TV_Y_AUDIO, "tv"), "philips|ga[.]ma|gama|italy|professional");
-
-    boolean handles(String categoria) {
-        return REGLAS.handles(categoria);
-    }
-
-    /** Call only when {@link #handles}. */
-    String resolver(String categoria, String nombre) {
-        return REGLAS.resolver(categoria, nombre);
-    }
 }

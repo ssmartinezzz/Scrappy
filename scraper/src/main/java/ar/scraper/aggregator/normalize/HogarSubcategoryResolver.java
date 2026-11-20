@@ -57,15 +57,6 @@ final class HogarSubcategoryResolver {
         "mu|Cocina Modular| modular , modulo | cocina ";
 
     // "hue" so that "Philips Hue Plafón" leads with "plafon"; V129 skips the same two words.
-    private static final LeadingNounRules REGLAS = new LeadingNounRules(VOCABULARIO,
+    static final LeadingNounRules REGLAS = new LeadingNounRules(VOCABULARIO,
         Map.of(ILUMINACION, "il", MUEBLE, "mu"), "hue|philips");
-
-    boolean handles(String categoria) {
-        return REGLAS.handles(categoria);
-    }
-
-    /** Call only when {@link #handles}. */
-    String resolver(String categoria, String nombre) {
-        return REGLAS.resolver(categoria, nombre);
-    }
 }
