@@ -43,6 +43,12 @@ const CHIPS = {
   'tecnologia/Impresión': [c('impresora', 'Impresora'), c('tinta', 'Tinta'), c('toner', 'Tóner')],
   'tecnologia/Cámara': [c('exterior', 'Exterior'), c('interior', 'Interior'), c('wifi', 'WiFi')],
   'tecnologia/Reloj': [c('deportivo', 'Deportivo'), c('smartwatch', 'Smartwatch')],
+  // V128: Title Case values, so the chip label is the stored value.
+  'tecnologia/TV y Audio': ['Barra de Sonido', 'Consola y Mixer', 'Equipo de Música', 'Handy', 'Parlante', 'Proyector', 'Radio',
+    'Soporte', 'Tocadiscos', 'Televisor'],
+  'hogar/Pequeño Electrodoméstico': ['Accesorio y Repuesto', 'Afeitadora y Cortadora', 'Batidora y Mixer', 'Cafetera', 'Depiladora',
+    'Freidora', 'Licuadora y Exprimidor', 'Pava Eléctrica', 'Plancha de Ropa', 'Planchita y Rizador', 'Procesadora', 'Secador de Pelo',
+    'Tostadora y Sandwichera'],
 };
 
 export function subChipsDe(rubro, categoria) {
