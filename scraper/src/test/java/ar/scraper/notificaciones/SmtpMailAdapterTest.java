@@ -113,26 +113,40 @@ class SmtpMailAdapterTest {
     }
 
     @Test
-    @DisplayName("a message over 8 KiB does not stall on Nagle + delayed ACK: 20 of them average well under 20 ms each")
+    @DisplayName("a message over 8 KiB does not stall on Nagle + delayed ACK: it costs about what a small one does, not 40 ms more")
     void mensajeGrandeNoSeDemora() throws Exception {
-        String html = "<html><body>" + "x".repeat(9000) + "</body></html>";
-        List<CorreoDirigido> lote = new java.util.ArrayList<>();
-        for (int i = 0; i < 20; i++) {
-            lote.add(new CorreoDirigido("u" + i + "@example.com", new CorreoRenderizado("asunto", html, "texto")));
-        }
+        List<CorreoDirigido> grandes = lote("g", "<html><body>" + "x".repeat(9000) + "</body></html>");
+        List<CorreoDirigido> chicos = lote("c", "<p>x</p>");
         try (FakeSmtpServer smtp = new FakeSmtpServer()) {
             SmtpMailAdapter adaptador = new SmtpMailAdapter("127.0.0.1", smtp.puerto(), "", "", "avisos@example.com");
-            // Warm-up batch: class loading, the JavaMail session and the first handshake cost ~0.5 s cold on a CI runner,
-            // which spread over 20 mails reads like a stall. A real Nagle + delayed-ACK stall is >= 40 ms on every mail.
-            adaptador.enviar(lote.subList(0, 5));
+            // The per-mail cost is CPU and JIT, so its absolute value depends on the machine (a CI runner read ~20 ms
+            // warm). A stall is a fixed ~40 ms that only the two-segment message pays: compare the two on the same JVM.
+            adaptador.enviar(chicos);
+            adaptador.enviar(grandes);
+            double msGrande = mejorMsPorMail(adaptador, grandes);
+            double msChico = mejorMsPorMail(adaptador, chicos);
+
+            assertThat(smtp.mensajes().get(chicos.size()).length).isGreaterThan(8192);
+            assertThat(msGrande - msChico).as("extra ms per mail of the large message").isLessThan(25.0);
+        }
+    }
+
+    private static List<CorreoDirigido> lote(String prefijo, String html) {
+        List<CorreoDirigido> lote = new java.util.ArrayList<>();
+        for (int i = 0; i < 20; i++) {
+            lote.add(new CorreoDirigido(prefijo + i + "@example.com", new CorreoRenderizado("asunto", html, "texto")));
+        }
+        return lote;
+    }
+
+    private static double mejorMsPorMail(SmtpMailAdapter adaptador, List<CorreoDirigido> lote) {
+        double mejor = Double.MAX_VALUE;
+        for (int r = 0; r < 3; r++) {
             long inicio = System.nanoTime();
             adaptador.enviar(lote);
-            double msPorMail = (System.nanoTime() - inicio) / 1e6 / lote.size();
-
-            assertThat(smtp.mensajes()).hasSize(25);
-            assertThat(smtp.mensajes().getFirst().length).isGreaterThan(8192);
-            assertThat(msPorMail).as("ms per mail").isLessThan(20.0);
+            mejor = Math.min(mejor, (System.nanoTime() - inicio) / 1e6 / lote.size());
         }
+        return mejor;
     }
 
     @Test
