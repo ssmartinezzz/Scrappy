@@ -203,6 +203,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V125` | Seed de Macstation (Odoo, revendedor Apple, `rubro_por_defecto = 'tecnologia'`); sin hojas: el listado no trae categoría |
 | `V126` | Seed de Gentech (Odoo, marca propia de suplementos, `monomarca`, `rubro_por_defecto = 'suplementos'`) y su fila en `marca`; sin hojas |
 | `V127` | Categoría `Accesorio Apple` (rubro tecnología): lo que se vende para un iPad, un Mac, AirPods, un AirTag o un Apple Watch, con `sub_categoria` iPad, MacBook, AirPods y Apple Watch; reubica las filas guardadas que la regla reclama |
+| `V128` | `sub_categoria` de `Pequeño Electrodoméstico` (13 valores: `Cafetera`, `Licuadora y Exprimidor`, `Secador de Pelo`...) y de `TV y Audio` (10: `Parlante`, `Televisor`, `Soporte`...) por sustantivo líder; reescribe las filas guardadas con la misma regla que `ElectroSubcategoryResolver` |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -5950,4 +5951,36 @@ DELETE FROM categoria WHERE nombre = 'Accesorio Apple';
 -- <<< rollback:V127
 ```
 
-**El orden es obligatorio** (FK de `productos`, `sitio_categoria` y `categoria_stats` hacia `categoria`). Los productos vuelven a `Otros` y el próximo scrape los reclasifica. Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V126`.
+**El orden es obligatorio** (FK de `productos`, `sitio_categoria` y `categoria_stats` hacia `categoria`). Los productos vuelven a `Otros` y el próximo scrape los reclasifica. Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V128` y antes que el de `V126`.
+
+---
+
+## `V128` — `sub_categoria` de `Pequeño Electrodoméstico` y `TV y Audio`
+
+Las dos categorías sin subcategoría más grandes (3.225 y 1.854 filas activas, 0 con sub) ahora la tienen, y la decide **el sustantivo líder** del nombre (tras saltear el prefijo de venta de `TextoClasificable.sinPrefijoDeVenta`, más `set`, `kit`, `mini`, `pack` y las marcas `Philips`/`GA.MA`): "Soporte para Smart TV 65" es `Soporte`, "Accesorio / Repuesto / Filtro para cafetera" es `Accesorio y Repuesto` y nunca `Cafetera`. Un nombre que ninguna regla reclama queda con sub vacía: no hay catch-all.
+
+- `Pequeño Electrodoméstico` (13): `Accesorio y Repuesto`, `Afeitadora y Cortadora`, `Batidora y Mixer`, `Cafetera`, `Depiladora`, `Freidora`, `Licuadora y Exprimidor`, `Pava Eléctrica`, `Plancha de Ropa`, `Planchita y Rizador`, `Procesadora`, `Secador de Pelo`, `Tostadora y Sandwichera`. "Plancha" es de ropa solo con una señal de ropa (vapor, seca, vertical) y de pelo con una de cabello (pelo, cabello, GA.MA, titanium...); `Plancha de asar` queda vacía.
+- `TV y Audio` (10): `Barra de Sonido`, `Consola y Mixer`, `Equipo de Música`, `Handy`, `Parlante` (también bafle, torre de sonido, sistema portátil, monitores de estudio), `Proyector`, `Radio`, `Soporte` (también trípode y brazo), `Televisor` (`Smart ...`, `TV ...`, `65"...`) y `Tocadiscos`.
+- Un combo, un kit o un set se lee por el primer producto que nombra: "Combo Licuadora + Batidora" es `Licuadora y Exprimidor`, "Combo Batidora + Licuadora" es `Batidora y Mixer`.
+- No hay FK ni tabla de subcategorías (`sub_categoria` es texto libre), así que la migración no inserta nada aparte.
+
+El vocabulario es **un solo literal** de una línea (filas `cat|sub|líderes|alguna|veto` separadas por `;`, palabras por `,`; sin salto de línea: Sonar), el mismo texto que `ElectroSubcategoryResolver.VOCABULARIO`; las reglas se prueban en orden y gana la primera. La migración lleva `SET CONSTRAINTS ALL IMMEDIATE`, no toca las filas con `bloqueado_por`, cubre activas e inactivas y solo escribe las filas cuya sub cambia (idempotente). Antes de normalizar, el nombre pierde acentos, pasa a minúsculas y cambia `/ : , ; + ( ) [ ]` por espacios, así que `Parlante/Bluetooth` lidera con `parlante`. `V128ElectroTvAudioAgreementTest` corre la migración y el resolver sobre los mismos 601 nombres reales y exige 0 diferencias.
+
+Medido sobre las filas activas (`activo IS NOT FALSE`) de la base de dev, con la misma regla en un `SELECT`: `Pequeño Electrodoméstico` pasa de 0 % a **83,2 %** con sub (2.682 de 3.225) y `TV y Audio` de 0 % a **96,9 %** (1.796 de 1.854). Lo que queda sin sub son familias chicas: molinillos, helados/pan/donas, soda, masajeadores y yogurteras en el electro; antenas, DVR, streaming y grabadoras en audio.
+
+El ML queda desactualizado hasta el próximo `POST /api/ml/aplicar`: con sub, `clave_de_precio` puntúa cada producto contra `<categoría>|<sub>` (con al menos `MIN_GROUP` productos), y una pava ya no se compara con una cafetera.
+
+### Rollback
+
+```sql
+-- >>> rollback:V128
+UPDATE productos SET sub_categoria = ''
+ WHERE categoria IN ('Pequeño Electrodoméstico', 'TV y Audio')
+   AND sub_categoria IN ('Accesorio y Repuesto', 'Afeitadora y Cortadora', 'Batidora y Mixer', 'Cafetera', 'Depiladora', 'Freidora',
+                         'Licuadora y Exprimidor', 'Pava Eléctrica', 'Plancha de Ropa', 'Planchita y Rizador', 'Procesadora',
+                         'Secador de Pelo', 'Tostadora y Sandwichera', 'Barra de Sonido', 'Consola y Mixer', 'Equipo de Música',
+                         'Handy', 'Parlante', 'Proyector', 'Radio', 'Soporte', 'Televisor', 'Tocadiscos');
+-- <<< rollback:V128
+```
+
+Antes de `V128` las dos categorías no tenían subcategoría, así que vaciar estos valores las deja como estaban. No hay FK de por medio: el orden con las otras migraciones no importa. Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V127`. Un `renormalizar` posterior vuelve a escribir las subs desde Java.
