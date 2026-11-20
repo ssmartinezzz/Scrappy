@@ -72,7 +72,9 @@ class V86V87SeedFashionSitesTest extends PostgresTestBase {
             try (Statement st = c.createStatement()) {
                 // Newest first: V91 widened the CHECK again and seeded a 'magento' row the narrower one would reject.
                 // V115 and V116 seeded two more magento rows: newest first.
-                // V121 added the sfcc platform on top: it goes before anything else.
+                // V121-V123 added the sfcc platform and its two sites on top: they go before anything else.
+                st.execute(DocumentedRollback.sqlFor("V123"));
+                st.execute(DocumentedRollback.sqlFor("V122"));
                 st.execute(DocumentedRollback.sqlFor("V121"));
                 st.execute(DocumentedRollback.sqlFor("V116"));
                 st.execute(DocumentedRollback.sqlFor("V115"));
