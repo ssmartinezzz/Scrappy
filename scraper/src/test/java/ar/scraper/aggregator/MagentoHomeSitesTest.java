@@ -76,7 +76,7 @@ class MagentoHomeSitesTest {
         }
         assertThat(normalizar("Somosrex", "Membrana Liquida Para Techos Fibrado Verde Plavicon 25 Kg").categoria()).isEqualTo("Impermeabilizante");
 
-        Product sinNombreDeCategoria = normalizar("Somosrex", "Poximix 15 Minutos Uso Exterior Repara Grietas 5 Kg");
+        Product sinNombreDeCategoria = normalizar("Somosrex", "Reparador De Piezas Flexibles 3M (5887)");
         assertThat(sinNombreDeCategoria.categoria()).isEqualTo("Otros");
         assertThat(sinNombreDeCategoria.rubro()).isEqualTo("construccion");
 

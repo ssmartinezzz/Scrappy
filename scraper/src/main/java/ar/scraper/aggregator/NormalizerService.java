@@ -46,6 +46,8 @@ public class NormalizerService {
     // A hardware and paint store: the same guard, but building and sports categories count too (a padel racket, a drill). Its
     // listing has no category, so a "20 Kg" paint reads as food and "Rodillo Lana" as a sweater unless the guard is there.
     private static final Set<String> SITIOS_SOLO_HOGAR_Y_OBRA = Set.of("somosrex");
+    // What such a store sells besides the building and home lines: chairs, TVs bundled with a rack, work clothes.
+    private static final Set<String> CATEGORIAS_DE_OBRA_Y_HOGAR_EXTRA = Set.of("Silla", "TV y Audio", "Pantalón", "Camisa");
     // A curated "Celular" leaf (phones and their accessories) outranks the name unless the name says another device:
     // a Galaxy Tab on a phone series leaf is a Tablet, a watch a Reloj.
     private static final Set<String> OTROS_EQUIPOS_QUE_NO_CEDEN = Set.of(
@@ -117,7 +119,8 @@ public class NormalizerService {
         boolean yObra = SITIOS_SOLO_HOGAR_Y_OBRA.contains(sitioKey);
         if (!yObra && !SITIOS_SOLO_HOGAR.contains(sitioKey)) return categoria;
         if (CategoryGroups.esCategoriaHogar(categoria)
-                || (yObra && (CategoryGroups.esCategoriaConstruccion(categoria) || CategoryGroups.esCategoriaDeporte(categoria))))
+                || (yObra && (CategoryGroups.esCategoriaConstruccion(categoria) || CategoryGroups.esCategoriaDeporte(categoria)
+                    || CATEGORIAS_DE_OBRA_Y_HOGAR_EXTRA.contains(categoria))))
             return categoria;
         return CategoryGroups.esCategoriaHogar(categoriaDelArbol) ? categoriaDelArbol : "Otros";
     }

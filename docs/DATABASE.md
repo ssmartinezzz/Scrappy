@@ -5667,7 +5667,17 @@ marcas de pintura que encabezan el nombre (`Cetol`, `Recuplast Frentes`, `Vadex`
 
 Medido (4.584 filas): `categoria != Otros` **75,3 %** (clasificador previo, con 310 `Alimentos` de pintura y rubros `suplementos` 310 / `oficina` 78 / `indumentaria` 37 / `tecnologia` 17) →
 **77,0 %** (1.056 `Otros`; rubros `construccion` 3.939, `hogar` 623, `deporte` 22). Muestra al azar de 50 filas revisada a mano: 33 con la categoría correcta, 16 `Otros` honestos (rodillos de repuesto, escuadras, selladores y herramientas sin nombre de categoría) y 1 dudosa
-(un sellador de pileta en `Accesorio de Pileta`). **Huecos que siguen en `Otros`** (pregunta abierta): `Silla` no es categoría de hogar, así que las ~30 sillas de jardín y camping caen a `Otros`; y las marcas de pintura que no encabezan el nombre.
+(un sellador de pileta en `Accesorio de Pileta`). **Pasada de taxonomía (2026-11-20, mismas 4.584 filas):** `categoria != Otros` 77,0 % → **87,9 %** (554 `Otros`). Los grupos que caían a `Otros` se ubicaron en categorías que ya existen,
+con *keywords* que **encabezan** el nombre (el espacio es el límite de palabra): pinturas y barnices por marca o producto (`Recuplast`, `Cetol`, `Casablanca`, `Baslac`, `Recufloor`, `Simil Madera`,
+`Plastificante`, `Fijador Interior`, `Esmalte Epoxi/Albalux/Aerosol`), `Impermeabilizante` (`Membrana en pasta`, `Albafrent Techos`, `Recuplast Perdura`), `Enduido` (`Enduplast`, `Anclaflex`),
+`Adhesivo` (cualquier nombre que empiece con `adhesivo`, más `Poxipol`, `Poxiran`, `La Gotita`, `Poximix`; veto de prótesis, uñas y bebé), `Accesorio de Pintura` (rodillos y pinceles con calificador
+`epoxi`/`púas`/`galgo`..., `Repuesto Rodillo`, `Bandeja para rodillo`), `Lija` (`Pack X50 Unidades`, `3M` como prefijo de venta, `Viruta`), `Cinta Adhesiva`, `Herramienta Eléctrica`
+(`Generador Eléctrico/Naftero`, `Llave de Impacto`, `Aparejo Eléctrico`, `Cepillo Eléctrico Carpintero`), `Herramienta Manual` (`Juego de Herramientas`, `Juego de Llaves`, `Engrampadora Manual`),
+`Pequeño Electrodoméstico` (`Multiprocesadora`, `Mixer Minipimer`, `Purificador de Agua`), `Calefactor` (`Salamandra`), `Termo y Botella` (`Mate Stanley`), `Conservadora` (`Lunchera`),
+`Limpieza de Auto` (`Pasta de Pulir`), `Cemento` (`Yeso`), `Iluminación` (la lámpara colgante ya no la veta `NonTextileGuard`) y `Silla`/`TV y Audio`/`Pantalón`/`Camisa` (permitidas en el filtro de la
+tienda). Rubros: `construccion` 3.806, `hogar` 683, `oficina` 60 (las sillas: `Silla` es de oficina en todo el catálogo), `deporte` 22, `indumentaria` 8 (ropa de trabajo), `tecnologia` 5 (TVs con rack). Muestra
+al azar de 36 filas: 27 con la categoría correcta y 9 `Otros` honestos (cuchillos x12, respirador, sellador híbrido, cantonera, raspador, membrana de marca). **Pregunta abierta:** las sillas de jardín
+quedan en rubro `oficina`; moverlas pide un cambio de diseño (`Silla` en el grupo de hogar para todo el catálogo).
 
 ### Rollback
 
@@ -5690,7 +5700,9 @@ solapan: `MagentoPage` deduplica por slug. Scrape real (2026-11-20, 193 s) **448
 deja pasar sólo categorías de hogar y manda el resto a `Otros`. Género vacío por `GENERO_FIJO_POR_SITIO`.
 
 Medido (448 filas): `categoria != Otros` **95,3 %** (clasificador previo, pero 24 de esas filas eran `Medias`/`Organización`/`Conjunto` y los rubros `indumentaria` 19 y `oficina` 4 sobraban) →
-**90,0 %** (45 `Otros`, todo `hogar`). **Huecos que siguen en `Otros`** (pregunta abierta, el clasificador no los ubica): `Respaldo` (6), `Base Sommier` (5), `Combo` de cama + colchón (7) y `Promo 2x1 Almohada` (3).
+**90,0 %** (45 `Otros`, todo `hogar`). **Pasada de taxonomía (2026-11-20):** `categoria != Otros` 90,0 % → **97,3 %** (12 `Otros`). `Respaldo` (10, el contexto ahora acepta `plaza`/`plazas`/`king`), `Base Sommier` y `Diván Cama` (`Cama`, 20) y las
+almohadas con `cervical` o `gel` (`Ropa de Cama`, 3: una regla antes del `NonTextileGuard` y sin el veto `cervical`, que sigue valiendo para el resto) salen de `Otros`. Quedan **los 12 `Combo ... + Colchón + Respaldo`**:
+un combo no es un tipo de producto y no tiene sustantivo líder, así que sigue en `Otros`. Muestra al azar de 36 filas: 36 bien; todo `hogar`.
 
 ### Rollback
 
@@ -5702,3 +5714,4 @@ DELETE FROM sitio s WHERE s.sitio_key = 'sommiercenter'
 ```
 
 Con productos ya scrapeados no borra nada. Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V115`.
+
