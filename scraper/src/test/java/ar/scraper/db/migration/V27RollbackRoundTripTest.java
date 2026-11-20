@@ -87,6 +87,7 @@ class V27RollbackRoundTripTest extends PostgresTestBase {
                 // V91 widened it once more (19 values, a `laspepas` row): it goes first of all.
                 // V115 and V116 seeded two more magento rows: newest first.
                 // V121-V126 added the sfcc and odoo platforms and their four sites on top: they go before anything else.
+                st.execute(DocumentedRollback.sqlFor("V127"));
                 st.execute(DocumentedRollback.sqlFor("V126"));
                 st.execute(DocumentedRollback.sqlFor("V125"));
                 st.execute(DocumentedRollback.sqlFor("V124"));
@@ -146,6 +147,7 @@ class V27RollbackRoundTripTest extends PostgresTestBase {
                 // V91 widened it once more (19 values, a `laspepas` row): it goes first of all.
                 // V115 and V116 seeded two more magento rows: newest first.
                 // V121-V126 added the sfcc and odoo platforms and their four sites on top: they go before anything else.
+                st.execute(DocumentedRollback.sqlFor("V127"));
                 st.execute(DocumentedRollback.sqlFor("V126"));
                 st.execute(DocumentedRollback.sqlFor("V125"));
                 st.execute(DocumentedRollback.sqlFor("V124"));

@@ -14,7 +14,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 @Epic("Normalization")
 @Feature("Category classification")
-@DisplayName("Macstation and Gentech taxonomy: Apple devices, their accessories and supplement names without the noun")
+@DisplayName("Macstation and Gentech taxonomy: Apple devices, Accesorio Apple and supplement names without the noun")
 class OdooSitesTaxonomyTest {
 
     private final CategoryClassifier classifier = new CategoryClassifier();
@@ -30,9 +30,6 @@ class OdooSitesTaxonomyTest {
         AirPods Pro 3                                                               | Auricular
         EarPods con conector Lightning de Apple                                     | Auricular
         Apple Watch Series 11 (GPS) 46 mm - Caja de aluminio plata                  | Reloj
-        Correa deportiva azul denim de Apple para caja de 42 mm - S/M               | Reloj
-        Banda de cuero de cactus verde de Otterbox para caja de 45 mm               | Reloj
-        Correa Trail verde/gris de Apple para caja de 49 mm                         | Reloj
         iMac 24" (M4) - 10 CPU, 10 GPU, 24GB, 512GB - Rosa                           | PC
         Mac mini (M4 Pro) - 12 CPU, 16 GPU, 24GB, 512GB                             | Mini PC
         Studio Display - Vidrio estándar - 2026                                     | Monitor
@@ -57,18 +54,56 @@ class OdooSitesTaxonomyTest {
         assertThat(cat(nombre.trim())).isEqualTo(esperada.trim());
     }
 
-    @ParameterizedTest(name = "[{index}] {0}")
+    @ParameterizedTest(name = "[{index}] {0} -> {1}")
     @CsvSource(delimiter = '|', textBlock = """
-        Smart Folio de Apple para iPad Air 11" (M4) - Azul denim
-        Funda SafePort Rugged Max de Targus para iPad Pro 11" (M4)
-        Protector de pantalla Pure 3 de BodyGuardz para iPad Air 13" (M4)
-        Funda Carry Zip de Incase para MacBook 13" - Gris cemento
-        Filtro de privacidad magnético para MacBook Air 15" de HyperShield
-        Funda Hybrid con MagSafe para AirPods 4 - Verde oliva
+        Smart Folio de Apple para iPad Air 11" (M4) - Azul denim                    | iPad
+        Funda SafePort Rugged Max de Targus para iPad Pro 11" (M4)                  | iPad
+        Protector de pantalla Pure 3 de BodyGuardz para iPad Air 13" (M4)           | iPad
+        Apple Pencil Pro                                                            | iPad
+        Kanex Vidrio Templado iPad Mini 5/4                                         | iPad
+        Speck Balance Folio Microban iPad Mini 5/4 - Negro                          | iPad
+        STM (Exclusivo Apple) Dux Plus iPad mini 7/6 - Negro                        | iPad
+        Puntas para Apple Pencil de Apple - 4 unidades                              | iPad
+        Funda de Apple para Apple Pencil - Negro                                    | iPad
+        Funda para Tablet IPad 10,2 Gadnic COVER8 Cover Protector con Tapa          | iPad
+        Funda Carry Zip de Incase para MacBook 13" - Gris cemento                   | MacBook
+        Filtro de privacidad magnético para MacBook Air 15" de HyperShield          | MacBook
+        Soporte plegable 6-en-1 CASA Hub Stand de USB-C a HDMI para Mac de Adam     | MacBook
+        Funda Hybrid con MagSafe para AirPods 4 - Verde oliva                       | AirPods
+        Funda Woolenex de Incase para AirPods Pro 2 - Grafito                       | AirPods
+        Correa deportiva azul denim de Apple para caja de 42 mm - S/M               | Apple Watch
+        Banda de cuero de cactus verde de Otterbox para caja de 45 mm               | Apple Watch
+        Correa Trail verde/gris de Apple para caja de 49 mm                         | Apple Watch
+        Funda Exo Edge de Speck para caja de 44 mm - Negro                          | Apple Watch
+        Protector de Pantalla BodyGuardz para Apple Watch 41 mm Series 7/8/9        | Apple Watch
+        Malla Funda De Plastico Tpu Para Apple Watch 42 44 Mm Negra                 | Apple Watch
+        AirTag 2 (1 unidad)                                                         |
+        UAG Scout Funda para AirTag - Orange                                        |
         """)
-    @DisplayName("an accessory for an iPad, MacBook or AirPods is an honest Otros, not the garment its colour name reads as")
-    void accessoriesForOtherDevicesAreOtros(String nombre) {
-        assertThat(cat(nombre.trim())).isEqualTo("Otros");
+    @DisplayName("what is sold for an iPad, a Mac, AirPods, an AirTag or an Apple Watch is Accesorio Apple, with the device as sub")
+    void accessoriesForAppleDevices(String nombre, String sub) {
+        String n = nombre.trim();
+        assertThat(cat(n)).isEqualTo("Accesorio Apple");
+        assertThat(new SubcategoryResolver().resolver(n, "Accesorio Apple")).isEqualTo(sub == null ? "" : sub.trim());
+    }
+
+    @ParameterizedTest(name = "[{index}] {0} -> not Accesorio Apple")
+    @CsvSource(delimiter = '|', textBlock = """
+        Funda Presidio 2 Pro con MagSafe de Speck para iPhone 16 Pro - Negro
+        Billetera de FineWoven con MagSafe para iPhone - Rojo mora
+        Belkin Portable Charger, Power Bank 20000 mAh - iPhone 17, AirPods, iPad
+        Soporte Tablet iPad Celular Giratorio 360 Grados Aluminio
+        Funda Universal para Notebook 15.6 Pulgadas
+        Soporte Para Tablet 10 Pulgadas Ajustable
+        Llavero de FineWoven de Apple para AirTag - Azul marino
+        Magic Keyboard de Apple para iPad Air 11” (M4) - Español - Negro
+        Apple Watch Series 11 (GPS) 46 mm - Caja de aluminio plata - Correa deportiva
+        iPad Air 11" (M4) Wi-Fi
+        MacBook Air 13" (M5) - 10 CPU, 10 GPU, 16GB, 1TB - Plata
+        """)
+    @DisplayName("an iPhone accessory, a generic tablet or notebook accessory and the devices themselves are not Accesorio Apple")
+    void notAppleAccessories(String nombre) {
+        assertThat(cat(nombre.trim())).isNotEqualTo("Accesorio Apple");
     }
 
     @ParameterizedTest(name = "[{index}] {0} -> {1}")
@@ -115,7 +150,6 @@ class OdooSitesTaxonomyTest {
 
     @ParameterizedTest(name = "[{index}] {0} -> {1}")
     @CsvSource(delimiter = '|', textBlock = """
-        Funda para Tablet IPad 10,2 Gadnic COVER8 Cover Protector con Tapa   | Tablet
         AURICULAR BEHRINGER BH 770 MONITOR DE REFERENCIA CERRADOS ESTUDIO    | Auricular
         Cable Magnetico Kolke Usb-C A Usb-C 60W 1M Kcc-8746 Gris             | Cable
         Mac Mini -Apple - M4 - 16GB - 512GB                                  | Mini PC

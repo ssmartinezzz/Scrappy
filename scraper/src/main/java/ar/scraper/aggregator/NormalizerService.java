@@ -51,7 +51,8 @@ public class NormalizerService {
     // A curated "Celular" leaf (phones and their accessories) outranks the name unless the name says another device:
     // a Galaxy Tab on a phone series leaf is a Tablet, a watch a Reloj.
     private static final Set<String> OTROS_EQUIPOS_QUE_NO_CEDEN = Set.of(
-            "Tablet", "Notebook", "Reloj", "Auricular", "Monitor", "TV y Audio", "PC", "Mini PC", "Consola", "Cámara");
+            "Tablet", "Notebook", "Reloj", "Auricular", "Monitor", "TV y Audio", "PC", "Mini PC", "Consola", "Cámara",
+            "Accesorio Apple");
     // Stores whose tree is curated end to end: the leaf outranks the name (a fridge drawer is not an office organizer,
     // a Mini LED TV is not a bag), except where the name says another device.
     private static final Set<String> SITIOS_DONDE_LA_HOJA_GANA = Set.of("samsung", "prestigio", "naldo", "cetrogar", "oncity", "dexter", "moov");

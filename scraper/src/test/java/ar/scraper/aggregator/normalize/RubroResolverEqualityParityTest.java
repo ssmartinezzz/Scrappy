@@ -136,7 +136,8 @@ class RubroResolverEqualityParityTest {
         // V106 (Celular): 286 -> 287. De tecnología, como Tablet y Reloj: ninguno de los sitios de V18 la nombra en su rubro_forzado.
         // V113 (Maquillaje, Cuidado de la Piel, Cuidado del Cabello): 287 -> 290. Belleza, like Perfume and Desodorante.
         // V117 (Pila): 290 -> 291. De hogar, como Bazar: ninguno de los sitios de V18 la nombra en su rubro_forzado.
-        assertThat(cats).as("CategoryGroups.canonicalCategories()").hasSize(291);
+        // V127 (Accesorio Apple): 291 -> 292. De tecnología, como Celular: ninguno de los sitios de V18 la nombra en su rubro_forzado.
+        assertThat(cats).as("CategoryGroups.canonicalCategories()").hasSize(292);
 
         List<String> rubrosExistentes = Arrays.asList(null, "", "tecnologia", "suplementos", "indumentaria");
 
@@ -165,7 +166,7 @@ class RubroResolverEqualityParityTest {
             }
         }
 
-        assertThat(total).isEqualTo(23L * 291 * 5);
+        assertThat(total).isEqualTo(23L * 292 * 5);
         assertThat(mismatches)
                 .as("old substring oracle vs new equality — mismatched (sitio, categoria, rubroPrevio) triples")
                 .isEmpty();

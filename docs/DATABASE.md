@@ -202,6 +202,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V124` | Plataforma `odoo` (Odoo `website_sale`): `sitio_plataforma_check` pasa a 21 valores; sin sitios (los siembran `V125` y `V126`) |
 | `V125` | Seed de Macstation (Odoo, revendedor Apple, `rubro_por_defecto = 'tecnologia'`); sin hojas: el listado no trae categoría |
 | `V126` | Seed de Gentech (Odoo, marca propia de suplementos, `monomarca`, `rubro_por_defecto = 'suplementos'`) y su fila en `marca`; sin hojas |
+| `V127` | Categoría `Accesorio Apple` (rubro tecnología): lo que se vende para un iPad, un Mac, AirPods, un AirTag o un Apple Watch, con `sub_categoria` iPad, MacBook, AirPods y Apple Watch; reubica las filas guardadas que la regla reclama |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -5923,4 +5924,30 @@ DELETE FROM marca m WHERE m.nombre = 'Gentech'
 -- <<< rollback:V126
 ```
 
-Con productos ya scrapeados no borra nada. No toca el CHECK de plataforma. Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V125`.
+Con productos ya scrapeados no borra nada. No toca el CHECK de plataforma. Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V127` y antes que el de `V125`.
+
+---
+
+## `V127` — categoría `Accesorio Apple`
+
+Lo que se vende **para** un equipo de Apple (fundas, correas, protectores de pantalla, soportes, el Apple Pencil) no tenía categoría: caía en `Otros`, en `Reloj` (las correas), en `Tablet` (el Pencil) o, por un color del nombre, en `Jean`, `Botas` o
+`Calza`. `Accesorio Apple` es de tecnología (`CategoryGroups.CATEGORIAS_TECH`) y su `sub_categoria` es el equipo que el nombre nombra primero: `iPad` (también el Apple Pencil), `MacBook` (Mac, iMac), `AirPods` y `Apple Watch` (también "para caja de
+44 mm"). Un AirTag y sus accesorios no tienen sub: no es cosa de AirPods. Un accesorio que además nombra un iPhone sigue siendo de `Celular` (la convención de siempre), y uno genérico de tablet o notebook que no nombra un equipo de Apple se queda donde
+está. Es el par de siempre: `EcosistemaAppleClassifier` (+ `SubcategoryResolver`) y la fila de esta migración; sin la fila el upsert dice `"0 nuevos"`. En la lista de `NormalizerService.OTROS_EQUIPOS_QUE_NO_CEDEN`: el nombre le gana a una hoja `Celular`.
+
+Como `V103` y `V118`, la migración también **reubica las filas ya guardadas** con la misma regla que el clasificador (un solo literal `clave|palabras`, sin salto de línea: Sonar), sin tocar las bloqueadas a mano ni las de
+`Llavero`, `Organización`, `Juguete`, `LEGO` y `Figura Coleccionable` (sus reglas de sustantivo líder corren antes). El rubro de una fila movida es el que `RubroResolver` da a una categoría de tecnología (un sitio con rubro forzado lo conserva). Es
+idempotente. Probado sobre una copia de la base de dev (`pg_dump`) más las 930 filas de Macstation del scrape del 2026-11-20: el clasificador viejo contra el nuevo cambia **264 filas** (238 de Macstation, 26 de Oncity: correas, fundas y Apple Pencil), todas pasan a `Accesorio Apple` y ninguna cambia otra cosa (de `Otros` 168, `Reloj` 89, `Tablet` 4, `Celular` 3); la migración sobre esa copia deja **264** filas en `Accesorio Apple`, con la misma sub y el mismo rubro que el resolver de Java: 0 diferencias. Dos reglas de Java corren antes (`OrganizacionHogarClassifier`: "Funda Organizadora ... para Cargador MacBook"; la `NonTextileGuard`: una "Pulsera ... para Apple Watch" no llega a la regla), y por eso `organizadora`/`organizador` son del veto y `pulsera` no es líder de correa.
+
+### Rollback
+
+```sql
+-- >>> rollback:V127
+UPDATE productos SET categoria = 'Otros', sub_categoria = '' WHERE categoria = 'Accesorio Apple';
+UPDATE sitio_categoria SET categoria = NULL WHERE categoria = 'Accesorio Apple';
+DELETE FROM categoria_stats WHERE categoria = 'Accesorio Apple';
+DELETE FROM categoria WHERE nombre = 'Accesorio Apple';
+-- <<< rollback:V127
+```
+
+**El orden es obligatorio** (FK de `productos`, `sitio_categoria` y `categoria_stats` hacia `categoria`). Los productos vuelven a `Otros` y el próximo scrape los reclasifica. Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V126`.

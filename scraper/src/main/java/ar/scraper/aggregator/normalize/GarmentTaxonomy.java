@@ -1991,20 +1991,26 @@ public final class GarmentTaxonomy {
     public static final String[] KW_AURICULAR_MODELO_LIDER = {
         " beats solo ", " beats studio ", " beats flex ", " beats fit ", " powerbeats "
     };
-    /** Correa de reloj: Reloj, como las del resto del catálogo (no hay categoría de accesorio de reloj). */
-    public static final String[] KW_CORREA_RELOJ_LIDER = { " correa ", " banda ", " pulsera " };
+    /** Correa de un Apple Watch ("Correa ... para caja de 44 mm"): Accesorio Apple, sub Apple Watch. */
+    public static final String[] KW_CORREA_RELOJ_LIDER = { " correa ", " banda " };
+    /** Accesorios de Apple que abren el nombre sin decir para qué equipo son ("Apple Pencil Pro", "AirTag 2"). */
+    public static final String[] KW_APPLE_ACCESORIO_LIDER = { " apple pencil ", " airtag " };
     /** Lo que se vende para un equipo de Apple; con {@link #KW_APPLE_EQUIPO_REF} lo ata a ese equipo. */
     public static final String[] KW_ACCESORIO_DE_EQUIPO = {
         " funda "," fundas "," case "," estuche "," smart folio "," protector "," protectores "," film "," filtro "," lapiz ",
-        " stylus "," bumper "," forro "," soporte "," base "," cover "
+        " stylus "," bumper "," forro "," soporte "," base "," cover ",
+        // cases and glass sold by model name ("Speck Balance Folio iPad", "STM Dux Plus iPad", "Kanex Vidrio Templado iPad")
+        " folio "," vidrio "," templado "," todo terreno "," dux "," balance "," puntas "
     };
-    public static final String[] KW_APPLE_EQUIPO_REF = { " ipad ", " macbook ", " airpods ", " apple watch ", " airtag " };
+    public static final String[] KW_APPLE_EQUIPO_REF = {
+        " ipad ", " macbook ", " imac ", " para mac ", " airpods ", " apple watch ", " airtag ", " apple pencil "
+    };
     /** Una funda o un protector que dice para qué modelo es ("para 15 Pro Max", "con MagSafe"), sin decir iPhone. */
     public static final String[] KW_FUNDA_DE_TELEFONO = { " funda "," fundas "," case "," protector " };
     public static final String[] KW_CABLE_MENCIONADO = { " cable ", " cables " };
-    /** Un teclado o un mouse "para iPad" sigue siendo Teclado o Mouse. */
+    /** Un teclado o un mouse "para iPad" sigue siendo Teclado o Mouse; un accesorio que nombra un iPhone sigue donde está (Celular). */
     public static final String[] KW_ACCESORIO_DE_EQUIPO_VETO = {
-        " teclado ", " keyboard ", " mouse ", " tablet ", " celular ", " notebook ", " laptop "
+        " teclado ", " keyboard ", " mouse ", " celular ", " notebook ", " laptop ", " iphone ", " organizadora ", " organizador "
     };
 
     public static final String[] KW_MINIPC_LIDER = { " mini pc ", " minipc ", " nuc ", " brix ", " cubi " };
