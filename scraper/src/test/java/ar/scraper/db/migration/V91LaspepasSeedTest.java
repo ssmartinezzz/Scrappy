@@ -38,7 +38,8 @@ class V91LaspepasSeedTest extends PostgresTestBase {
         try (Connection c = dataSource().getConnection()) {
             c.setAutoCommit(false);
             try (Statement st = c.createStatement()) {
-                // V115 seeded another magento row: newest first.
+                // V115 and V116 seeded two more magento rows: newest first.
+                st.execute(DocumentedRollback.sqlFor("V116"));
                 st.execute(DocumentedRollback.sqlFor("V115"));
                 st.execute(DocumentedRollback.sqlFor("V91"));
 

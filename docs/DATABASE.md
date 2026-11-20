@@ -193,6 +193,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V113` | Categorías `Maquillaje`, `Cuidado de la Piel` y `Cuidado del Cabello` (rubro `belleza`) con sus sub-categorías; `Perfume` gana la sub `Extracto` |
 | `V114` | Seed de Oncity (VTEX, tienda por departamentos, `rubro_por_defecto = 'hogar'`) y 325 hojas curadas; el nodo `Supermercado` se excluye (espera al rubro `supermercado`) |
 | `V115` | Seed de Somos Rex (Magento 2, ferretería y pinturería, `rubro_por_defecto = 'construccion'`); sin hojas: el listado de Magento no trae categoría |
+| `V116` | Seed de Sommier Center (Magento 2, colchones y camas, `rubro_por_defecto = 'hogar'`); sin hojas |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -5677,5 +5678,27 @@ DELETE FROM sitio s WHERE s.sitio_key = 'somosrex'
 -- <<< rollback:V115
 ```
 
-Con productos ya scrapeados no borra nada. No toca el CHECK de plataforma (`magento` viene de `V91`). Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V114`.
+Con productos ya scrapeados no borra nada. No toca el CHECK de plataforma (`magento` viene de `V91`). Ya no es el bloque más nuevo: corre después del de `V116` y antes que el de `V114`.
 
+---
+
+## `V116` — seed de Sommier Center
+
+Sommier Center (`sommiercenter.com`, Magento 2): colchones, sommiers, camas, respaldos, almohadas y sábanas. 10 listados de departamento (25 tarjetas por página, `?p=N`) que se
+solapan: `MagentoPage` deduplica por slug. Scrape real (2026-11-20, 193 s) **448 productos distintos**. Mixto en nada: `rubro_forzado` en `NULL` y `rubro_por_defecto = 'hogar'`. Sin hojas curadas
+(mismo motivo que `V115`). Los nombres se leen como ropa (`Sommier 1 Plaza y Media` → `Medias`, `Combo ... + Almohadas` → `Organización`), así que `SITIOS_SOLO_HOGAR` (la regla de Arredo)
+deja pasar sólo categorías de hogar y manda el resto a `Otros`. Género vacío por `GENERO_FIJO_POR_SITIO`.
+
+Medido (448 filas): `categoria != Otros` **95,3 %** (clasificador previo, pero 24 de esas filas eran `Medias`/`Organización`/`Conjunto` y los rubros `indumentaria` 19 y `oficina` 4 sobraban) →
+**90,0 %** (45 `Otros`, todo `hogar`). **Huecos que siguen en `Otros`** (pregunta abierta, el clasificador no los ubica): `Respaldo` (6), `Base Sommier` (5), `Combo` de cama + colchón (7) y `Promo 2x1 Almohada` (3).
+
+### Rollback
+
+```sql
+-- >>> rollback:V116
+DELETE FROM sitio s WHERE s.sitio_key = 'sommiercenter'
+  AND NOT EXISTS (SELECT 1 FROM productos p WHERE p.sitio_key = s.sitio_key);
+-- <<< rollback:V116
+```
+
+Con productos ya scrapeados no borra nada. Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V115`.

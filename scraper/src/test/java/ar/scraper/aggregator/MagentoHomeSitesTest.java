@@ -26,14 +26,15 @@ import static org.mockito.Mockito.mock;
 
 @Epic("Normalization")
 @Feature("Per-site rules")
-@DisplayName("Somos Rex: the Magento page tags every card 'mujer', this store has no gender")
+@DisplayName("Somos Rex and Sommier Center: the Magento page tags every card 'mujer', these stores have no gender")
 class MagentoHomeSitesTest {
 
     private final NormalizerService normalizer = normalizer();
 
     private static NormalizerService normalizer() {
         SiteRegistry registry = SiteRegistry.forTesting(Map.of(
-                "somosrex", new Sitio("Somosrex", "somosrex", "magento", false, null, "config", false, "construccion")));
+                "somosrex", new Sitio("Somosrex", "somosrex", "magento", false, null, "config", false, "construccion"),
+                "sommiercenter", new Sitio("Sommiercenter", "sommiercenter", "magento", false, null, "config", false, "hogar")));
         return new NormalizerService(new PackQuantityDetector(), new CategoryClassifier(), new BrandExtractor(),
                 new GenderResolver(), new SizeNormalizer(), new SubcategoryResolver(), new RubroResolver(registry),
                 new GymratTagger(), new SportResolver(), registry, mock(SitioCategoriaPort.class));
@@ -46,9 +47,22 @@ class MagentoHomeSitesTest {
     }
 
     @Test
-    @DisplayName("the scraped 'mujer' does not reach a drill")
+    @DisplayName("the scraped 'mujer' does not reach a drill or a mattress")
     void noGender() {
         assertThat(normalizar("Somosrex", "Taladro Percutor Black Decker 10mm").genero()).isEmpty();
+        assertThat(normalizar("Sommiercenter", "Colchón 2 Plazas Resorte Meyer Pocket (140x190)").genero()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("Sommier Center: a bed word keeps its home category, a name that reads as clothing yields to Otros in the hogar rubro")
+    void sommierKeepsOnlyHomeCategories() {
+        Product colchon = normalizar("Sommiercenter", "Colchón 2 Plazas Resorte Meyer Pocket (140x190)");
+        assertThat(colchon.categoria()).isEqualTo("Colchón");
+        assertThat(colchon.rubro()).isEqualTo("hogar");
+
+        Product medias = normalizar("Sommiercenter", "Diván Cama 1 Plaza y Media Inducol Delta (090x190)");
+        assertThat(medias.categoria()).isNotEqualTo("Medias");
+        assertThat(medias.rubro()).isEqualTo("hogar");
     }
 
     @Test

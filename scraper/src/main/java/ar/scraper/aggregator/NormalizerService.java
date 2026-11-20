@@ -42,7 +42,7 @@ public class NormalizerService {
     private static final Set<String> SITIOS_DONDE_LA_HOJA_JUGUETE_GANA = Set.of("elmundodeljuguete");
     // Home-textile stores: their names read as clothing or kits ("Set x4 Individuales" is a Conjunto, "Funda de Acolchado"
     // a Puffer, "Tejido" a Sweater), so only a home category from the name counts there; anything else yields to the leaf.
-    private static final Set<String> SITIOS_SOLO_HOGAR = Set.of("arredo");
+    private static final Set<String> SITIOS_SOLO_HOGAR = Set.of("arredo", "sommiercenter");
     // A hardware and paint store: the same guard, but building and sports categories count too (a padel racket, a drill). Its
     // listing has no category, so a "20 Kg" paint reads as food and "Rodillo Lana" as a sweater unless the guard is there.
     private static final Set<String> SITIOS_SOLO_HOGAR_Y_OBRA = Set.of("somosrex");
@@ -55,11 +55,11 @@ public class NormalizerService {
     private static final Set<String> SITIOS_DONDE_LA_HOJA_GANA = Set.of("samsung", "prestigio", "naldo", "cetrogar", "oncity");
     // Sites whose whole catalogue is one gender, whatever the name says. A toy store sells to kids: its
     // backpacks, shoes and dolls' dresses are not adult picks. Equus is a men's-only shop. Ayrun is women's
-    // gymwear whose names carry no gender word ("Musculosa Seamless Animal"). Somos Rex is hardware on the
-    // Magento page that tags every card "mujer" (Laspepas): blank, it has no gender.
+    // gymwear whose names carry no gender word ("Musculosa Seamless Animal"). Somos Rex and Sommier Center are
+    // hardware and bedding on the Magento page that tags every card "mujer" (Laspepas): blank, they have no gender.
     private static final Map<String, String> GENERO_FIJO_POR_SITIO =
             Map.of("elmundodeljuguete", "infantil", "equus", "hombre", "laspepas", "mujer", "ayrun", "mujer",
-                    "somosrex", "");
+                    "somosrex", "", "sommiercenter", "");
     // Fixed-gender sites whose scraper tags a kids line apart: that tag outranks the fixed gender.
     private static final Set<String> SITIOS_CON_LINEA_INFANTIL = Set.of("laspepas");
 
