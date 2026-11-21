@@ -862,6 +862,33 @@ la lectura detrás de las líneas extra del gráfico de `/historial/:key`.
 
 ---
 
+## GET /producto/{key}/financiacion
+
+Las cuotas de **un** producto, leídas en vivo de su página de detalle. Sólo **Fullh4rd** por ahora: ahí las cuotas
+existen únicamente en la página del producto (el listado no las trae) y detrás de Cloudflare, así que se baja vía
+FlareSolverr. No toca la base ni el scrape.
+
+```json
+{"data":{"key":"<16hex>","url":"https://fullh4rd.com.ar/prod/18981/…","sitio":"Fullh4rd",
+  "consultadoAt":"2026-11-21T12:00:00Z","precioContado":2126050.0,"precioLista":2232353.0,
+  "stockWeb":"Stock alto en la web","stockLocal":"Sin stock en el local",
+  "planes":[{"cuotas":6,"montoCuota":428754.0,"total":2572524.0,"aproximado":true,
+    "medio":"Mercado Pago","sinInteres":false}]}}
+```
+
+- `precioContado` es el "Precio especial" (débito, transferencia o efectivo); `precioLista` es la base de las cuotas.
+- `aproximado` es el `≈` del sitio: el monto es una estimación, no el cobro final. `medio` es `null` si la página no nombra uno.
+- `sinInteres` es `total <= precioContado`, con medio peso de holgura por cuota (cada cuota viene redondeada al peso).
+- La página **no publica CFT ni TEA**: el costo del financiamiento se deduce de `total` contra `precioContado`.
+- Resultado cacheado **10 min por producto**, y los pedidos concurrentes de una misma key comparten **un** solo fetch
+  (cada llamada a FlareSolverr levanta un Chromium). La primera llamada tarda; `consultadoAt` dice cuándo se leyó.
+- La URL del producto viene de datos scrapeados: su host debe ser el de `sitio.<nombre>.url`; si no, no se baja nada.
+- **`404`** `no_encontrado` · **`422`** `sitio_sin_financiacion` (la tienda no tiene lector) o `url_fuera_del_sitio` ·
+  **`502`** `pagina_ilegible` (sin precio ni cuotas reconocibles) · **`503`** `financiacion_no_disponible`
+  (FlareSolverr sin configurar o sin respuesta). Las fallas no se cachean ni se devuelven como un `200` vacío.
+
+---
+
 ## GET /promos
 
 Las promos de pago vigentes de las tiendas (cuotas sin interés, descuentos y recargos por medio de pago), leídas de

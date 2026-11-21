@@ -907,6 +907,45 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  /api/producto/{key}/financiacion:
+    get:
+      tags: [Catálogo]
+      summary: Live installment plans of one product, read from its store page (Fullh4rd only).
+      x-access: AUTHENTICATED
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema: { type: string }
+          description: 16-hex `producto_key`, not the raw URL.
+      responses:
+        "200":
+          description: "`data`: `{ key, url, sitio, consultadoAt, precioContado, precioLista, stockWeb, stockLocal, planes }`; `consultadoAt` is UTC ISO-8601; each plan is `{ cuotas, montoCuota, total, aproximado, medio, sinInteres }` in ARS. Fetched live and cached ~10 minutes per product, so the first call is slow. `aproximado` is the store's `≈` (an estimate); `sinInteres` compares `total` with `precioContado`. The page carries no CFT/TEA."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          description: "`sitio_sin_financiacion` (the product's store has no detail parser) or `url_fuera_del_sitio` (the product URL is not on the store's configured host; nothing is fetched)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "502":
+          description: "`pagina_ilegible`: the page came back with neither price nor installments (markup changed, or a wait room)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "503":
+          description: "`financiacion_no_disponible`: the Cloudflare solver (FlareSolverr) is not configured or did not answer. Never an empty 200."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   /api/promos:
     get:
       tags: [Catálogo]
