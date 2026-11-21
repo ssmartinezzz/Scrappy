@@ -136,6 +136,11 @@ public final class GarmentTaxonomy {
         " skychaser ", " columbia ", " merrell ", " outdoor "
     };
 
+    // Montagne's City line is urban even when the name says "Outdoor" ("Montagne City Outdoor Welten"): it vetoes the model signal only.
+    public static final String[] KW_TREKKING_MODELO_VETO = {
+        " montagne city "
+    };
+
     public static final String[] KW_SNEAKER_MODELO = {
         "jordan 1","jordan 4","jordan 11","jordan 3","jordan 6","jordan 5",
         "air jordan","travis scott","off-white","fragment","union la","chicago",

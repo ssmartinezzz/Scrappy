@@ -21,7 +21,8 @@ final class CalzadoPorModeloClassifier implements FamiliaClassifier {
         if (texto.tieneIndicadorPeso()) return "Alimentos";
         if (esZapatilla && texto.contiene(GarmentTaxonomy.KW_TREKKING_EXPLICITO)) return "Zapatilla Trekking";
         boolean runningGenerico = texto.contiene(GarmentTaxonomy.KW_RUNNING_GENERICO);
-        if (esZapatilla && !running && !runningGenerico && texto.contiene(GarmentTaxonomy.KW_TREKKING_MODELO)) return "Zapatilla Trekking";
+        if (esZapatilla && !running && !runningGenerico && texto.contiene(GarmentTaxonomy.KW_TREKKING_MODELO)
+                && !texto.contiene(GarmentTaxonomy.KW_TREKKING_MODELO_VETO)) return "Zapatilla Trekking";
         if (running || xUltra || runningGenerico)                             return "Zapatilla Running";
         if (training || texto.contiene(GarmentTaxonomy.KW_TRAINING_GENERICO)) return "Zapatilla Entrenamiento";
         if (skate || texto.contiene(GarmentTaxonomy.KW_SKATE_GENERICO))       return "Zapatilla Skate";

@@ -67,6 +67,8 @@ class ZapatillaPorModeloTest {
         "Zapatillas Salomon X Ultra 360 Mid Gtx|Zapatilla Trekking",
         "Zapatillas Salomon X-Ultra 4|Zapatilla Trekking",
         "Zapatillas Columbia Newton Ridge|Zapatilla Trekking",
+        "Zapatillas Outdoor Montagne Everpeak Hombre|Zapatilla Trekking",
+        "Zapatillas Trekking Montagne City Explorer|Zapatilla Trekking",
         "Zapatillas Merrell Moab 3|Zapatilla Trekking",
         "Zapatillas Hombre Outdoor Anylander|Zapatilla Trekking",
         "Zapatillas Skychaser Hombre|Zapatilla Trekking",
@@ -82,6 +84,7 @@ class ZapatillaPorModeloTest {
         "Zapatillas Adidas Terrex Eastrail 2|Zapatilla Running",
         "Zapatillas Salomon Speedcross 6|Zapatilla Running",
         "Zapatillas Columbia Montrail Trail Running|Zapatilla Running",
+        "Zapatillas Montagne City Outdoor Welten para Hombre|Zapatilla",
         "Zapatillas Merrell Trail Glove|Zapatilla Running",
         "Zapatillas Adidas Galaxy 6|Zapatilla Running",
     })

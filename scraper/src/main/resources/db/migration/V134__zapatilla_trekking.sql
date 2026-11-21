@@ -36,6 +36,7 @@ elegidas AS (
        EXISTS (SELECT 1 FROM unnest(string_to_array(' trekking , hiking , senderismo ', ',')) w WHERE position(w IN t.n) > 0)
        OR (
          EXISTS (SELECT 1 FROM unnest(string_to_array(' terrex , x ultra , x-ultra , anylander , skychaser , columbia , merrell , outdoor ', ',')) w WHERE position(w IN t.n) > 0)
+         AND position(' montagne city ' IN t.n) = 0
          AND NOT EXISTS (SELECT 1 FROM unnest(string_to_array('ultraboost,adizero,solarboost,duramo,pegasus,vomero,air zoom,free run,air max,gel-kayano,gel-nimbus,gel-cumulus,gel-pulse,glycerin,beast,ghost,adrenaline,levitate,triumph,endorphin,kinvara,ride,clifton,bondi,speedgoat,hoka mach, mach 4, mach 5, mach 6,fresh foam, 1080 , 1080v,990,880,860,wave rider,wave inspire,wave horizon,speedcross, sense ,running,correr,corrida,maraton,marathon,trail,atletismo,atletica,ligera,velocidad', ',')) w WHERE position(w IN t.n) > 0)
        )
      )
