@@ -38,7 +38,7 @@ public final class GarmentTaxonomy {
     };
 
     public static final String[] KW_TRAINING_GENERICO = {
-        "cross training","crossfit","training","cross","gym",
+        "cross training","crossfit","training","entrenamiento","cross","gym",
         "hiit","funcional","multideporte","indoor",
         "weightlift","levantamiento"
     };
@@ -69,6 +69,55 @@ public final class GarmentTaxonomy {
     public static final String[] KW_URBANA_GENERICO = {
         "urbana","casual","lifestyle","street","everyday",
         "clasica","clasico","moda","fashion"
+    };
+
+    // KW_*_ZAPATILLA: mass-market model names that only mean a shoe next to a shoe word. Unlike KW_*_MODELO they are
+    // evaluated only when the name already says zapatilla/calzado/..., because "galaxy", "response" or "quest" alone are
+    // other products. A bare " gel " is not here: NonTextileGuard vetoes it (cosmetics) before this classifier runs, so only
+    // the hyphenated "gel-excite" form can reach it. Checked after every MODELO/GENERICO list, in the order skate, running, training, urbana.
+    public static final String[] KW_SKATE_ZAPATILLA = {
+        " dc shoes ", " vans ", " manteca ", " court graffik ",
+        " pensford ", " knu skool ", " old skool "
+    };
+
+    public static final String[] KW_RUNNING_ZAPATILLA = {
+        " skyrocket ", " flyer lite ", " adistar ", " strong pace ",
+        " runfalcon ", " revolution ", " run defy ", " cloudrunner ",
+        " cloudmonster ", " cloudsurfer ", " cloudflyer ", " cloudswift ",
+        " lightblaze ", " galaxy ", " response ", " downshifter ",
+        " quest ", " journey run ", " ultrarun ", " aero glide ",
+        " ultra flow ", " alphaglide ", " supernova ", " nitro ",
+        " go run ", " max cushioning ", " wind 5 ", " wind iv ",
+        " tensaur run ", " winflo ", " gel-", " novablast "
+    };
+
+    public static final String[] KW_TRAINING_ZAPATILLA = {
+        " scend pro ", " squat ", " dropset ", " mc trainer ",
+        " flex control ", " disperse "
+    };
+
+    public static final String[] KW_URBANA_ZAPATILLA = {
+        " grand court ", " gc alpha ", " alpha sk8 ", " caven ", " suede ", " carina ",
+        " rebound ", " court vision ", " vl court ", " court classic ",
+        " karmen ", " ca pro ", " club c ", " segovia ",
+        " acd classic ", " handball spezial ", " renno ", " break start ",
+        " advantage ", " breaknet ", " run 70s ", " technochaos ",
+        " killshot ", " initiator ", " storm 96 ", " club ii ",
+        " shuffle ", " court lally ", " r78 ", " rickie ",
+        " ca match ", " bb 4000 ", " disruptor ", " court 80 ",
+        " court 90 ", " uproot ", " nova low ", " john foos ",
+        " skechers uno ", " bobs ", " smash ", " mayze ",
+        " palermo ", " speedcat ", " court royale ", " park lifestyle ",
+        " hoops ", " lacoste "
+    };
+
+    // A court / trail sport shoe stays a plain Zapatilla: none of the KW_*_ZAPATILLA lists applies. "handball" is
+    // handled in code, because "handball spezial" is an adidas lifestyle model.
+    public static final String[] KW_ZAPATILLA_DEPORTE_VETO = {
+        " tenis ", " tennis ", " padel ", " basquet ",
+        " basket ", " voley ", " volley ", " hockey ",
+        " futsal ", " trekking ", " hiking ", " outdoor ",
+        " terrex ", " golf ", " ciclismo "
     };
 
     public static final String[] KW_SNEAKER_MODELO = {
