@@ -23,7 +23,21 @@ final class CalzadoPorModeloClassifier implements FamiliaClassifier {
         if (skate || texto.contiene(GarmentTaxonomy.KW_SKATE_GENERICO))       return "Zapatilla Skate";
         if (urbana || texto.contiene(GarmentTaxonomy.KW_URBANA_GENERICO))     return "Zapatilla Urbana";
         if (texto.contiene(GarmentTaxonomy.KW_SNEAKER_GENERICO))              return "Sneaker";
-        if (esZapatilla) return "Zapatilla";
+        if (esZapatilla) return porModeloDeZapatilla(texto);
         return "";
+    }
+
+    private static String porModeloDeZapatilla(TextoClasificable texto) {
+        if (esDeporteDeCancha(texto)) return "Zapatilla";
+        if (texto.contiene(GarmentTaxonomy.KW_SKATE_ZAPATILLA))    return "Zapatilla Skate";
+        if (texto.contiene(GarmentTaxonomy.KW_RUNNING_ZAPATILLA))  return "Zapatilla Running";
+        if (texto.contiene(GarmentTaxonomy.KW_TRAINING_ZAPATILLA)) return "Zapatilla Entrenamiento";
+        if (texto.contiene(GarmentTaxonomy.KW_URBANA_ZAPATILLA))   return "Zapatilla Urbana";
+        return "Zapatilla";
+    }
+
+    private static boolean esDeporteDeCancha(TextoClasificable texto) {
+        if (texto.contiene(GarmentTaxonomy.KW_ZAPATILLA_DEPORTE_VETO)) return true;
+        return texto.contiene(" handball ") && !texto.contiene(" handball spezial ");
     }
 }
