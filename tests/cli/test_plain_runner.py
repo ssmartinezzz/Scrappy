@@ -12,6 +12,7 @@ import cli.plain.runner as runner_module
 from cli.core.config import Config, Ports, ToolchainPaths
 from cli.core.grafana import GrafanaInfo
 from cli.plain.runner import PlainRunner, run
+from cli_fakes import FakeFlareSolverr, FakeLanProxy, QuietFollower
 
 
 def _cfg(tmp_path) -> Config:
@@ -85,37 +86,6 @@ class _FakeProcesses:
         self.shutdown_called = True
 
 
-class _FakeFlareSolverr:
-    def __init__(self, line=None) -> None:
-        self.stopped_with = []
-        self.ensured_with = []
-        self.line = line
-
-    def stop_flaresolverr(self, cfg):
-        self.stopped_with.append(cfg)
-
-    def ensure_flaresolverr(self, cfg):
-        self.ensured_with.append(cfg)
-        return self.line
-
-
-class _FakeLanProxy:
-    def __init__(self) -> None:
-        self.stopped_with = []
-
-    def stop_proxy(self, cfg):
-        self.stopped_with.append(cfg)
-
-
-class _QuietFollower:
-    """Default notice follower: tests that run `start` must not reach a real
-    EventFollower, which would retry against a fake rest in the background."""
-
-    def events(self):
-        return iter(())
-
-    def close(self):
-        pass
 
 
 def _make_runner(tmp_path, in_text: str, **services) -> tuple[PlainRunner, _FakeRest, _FakeProcesses, io.StringIO]:
@@ -123,7 +93,7 @@ def _make_runner(tmp_path, in_text: str, **services) -> tuple[PlainRunner, _Fake
     processes = _FakeProcesses()
     out = io.StringIO()
     in_ = io.StringIO(in_text)
-    services.setdefault("notice_follower_factory", lambda rest: _QuietFollower())
+    services.setdefault("notice_follower_factory", lambda rest: QuietFollower())
     r = PlainRunner(_cfg(tmp_path), rest=rest, processes=processes, out=out, in_=in_, **services)
     return r, rest, processes, out
 
@@ -244,7 +214,7 @@ def test_start_does_not_rebuild_when_already_built(tmp_path, monkeypatch):
 
 def test_start_brings_back_the_flaresolverr_a_previous_quit_stopped(tmp_path):
     _mark_built(tmp_path)
-    flaresolverr = _FakeFlareSolverr(line="FlareSolverr arrancado en localhost:8191")
+    flaresolverr = FakeFlareSolverr(line="FlareSolverr arrancado en localhost:8191")
     r, _, processes, out = _make_runner(tmp_path, "", flaresolverr=flaresolverr)
     r.dispatch("start")
 
@@ -298,7 +268,7 @@ def test_run_processes_commands_then_quits_on_q(tmp_path):
 
 
 def test_quitting_stops_the_flaresolverr_the_installer_started(tmp_path):
-    flaresolverr = _FakeFlareSolverr()
+    flaresolverr = FakeFlareSolverr()
     r, _, _, _ = _make_runner(tmp_path, "q\n", flaresolverr=flaresolverr)
     r.run()
     assert flaresolverr.stopped_with == [r.cfg]
@@ -406,7 +376,7 @@ def test_stop_tears_down_services_without_ending_the_loop(tmp_path):
 
 
 def test_stop_takes_the_lan_proxy_down_through_the_injected_service(tmp_path):
-    lan_proxy = _FakeLanProxy()
+    lan_proxy = FakeLanProxy()
     r, _, _, _ = _make_runner(tmp_path, "", lan_proxy=lan_proxy)
     r.dispatch("stop")
     assert lan_proxy.stopped_with == [r.cfg]
@@ -424,7 +394,7 @@ def test_start_hands_the_injected_lan_proxy_to_preflight_and_apply_mode(tmp_path
         return Startup(mode=mode, origins=Origins(frontend="http://x", backend="http://y"), ca=None)
 
     monkeypatch.setattr(runner_module, "apply_mode", fake_apply)
-    lan_proxy = _FakeLanProxy()
+    lan_proxy = FakeLanProxy()
     r, _, _, _ = _make_runner(tmp_path, "", lan_proxy=lan_proxy)
 
     r.dispatch("start lan")
