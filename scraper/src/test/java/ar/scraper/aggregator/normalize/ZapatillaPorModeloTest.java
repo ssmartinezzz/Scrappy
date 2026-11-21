@@ -26,6 +26,9 @@ class ZapatillaPorModeloTest {
         "Zapatillas Puma Caven III|Zapatilla Urbana",
         "Zapatillas adidas Handball Spezial|Zapatilla Urbana",
         "Zapatillas Lacoste Carnaby|Zapatilla Urbana",
+        "Zapatillas adidas Grand Court Alpha Sk8 Mujer|Zapatilla Urbana",
+        "Zapatillas adidas Gc Alpha Sk8 Hombre|Zapatilla Urbana",
+        "Zapatillas Vans U SK8 Hi|Zapatilla Skate",
     })
     void eachTypeFromItsModel(String nombre, String esperada) {
         assertThat(classifier.normalizarCategoria("Zapatilla", nombre)).isEqualTo(esperada);

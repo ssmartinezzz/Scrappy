@@ -77,7 +77,7 @@ public final class GarmentTaxonomy {
     // the hyphenated "gel-excite" form can reach it. Checked after every MODELO/GENERICO list, in the order skate, running, training, urbana.
     public static final String[] KW_SKATE_ZAPATILLA = {
         " dc shoes ", " vans ", " manteca ", " court graffik ",
-        " pensford ", " knu skool ", " sk8 ", " old skool "
+        " pensford ", " knu skool ", " old skool "
     };
 
     public static final String[] KW_RUNNING_ZAPATILLA = {
@@ -97,7 +97,7 @@ public final class GarmentTaxonomy {
     };
 
     public static final String[] KW_URBANA_ZAPATILLA = {
-        " grand court ", " caven ", " suede ", " carina ",
+        " grand court ", " gc alpha ", " alpha sk8 ", " caven ", " suede ", " carina ",
         " rebound ", " court vision ", " vl court ", " court classic ",
         " karmen ", " ca pro ", " club c ", " segovia ",
         " acd classic ", " handball spezial ", " renno ", " break start ",
