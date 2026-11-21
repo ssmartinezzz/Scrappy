@@ -209,6 +209,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V131` | `sub_categoria` de `Herramienta Manual` (12 valores con los nombres de una ferretería: `Pinza y Alicate`, `Llave y Tubo`, `Corte y Limado`, `Medición`...) por sustantivo líder; reescribe las filas guardadas con la misma regla que `HerramientaSubcategoryResolver` |
 | `V132` | `sub_categoria` de `Bicicleta` (10 valores por tipo de bici: `Mountain Bike`, `Paseo y Playera`, `Infantil`, `BMX`...); si el nombre no trae el tipo, decide el rodado; reescribe las filas guardadas con la misma regla que `BicicletaSubcategoryResolver` |
 | `V133` | Mueve las `Zapatilla` sin tipo a `Zapatilla Skate/Running/Entrenamiento/Urbana` por el modelo del nombre (listas nuevas que solo aplican junto a una palabra de calzado, con veto deportivo); no toca `sub_categoria` |
+| `V134` | Categoría `Zapatilla Trekking` (palabra propia `trekking`/`senderismo` o modelo `terrex`, `x ultra`, `columbia`, `merrell`, `outdoor`... sin señal de running); mueve a ella las filas de `Zapatilla` y de sus cuatro hermanas; la sub de deporte del calzado suma `basquet`, `handball` y `golf` |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -6163,4 +6164,41 @@ UPDATE productos AS pr
 -- <<< rollback:V133
 ```
 
-El rollback **no es exacto**: devuelve a `Zapatilla` toda fila de las cuatro hermanas cuyo nombre cae en la misma regla, incluidas las que ya estaban ahí antes de `V133` (por ejemplo una `Zapatilla Urbana` de `grand court` guardada por una lista anterior). Un `renormalizar` posterior vuelve a mover las filas desde Java. Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V132`.
+El rollback **no es exacto**: devuelve a `Zapatilla` toda fila de las cuatro hermanas cuyo nombre cae en la misma regla, incluidas las que ya estaban ahí antes de `V133` (por ejemplo una `Zapatilla Urbana` de `grand court` guardada por una lista anterior). Un `renormalizar` posterior vuelve a mover las filas desde Java. Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V134` y antes que el de `V132`.
+
+---
+
+## `V134` — `Zapatilla Trekking` y subs de deporte del calzado
+
+Segunda pasada sobre lo que `V133` dejó en `Zapatilla` (decisión del 2026-11-21): el trekking/outdoor era el bloque identificable más grande y `V133` lo vetaba a propósito. Ahora tiene **categoría propia, hermana** (el tipo vive en la categoría, igual que en `V133`), y la capa de subs de deporte cierra tres huecos.
+
+- **Categoría nueva = dos cambios.** El clasificador la produce y `INSERT INTO categoria` deja que la FK `fk_productos_categoria` (V13) la acepte; sin la fila, el upsert se traga el error y el síntoma es `"0 nuevos"`. `CategoriaLookupTableTest` exige tabla ≡ `CategoryGroups.canonicalCategories()`. También entra en `CATEGORIAS_CALZADO`, en los tres mapas de calzado de `OutfitService` y `KNOWN_CATEGORIAS` (fuera de la regla `gym`, igual que `Zapatilla Skate`), en el grupo Calzado de `OutfitsPanel.jsx` y en los prompts de `ml_embeddings.py`.
+- **Regla en `CalzadoPorModeloClassifier`**, siempre junto a una palabra de calzado (así `Mochila Trekking`, `Bastón trekking` o `Pantalón trekking` no cambian): la palabra propia de la tienda (`KW_TREKKING_EXPLICITO`: `trekking`, `hiking`, `senderismo`) gana sobre cualquier lista de modelos ("Zapatillas Trekking Salomon Speedcross" es Trekking); un modelo o marca (`KW_TREKKING_MODELO`: `terrex`, `x ultra`, `x-ultra`, `anylander`, `skychaser`, `columbia`, `merrell`, `outdoor`) solo cuenta **sin señal de running**: ni modelo de running ni palabra de running (`trail` incluido, y por substring: `eastrail`). Así `Pegasus Trail GTX`, `Speedcross` o `Terrex Eastrail` siguen en `Zapatilla Running`. Gore-Tex/GTX/waterproof no son señales. `x-ultra` salió de `KW_RUNNING_MODELO` a `KW_RUNNING_X_ULTRA`: sin palabra de calzado sigue siendo Running, con ella y sin `trail` es Trekking. Los trekking salieron de `KW_ZAPATILLA_DEPORTE_VETO`. `hiking` casi nunca llega: `CalzadoClassifier` (`KW_BORCEGO`) manda todo nombre con `hiking` a `Borcego` antes.
+- **Movimiento** de `Zapatilla` y de las cuatro hermanas (`Running`, `Entrenamiento`, `Skate`, `Urbana`) a `Zapatilla Trekking` cuando el clasificador Java lo dice: palabra de calzado, no es un modelo de `Sneaker`, no termina en un peso (`Alimentos`), y palabra propia o modelo sin señal de running. No toca las filas con `bloqueado_por`; activas e inactivas. Un solo `UPDATE`, listas como literales de una línea. Idempotente: una fila movida ya no está en las cinco categorías de origen.
+- **Subs de deporte (tier 2 de `SubcategoryResolver`)**: `básquet` suma `basquet` (62 filas "Básquet" quedaban sin sub porque solo estaba `basket`/`basketball`), y entran `handball` y `golf`. El cambio de Java vale para todas las categorías; **el backfill de SQL se limita al calzado** (las seis `Zapatilla*` y `Sneaker`): el tier deportivo se salta belleza, tecnología, TCG, LEGO y Funko, y algunas categorías tienen resolver propio, y replicarlo todo en SQL no vale el riesgo. Las demás categorías toman las palabras nuevas en su próximo `renormalizar`. Solo se llenan filas con `sub_categoria` vacía y solo si la primera coincidencia del orden del tier 2 (natación, hockey, fútbol, pádel, tenis, running, vóley, básquet, handball, golf) es una de las tres nuevas: un nombre que además dice `tenis` o `padel` conserva el deporte anterior, como en Java. `running` se salta en `Zapatilla Running`.
+
+`V134ZapatillaTrekkingTest` corre el SQL y el Java sobre los mismos nombres reales (más bordes) y exige la misma categoría y la misma sub.
+
+### Rollback
+
+```sql
+-- >>> rollback:V134
+UPDATE productos
+   SET sub_categoria = ''
+ WHERE bloqueado_por IS NULL
+   AND (categoria LIKE 'Zapatilla%' OR categoria = 'Sneaker')
+   AND (sub_categoria IN ('handball', 'golf')
+        OR (sub_categoria = 'básquet'
+            AND position(' basquet ' IN ' ' || lower(translate(nombre, 'áàäéèëíìïóòöúùüñÁÀÄÉÈËÍÌÏÓÒÖÚÙÜÑ', 'aaaeeeiiiooouuunAAAEEEIIIOOOUUUN')) || ' ') > 0
+            AND position(' basket ' IN ' ' || lower(translate(nombre, 'áàäéèëíìïóòöúùüñÁÀÄÉÈËÍÌÏÓÒÖÚÙÜÑ', 'aaaeeeiiiooouuunAAAEEEIIIOOOUUUN')) || ' ') = 0
+            AND position(' basketball ' IN ' ' || lower(translate(nombre, 'áàäéèëíìïóòöúùüñÁÀÄÉÈËÍÌÏÓÒÖÚÙÜÑ', 'aaaeeeiiiooouuunAAAEEEIIIOOOUUUN')) || ' ') = 0));
+
+UPDATE productos
+   SET categoria = 'Zapatilla'
+ WHERE categoria = 'Zapatilla Trekking';
+
+DELETE FROM categoria WHERE nombre = 'Zapatilla Trekking';
+-- <<< rollback:V134
+```
+
+El rollback **no es exacto**: devuelve a `Zapatilla` toda fila de `Zapatilla Trekking`, también las que venían de `Running`, `Skate`, `Entrenamiento` o `Urbana` (el origen no se guarda), y vacía toda sub `handball`/`golf` del calzado y toda `básquet` cuyo nombre solo dice `basquet`. Hay que mover las filas antes de borrar la categoría (la FK); por eso borra al final. Un `renormalizar` posterior las vuelve a clasificar desde Java. Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V133`.
