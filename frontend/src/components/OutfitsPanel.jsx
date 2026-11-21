@@ -158,7 +158,7 @@ const BUILDER_GROUPS = [
   {
     key: 'calzado', label: 'Calzado',
     cats: ['Zapatilla', 'Zapatilla Running', 'Zapatilla Entrenamiento',
-           'Zapatilla Skate', 'Zapatilla Urbana', 'Sneaker',
+           'Zapatilla Skate', 'Zapatilla Trekking', 'Zapatilla Urbana', 'Sneaker',
            'Botines', 'Borcego', 'Botas', 'Ojotas'],
   },
   {

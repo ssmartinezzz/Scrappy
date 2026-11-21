@@ -96,7 +96,7 @@ public class OutfitService {
                     "Chomba", "Casaca", "Chaleco", "Saco", "Traje", "Piloto",
                     "Calza", "Baggy", "Jean", "Jogging", "Short", "Bermuda", "Pollera", "Pantalón",
                     "Zapatilla", "Zapatilla Running", "Zapatilla Entrenamiento",
-                    "Zapatilla Skate", "Zapatilla Urbana", "Sneaker",
+                    "Zapatilla Skate", "Zapatilla Trekking", "Zapatilla Urbana", "Sneaker",
                     "Botines", "Borcego", "Botas", "Ojotas",
                     "Mochila", "Bolso", "Riñonera", "Billetera", "Cinturón", "Bufanda",
                     "Guantes", "Gorro", "Gorra", "Lentes", "Medias", "Suplemento"
@@ -120,7 +120,7 @@ public class OutfitService {
         for (String cat : List.of("Calza", "Baggy", "Jean", "Jogging", "Short", "Bermuda", "Pollera", "Pantalón"))
             m.put(cat, SLOT_PIERNAS);
         for (String cat : List.of("Zapatilla", "Zapatilla Running", "Zapatilla Entrenamiento",
-                "Zapatilla Skate", "Zapatilla Urbana", "Sneaker", "Botines", "Borcego", "Botas", "Ojotas"))
+                "Zapatilla Skate", "Zapatilla Trekking", "Zapatilla Urbana", "Sneaker", "Botines", "Borcego", "Botas", "Ojotas"))
             m.put(cat, SLOT_CALZADO);
         for (String cat : List.of("Gorra", "Gorro"))
             m.put(cat, SUBSLOT_ACCESORIO_HEAD);
@@ -143,7 +143,7 @@ public class OutfitService {
         }
         for (String cat : List.of(
                 "Zapatilla", "Zapatilla Running", "Zapatilla Entrenamiento",
-                "Zapatilla Skate", "Zapatilla Urbana", "Sneaker",
+                "Zapatilla Skate", "Zapatilla Trekking", "Zapatilla Urbana", "Sneaker",
                 "Botines", "Borcego", "Botas", "Ojotas")) {
             m.put(cat, SLOT_CALZADO);
         }

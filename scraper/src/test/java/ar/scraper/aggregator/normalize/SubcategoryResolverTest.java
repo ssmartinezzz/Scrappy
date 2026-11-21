@@ -75,6 +75,16 @@ class SubcategoryResolverTest {
                 .isEqualTo("pádel");
     }
 
+    @Test
+    void resolverSubCategoriaTier2BasquetHandballAndGolf() {
+        assertThat(resolver.resolver("Zapatillas Topper Basquet Mujer", "Zapatilla")).isEqualTo("básquet");
+        assertThat(resolver.resolver("Pelota Handball N2", "Pelota")).isEqualTo("handball");
+        assertThat(resolver.resolver("Zapatillas Handball Mujer", "Zapatilla")).isEqualTo("handball");
+        assertThat(resolver.resolver("Zapatillas Golf Hombre", "Zapatilla")).isEqualTo("golf");
+        assertThat(resolver.resolver("Guante de Golf", "Guantes")).isEqualTo("golf");
+        assertThat(resolver.resolver("Zapatillas Basquetbol", "Zapatilla")).isEqualTo("");
+    }
+
     // ── Word-boundary guard: "espadela" must NOT match "padel" ────────
 
     @Test

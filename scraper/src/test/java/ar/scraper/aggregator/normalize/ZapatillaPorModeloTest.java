@@ -49,14 +49,61 @@ class ZapatillaPorModeloTest {
         "Zapatillas Adidas Response Padel",
         "Zapatillas Puma Caven Basquet",
         "Zapatillas Vans Voley",
-        "Zapatillas Adidas Galaxy Outdoor",
-        "Zapatillas Adidas Terrex Trekking",
         "Zapatillas Handball Mujer",
         "Zapatillas Asics Gel-Excite Futsal",
     })
     @DisplayName("a sport word keeps the row a plain Zapatilla")
     void sportVeto(String nombre) {
         assertThat(classifier.normalizarCategoria("Zapatilla", nombre)).isEqualTo("Zapatilla");
+    }
+
+    @ParameterizedTest(name = "{0} -> {1}")
+    @CsvSource(delimiter = '|', value = {
+        "Zapatillas Trekking Salomon Speedcross|Zapatilla Trekking",
+        "Zapatillas de Senderismo Montagne|Zapatilla Trekking",
+        "Zapatillas Adidas Terrex Trekking|Zapatilla Trekking",
+        "Zapatillas Adidas Galaxy Outdoor|Zapatilla Trekking",
+        "Zapatillas Adidas Terrex Swift R3 Gtx|Zapatilla Trekking",
+        "Zapatillas Salomon X Ultra 360 Mid Gtx|Zapatilla Trekking",
+        "Zapatillas Salomon X-Ultra 4|Zapatilla Trekking",
+        "Zapatillas Columbia Newton Ridge|Zapatilla Trekking",
+        "Zapatillas Merrell Moab 3|Zapatilla Trekking",
+        "Zapatillas Hombre Outdoor Anylander|Zapatilla Trekking",
+        "Zapatillas Skychaser Hombre|Zapatilla Trekking",
+    })
+    @DisplayName("Zapatilla Trekking: the store's own word, or a trekking model next to a shoe word")
+    void trekking(String nombre, String esperada) {
+        assertThat(classifier.normalizarCategoria("Zapatilla", nombre)).isEqualTo(esperada);
+    }
+
+    @ParameterizedTest(name = "{0} -> {1}")
+    @CsvSource(delimiter = '|', value = {
+        "Zapatillas Nike Pegasus Trail 4 Gtx|Zapatilla Running",
+        "Zapatillas Adidas Terrex Eastrail 2|Zapatilla Running",
+        "Zapatillas Salomon Speedcross 6|Zapatilla Running",
+        "Zapatillas Columbia Montrail Trail Running|Zapatilla Running",
+        "Zapatillas Merrell Trail Glove|Zapatilla Running",
+        "Zapatillas Adidas Galaxy 6|Zapatilla Running",
+    })
+    @DisplayName("a running or trail signal keeps the shoe in Zapatilla Running when only a model (not the explicit word) says trekking")
+    void trailStaysRunning(String nombre, String esperada) {
+        assertThat(classifier.normalizarCategoria("Zapatilla", nombre)).isEqualTo(esperada);
+    }
+
+    @Test
+    @DisplayName("the explicit word wins over a running or trail model, and X-Ultra alone is still Running")
+    void explicitWordWins() {
+        assertThat(classifier.normalizarCategoria("Zapatilla", "Zapatillas Trekking Trail Salomon")).isEqualTo("Zapatilla Trekking");
+        assertThat(classifier.normalizarCategoria("Zapatilla", "Salomon X-Ultra 4")).isEqualTo("Zapatilla Running");
+    }
+
+    @Test
+    @DisplayName("a trekking word on a non-shoe stays what it was")
+    void trekkingNonShoe() {
+        for (String nombre : new String[] {"Mochila Trekking 60 L", "Baston Trekking Aluminio", "Pantalon Trekking Hombre",
+                "Campera Columbia Outdoor", "Remera Merrell", "Medias Hiking"}) {
+            assertThat(classifier.normalizarCategoria(null, nombre)).as(nombre).doesNotStartWith("Zapatilla");
+        }
     }
 
     @Test

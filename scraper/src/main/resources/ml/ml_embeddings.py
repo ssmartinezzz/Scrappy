@@ -418,6 +418,7 @@ PROMPTS = {
         ("a photo of running sneakers", "Zapatilla Running"),
         ("a photo of training or gym sneakers", "Zapatilla Entrenamiento"),
         ("a photo of skateboarding sneakers", "Zapatilla Skate"),
+        ("a photo of hiking or trekking shoes", "Zapatilla Trekking"),
         ("a photo of casual urban sneakers", "Zapatilla Urbana"),
         ("a photo of retro or lifestyle sneakers", "Sneaker"),
         ("a photo of sneakers or athletic shoes", "Zapatilla"),
