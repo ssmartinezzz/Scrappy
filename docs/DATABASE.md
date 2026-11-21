@@ -208,6 +208,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V130` | `sub_categoria` de `Ropa de Cama` (8 valores por tipo: `Juego de Sábanas`, `Acolchado`, `Cubrecama`, `Frazada y Manta`...) y de `Colchón` (6 por tamaño en plazas: `1 Plaza`, `1 1/2 Plaza`, `2 Plazas`, `2 1/2 Plazas`, `Queen`, `King`); reescribe las filas guardadas con la misma regla que `CamaSubcategoryResolver` |
 | `V131` | `sub_categoria` de `Herramienta Manual` (12 valores con los nombres de una ferretería: `Pinza y Alicate`, `Llave y Tubo`, `Corte y Limado`, `Medición`...) por sustantivo líder; reescribe las filas guardadas con la misma regla que `HerramientaSubcategoryResolver` |
 | `V132` | `sub_categoria` de `Bicicleta` (10 valores por tipo de bici: `Mountain Bike`, `Paseo y Playera`, `Infantil`, `BMX`...); si el nombre no trae el tipo, decide el rodado; reescribe las filas guardadas con la misma regla que `BicicletaSubcategoryResolver` |
+| `V133` | Mueve las `Zapatilla` sin tipo a `Zapatilla Skate/Running/Entrenamiento/Urbana` por el modelo del nombre (listas nuevas que solo aplican junto a una palabra de calzado, con veto deportivo); no toca `sub_categoria` |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -6107,4 +6108,59 @@ UPDATE productos SET sub_categoria = ''
 -- <<< rollback:V132
 ```
 
-Antes de `V132` la categoría no tenía subcategoría, así que vaciar estos valores la deja como estaba. No hay FK de por medio. Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V131`. Un `renormalizar` posterior vuelve a escribir las subs desde Java.
+Antes de `V132` la categoría no tenía subcategoría, así que vaciar estos valores la deja como estaba. No hay FK de por medio. Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V133` y antes que el de `V131`. Un `renormalizar` posterior vuelve a escribir las subs desde Java.
+
+---
+
+## `V133` — `Zapatilla` por modelo
+
+`Zapatilla` es el fallback de `CalzadoPorModeloClassifier` cuando ninguna palabra de modelo ni de tipo encajó, y los nombres de tienda traen el modelo, no el tipo ("Zapatillas adidas Grand Court", "Puma Caven III"). Decisión del 2026-11-21: **recategorizar** hacia las hermanas (`Zapatilla Skate`, `Zapatilla Running`, `Zapatilla Entrenamiento`, `Zapatilla Urbana`) en vez de agregarle subcategorías de tipo a `Zapatilla`.
+
+- Listas nuevas en `GarmentTaxonomy`: `KW_SKATE_ZAPATILLA`, `KW_RUNNING_ZAPATILLA`, `KW_TRAINING_ZAPATILLA`, `KW_URBANA_ZAPATILLA`. A diferencia de `KW_*_MODELO` **solo se evalúan si el nombre ya trae una palabra de calzado** (`zapatilla`, `sneaker`, `calzado`, ` shoe(s) `, `tenis`, `footwear`): "galaxy", "response" o "quest" solos son otros productos. Van después de todas las listas `MODELO`/`GENERICO` y en el orden skate, running, entrenamiento, urbana.
+- Veto deportivo (`KW_ZAPATILLA_DEPORTE_VETO` + `handball`): con `tenis`, `tennis`, `padel`, `basquet`, `basket`, `voley`, `volley`, `hockey`, `futsal`, `trekking`, `hiking`, `outdoor`, `terrex`, `golf`, `ciclismo` o `handball` (salvo `handball spezial`, un modelo lifestyle de adidas, que es `Zapatilla Urbana`) ninguna lista nueva aplica y la fila sigue `Zapatilla`.
+- `entrenamiento` entra en `KW_TRAINING_GENERICO` (no tiene veto, como el resto de los genéricos).
+- **`gel` va como ` gel-`**: `NonTextileGuard` veta ` gel ` (cosmética) antes de que corra este clasificador, así que solo la forma con guion ("Gel-Excite") llega.
+- Un nombre **sin palabra de calzado** ("Puma Caven III") sigue en `Zapatilla`, en Java y en SQL: el clasificador solo lee el nombre.
+
+La migración reproduce la regla con **un solo literal** de una línea (filas `destino|veta|palabras` unidas por `;`), normaliza el nombre como `TextoClasificable` (minúsculas, sin tildes, con espacio a cada lado) y solo mira `categoria = 'Zapatilla'` sin `bloqueado_por`, activas e inactivas. No toca `sub_categoria`. Es idempotente: una fila movida ya no es `Zapatilla`. `V133ZapatillaAgreementTest` corre la migración y `CategoryClassifier` sobre los mismos nombres reales (y casos borde) y exige 0 diferencias.
+
+### Rollback
+
+```sql
+-- >>> rollback:V133
+WITH reglas AS (
+  SELECT split_part(f.fila, '|', 1) AS destino, split_part(f.fila, '|', 2) = '1' AS veta,
+         string_to_array(split_part(f.fila, '|', 3), ',') AS palabras, f.orden
+    FROM unnest(string_to_array('Zapatilla Entrenamiento|0|entrenamiento;Zapatilla Skate|1| dc shoes , vans , manteca , court graffik , pensford , knu skool , sk8 , old skool ;Zapatilla Running|1| skyrocket , flyer lite , adistar , strong pace , runfalcon , revolution , run defy , cloudrunner , cloudmonster , cloudsurfer , cloudflyer , cloudswift , lightblaze , galaxy , response , downshifter , quest , journey run , ultrarun , aero glide , ultra flow , alphaglide , supernova , nitro , go run , max cushioning , wind 5 , wind iv , tensaur run , winflo , gel-, novablast ;Zapatilla Entrenamiento|1| scend pro , squat , dropset , mc trainer , flex control , disperse ;Zapatilla Urbana|1| grand court , caven , suede , carina , rebound , court vision , vl court , court classic , karmen , ca pro , club c , segovia , acd classic , handball spezial , renno , break start , advantage , breaknet , run 70s , technochaos , killshot , initiator , storm 96 , club ii , shuffle , court lally , r78 , rickie , ca match , bb 4000 , disruptor , court 80 , court 90 , uproot , nova low , john foos , skechers uno , bobs , smash , mayze , palermo , speedcat , court royale , park lifestyle , hoops , lacoste ', ';')) WITH ORDINALITY AS f(fila, orden)
+),
+textos AS (
+  SELECT p.url,
+         ' ' || lower(translate(p.nombre, 'áàäéèëíìïóòöúùüñÁÀÄÉÈËÍÌÏÓÒÖÚÙÜÑ', 'aaaeeeiiiooouuunAAAEEEIIIOOOUUUN')) || ' ' AS n
+    FROM productos p
+   WHERE p.categoria IN ('Zapatilla Skate', 'Zapatilla Running', 'Zapatilla Entrenamiento', 'Zapatilla Urbana')
+     AND p.bloqueado_por IS NULL
+),
+aptas AS (
+  SELECT t.url, t.n,
+         EXISTS (SELECT 1 FROM unnest(string_to_array(' tenis , tennis , padel , basquet , basket , voley , volley , hockey , futsal , trekking , hiking , outdoor , terrex , golf , ciclismo ', ',')) w WHERE position(w IN t.n) > 0)
+           OR (position(' handball ' IN t.n) > 0 AND position(' handball spezial ' IN t.n) = 0) AS deporte
+    FROM textos t
+   WHERE EXISTS (SELECT 1 FROM unnest(string_to_array('zapatilla,sneaker,calzado, shoe , shoes ,tenis,footwear', ',')) w WHERE position(w IN t.n) > 0)
+),
+elegidas AS (
+  SELECT DISTINCT ON (a.url) a.url, r.destino
+    FROM aptas a
+    JOIN reglas r
+      ON (NOT r.veta OR NOT a.deporte)
+     AND EXISTS (SELECT 1 FROM unnest(r.palabras) w WHERE position(w IN a.n) > 0)
+   ORDER BY a.url, r.orden
+)
+UPDATE productos AS pr
+   SET categoria = 'Zapatilla'
+  FROM elegidas e
+ WHERE pr.url = e.url
+   AND pr.categoria = e.destino;
+-- <<< rollback:V133
+```
+
+El rollback **no es exacto**: devuelve a `Zapatilla` toda fila de las cuatro hermanas cuyo nombre cae en la misma regla, incluidas las que ya estaban ahí antes de `V133` (por ejemplo una `Zapatilla Urbana` de `grand court` guardada por una lista anterior). Un `renormalizar` posterior vuelve a mover las filas desde Java. Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V132`.
