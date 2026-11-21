@@ -205,6 +205,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V127` | Categoría `Accesorio Apple` (rubro tecnología): lo que se vende para un iPad, un Mac, AirPods, un AirTag o un Apple Watch, con `sub_categoria` iPad, MacBook, AirPods y Apple Watch; reubica las filas guardadas que la regla reclama |
 | `V128` | `sub_categoria` de `Pequeño Electrodoméstico` (13 valores: `Cafetera`, `Licuadora y Exprimidor`, `Secador de Pelo`...) y de `TV y Audio` (10: `Parlante`, `Televisor`, `Soporte`...) por sustantivo líder; reescribe las filas guardadas con la misma regla que `ElectroSubcategoryResolver` |
 | `V129` | `sub_categoria` de `Iluminación` (14 valores: `Velador`, `Lamparita`, `Colgante`, `Plafón`...) y de `Mueble` (13: `Alacena`, `Bajo Mesada`, `Rack de TV`...) con el vocabulario del comercio argentino, por sustantivo líder; reescribe las filas guardadas con la misma regla que `HogarSubcategoryResolver` |
+| `V130` | `sub_categoria` de `Ropa de Cama` (8 valores por tipo: `Juego de Sábanas`, `Acolchado`, `Cubrecama`, `Frazada y Manta`...) y de `Colchón` (6 por tamaño en plazas: `1 Plaza`, `1 1/2 Plaza`, `2 Plazas`, `2 1/2 Plazas`, `Queen`, `King`); reescribe las filas guardadas con la misma regla que `CamaSubcategoryResolver` |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -5984,7 +5985,7 @@ UPDATE productos SET sub_categoria = ''
 -- <<< rollback:V128
 ```
 
-Antes de `V128` las dos categorías no tenían subcategoría, así que vaciar estos valores las deja como estaban. No hay FK de por medio: el orden con las otras migraciones no importa. Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V129` y antes que el de `V127`. Un `renormalizar` posterior vuelve a escribir las subs desde Java.
+Antes de `V128` las dos categorías no tenían subcategoría, así que vaciar estos valores las deja como estaban. No hay FK de por medio: el orden con las otras migraciones no importa. Ya no es el bloque más nuevo: en una cadena de rollbacks corre después de los de `V130` y `V129` y antes que el de `V127`. Un `renormalizar` posterior vuelve a escribir las subs desde Java.
 
 ---
 
@@ -6016,4 +6017,33 @@ UPDATE productos SET sub_categoria = ''
 -- <<< rollback:V129
 ```
 
-Antes de `V129` las dos categorías no tenían subcategoría, así que vaciar estos valores las deja como estaban. No hay FK de por medio. Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V128` (que a su vez corre antes que el de `V127`). Un `renormalizar` posterior vuelve a escribir las subs desde Java.
+Antes de `V129` las dos categorías no tenían subcategoría, así que vaciar estos valores las deja como estaban. No hay FK de por medio. Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V130` y antes que el de `V128` (que a su vez corre antes que el de `V127`). Un `renormalizar` posterior vuelve a escribir las subs desde Java.
+
+---
+
+## `V130` — `sub_categoria` de `Ropa de Cama` y `Colchón`
+
+`Ropa de Cama` (1.626 filas activas) y `Colchón` (1.456) no tenían subcategoría. La ropa de cama la decide **el sustantivo líder** (igual que `V128` y `V129`); un colchón siempre lidera con `colchón` o `sommier`, así que su sub es **el tamaño en plazas**, como lo vende el comercio argentino. El tamaño no es un sustantivo líder: la regla usa el mismo mecanismo (`LeadingNounRules`, sin cambios), con `colchon`, `sommier`, `conjunto`, `bicama` como líderes y el tamaño en la columna `alguna`.
+
+- `Ropa de Cama` (8): `Acolchado`, `Almohada`, `Cubrecama` (también `Cover` y `Quilt`), `Frazada y Manta` (también `Cobertor`, `Pie de cama`), `Funda` (de almohada, de plumón, nórdica), `Juego de Sábanas` (también `Sábana` suelta y `Juego de cama`; "juego" necesita `sábana`/`cama` detrás), `Plumón` (también `Edredón`, `Nórdico`) y `Protector` (`Cubrecolchón`, `Cubresommier`, funda de colchón).
+- `Colchón` (6): `1 Plaza` (80 y 90 x 190/200), `1 1/2 Plaza` (100 x 190/200, "plaza y media"), `2 Plazas` (130 y 140), `2 1/2 Plazas` (150 x 190, "2 plazas y media"), `Queen` (160) y `King` (180 y 200 x 200, "king size", "super king"). El valor se guarda sin `½` porque su slug chocaría con `1 Plaza`. Se leen "1 1/2 plazas", "1.5 plazas", `100x190`, `100 x 190` y las medidas en metros que imprime Inducol (`1.00x0.20x1.90`). La marca `King Koil` y la palabra `king` suelta no deciden: solo cuentan las medidas o `king size`. Sommier, conjunto, bicama y colchón del mismo tamaño llevan la misma sub.
+- Quedan vacíos a propósito: los colchones sin medida en el nombre (`Inducol Cardiel`, `King Koil G22`), las cunas (60x120, 75x140), y lo que no es de la categoría: en `Colchón`, `Protector`, `Cama`, `Base` y `Almohada` (15 filas); en `Ropa de Cama`, `Poncho` (de toalla o cambiador), `Bata`, `Almohadón` decorativo, `Bolsa de Dormir` y `Relleno` (unas 55 filas; ver `KNOWN_ISSUES.md`).
+- No hay FK ni tabla de subcategorías. Ninguna de las dos categorías recibe el tier 2 deportivo.
+
+El vocabulario es **un solo literal** de una línea, el mismo texto que `CamaSubcategoryResolver.VOCABULARIO`. La migración lleva `SET CONSTRAINTS ALL IMMEDIATE`, no toca las filas con `bloqueado_por`, cubre activas e inactivas y solo escribe las filas cuya sub cambia (idempotente); recorre las reglas con un `LEFT JOIN LATERAL` y `DISTINCT ON`, otra forma que las de `V128` y `V129` para que Sonar no la cuente como copia. `V130CamaAgreementTest` corre la migración y el resolver sobre los mismos 725 nombres y exige 0 diferencias.
+
+Medido sobre las filas activas (`activo IS NOT FALSE`) de una copia de la base de dev: `Ropa de Cama` pasa de 0 % a **95,6 %** con sub (1.555 de 1.626) y `Colchón` de 0 % a **92,7 %** (1.350 de 1.456).
+
+### Rollback
+
+```sql
+-- >>> rollback:V130
+UPDATE productos SET sub_categoria = ''
+ WHERE (categoria = 'Ropa de Cama'
+        AND sub_categoria IN ('Acolchado', 'Almohada', 'Cubrecama', 'Frazada y Manta', 'Funda', 'Juego de Sábanas', 'Plumón', 'Protector'))
+    OR (categoria = 'Colchón'
+        AND sub_categoria IN ('1 Plaza', '1 1/2 Plaza', '2 Plazas', '2 1/2 Plazas', 'Queen', 'King'));
+-- <<< rollback:V130
+```
+
+Antes de `V130` las dos categorías no tenían subcategoría, así que vaciar estos valores las deja como estaban. No hay FK de por medio. Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V129`. Un `renormalizar` posterior vuelve a escribir las subs desde Java.
