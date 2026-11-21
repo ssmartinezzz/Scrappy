@@ -99,11 +99,17 @@ opened: list[str] = []
 
 
 class _FakeFlareSolverr:
-    def __init__(self) -> None:
+    def __init__(self, line=None) -> None:
         self.stopped_with = []
+        self.ensured_with = []
+        self.line = line
 
     def stop_flaresolverr(self, cfg):
         self.stopped_with.append(cfg)
+
+    def ensure_flaresolverr(self, cfg):
+        self.ensured_with.append(cfg)
+        return self.line
 
 
 class _FakeLanProxy:
@@ -869,6 +875,24 @@ async def test_start_reports_success_when_both_services_survive(tmp_path, monkey
     async with app.run_test() as pilot:
         await _submit(app, pilot, "start")
         assert "arriba" in _console_text(app)
+
+
+@pytest.mark.asyncio
+async def test_start_brings_back_the_flaresolverr_a_previous_quit_stopped(tmp_path, monkeypatch):
+    from cli.core import builder as builder_mod
+    from cli.tui import app as app_mod
+
+    monkeypatch.setattr(builder_mod, "build_project", lambda cfg, *a, **k: None)
+    monkeypatch.setattr(builder_mod, "is_built", lambda cfg: True)
+    monkeypatch.setattr(app_mod, "STARTUP_GRACE_SECONDS", 0)
+
+    flaresolverr = _FakeFlareSolverr(line="FlareSolverr arrancado en localhost:8191")
+    app, _, processes = _make_app(tmp_path, flaresolverr=flaresolverr)
+    processes.alive = lambda: ["backend", "frontend"]
+    async with app.run_test() as pilot:
+        await _submit(app, pilot, "start")
+        assert "FlareSolverr arrancado" in _console_text(app)
+    assert flaresolverr.ensured_with == [app.cfg]
 
 
 @pytest.mark.asyncio

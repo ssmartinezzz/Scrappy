@@ -86,11 +86,17 @@ class _FakeProcesses:
 
 
 class _FakeFlareSolverr:
-    def __init__(self) -> None:
+    def __init__(self, line=None) -> None:
         self.stopped_with = []
+        self.ensured_with = []
+        self.line = line
 
     def stop_flaresolverr(self, cfg):
         self.stopped_with.append(cfg)
+
+    def ensure_flaresolverr(self, cfg):
+        self.ensured_with.append(cfg)
+        return self.line
 
 
 class _FakeLanProxy:
@@ -233,6 +239,17 @@ def test_start_does_not_rebuild_when_already_built(tmp_path, monkeypatch):
     r.dispatch("start")
 
     assert calls["build"] == 0
+    assert processes.backend_launched is True
+
+
+def test_start_brings_back_the_flaresolverr_a_previous_quit_stopped(tmp_path):
+    _mark_built(tmp_path)
+    flaresolverr = _FakeFlareSolverr(line="FlareSolverr arrancado en localhost:8191")
+    r, _, processes, out = _make_runner(tmp_path, "", flaresolverr=flaresolverr)
+    r.dispatch("start")
+
+    assert flaresolverr.ensured_with == [r.cfg]
+    assert "FlareSolverr arrancado" in out.getvalue()
     assert processes.backend_launched is True
 
 
