@@ -61,6 +61,9 @@ const CHIPS = {
   'construccion/Herramienta Manual': ['Albañilería', 'Corte y Limado', 'Destornillador y Puntas', 'Engrampadora y Remachadora',
     'Espátula y Rasqueta', 'Juego y Set', 'Llave y Tubo', 'Martillo y Maza', 'Medición', 'Pinza y Alicate', 'Pistola de Silicona',
     'Prensa y Morsa'],
+  // V132: the bike type; a stationary bike is exercise equipment and has no chip.
+  'deporte/Bicicleta': ['BMX', 'Camicleta', 'Eléctrica', 'Infantil', 'Mountain Bike', 'Paseo y Playera', 'Plegable', 'Ruta', 'Triciclo',
+    'Urbana / Fixie'],
 };
 
 export function subChipsDe(rubro, categoria) {

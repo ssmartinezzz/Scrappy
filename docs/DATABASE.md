@@ -207,6 +207,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V129` | `sub_categoria` de `Iluminación` (14 valores: `Velador`, `Lamparita`, `Colgante`, `Plafón`...) y de `Mueble` (13: `Alacena`, `Bajo Mesada`, `Rack de TV`...) con el vocabulario del comercio argentino, por sustantivo líder; reescribe las filas guardadas con la misma regla que `HogarSubcategoryResolver` |
 | `V130` | `sub_categoria` de `Ropa de Cama` (8 valores por tipo: `Juego de Sábanas`, `Acolchado`, `Cubrecama`, `Frazada y Manta`...) y de `Colchón` (6 por tamaño en plazas: `1 Plaza`, `1 1/2 Plaza`, `2 Plazas`, `2 1/2 Plazas`, `Queen`, `King`); reescribe las filas guardadas con la misma regla que `CamaSubcategoryResolver` |
 | `V131` | `sub_categoria` de `Herramienta Manual` (12 valores con los nombres de una ferretería: `Pinza y Alicate`, `Llave y Tubo`, `Corte y Limado`, `Medición`...) por sustantivo líder; reescribe las filas guardadas con la misma regla que `HerramientaSubcategoryResolver` |
+| `V132` | `sub_categoria` de `Bicicleta` (10 valores por tipo de bici: `Mountain Bike`, `Paseo y Playera`, `Infantil`, `BMX`...); si el nombre no trae el tipo, decide el rodado; reescribe las filas guardadas con la misma regla que `BicicletaSubcategoryResolver` |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -6076,4 +6077,34 @@ UPDATE productos SET sub_categoria = ''
 -- <<< rollback:V131
 ```
 
-Antes de `V131` la categoría no tenía subcategoría, así que vaciar estos valores la deja como estaba. No hay FK de por medio. Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V130`. Un `renormalizar` posterior vuelve a escribir las subs desde Java.
+Antes de `V131` la categoría no tenía subcategoría, así que vaciar estos valores la deja como estaba. No hay FK de por medio. Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V132` y antes que el de `V130`. Un `renormalizar` posterior vuelve a escribir las subs desde Java.
+
+---
+
+## `V132` — `sub_categoria` de `Bicicleta`
+
+`Bicicleta` (1.287 filas activas: Oncity 960, Naldo 129, Cetrogar 104) casi siempre lidera con `bicicleta`, así que la sub es el **tipo de bici**, con los nombres del comercio argentino. El tipo sale de una palabra explícita del nombre; solo si no hay, decide el **rodado**.
+
+- Los 10 valores: `BMX` (también `freestyle`, `stunt`, `dirt jump`), `Camicleta` (la bici de equilibrio, sin pedales), `Eléctrica`, `Infantil` (`niños`, `nena`, `nene`, `kids`, `rueditas`, y el rodado 12 a 16), `Mountain Bike` (`mtb`, `mountain`, `moutain`, y el rodado 27,5 y 29), `Paseo y Playera` (también `vintage`, `classic`, `city`), `Plegable`, `Ruta` (`carrera`, `gravel`, `700c`), `Triciclo` y `Urbana / Fixie` (`urbana`, `urban`, `fixie`).
+- Orden de las reglas (gana la primera): camicleta, triciclo, eléctrica, plegable, BMX, bici fija, infantil por palabra, infantil por rodado 12 a 16, ruta, urbana, mountain bike por palabra, paseo, mountain bike por rodado 27,5 y 29, infantil por rodado 18 y 20 (sin `dama`, `lady`, `mujer`, `adulto`, `hombre`, `varon` ni `plegable`). Por eso "Bicicleta de paseo R16 con cantimplora" es `Infantil` y "Bicicleta Paseo R29" es `Paseo y Playera`.
+- El rodado se lee como `R29`, `R 29`, `Rodado 29`, `Rod 29`, `Rod. 29`, `R27.5`, `27,5` y, pegado a la palabra `bicicleta`, "Bicicleta 29 ...". `700c` es `Ruta`. **R26 solo no decide** (la misma medida es playera o mountain bike) ni R28 ni R24 sin tipo, y tampoco un R20 de `dama` (puede ser una plegable de adulto): quedan sin sub.
+- **Bici fija:** una bicicleta fija, de spinning, indoor, magnética o recumbent es un equipo de gimnasio, no un tipo de bici. Su regla tiene sub vacía, así que ninguna regla posterior le da una (74 filas). Ver `KNOWN_ISSUES.md`.
+- Quedan vacíos además: los accesorios que lideran con otra palabra (`candado`, `inflador`, `casco`, `bolso`, `caramañola`, `kit`, `pedalera`: 17 filas) y los modelos sin ninguna señal ("Bicicleta Vairo Xr3.0", "Trek Precaliber 20").
+- No hay FK ni tabla de subcategorías. La categoría no recibe el tier 2 deportivo.
+
+El vocabulario es **un solo literal** de una línea, el mismo texto que `BicicletaSubcategoryResolver.VOCABULARIO`. La migración lleva `SET CONSTRAINTS ALL IMMEDIATE`, no toca las filas con `bloqueado_por`, cubre activas e inactivas y solo escribe las filas cuya sub cambia (idempotente); elige la primera regla con `row_number() OVER (PARTITION BY ...)`. `V132BicicletaAgreementTest` corre la migración y el resolver sobre los mismos 730 nombres y exige 0 diferencias.
+
+Medido sobre las filas activas (`activo IS NOT FALSE`) de una copia de la base de dev: `Bicicleta` pasa de 0 % a **88,6 %** con sub (1.140 de 1.287); sobre las 1.196 que son bicis de verdad (sin fijas ni accesorios) es el 95,3 %.
+
+### Rollback
+
+```sql
+-- >>> rollback:V132
+UPDATE productos SET sub_categoria = ''
+ WHERE categoria = 'Bicicleta'
+   AND sub_categoria IN ('BMX', 'Camicleta', 'Eléctrica', 'Infantil', 'Mountain Bike', 'Paseo y Playera', 'Plegable', 'Ruta', 'Triciclo',
+                         'Urbana / Fixie');
+-- <<< rollback:V132
+```
+
+Antes de `V132` la categoría no tenía subcategoría, así que vaciar estos valores la deja como estaba. No hay FK de por medio. Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V131`. Un `renormalizar` posterior vuelve a escribir las subs desde Java.
