@@ -275,6 +275,9 @@ class PlainRunner:
                 report = lan_report.render(startup)
                 if report:
                     self._print(report)
+                solver = self.flaresolverr.ensure_flaresolverr(self.cfg)
+                if solver:
+                    self._print(solver)
                 self.processes.launch_backend(
                     self.cfg, database_password=env.get("DATABASE_PASSWORD", ""), env=env
                 )

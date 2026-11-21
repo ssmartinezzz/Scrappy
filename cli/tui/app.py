@@ -436,6 +436,9 @@ class ScrappyConsole(App):
         report = lan_report.render(startup)
         if report:
             self.call_from_thread(self._emit, "info", report)
+        solver = self.flaresolverr.ensure_flaresolverr(self.cfg)
+        if solver:
+            self.call_from_thread(self._emit, "info", solver)
         self.processes.launch_backend(
             self.cfg, database_password=env.get("DATABASE_PASSWORD", ""), env=env
         )

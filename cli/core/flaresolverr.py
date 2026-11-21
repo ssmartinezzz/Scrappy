@@ -1,6 +1,7 @@
-"""Teardown of the FlareSolverr container `Ejecutar_instalar.sh` starts for
-Cloudflare-protected sites (fullh4rd). Quitting the CLI stops it, so the next
-installer run brings it up fresh.
+"""Lifecycle of the FlareSolverr container `Ejecutar_instalar.sh` creates for
+Cloudflare-protected sites (fullh4rd). Quitting the CLI stops it, and `start`
+brings it back: without that, relaunching `python -m cli` without the
+installer scraped fullh4rd against a dead solver.
 
 The installer drops `_tools/flaresolverr.owned` only when it started the
 container itself; one the user already had answering on 8191 is not ours to
@@ -44,11 +45,39 @@ def stop_flaresolverr(cfg: Config, *, runner: Optional[Runner] = None) -> None:
         marker.unlink(missing_ok=True)
 
 
+def ensure_flaresolverr(cfg: Config, *, runner: Optional[Runner] = None) -> Optional[str]:
+    """Start the installer's container when it exists but is stopped.
+
+    Returns a line for the console, or None when there was nothing to do:
+    no Docker, no container (the user runs their own, or never installed
+    one), or it is already running. Never raises: `start` must not fail
+    because Docker is gone.
+    """
+    runner = runner or _run_docker
+    try:
+        running = str(runner(["docker", "inspect", "-f", "{{.State.Running}}", CONTAINER])).strip()
+    except Exception:
+        return None
+    if running != "false":
+        return None
+    try:
+        runner(["docker", "start", CONTAINER])
+    except Exception as exc:
+        return f"FlareSolverr no arrancó ({exc}): fullh4rd va a fallar por Cloudflare"
+    marker = owned_marker(cfg)
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    marker.touch()
+    return "FlareSolverr arrancado en localhost:8191 (Cloudflare de fullh4rd)"
+
+
 class FlareSolverrService:
-    """Injectable face of `stop_flaresolverr`, so presenters take a fake."""
+    """Injectable face of the module, so presenters take a fake."""
 
     def __init__(self, runner: Optional[Runner] = None) -> None:
         self._runner = runner
 
     def stop_flaresolverr(self, cfg: Config) -> None:
         stop_flaresolverr(cfg, runner=self._runner)
+
+    def ensure_flaresolverr(self, cfg: Config) -> Optional[str]:
+        return ensure_flaresolverr(cfg, runner=self._runner)

@@ -19,6 +19,7 @@ from cli.core.grafana import GrafanaInfo  # noqa: E402
 from cli.core.health import Check  # noqa: E402
 from cli.tui.app import ScrappyConsole  # noqa: E402
 from cli.tui.widgets import CommandSuggester, Console, HintBar, StatusBar  # noqa: E402
+from cli_fakes import FakeFlareSolverr, FakeLanProxy, QuietFollower  # noqa: E402
 
 
 def _cfg(tmp_path) -> Config:
@@ -98,37 +99,12 @@ class _FakeProcesses:
 opened: list[str] = []
 
 
-class _FakeFlareSolverr:
-    def __init__(self) -> None:
-        self.stopped_with = []
-
-    def stop_flaresolverr(self, cfg):
-        self.stopped_with.append(cfg)
-
-
-class _FakeLanProxy:
-    def __init__(self) -> None:
-        self.stopped_with = []
-
-    def stop_proxy(self, cfg):
-        self.stopped_with.append(cfg)
-
-
-class _QuietFollower:
-    """Default notice follower: tests that run `start` must not reach a real
-    EventFollower, which would retry against a fake rest in the background."""
-
-    def events(self):
-        return iter(())
-
-    def close(self):
-        pass
 
 
 def _make_app(tmp_path, connect=lambda *a: False, **services):
     rest = _FakeRest()
     processes = _FakeProcesses()
-    services.setdefault("notice_follower_factory", lambda rest: _QuietFollower())
+    services.setdefault("notice_follower_factory", lambda rest: QuietFollower())
     app = ScrappyConsole(
         _cfg(tmp_path),
         rest=rest,
@@ -347,7 +323,7 @@ async def test_stop_tears_down_the_services_without_exiting(tmp_path):
 
 @pytest.mark.asyncio
 async def test_stop_takes_the_lan_proxy_down_through_the_injected_service(tmp_path):
-    lan_proxy = _FakeLanProxy()
+    lan_proxy = FakeLanProxy()
     app, _, _ = _make_app(tmp_path, lan_proxy=lan_proxy)
     async with app.run_test() as pilot:
         await _submit(app, pilot, "stop")
@@ -403,7 +379,7 @@ async def test_quit_verb_tears_down_processes_and_exits(tmp_path, how):
 
 @pytest.mark.asyncio
 async def test_quitting_stops_the_flaresolverr_the_installer_started(tmp_path):
-    flaresolverr = _FakeFlareSolverr()
+    flaresolverr = FakeFlareSolverr()
     app, _, _ = _make_app(tmp_path, flaresolverr=flaresolverr)
     async with app.run_test() as pilot:
         await _submit(app, pilot, "quit")
@@ -869,6 +845,24 @@ async def test_start_reports_success_when_both_services_survive(tmp_path, monkey
     async with app.run_test() as pilot:
         await _submit(app, pilot, "start")
         assert "arriba" in _console_text(app)
+
+
+@pytest.mark.asyncio
+async def test_start_brings_back_the_flaresolverr_a_previous_quit_stopped(tmp_path, monkeypatch):
+    from cli.core import builder as builder_mod
+    from cli.tui import app as app_mod
+
+    monkeypatch.setattr(builder_mod, "build_project", lambda cfg, *a, **k: None)
+    monkeypatch.setattr(builder_mod, "is_built", lambda cfg: True)
+    monkeypatch.setattr(app_mod, "STARTUP_GRACE_SECONDS", 0)
+
+    flaresolverr = FakeFlareSolverr(line="FlareSolverr arrancado en localhost:8191")
+    app, _, processes = _make_app(tmp_path, flaresolverr=flaresolverr)
+    processes.alive = lambda: ["backend", "frontend"]
+    async with app.run_test() as pilot:
+        await _submit(app, pilot, "start")
+        assert "FlareSolverr arrancado" in _console_text(app)
+    assert flaresolverr.ensured_with == [app.cfg]
 
 
 @pytest.mark.asyncio
