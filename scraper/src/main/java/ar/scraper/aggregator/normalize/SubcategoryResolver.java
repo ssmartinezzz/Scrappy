@@ -19,6 +19,7 @@ public class SubcategoryResolver {
 
     private final HardwareSubcategoryResolver hardware = new HardwareSubcategoryResolver();
     private final ElectroSubcategoryResolver electro = new ElectroSubcategoryResolver();
+    private final HogarSubcategoryResolver hogar = new HogarSubcategoryResolver();
 
     /**
      * {@code entry[1..n]} = keywords to match (accent/case-insensitive, space-padded for
@@ -317,6 +318,7 @@ public class SubcategoryResolver {
 
         if (hardware.handles(categoria)) return hardware.resolver(categoria, nombre);
         if (electro.handles(categoria)) return electro.resolver(categoria, nombre);
+        if (hogar.handles(categoria)) return hogar.resolver(categoria, nombre);
         if ("Celular".equals(categoria)) return subDeCelular(n);
         if ("Accesorio Apple".equals(categoria)) return subDeAccesorioApple(n);
 

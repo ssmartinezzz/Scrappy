@@ -204,6 +204,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V126` | Seed de Gentech (Odoo, marca propia de suplementos, `monomarca`, `rubro_por_defecto = 'suplementos'`) y su fila en `marca`; sin hojas |
 | `V127` | Categoría `Accesorio Apple` (rubro tecnología): lo que se vende para un iPad, un Mac, AirPods, un AirTag o un Apple Watch, con `sub_categoria` iPad, MacBook, AirPods y Apple Watch; reubica las filas guardadas que la regla reclama |
 | `V128` | `sub_categoria` de `Pequeño Electrodoméstico` (13 valores: `Cafetera`, `Licuadora y Exprimidor`, `Secador de Pelo`...) y de `TV y Audio` (10: `Parlante`, `Televisor`, `Soporte`...) por sustantivo líder; reescribe las filas guardadas con la misma regla que `ElectroSubcategoryResolver` |
+| `V129` | `sub_categoria` de `Iluminación` (14 valores: `Velador`, `Lamparita`, `Colgante`, `Plafón`...) y de `Mueble` (13: `Alacena`, `Bajo Mesada`, `Rack de TV`...) con el vocabulario del comercio argentino, por sustantivo líder; reescribe las filas guardadas con la misma regla que `HogarSubcategoryResolver` |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -5951,7 +5952,7 @@ DELETE FROM categoria WHERE nombre = 'Accesorio Apple';
 -- <<< rollback:V127
 ```
 
-**El orden es obligatorio** (FK de `productos`, `sitio_categoria` y `categoria_stats` hacia `categoria`). Los productos vuelven a `Otros` y el próximo scrape los reclasifica. Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V128` y antes que el de `V126`.
+**El orden es obligatorio** (FK de `productos`, `sitio_categoria` y `categoria_stats` hacia `categoria`). Los productos vuelven a `Otros` y el próximo scrape los reclasifica. Ya no es el bloque más nuevo: en una cadena de rollbacks corre después de los de `V129` y `V128` y antes que el de `V126`.
 
 ---
 
@@ -5983,4 +5984,36 @@ UPDATE productos SET sub_categoria = ''
 -- <<< rollback:V128
 ```
 
-Antes de `V128` las dos categorías no tenían subcategoría, así que vaciar estos valores las deja como estaban. No hay FK de por medio: el orden con las otras migraciones no importa. Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V127`. Un `renormalizar` posterior vuelve a escribir las subs desde Java.
+Antes de `V128` las dos categorías no tenían subcategoría, así que vaciar estos valores las deja como estaban. No hay FK de por medio: el orden con las otras migraciones no importa. Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V129` y antes que el de `V127`. Un `renormalizar` posterior vuelve a escribir las subs desde Java.
+
+---
+
+## `V129` — `sub_categoria` de `Iluminación` y `Mueble`
+
+Las dos categorías sin subcategoría que seguían (2.099 y 1.955 filas activas, 0 con sub) ahora la tienen, con el vocabulario del comercio argentino y no el genérico: `Lamparita` (el foco, no `Lámpara`), `Velador`, `Plafón`, `Aplique`, `Alacena`, `Bajo Mesada`, `Despensero`, `Chifonier`, `Rack de TV`. La decide **el sustantivo líder** del nombre, igual que en `V128` (prefijo de venta de `TextoClasificable.sinPrefijoDeVenta`, `set`, `kit`, `mini`, y acá además `hue` y `philips`: "Philips Hue Plafón" lidera con `plafon`). Lo que ninguna regla reclama queda con sub vacía: no hay catch-all.
+
+- `Iluminación` (14): `Aplique` (también `Tortuga`), `Colgante` (también `Lámpara colgante`, `araña`), `Farol y Estaca`, `Guirnalda` (también `Cortina led`), `Lamparita`, `Lámpara de Pie`, `Luz de Emergencia`, `Panel y Listón` (también `Tubo led`), `Plafón`, `Portalámpara` (también `Florón`), `Reflector` (también `Proyector led`), `Spot` (también `Cabezal` y `Riel`), `Tira LED` y `Velador` (también `Lámpara de escritorio / mesa`).
+- `Mueble` (13): `Alacena`, `Aparador` (también `Buffet`, `Bahiut`), `Bajo Mesada`, `Biblioteca`, `Chifonier`, `Cocina Modular`, `Cómoda y Cajonera`, `Despensero`, `Mesa de Luz` (también `Mesita de noche`), `Portahorno` (también `Mueble para microondas`), `Rack de TV` (también `Mueble para TV`, `Panel de TV`, `Centro de entretenimiento`), `Vajillero` y `Zapatero` (también `Botinero`).
+- `lámpara`, `led` y `luz` no deciden solos: el segundo sustantivo manda. "Lámpara LED E27 9 W", "Led Filamento" y "Luz Led Bulbo" son `Lamparita`; "Lámpara de pie" `Lámpara de Pie`; "Lámpara colgante" `Colgante`; "Lámpara escritorio / mesa" `Velador`; "Led Plafón" `Plafón`. Un `Led ... E27` con la palabra `reflectora` es la lamparita reflectora, no un `Reflector`.
+- Un combo, un kit o un set de **cocina** es `Cocina Modular` ("Combo De Cocina Alacena + Bajo Mesada" no es una `Alacena`); un combo de otra cosa se lee por la primera pieza que nombra ("Combo 2 Bajo Mesadas" es `Bajo Mesada`).
+- Quedan vacíos a propósito: `Placard` y `Ropero` (62 filas, todas de Naldo, que los manda a `Mueble`; la categoría `Placard` ya existe), `Mesa` ratona, de centro o de comedor, `Esquinero` (sillón o ferretería según la fila), `Respaldo`, `Sillón`, los `bajo consumo`, las llaves y tomacorrientes (48 filas de Macroled que son de `Llave de Luz`; ver `KNOWN_ISSUES.md`) y los proyectores de video o de galaxia.
+- No hay FK ni tabla de subcategorías, así que la migración no inserta nada aparte. Ninguna de las dos recibe el tier 2 deportivo.
+
+El vocabulario es **un solo literal** de una línea, el mismo texto que `HogarSubcategoryResolver.VOCABULARIO` (mecanismo en `LeadingNounRules`, compartido con `ElectroSubcategoryResolver`); la migración lo recorre con un `LATERAL` en vez de las CTE de `V128` (misma regla, otra forma, para que Sonar no la cuente como copia). Lleva `SET CONSTRAINTS ALL IMMEDIATE`, no toca las filas con `bloqueado_por`, cubre activas e inactivas y solo escribe las filas cuya sub cambia (idempotente). `V129HogarAgreementTest` corre la migración y el resolver sobre los mismos 738 nombres y exige 0 diferencias.
+
+Medido sobre las filas activas (`activo IS NOT FALSE`) de una copia de la base de dev: `Iluminación` pasa de 0 % a **82,3 %** con sub (1.727 de 2.099) y `Mueble` de 0 % a **86,0 %** (1.681 de 1.955). Sin sub quedan, en `Iluminación`, lámparas decorativas o infantiles, pantallas, aros de luz y fuentes; en `Mueble`, lo de la lista anterior.
+
+### Rollback
+
+```sql
+-- >>> rollback:V129
+UPDATE productos SET sub_categoria = ''
+ WHERE categoria IN ('Iluminación', 'Mueble')
+   AND sub_categoria IN ('Aplique', 'Colgante', 'Farol y Estaca', 'Guirnalda', 'Lamparita', 'Lámpara de Pie',
+                         'Luz de Emergencia', 'Panel y Listón', 'Plafón', 'Portalámpara', 'Reflector', 'Spot', 'Tira LED', 'Velador',
+                         'Alacena', 'Aparador', 'Bajo Mesada', 'Biblioteca', 'Chifonier', 'Cocina Modular', 'Cómoda y Cajonera',
+                         'Despensero', 'Mesa de Luz', 'Portahorno', 'Rack de TV', 'Vajillero', 'Zapatero');
+-- <<< rollback:V129
+```
+
+Antes de `V129` las dos categorías no tenían subcategoría, así que vaciar estos valores las deja como estaban. No hay FK de por medio. Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V128` (que a su vez corre antes que el de `V127`). Un `renormalizar` posterior vuelve a escribir las subs desde Java.

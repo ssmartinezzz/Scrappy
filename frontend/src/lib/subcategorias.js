@@ -49,6 +49,11 @@ const CHIPS = {
   'hogar/Pequeño Electrodoméstico': ['Accesorio y Repuesto', 'Afeitadora y Cortadora', 'Batidora y Mixer', 'Cafetera', 'Depiladora',
     'Freidora', 'Licuadora y Exprimidor', 'Pava Eléctrica', 'Plancha de Ropa', 'Planchita y Rizador', 'Procesadora', 'Secador de Pelo',
     'Tostadora y Sandwichera'],
+  // V129: Argentine retail words; the chip label is the stored value.
+  'construccion/Iluminación': ['Aplique', 'Colgante', 'Farol y Estaca', 'Guirnalda', 'Lamparita', 'Lámpara de Pie',
+    'Luz de Emergencia', 'Panel y Listón', 'Plafón', 'Portalámpara', 'Reflector', 'Spot', 'Tira LED', 'Velador'],
+  'hogar/Mueble': ['Alacena', 'Aparador', 'Bajo Mesada', 'Biblioteca', 'Chifonier', 'Cocina Modular', 'Cómoda y Cajonera', 'Despensero',
+    'Mesa de Luz', 'Portahorno', 'Rack de TV', 'Vajillero', 'Zapatero'],
 };
 
 export function subChipsDe(rubro, categoria) {
