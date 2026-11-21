@@ -50,7 +50,7 @@ Claude Code ──stdio──► catalog-mcp (Python, mcp v2) ──HTTP + Beare
 
 | Tipo | Tools |
 |---|---|
-| Catálogo | `buscar_productos` (filas compactas, que conservan `mejorPromo` y `medios`; `completo=true` para la fila entera), `ver_producto` (por `key`, con historial y `promos` vigentes), `promos` (`GET /api/promos`: filtros `sitio` y `medio`, paginado), `facetas`, `comparar_entre_sitios`, `mejores`, `oportunidades_cuotas`, `tendencias`, `estado`, `sitios` |
+| Catálogo | `buscar_productos` (filas compactas, que conservan `mejorPromo` y `medios`; `completo=true` para la fila entera), `ver_producto` (por `key`, con historial y `promos` vigentes), `financiacion_producto` (por `key`: cuotas del producto leídas en vivo de la página de la tienda, sólo Fullh4rd; lento, cacheado ~10 min), `promos` (`GET /api/promos`: filtros `sitio` y `medio`, paginado), `facetas`, `comparar_entre_sitios`, `mejores`, `oportunidades_cuotas`, `tendencias`, `estado`, `sitios` |
 | Armadores | `armar_pc`, `armar_outfit`, `armar_suplementos` |
 | Acciones | `lanzar_scrape`, `cancelar_scrape`, `retomar_scrape`, `reclasificar` |
 | Resto | `api_reference` (el `openapi.yaml`), `api_call` (cualquier GET/POST/PUT/PATCH sobre `/api/*`) |

@@ -23,7 +23,8 @@ COMPACT_FIELDS = ("key", "nombre", "precio", "precioOrig", "descuento", "sitio",
                   "mejorPromo", "medios")
 
 INSTRUCTIONS = """Scrappy: catalog of Argentine online stores (clothing, gym, supplements, PC hardware,
-home). Prices are ARS. Search with buscar_productos, then use a row's `key` with ver_producto.
+home). Prices are ARS. Search with buscar_productos, then use a row's `key` with ver_producto
+(financiacion_producto for live installment plans).
 Rows carry `mejorPromo` and `medios` (payment promos); promos lists them by site or medio.
 Mutations (scrape, ML, reclassification, config) are real and affect the shared catalog.
 Nothing can be deleted through this server.
@@ -77,6 +78,17 @@ def build_server(api: ApiClient, local: LocalOps | None = None) -> MCPServer:
         installments, discounts and surcharges per bank / wallet / card, most useful first), by the
         16-hex `key` from buscar_productos."""
         return call("GET", f"/api/producto/{key}")
+
+    @mcp.tool()
+    def financiacion_producto(key: str) -> dict:
+        """Installment plans of one product (`key` from buscar_productos), read LIVE from the store's own
+        page: slow (a Cloudflare solver renders it) and cached ~10 min, so `consultadoAt` says how fresh it
+        is. Only Fullh4rd for now; other stores answer 422 `sitio_sin_financiacion`. Amounts are ARS.
+        Returns precioContado (cash / debit / transfer price), precioLista (base of the installments),
+        stockWeb / stockLocal and `planes`: {cuotas, montoCuota, total, aproximado, medio, sinInteres}.
+        `aproximado` = the store marks the amount as an estimate; `sinInteres` = total does not exceed
+        precioContado. The page publishes no CFT/TEA: derive the cost from total vs precioContado."""
+        return call("GET", f"/api/producto/{key}/financiacion")
 
     @mcp.tool()
     def promos(sitio: str | None = None, medio: str | None = None, page: int = 0, size: int = 50) -> dict:
