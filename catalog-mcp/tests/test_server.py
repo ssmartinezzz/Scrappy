@@ -161,7 +161,8 @@ async def test_financiacion_producto_hits_the_live_financing_endpoint(server, ba
     await call(server, "financiacion_producto", {"key": "0123456789abcdef"})
 
     req = sent(backend)
-    assert req.method == "GET" and req.url.path == "/api/producto/0123456789abcdef/financiacion"
+    assert req.method == "GET"
+    assert req.url.path == "/api/producto/0123456789abcdef/financiacion"
 
 
 async def test_armar_pc_passes_preferences_through(server, backend):
