@@ -139,7 +139,7 @@ def _categoria_vocabulary_from_java_category_classifier():
     return {
         # Calzado (footwear) — más específico primero, igual que el propio
         # clasificador Java.
-        "Zapatilla Running", "Zapatilla Entrenamiento", "Zapatilla Skate",
+        "Zapatilla Running", "Zapatilla Entrenamiento", "Zapatilla Skate", "Zapatilla Trekking",
         "Zapatilla Urbana", "Sneaker", "Zapatilla",
         "Botines", "Borcego", "Pantufla", "Zapato", "Mocasin", "Sandalia",
         "Ojotas", "Botas",

@@ -33,7 +33,7 @@ public final class CategoryGroups {
      * literals, which are not otherwise centralized as a list.
      */
     private static final Set<String> CATEGORIAS_CALZADO = Set.of(
-        "Zapatilla Running","Zapatilla Entrenamiento","Zapatilla Skate",
+        "Zapatilla Running","Zapatilla Entrenamiento","Zapatilla Skate","Zapatilla Trekking",
         "Zapatilla Urbana","Zapatilla","Sneaker",
         "Botines","Borcego","Botas","Ojotas","Sandalia","Mocasin","Zapato","Pantufla"
     );

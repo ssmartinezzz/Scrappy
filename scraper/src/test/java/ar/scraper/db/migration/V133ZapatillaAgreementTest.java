@@ -49,6 +49,8 @@ class V133ZapatillaAgreementTest extends PostgresTestBase {
                 int movidas = 0;
                 for (Fila f : filas) {
                     String esperada = java.normalizarCategoria("Zapatilla", f.nombre());
+                    // V134 owns the trekking rows: before it they are still a plain Zapatilla.
+                    if ("Zapatilla Trekking".equals(esperada)) esperada = "Zapatilla";
                     String sql = categoria(st, f.url());
                     if (!"Zapatilla".equals(esperada)) movidas++;
                     if (!esperada.equals(sql)) distintos.add("%s%n    java=%s  sql=%s".formatted(f.nombre(), esperada, sql));

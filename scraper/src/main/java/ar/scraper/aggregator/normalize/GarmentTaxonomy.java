@@ -24,8 +24,11 @@ public final class GarmentTaxonomy {
         "clifton","bondi","speedgoat","hoka mach"," mach 4"," mach 5"," mach 6",
         "fresh foam"," 1080 "," 1080v","990","880","860",
         "wave rider","wave inspire","wave horizon",
-        "speedcross"," sense ","x-ultra"
+        "speedcross"," sense "
     };
+
+    // Kept apart from KW_RUNNING_MODELO so that a name with a shoe word can reach Zapatilla Trekking; without one it is still Running.
+    public static final String[] KW_RUNNING_X_ULTRA = {"x-ultra"};
 
     public static final String[] KW_RUNNING_GENERICO = {
         "running","correr","corrida","maraton","marathon","trail",
@@ -116,8 +119,26 @@ public final class GarmentTaxonomy {
     public static final String[] KW_ZAPATILLA_DEPORTE_VETO = {
         " tenis ", " tennis ", " padel ", " basquet ",
         " basket ", " voley ", " volley ", " hockey ",
-        " futsal ", " trekking ", " hiking ", " outdoor ",
-        " terrex ", " golf ", " ciclismo "
+        " futsal ", " golf ", " ciclismo "
+    };
+
+    // Zapatilla Trekking. The store's own type word wins over every model list (checked first, next to a shoe word). "hiking" is
+    // listed for completeness but CalzadoClassifier (KW_BORCEGO) already sends any "hiking" name to Borcego before this runs.
+    public static final String[] KW_TREKKING_EXPLICITO = {
+        " trekking ", " hiking ", " senderismo "
+    };
+
+    // Trekking by model or brand, only next to a shoe word and with no running signal: "trail" (inside KW_RUNNING_GENERICO, so
+    // "eastrail" counts too) and the running model lists keep Pegasus Trail, Speedcross or Terrex Eastrail in Zapatilla Running.
+    // Gore-Tex / GTX / waterproof are not signals.
+    public static final String[] KW_TREKKING_MODELO = {
+        " terrex ", " x ultra ", " x-ultra ", " anylander ",
+        " skychaser ", " columbia ", " merrell ", " outdoor "
+    };
+
+    // Montagne's City line is urban even when the name says "Outdoor" ("Montagne City Outdoor Welten"): it vetoes the model signal only.
+    public static final String[] KW_TREKKING_MODELO_VETO = {
+        " montagne city "
     };
 
     public static final String[] KW_SNEAKER_MODELO = {

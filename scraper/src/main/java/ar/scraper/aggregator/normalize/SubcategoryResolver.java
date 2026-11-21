@@ -289,7 +289,9 @@ public class SubcategoryResolver {
         new String[]{"tenis",      "tenis", "tennis"},
         new String[]{"running",    "running", "runner"},    // guard: skipped if categoria contains "running"
         new String[]{"vóley",      "voley", "volleyball"},
-        new String[]{"básquet",    "basket", "basketball"},
+        new String[]{"básquet",    "basket", "basketball", "basquet"},
+        new String[]{"handball",   "handball"},
+        new String[]{"golf",       "golf"},
         new String[]{"ciclismo",      "ciclismo", "cycling"},
         new String[]{"escalada",      "escalada", "climbing"},
         new String[]{"snowboarding",  "snowboard", "snowboarding"}
