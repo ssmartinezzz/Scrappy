@@ -128,8 +128,9 @@ def test_backend_heap_invalid_value_is_an_actionable_error_and_launches_nothing(
     mgr = ProcessManager(is_windows=False,
                          popen_factory=lambda cmd, *, cwd, **kw: launched.append(cmd))
 
+    cfg = _cfg(tmp_path)
     with pytest.raises(ProcessError) as err:
-        mgr.launch_backend(_cfg(tmp_path), database_password="", env={"SCRAPER_MAX_HEAP": value})
+        mgr.launch_backend(cfg, database_password="", env={"SCRAPER_MAX_HEAP": value})
 
     assert "SCRAPER_MAX_HEAP" in str(err.value)
     assert launched == []
