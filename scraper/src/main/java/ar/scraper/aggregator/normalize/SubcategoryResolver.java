@@ -166,10 +166,6 @@ public class SubcategoryResolver {
             new String[]{"smartwatch", "smartwatch", "smart", "inteligente"},
             new String[]{"deportivo",  "deportivo", "running", "gps"}
         ));
-        SUBCATEG_TIER1.put("Joystick", Arrays.<String[]>asList(
-            new String[]{"volante",   "volante", "racing", "driving"},
-            new String[]{"gamepad",   "gamepad", "joystick", "control"}
-        ));
         SUBCATEG_TIER1.put("Cámara", Arrays.<String[]>asList(
             new String[]{"exterior",  "exterior"},
             new String[]{"interior",  "interior"},
@@ -307,7 +303,7 @@ public class SubcategoryResolver {
             "Almacenamiento", "Red", "Cable", "Impresión", "Cooler", "Fuente", "Teclado", "Mouse", "Monitor",
             "Notebook", "Joystick", "Cámara", "Videojuego", "Mousepad", "Combo de Actualización", "Silla",
             "TV y Audio", "Micrófono", "Tablet", "Webcam", "Consola", "Mini PC", "UPS", "Soporte Monitor",
-            "Escritorio");
+            "Escritorio", "Accesorio Gaming");
     }
 
     /**
@@ -320,6 +316,7 @@ public class SubcategoryResolver {
         String n = " " + normalizarAcentos(nombre) + " ";
 
         if (hardware.handles(categoria)) return hardware.resolver(categoria, nombre);
+        if (GamingReglas.handles(categoria)) return GamingReglas.sub(categoria, nombre);
         for (LeadingNounRules reglas : POR_SUSTANTIVO) {
             if (reglas.handles(categoria)) return reglas.resolver(categoria, nombre);
         }

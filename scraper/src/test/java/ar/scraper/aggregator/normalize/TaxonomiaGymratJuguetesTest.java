@@ -96,7 +96,7 @@ class TaxonomiaGymratJuguetesTest {
 
     @Test
     void legoVideojuegoYLibroNoCambian() {
-        assertThat(subcategorias.resolver("LEGO Star Wars Skywalker Saga PS5", "Videojuego")).isEmpty();
+        assertThat(subcategorias.resolver("LEGO Star Wars Skywalker Saga PS5", "Videojuego")).isEqualTo("ps5");
         assertThat(subcategorias.resolver("LEGO Harry Potter Guia Visual", "Libro")).isEmpty();
     }
 }

@@ -731,6 +731,26 @@ acabado, no un sabor.** `"mate"` sin padear en `KW_COMIDA` matcheaba dentro de
 *Xigmatek* y *Ultimate* — en 5 de 7 nombres reales es un acabado (*matte*), no
 yerba mate. Se sacó de `KW_COMIDA`; `"yerba"` sigue cubriendo la yerba real.
 
+**Un título de juego con la plataforma entre paréntesis no tenía plataforma.** El texto que lee el
+clasificador conserva la puntuación, y `KW_PLATAFORMA` busca `" nintendo switch"` **con espacio antes**:
+`"Brain Training (Nintendo Switch)"`, `"Call of Duty: WWII -PS4"` y `"Joy-Con (L/R)"` no matcheaban y
+quedaban en `Otros` (20 juegos y 28 controles de la dev DB). `GamingReglas` lee **tokens** (cada tramo
+no alfanumérico es un espacio) y `V135` repite sus regex iguales; ver [`V135`](./DATABASE.md). Dos
+trampas del mismo arreglo: `nsw` **no** puede ser una palabra de plataforma (es Nike Sportswear:
+22 remeras y buzos pasaban a `Videojuego`) y `genesis` tampoco (es una marca de periféricos: un
+soporte para auriculares *Genesis* pasaba a `Accesorio Gaming`); un `switch` suelto exige que no
+haya palabras de red o de HDMI (`AJENO`).
+
+**Una fila guardada cuyo nombre ya no dice nada se queda en su categoría: sólo el SQL la mueve.**
+`renormalizar` devuelve la categoría guardada como raw cuando el nombre no clasifica, así que el veto
+de `pedalera de efectos` en `TechClassifier` arregla el scrape siguiente pero no las 2 filas de
+`Joystick` de hoy; las mueve `V135`. Una prueba de acuerdo SQL↔Java tiene que comparar contra
+`normalizarCategoria("", nombre)` ("qué daría un scrape nuevo") en esas filas.
+
+**Una migración que falla hace que TODOS los tests de `PostgresTestBase` se salteen, sin rojo.** El
+mensaje de la suposición dice "Docker daemon check failed (FlywayMigrateException ...)"; el resumen
+sólo muestra `Skipped: N`. Después de agregar una migración, mirar que `Skipped` no suba.
+
 ### Índices y señales
 
 **Los meses se inventaban de una CUENTA, no de una fecha.**
