@@ -158,7 +158,12 @@ class ScraperServiceCorridaTest {
     @DisplayName("an Error while collecting stops the pool, closes live browsers, and ends in ERROR without cancelling")
     void errorDuranteLaRecoleccion() throws Exception {
         sitios("A", "B", "C");
-        when(productos.upsertParcial(anyString(), anyList(), any())).thenThrow(new OutOfMemoryError("Java heap space"));
+        CountDownLatch enVuelo = new CountDownLatch(1);
+        // The Error waits for the next site to be running: otherwise it may stop the pool first.
+        when(productos.upsertParcial(anyString(), anyList(), any())).thenAnswer(i -> {
+            assertThat(enVuelo.await(5, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+            throw new OutOfMemoryError("Java heap space");
+        });
         Playwright vivo = mock(Playwright.class);
         CountDownLatch interrumpido = new CountDownLatch(1);
         AtomicInteger orden = new AtomicInteger();
@@ -170,6 +175,7 @@ class ScraperServiceCorridaTest {
             }
             try {
                 vivos(ref[0]).add(vivo);
+                enVuelo.countDown();
                 new CountDownLatch(1).await();
             } catch (InterruptedException e) {
                 interrumpido.countDown();

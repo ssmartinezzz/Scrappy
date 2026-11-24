@@ -639,6 +639,8 @@ public class ScraperService implements CatalogSnapshotPort {
         Playwright pw = Playwright.create();
         playwrightsVivos.add(pw);
         try {
+            // Creating a browser takes a while: a stop that landed meanwhile could not see this one.
+            if (cancelado.get() || parada.detenida()) throw new RunCancelled();
             BaseScraper scraper = ScraperFactory.crear(config, site, siteRegistry, bus::publish);
             return scraper.ejecutar(pw);
         } finally {
