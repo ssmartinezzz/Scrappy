@@ -14,7 +14,6 @@ import CatalogoFilterBar from './CatalogoFilterBar';
 import useStickyFilterBar from '../hooks/useStickyFilterBar';
 import ProductGrid   from './ProductGrid';
 import RouteFallback from './RouteFallback';
-import GpuTrainingOverlay from './GpuTrainingOverlay';
 import { CompareBar, CompareModal } from './CompareComponents';
 import { CONFIG_DEFAULT } from '../lib/scrapeDefaults';
 import { useAuth } from '../auth/AuthProvider';
@@ -25,6 +24,7 @@ import AvisosBajaPrecio from './AvisosBajaPrecio';
 // frontend-perf T3: DetailPanel pulls in @radix-ui/react-dialog, AgentChatPanel
 // pulls in framer-motion — neither belongs in the entry chunk, since both
 // mount conditionally (detail open / isAdmin) well after first paint.
+const GpuTrainingOverlay = lazy(() => import('./GpuTrainingOverlay'));
 const DetailPanel    = lazy(() => import('./DetailPanel'));
 const AgentChatPanel = lazy(() => import('./AgentChatPanel'));
 
@@ -290,6 +290,7 @@ function CatalogoRoute() {
           <button
             onClick={triggerGpuTraining}
             disabled={gpuRunning}
+            className="gpu-fab-btn"
             style={{
               padding:'12px 20px', borderRadius:999,
               border:'1px solid var(--p)',
@@ -298,7 +299,6 @@ function CatalogoRoute() {
               fontWeight:800, fontSize:'.82rem',
               cursor: gpuRunning ? 'not-allowed' : 'pointer',
               boxShadow:'0 4px 18px color-mix(in srgb, var(--p) 35%, transparent)',
-              animation: gpuRunning ? 'none' : 'gpu-btn-pulse 2.2s ease-in-out infinite',
               transition:'opacity .15s',
             }}
           >
@@ -513,6 +513,7 @@ export default function AppLayout() {
   const set      = payload => dispatch({ type:'SET', payload });
   const setFilter = payload => dispatch({ type:'SET_FILTER', payload });
   const loadingRef = useRef(false);
+  const loadSeqRef = useRef(0);
   const navigate = useNavigate();
   const location = useLocation();
   const topbarRef = useRef(null);
@@ -663,7 +664,6 @@ export default function AppLayout() {
       setStatusForBanner(st ?? null);
       if (st?.tieneData) {
         set({ scrapeStatus:st.status, scrapeMsg:st.mensaje });
-        loadFirstPage();
         loadFacets();
         loadFavoritos();
       }
@@ -753,29 +753,28 @@ export default function AppLayout() {
        S.precioMin, S.precioMax, S.orden, S.subCategoria,
        S.fit, S.estampado, S.deporte, S.escote, S.colorDominante]);
 
-  const loadFirstPage = useCallback(async () => {
-    if (loadingRef.current) return;
+  // The newest first-page read owns the grid: a filter change supersedes whatever
+  // is in flight, whose rows belong to the previous filter.
+  const loadPage = useCallback(async (page) => {
+    const seq = ++loadSeqRef.current;
     loadingRef.current = true;
-    const data = await fetchData(buildParams(0));
-    loadingRef.current = false;
-    if (data) {
+    try {
+      const data = await fetchData(buildParams(page));
+      if (seq !== loadSeqRef.current || !data) return;
       dispatch({ type:'APPEND_PRODS', payload:{
         prods: data.productos||[], total: data.meta?.total||0, meta: data.meta||{}
       }});
+    } finally {
+      if (seq === loadSeqRef.current) loadingRef.current = false;
     }
   }, [buildParams]);
 
+  const loadFirstPage = useCallback(() => loadPage(0), [loadPage]);
+
   const loadNextPage = useCallback(async () => {
     if (loadingRef.current || !S.hasMore) return;
-    loadingRef.current = true;
-    const data = await fetchData(buildParams(S.pag));
-    loadingRef.current = false;
-    if (data) {
-      dispatch({ type:'APPEND_PRODS', payload:{
-        prods: data.productos||[], total: data.meta?.total||0, meta: data.meta||{}
-      }});
-    }
-  }, [buildParams, S.pag, S.hasMore]);
+    await loadPage(S.pag);
+  }, [loadPage, S.pag, S.hasMore]);
 
   // Topbar re-scrape → navigate to /splash + reset scrape status
   const onReScrape = useCallback(() => {
@@ -846,7 +845,9 @@ export default function AppLayout() {
       )}
 
       {gpuTraining && (
-        <GpuTrainingOverlay training={gpuTraining} onClose={closeGpuOverlay}/>
+        <Suspense fallback={null}>
+          <GpuTrainingOverlay training={gpuTraining} onClose={closeGpuOverlay}/>
+        </Suspense>
       )}
 
       {/* Mounted at layout level (not inside a route) so the conversation

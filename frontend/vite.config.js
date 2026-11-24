@@ -60,7 +60,12 @@ export default defineConfig(({ command, mode }) => {
         // Chunk names determinísticos para cache del browser
         chunkFileNames:  'assets/[name]-[hash].js',
         entryFileNames:  'assets/[name]-[hash].js',
-        assetFileNames:  'assets/[name]-[hash].[ext]'
+        assetFileNames:  'assets/[name]-[hash].[ext]',
+        // One vendor file on the first load instead of nine small ones, which
+        // queue behind HTTP/1.1's six connections. Libraries of lazy routes stay lazy.
+        codeSplitting: {
+          groups: [{ name: 'vendor', test: /node_modules.*\.m?js$/, tags: ['$initial'] }],
+        },
       }
     }
   },

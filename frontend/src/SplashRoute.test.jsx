@@ -1,6 +1,6 @@
 import { act, render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { SplashRoute } from './App';
 import { EventStreamProvider } from './hooks/EventStreamProvider';
@@ -52,6 +52,9 @@ function renderSplash() {
     </MemoryRouter>,
   );
 }
+
+// SplashPanel is lazy: load its module before fake timers take over.
+beforeAll(() => import('./components/SplashPanel'));
 
 beforeEach(() => {
   vi.useFakeTimers();
