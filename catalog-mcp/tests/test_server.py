@@ -35,7 +35,7 @@ async def test_no_tool_can_delete(server):
         tools = (await c.list_tools()).tools
     names = {t.name for t in tools}
 
-    assert {"buscar_productos", "ver_producto", "armar_pc", "lanzar_scrape", "reclasificar", "api_call"} <= names
+    assert {"buscar_productos", "ver_producto", "financiacion_producto", "armar_pc", "lanzar_scrape", "reclasificar", "api_call"} <= names
     assert not [n for n in names if any(w in n for w in ("borrar", "eliminar", "delete", "descartar"))]
 
 
@@ -155,6 +155,14 @@ async def test_ver_producto_hits_the_detail_endpoint(server, backend):
     await call(server, "ver_producto", {"key": "0123456789abcdef"})
 
     assert sent(backend).url.path == "/api/producto/0123456789abcdef"
+
+
+async def test_financiacion_producto_hits_the_live_financing_endpoint(server, backend):
+    await call(server, "financiacion_producto", {"key": "0123456789abcdef"})
+
+    req = sent(backend)
+    assert req.method == "GET"
+    assert req.url.path == "/api/producto/0123456789abcdef/financiacion"
 
 
 async def test_armar_pc_passes_preferences_through(server, backend):
