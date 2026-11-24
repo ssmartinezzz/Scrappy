@@ -1,7 +1,6 @@
 import { BrandMark } from './components/brand/Brand';
 import { useEffect, useState, lazy, Suspense } from 'react';
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
-import SplashPanel from './components/SplashPanel';
 import AppLayout, {
   CatalogoPanelRoute,
   PicksPanelRoute,
@@ -29,15 +28,16 @@ import { AuthProvider, useAuth } from './auth/AuthProvider';
 import AuthGate from './auth/AuthGate';
 import RequireRole from './auth/RequireRole';
 import Login from './pages/Login';
-import ForgotPassword from './pages/ForgotPassword';
-import ResetPassword from './pages/ResetPassword';
 
 // The API console is a STANDALONE page, not a panel inside the app shell:
 // swagger-ui gets the whole viewport, so it is routed below as a sibling of
 // /splash and /login rather than as a child of AppLayout. AppLayout knows
 // nothing about it. Still lazy — swagger-ui-react is a heavy dependency no
 // other screen pulls in.
-const ApiDocsPanel = lazy(() => import('./components/ApiDocsPanel'));
+const SplashPanel    = lazy(() => import('./components/SplashPanel'));
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
+const ResetPassword  = lazy(() => import('./pages/ResetPassword'));
+const ApiDocsPanel   = lazy(() => import('./components/ApiDocsPanel'));
 
 // ─── RootGate ───────────────────────────────────────────────────────────────
 // Initial-load gate for "/" only: checking | toSplash | toCatalogo.
@@ -105,6 +105,7 @@ export function SplashRoute() {
   }
 
   return (
+    <Suspense fallback={<RouteFallback/>}>
     <SplashPanel
       config={config}
       scrapeStatus={scrapeStatus}
@@ -118,6 +119,7 @@ export function SplashRoute() {
       prods={prods}
       totalProds={totalProds}
     />
+    </Suspense>
   );
 }
 
@@ -133,8 +135,8 @@ export default function App() {
         <EventStreamProvider>
         <Routes>
           <Route path="/login" element={<Login/>}/>
-          <Route path="/forgot-password" element={<ForgotPassword/>}/>
-          <Route path="/reset-password" element={<ResetPassword/>}/>
+          <Route path="/forgot-password" element={<Suspense fallback={<RouteFallback/>}><ForgotPassword/></Suspense>}/>
+          <Route path="/reset-password" element={<Suspense fallback={<RouteFallback/>}><ResetPassword/></Suspense>}/>
           <Route path="/" element={<RootGate/>}/>
           <Route path="/splash" element={<SplashRoute/>}/>
           {/* Standalone public console — outside AppLayout on purpose (see the

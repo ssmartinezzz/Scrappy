@@ -14,7 +14,6 @@ import CatalogoFilterBar from './CatalogoFilterBar';
 import useStickyFilterBar from '../hooks/useStickyFilterBar';
 import ProductGrid   from './ProductGrid';
 import RouteFallback from './RouteFallback';
-import GpuTrainingOverlay from './GpuTrainingOverlay';
 import { CompareBar, CompareModal } from './CompareComponents';
 import { CONFIG_DEFAULT } from '../lib/scrapeDefaults';
 import { useAuth } from '../auth/AuthProvider';
@@ -25,6 +24,7 @@ import AvisosBajaPrecio from './AvisosBajaPrecio';
 // frontend-perf T3: DetailPanel pulls in @radix-ui/react-dialog, AgentChatPanel
 // pulls in framer-motion — neither belongs in the entry chunk, since both
 // mount conditionally (detail open / isAdmin) well after first paint.
+const GpuTrainingOverlay = lazy(() => import('./GpuTrainingOverlay'));
 const DetailPanel    = lazy(() => import('./DetailPanel'));
 const AgentChatPanel = lazy(() => import('./AgentChatPanel'));
 
@@ -845,7 +845,9 @@ export default function AppLayout() {
       )}
 
       {gpuTraining && (
-        <GpuTrainingOverlay training={gpuTraining} onClose={closeGpuOverlay}/>
+        <Suspense fallback={null}>
+          <GpuTrainingOverlay training={gpuTraining} onClose={closeGpuOverlay}/>
+        </Suspense>
       )}
 
       {/* Mounted at layout level (not inside a route) so the conversation
