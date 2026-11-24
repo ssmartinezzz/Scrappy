@@ -207,9 +207,8 @@ public class ResultAggregator {
 
         List<Product> normalizados = aplicarBloqueos(normalizer.normalizar(sorted), bloqueos);
 
-        String prodJson = mlEnricher.serializarProductos(normalizados);
         LOG.info("[AGG] Ejecutando pipeline ML (esto puede tomar hasta 2 minutos)...");
-        JsonNode mlOut  = pythonRunner.ejecutar(prodJson);
+        JsonNode mlOut  = pythonRunner.ejecutarEscribiendo(mlEnricher.productosParaMl(normalizados));
         LOG.info("[AGG] Pipeline ML completado.");
         lastMlOutput    = mlOut;
 

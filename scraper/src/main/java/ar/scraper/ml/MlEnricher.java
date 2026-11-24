@@ -1,12 +1,19 @@
 package ar.scraper.ml;
 
 import ar.scraper.model.Product;
+import com.fasterxml.jackson.core.JsonFactory;
+import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.nio.charset.CodingErrorAction;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import org.apache.commons.lang3.StringUtils;
@@ -15,7 +22,9 @@ import org.apache.commons.lang3.StringUtils;
 public class MlEnricher {
 
     private static final Logger LOG = LoggerFactory.getLogger(MlEnricher.class);
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    /** The generator must not close the file the caller still owns. */
+    private static final JsonFactory FACTORY =
+            new JsonFactory().disable(JsonGenerator.Feature.AUTO_CLOSE_TARGET);
 
     public List<Product> enriquecer(List<Product> productos, JsonNode mlOutput) {
         if (mlOutput == null || mlOutput.isNull() || mlOutput.isEmpty()) return productos;
@@ -110,27 +119,50 @@ public class MlEnricher {
         return valorPrevio != null ? valorPrevio : "";
     }
 
+    /** The rows the pipeline scores, produced onto its input file by {@link PythonRunner#ejecutarEscribiendo(ProductosParaMl)}. */
+    public ProductosParaMl productosParaMl(List<Product> productos) {
+        return out -> escribirProductos(productos, out);
+    }
+
+    /** The same bytes {@link #productosParaMl} writes, for callers that want them in memory. */
     public String serializarProductos(List<Product> productos) {
         try {
-            var arr = MAPPER.createArrayNode();
-            for (Product p : productos) {
-                var n = MAPPER.createObjectNode();
-                n.put("url",            p.url()            != null ? p.url()            : "");
-                n.put("nombre",         p.nombre());
-                n.put("precio",         p.precio());
-                n.put("precioOriginal", p.precioOriginal());
-                n.put("categoria",      p.categoria()      != null ? p.categoria()      : "");
-                n.put("genero",         p.genero()         != null ? p.genero()         : "");
-                n.put("subCategoria",   p.subCategoria()   != null ? p.subCategoria()   : "");
-                n.put("sitio",          p.sitio());
-                n.put("marca",          p.marca()          != null ? p.marca()          : "");
-                n.put("img",            p.imagenUrl()      != null ? p.imagenUrl()      : "");
-                arr.add(n);
-            }
-            return MAPPER.writeValueAsString(arr);
+            var bytes = new ByteArrayOutputStream();
+            escribirProductos(productos, bytes);
+            return bytes.toString(StandardCharsets.UTF_8);
         } catch (Exception e) {
             LOG.warn("[ML] Error serializando: {}", e.getMessage());
             return "[]";
+        }
+    }
+
+    /**
+     * Through a {@code Writer}, not the generator's own UTF-8 path: that one escapes surrogate pairs as
+     * six-character u-escapes where the document has always carried the character itself. The strict
+     * encoder keeps a lone surrogate an error, as it was when the string was written to the file.
+     */
+    private static void escribirProductos(List<Product> productos, OutputStream out) throws IOException {
+        var codificador = StandardCharsets.UTF_8.newEncoder()
+                .onMalformedInput(CodingErrorAction.REPORT)
+                .onUnmappableCharacter(CodingErrorAction.REPORT);
+        try (JsonGenerator g = FACTORY.createGenerator(new OutputStreamWriter(out, codificador))) {
+            g.writeStartArray();
+            for (Product p : productos) {
+                g.writeStartObject();
+                g.writeStringField("url",            StringUtils.defaultString(p.url()));
+                g.writeStringField("nombre",         p.nombre());
+                g.writeNumberField("precio",         p.precio());
+                g.writeFieldName("precioOriginal");
+                if (p.precioOriginal() == null) g.writeNull(); else g.writeNumber(p.precioOriginal());
+                g.writeStringField("categoria",      StringUtils.defaultString(p.categoria()));
+                g.writeStringField("genero",         StringUtils.defaultString(p.genero()));
+                g.writeStringField("subCategoria",   StringUtils.defaultString(p.subCategoria()));
+                g.writeStringField("sitio",          p.sitio());
+                g.writeStringField("marca",          StringUtils.defaultString(p.marca()));
+                g.writeStringField("img",            StringUtils.defaultString(p.imagenUrl()));
+                g.writeEndObject();
+            }
+            g.writeEndArray();
         }
     }
 }

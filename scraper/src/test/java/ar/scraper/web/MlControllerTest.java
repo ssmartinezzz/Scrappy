@@ -293,9 +293,8 @@ class MlControllerTest {
         when(service.getLastResult()).thenReturn(new AggregatedResult(List.of(crudo), Map.of(), Map.of(), facets, 0, 0));
         var enricher = mock(ar.scraper.ml.MlEnricher.class);
         when(aggregator.getMlEnricher()).thenReturn(enricher);
-        when(enricher.serializarProductos(any())).thenReturn("[]");
         var mlOut = new com.fasterxml.jackson.databind.ObjectMapper().readTree("{}");
-        when(pythonRunner.ejecutar(any())).thenReturn(mlOut);
+        when(pythonRunner.ejecutarEscribiendo(any())).thenReturn(mlOut);
         when(enricher.enriquecer(any(), any())).thenReturn(List.of(enriquecido));
 
         controller.mlAplicar();
@@ -317,7 +316,7 @@ class MlControllerTest {
         assertThat(resp.getStatusCode().value()).isEqualTo(409);
         assertThat(error.get("code").asText()).isEqualTo("scrape_en_curso");
         assertThat(error.get("message").asText()).contains("scraping");
-        verify(pythonRunner, never()).ejecutar(any());
+        verify(pythonRunner, never()).ejecutarEscribiendo(any());
     }
 
     @Test
@@ -332,7 +331,7 @@ class MlControllerTest {
         assertThat(resp.getStatusCode().value()).isEqualTo(409);
         assertThat(error.get("code").asText()).isEqualTo("ml_en_curso");
         assertThat(error.get("message").asText()).contains("ML");
-        verify(pythonRunner, never()).ejecutar(any());
+        verify(pythonRunner, never()).ejecutarEscribiendo(any());
     }
 
     // ── POST /api/ml/renormalizar ────────────────────────────────────────

@@ -75,8 +75,8 @@ class ResultAggregatorLockPatchTest {
         categoriaStats                    = mock(CategoriaStatsPort.class);
         productos            = mock(ProductPort.class);
 
-        when(mlEnricher.serializarProductos(anyList())).thenReturn("[]");
-        when(pythonRunner.ejecutar(anyString())).thenReturn(null);
+        when(mlEnricher.productosParaMl(anyList())).thenReturn(out -> { });
+        when(pythonRunner.ejecutarEscribiendo(any())).thenReturn(null);
         when(senalEnricher.enriquecer(anyList())).thenAnswer(inv -> inv.getArgument(0));
         when(financiacionEnricher.enriquecer(anyList())).thenAnswer(inv -> inv.getArgument(0));
 
@@ -176,11 +176,11 @@ class ResultAggregatorLockPatchTest {
 
         ResultAggregator.AggregatedResult result = aggregator.agregar(List.of(scrapeResult));
 
-        // Reached ML input: serializarProductos was called with the LOCKED
+        // Reached ML input: productosParaMl was built with the LOCKED
         // categoria, not the machine's "Zapatilla" — the peer group ML scores
         // against is truthful.
         ArgumentCaptor<List<Product>> serializados = ArgumentCaptor.forClass(List.class);
-        verify(mlEnricher).serializarProductos(serializados.capture());
+        verify(mlEnricher).productosParaMl(serializados.capture());
         assertThat(serializados.getValue()).hasSize(1);
         assertThat(serializados.getValue().get(0).categoria()).isEqualTo("Buzo");
 
