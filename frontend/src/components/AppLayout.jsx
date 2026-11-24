@@ -290,6 +290,7 @@ function CatalogoRoute() {
           <button
             onClick={triggerGpuTraining}
             disabled={gpuRunning}
+            className="gpu-fab-btn"
             style={{
               padding:'12px 20px', borderRadius:999,
               border:'1px solid var(--p)',
@@ -298,7 +299,6 @@ function CatalogoRoute() {
               fontWeight:800, fontSize:'.82rem',
               cursor: gpuRunning ? 'not-allowed' : 'pointer',
               boxShadow:'0 4px 18px color-mix(in srgb, var(--p) 35%, transparent)',
-              animation: gpuRunning ? 'none' : 'gpu-btn-pulse 2.2s ease-in-out infinite',
               transition:'opacity .15s',
             }}
           >

@@ -615,14 +615,20 @@ body { overflow-x: hidden; }
 
 /* ===== GPU FAB ===== */
 @keyframes gpu-btn-pulse {
-  0%,100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--p) 45%, transparent); }
-  50%      { box-shadow: 0 0 0 10px color-mix(in srgb, var(--p) 0%, transparent); }
+  from { opacity: .45; transform: scale(1); }
+  to   { opacity: 0; transform: scale(1.1, 1.4); }
 }
 .gpu-fab {
   position: fixed; right: 24px;
   bottom: calc(24px + var(--compare-bar-h, 0px));
   z-index: var(--z-fab);
 }
+/* A halo on its own layer: animating box-shadow repainted on every frame. */
+.gpu-fab-btn { position: relative; }
+.gpu-fab-btn:not(:disabled)::before { content: ''; position: absolute; inset: 0; z-index: -1;
+  border-radius: inherit; background: var(--p); pointer-events: none; will-change: transform, opacity;
+  animation: gpu-btn-pulse 2.2s ease-out infinite; }
+@media (prefers-reduced-motion: reduce) { .gpu-fab-btn::before { display: none; } }
 
 /* ===== FINAN PANEL ===== */
 .finan-panel { padding: 1rem; width: 100%; max-width: 560px; }
