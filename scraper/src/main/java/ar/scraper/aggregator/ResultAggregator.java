@@ -463,6 +463,40 @@ public class ResultAggregator {
     }
 
     /**
+     * The per-site refresh without reloading the catalogue: {@code previo} minus the refreshed URLs,
+     * merged by price with {@code frescos} (the active rows of exactly those URLs, as the database
+     * holds them now). A refreshed URL missing from {@code frescos} is gone from the snapshot. The
+     * kept products are the same instances, with the signals they already had, as
+     * {@link #fromDBParcial} reuses them; {@code previo} is not touched.
+     *
+     * <p>A previous product with no URL cannot come from the database, so it drops out, as it does
+     * in a full reload. Throws if the enrichers answer with a different number of products: the
+     * rows could not be told apart any more, and the caller keeps its previous snapshot.
+     */
+    public AggregatedResult fusionarRefrescados(AggregatedResult previo, Set<String> urlsRefrescadas,
+                                                List<Product> frescos) {
+        List<Product> enriquecidos = financiacionEnricher.enriquecer(senalEnricher.enriquecer(frescos));
+        if (enriquecidos == null || enriquecidos.size() != frescos.size()) {
+            throw new IllegalStateException("El enricher devolvió "
+                    + (enriquecidos == null ? 0 : enriquecidos.size()) + " productos para "
+                    + frescos.size() + " pedidos");
+        }
+        List<Product> nuevos = new ArrayList<>(enriquecidos);
+        nuevos.sort(Comparator.comparingDouble(Product::precio));
+
+        List<Product> anteriores = previo.productos();
+        List<Product> fusionado = new ArrayList<>(anteriores.size() + nuevos.size());
+        int j = 0;
+        for (Product p : anteriores) {
+            if (StringUtils.isBlank(p.url()) || urlsRefrescadas.contains(p.url())) continue;
+            while (j < nuevos.size() && nuevos.get(j).precio() < p.precio()) fusionado.add(nuevos.get(j++));
+            fusionado.add(p);
+        }
+        while (j < nuevos.size()) fusionado.add(nuevos.get(j++));
+        return snapshot(fusionado);
+    }
+
+    /**
      * Compartido por {@link #fromDB} y {@link #fromDBParcial} para que las dos no puedan divergir
      * en conteo, facets ni rango de precios. Asume la lista ordenada por precio ascendente, como la
      * devuelve {@code cargarProductos()}.

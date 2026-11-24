@@ -14,6 +14,13 @@ public interface ProductPort {
 
     List<Product> cargarProductos();
 
+    /**
+     * The active rows among {@code urls}, ordered by price ascending, as {@link #cargarProductos()}
+     * would return them. Throws on a failed read, never an empty list: the caller merges the result
+     * and would take an error for "every one of these is gone".
+     */
+    List<Product> cargarProductosPorUrl(java.util.Collection<String> urls);
+
     Map<String, Integer> origenDeCategoriaDelSitioPorUrl();
 
     Map<String, ClasificacionBloqueada> cargarClasificacionBloqueada();

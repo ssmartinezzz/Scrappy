@@ -33,6 +33,29 @@ en un `finally` (el estado ES el turno de `tomarElTurno`, así que se libera), y
 el `VirtualMachineError` para que siga visible. Un hilo nuevo que lance una corrida
 tiene que usar el mismo `catch`.
 
+⚠️ **Las corridas 39 y 40 murieron con `OutOfMemoryError` y el pool siguió arrancando sitios.**
+Tras cada sitio, `ejecutarScraping` releía los 165.585 productos con `cargarProductos()`
+para rearmar `lastResult`; pgjdbc sin `fetchSize` y en autocommit trae el `ResultSet`
+entero a memoria, y con `-Xmx768m` eso, más el snapshot anterior, no entra. El `Error`
+salía de la fase de recolección sin tocar el pool (`exec.shutdown()` deja correr lo
+encolado) ni los Playwright vivos. Hoy: (1) `cargarProductos` y
+`cargarProductosPorUrl` leen talles, badges y filas en **una** transacción read-only
+`REPEATABLE READ` con `fetchSize` 2000 (pgjdbc sólo streamea con autocommit apagado);
+(2) el refresco por sitio es `ResultAggregator.fusionarRefrescados`: carga sólo las URLs
+del sitio y las mezcla por precio con `lastResult`, que se lee **dentro** de
+`catalogLock` para no pisar un parche concurrente; si la lectura falla, tira y el
+snapshot queda como estaba. `catalogoEntero` conserva la recarga completa al final: es
+la fuente de verdad, y el merge asume que lo que no refrescó no cambió en la base.
+(3) Cualquier `Throwable` en la recolección apaga el pool, cierra los Playwright vivos y
+sube el flag interno `ParadaDeCorrida` —que frena reintentos y sitios nuevos— antes de
+relanzar para que `cerrarPorFallo` cierre la corrida; el flag **no** es `cancelado`,
+que `ScrapeStatusView` publica como cancelación del usuario. (4) El heap lo fija el CLI
+con `SCRAPER_MAX_HEAP` (default `2g`, validado `^\d+[mMgG]$`) y la JVM deja un `.hprof`
+en `scraper/logs/`: contiene lo que había en memoria, credenciales incluidas; está
+ignorado por git y no se comparte. Docker no fija heap (usa el default de la JVM sobre
+el límite del contenedor). Otras lecturas de catálogo entero —`origenDeCategoriaDelSitioPorUrl`—
+siguen sin cursor: devuelve un `Map` de 2 columnas, no objetos `Product`.
+
 ⚠️ **`agregar` sólo conoce los sitios que le pasaron, así que su lista de
 productos ES el subconjunto — y asignarla a `lastResult` borraba el catálogo.**
 Era correcto mientras toda corrida cubriera los 29 sitios y falso en cuanto
@@ -44,8 +67,7 @@ de tener — `0 desactivados` en las dos, o sea que el borrado era **sólo en
 memoria**. Y eso alcanza: `/api/grupos`, `/api/mejores`, outfits, suplementos,
 PCs, recomendados, marcas y el total de `/api/status` leen el snapshot, no SQL.
 Hoy `ScraperService.catalogoEntero` recarga los activos y los pasa por
-`fromDBParcial` —lo mismo que el refresco progresivo ya hacía por sitio— y
-conserva del batch sólo `erroresPorSitio` y `statsPorSitio`, que son hechos de
+`fromDBParcial` y conserva del batch sólo `erroresPorSitio` y `statsPorSitio`, que son hechos de
 esa corrida y no se derivan de la base.
 
 ⚠️ **El guard de "ya hay un scrape corriendo" era check-then-set, y abrió dos

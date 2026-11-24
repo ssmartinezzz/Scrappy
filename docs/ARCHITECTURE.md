@@ -758,7 +758,7 @@ Porque era un número sin dueño. El loop paraba en 25 páginas, un valor compar
 
 Porque durante un scrape el catálogo no es un estado, es una transición. El
 soft-delete desactiva lo ausente, el upsert re-toca lo presente y
-`fromDBParcial` rearma el snapshot en memoria una vez por sitio terminado: entre
+`fusionarRefrescados` rearma el snapshot en memoria una vez por sitio terminado: entre
 el sitio 1 y el 26 el catálogo pasa por veintiséis formas intermedias, y ninguna
 es una foto de nada. Servir eso hace que un producto desaparezca de la búsqueda
 y reaparezca dos minutos después sin que nadie haya tocado nada.
@@ -1704,8 +1704,9 @@ Helpers: `esPack()`, `esTech()`, `esGymrat()`, `esMarcaPremium()`.
 3. Por sitio: ScraperFactory.crear() → BaseScraper.ejecutar()
 4. ResultAggregator.agregar(): dedup → NormalizerService → PythonRunner
    (ml_pipeline.py + stage 1b visual) → MlEnricher → DatabaseService.upsertProductos()
-5. Actualización progresiva por sitio: upsertParcial + fromDBParcial — solo las
-   URLs del sitio recién terminado se re-enriquecen; el resto reusa el snapshot previo
+5. Actualización progresiva por sitio: upsertParcial + cargarProductosPorUrl +
+   fusionarRefrescados — solo las URLs del sitio recién terminado se leen y se
+   re-enriquecen; el resto reusa el snapshot previo (sin snapshot: carga completa)
 6. En background si corresponde: re-train de texto + backfill de embeddings
 7. El backend empuja el estado por /api/events → DONE → dashboard con filtros server-side
 ```

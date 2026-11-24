@@ -84,6 +84,8 @@ public class ScraperService implements CatalogSnapshotPort {
     private final java.util.concurrent.atomic.AtomicBoolean cancelado =
             new java.util.concurrent.atomic.AtomicBoolean(false);
 
+    private final ParadaDeCorrida parada = new ParadaDeCorrida();
+
     /**
      * Not a contingency: measured. Six chromium processes survived {@code exec.shutdownNow()} flat
      * for six minutes, still parented to the JVM — a leak, not orphans, in a process that never
@@ -432,6 +434,7 @@ public class ScraperService implements CatalogSnapshotPort {
         }
 
         cancelado.set(false);
+        parada.rearmar();
         playwrightsVivos.clear();
         if (adoptada != null) {
             adoptarCorrida(adoptada);
@@ -455,88 +458,70 @@ public class ScraperService implements CatalogSnapshotPort {
         int threads = Math.min(config.getThreadsParalelos(), totalSitios);
         ExecutorService exec = Executors.newFixedThreadPool(threads);
         ExecutorCompletionService<ScrapeResult> ecs = new ExecutorCompletionService<>(exec);
-
         IndiceDeSitios indice = new IndiceDeSitios(
                 todos.stream().map(ScraperConfig.SiteConfig::nombre).toList());
-        for (int i = 0; i < todos.size(); i++) {
-            final int idx = i;
-            final var site = todos.get(i);
-            ecs.submit(() -> {
-                try {
-                    return correrSitio(site, idx, progSitios, totalSitios, () -> {
-                        // Registrado ANTES de usarse y sacado en el finally: si cancelar llega en
-                        // el medio, tiene a quién cerrarle.
-                        Playwright pw = Playwright.create();
-                        playwrightsVivos.add(pw);
-                        try {
-                            BaseScraper scraper = ScraperFactory.crear(config, site, siteRegistry, bus::publish);
-                            return scraper.ejecutar(pw);
-                        } finally {
-                            playwrightsVivos.remove(pw);
-                            pw.close();
-                        }
-                    });
-                } catch (Exception e) {
-                    return new ScrapeResult(site.nombre(), List.of(), e.getMessage(), 0);
-                }
-            });
-        }
-        exec.shutdown();
-
-        long deadline = System.currentTimeMillis() + TIMEOUT_GLOBAL_MIN * 60_000L;
         AtomicInteger completados = new AtomicInteger(0);
         AtomicInteger productosAcumulados = new AtomicInteger(0);
         // Each site is written as it finishes, so the final upsert finds almost nothing left to
         // change: the run's real numbers are these.
         AtomicReference<UpsertStats> upsertPorSitio = new AtomicReference<>(UpsertStats.CERO);
+        List<ScrapeResult> resultados;
+        try {
+            for (int i = 0; i < todos.size(); i++) {
+                final int idx = i;
+                final var site = todos.get(i);
+                ecs.submit(() -> {
+                    try {
+                        return correrSitio(site, idx, progSitios, totalSitios, () -> scrapearConNavegador(site));
+                    } catch (Exception e) {
+                        return new ScrapeResult(site.nombre(), List.of(), e.getMessage(), 0);
+                    }
+                });
+            }
+            exec.shutdown();
 
-        List<ScrapeResult> resultados = SiteResultCollector.recolectar(
-                ecs, totalSitios, deadline, TIMEOUT_POR_SITIO_S, POLL_GRANULARIDAD_MS, GRACIA_SITIO_MS,
-                cancelado,
-                r -> {
-                    int n = r.productos().size();
-                    boolean tieneError = StringUtils.isNotBlank(r.error());
-                    SitioEstado estado = (tieneError && n == 0) ? SitioEstado.ERROR : SitioEstado.DONE;
+            long deadline = System.currentTimeMillis() + TIMEOUT_GLOBAL_MIN * 60_000L;
+            resultados = SiteResultCollector.recolectar(
+                    ecs, totalSitios, deadline, TIMEOUT_POR_SITIO_S, POLL_GRANULARIDAD_MS, GRACIA_SITIO_MS,
+                    cancelado,
+                    r -> {
+                        int n = r.productos().size();
+                        boolean tieneError = StringUtils.isNotBlank(r.error());
+                        SitioEstado estado = (tieneError && n == 0) ? SitioEstado.ERROR : SitioEstado.DONE;
 
-                    int idx = indice.de(r.sitio());
-                    if (idx >= 0) actualizarProgreso(progSitios, idx, estado, n, r.error(), r.duracionMs());
-                    registrarSitioTerminado(r.sitio(), estado == SitioEstado.ERROR ? "ERROR" : "DONE",
-                            n, r.error());
+                        int idx = indice.de(r.sitio());
+                        if (idx >= 0) actualizarProgreso(progSitios, idx, estado, n, r.error(), r.duracionMs());
+                        registrarSitioTerminado(r.sitio(), estado == SitioEstado.ERROR ? "ERROR" : "DONE",
+                                n, r.error());
 
-                    int comp = completados.incrementAndGet();
-                    int prods = productosAcumulados.addAndGet(n);
-                    progreso(new ProgressData(totalSitios, comp, prods, List.copyOf(progSitios)));
-                    anunciar(comp + "/" + totalSitios + " sitios — " + prods + " productos (en curso)");
-                    logSitioResult(r);
+                        int comp = completados.incrementAndGet();
+                        int prods = productosAcumulados.addAndGet(n);
+                        progreso(new ProgressData(totalSitios, comp, prods, List.copyOf(progSitios)));
+                        anunciar(comp + "/" + totalSitios + " sitios — " + prods + " productos (en curso)");
+                        logSitioResult(r);
 
-                    // ── Actualización progresiva ────────────────────────────── upsertParcial NO
-                    // hace soft-delete → todos los sitios acumulan
-                    if (!r.productos().isEmpty()) {
-                        try {
-                            var normalizados = aggregator.normalizarSolo(r.productos());
-                            upsertPorSitio.accumulateAndGet(productos.upsertParcial(r.sitio(), normalizados, r.arbolDeCategorias()),
-                                    UpsertStats::sumar);
-                            var todosActuales = productos.cargarProductos();
-                            if (!todosActuales.isEmpty()) {
-                                // Solo este sitio pudo cambiar algo, así que solo sus URLs
-                                // necesitan re-enriquecerse.
+                        // ── Actualización progresiva ────────────────────────────── upsertParcial NO
+                        // hace soft-delete → todos los sitios acumulan
+                        if (!r.productos().isEmpty()) {
+                            try {
+                                var normalizados = aggregator.normalizarSolo(r.productos());
+                                upsertPorSitio.accumulateAndGet(productos.upsertParcial(r.sitio(), normalizados, r.arbolDeCategorias()),
+                                        UpsertStats::sumar);
                                 Set<String> urlsDelSitio = normalizados.stream()
                                         .map(Product::url)
                                         .filter(u -> StringUtils.isNotBlank(u))
                                         .collect(Collectors.toSet());
-                                synchronized (catalogLock) {
-                                    lastResult = aggregator.fromDBParcial(todosActuales, lastResult, urlsDelSitio);
-                                }
-                                publicarCambio();
-                                LOG.debug("[PARCIAL] {} → {} productos totales",
-                                        r.sitio(), todosActuales.size());
+                                refrescarCatalogo(r.sitio(), urlsDelSitio);
+                            } catch (Exception ex) {
+                                LOG.warn("[PARCIAL] Error: {}", ex.getMessage());
                             }
-                        } catch (Exception ex) {
-                            LOG.warn("[PARCIAL] Error: {}", ex.getMessage());
                         }
-                    }
-                });
-        exec.shutdownNow();
+                    });
+            exec.shutdownNow();
+        } catch (Throwable t) {
+            parada.detener(t, exec, this::cerrarPlaywrightsHuerfanos);
+            throw t;
+        }
 
         // registrarSitioTerminado también acá: sin él, scrape_run_site queda RUNNING para siempre
         // en una corrida COMPLETED.
@@ -649,6 +634,50 @@ public class ScraperService implements CatalogSnapshotPort {
         transition(ScraperStatus.DONE, "Completado: " + lastResult.productos().size() + " productos");
     }
 
+    /** The browser lifecycle of one attempt; registered before use so a stop always finds it. */
+    ScrapeResult scrapearConNavegador(ScraperConfig.SiteConfig site) {
+        Playwright pw = Playwright.create();
+        playwrightsVivos.add(pw);
+        try {
+            BaseScraper scraper = ScraperFactory.crear(config, site, siteRegistry, bus::publish);
+            return scraper.ejecutar(pw);
+        } finally {
+            playwrightsVivos.remove(pw);
+            pw.close();
+        }
+    }
+
+    /**
+     * Brings the snapshot up to date with the rows one site just wrote. With a snapshot it reads and
+     * enriches only that site's rows; a failed read throws and leaves the snapshot as it was.
+     */
+    private void refrescarCatalogo(String sitio, Set<String> urlsDelSitio) {
+        if (lastResult != null && fusionarSitio(sitio, urlsDelSitio)) {
+            publicarCambio();
+            return;
+        }
+        var todosActuales = productos.cargarProductos();
+        if (todosActuales.isEmpty()) return;
+        synchronized (catalogLock) {
+            lastResult = aggregator.fromDBParcial(todosActuales, lastResult, urlsDelSitio);
+        }
+        publicarCambio();
+        LOG.debug("[PARCIAL] {} → {} productos totales", sitio, todosActuales.size());
+    }
+
+    /** False when the snapshot vanished during the read, so there is nothing to merge into. */
+    private boolean fusionarSitio(String sitio, Set<String> urlsDelSitio) {
+        List<Product> frescos = productos.cargarProductosPorUrl(urlsDelSitio);
+        synchronized (catalogLock) {
+            // Read here, not before the load: a patch landing meanwhile must not be overwritten.
+            AggregatedResult previo = lastResult;
+            if (previo == null) return false;
+            lastResult = aggregator.fusionarRefrescados(previo, urlsDelSitio, frescos);
+            LOG.debug("[PARCIAL] {} → {} productos totales", sitio, lastResult.productos().size());
+            return true;
+        }
+    }
+
     /** El catálogo entero, no sólo los sitios de esta corrida. */
     AggregatedResult catalogoEntero(AggregatedResult delBatch) {
         try {
@@ -706,7 +735,7 @@ public class ScraperService implements CatalogSnapshotPort {
                     List.copyOf(progSitios)));
         }
         RUN_LOG.info("[INICIO]  {} scrapeando...", String.format("%-15s", site.nombre()));
-        return withRetry(intento, 3, 2000, cancelado::get);
+        return withRetry(intento, 3, 2000, () -> cancelado.get() || parada.detenida());
     }
 
     private void actualizarProgreso(List<SitioProgress> lista, int idx,
@@ -817,6 +846,7 @@ public class ScraperService implements CatalogSnapshotPort {
      */
     private void cerrarPorFallo(Throwable t, String prefijo) {
         String detalle = t.getMessage() != null ? t.getMessage() : t.getClass().getSimpleName();
+        parada.detener(t, null, this::cerrarPlaywrightsHuerfanos);
         try {
             RUN_LOG.error("[ERROR FATAL] {}", detalle, t);
             cerrarRun("ERROR", 0);
