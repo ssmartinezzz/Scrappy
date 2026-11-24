@@ -23,12 +23,14 @@ public class ShopifyPage extends StorePage implements CatalogPage {
         for (int p = 1; p <= 20; p++) {
             log.debug("[{}] Shopify API p{}", sitio, p);
             try {
-                navigateConReintentos(dom + "/products.json?limit=250&page=" + p);
+                navegarExigiendoOk(dom + "/products.json?limit=250&page=" + p, p);
                 String body = (String) page.evaluate("document.body.innerText");
-                if (body == null || !body.contains("\"products\"")) break;
+                if (body == null) throw new IllegalStateException("respuesta vacía, no es un catálogo");
 
+                // An empty array is a real empty store; a 2xx body without the key is not a catalog.
                 JsonNode products = MAPPER.readTree(body).path("products");
-                if (!products.isArray() || products.isEmpty()) break;
+                if (!products.isArray()) throw new IllegalStateException("la respuesta no es un catálogo de productos");
+                if (products.isEmpty()) break;
 
                 for (JsonNode prod : products) fromJson(prod, dom).ifPresent(result::add);
                 log.debug("[{}] p{}: {} acumulados", sitio, p, result.size());

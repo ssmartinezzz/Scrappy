@@ -59,7 +59,7 @@ public class OsCommercePage extends StorePage implements CatalogPage {
         List<Product> result = new ArrayList<>();
         crawlPaginas(MAX_PAGES, "leaf=" + leafUrl, p -> leafUrl + (p > 1 ? "?page=" + p : ""),
                 html -> parseListing(html, sitio, baseUrl, categoriaHint, precioMin, precioMax),
-                new HashSet<>(), result);
+                new HashSet<>(), result, true);
         return result;
     }
 
@@ -78,14 +78,21 @@ public class OsCommercePage extends StorePage implements CatalogPage {
 
     private List<String> discoverTopCategorySlugs() {
         try {
-            navigateTo(baseUrl + "/");
+            exigirOkEnInicio(navigateTo(baseUrl + "/"));
             List<String> discovered = extractTopCategorySlugs(page.content());
             if (!discovered.isEmpty()) return discovered;
         } catch (Exception e) {
             log.debug("[{}] discover top slugs error: {}", sitio, e.getMessage());
+            if (e instanceof RespuestaHttpException) registrarTruncamiento("inicio", e);
         }
         log.warn("[{}] nav discovery returned 0 top-level slugs", sitio);
         return List.of();
+    }
+
+    private static void exigirOkEnInicio(com.microsoft.playwright.Response respuesta) {
+        if (respuesta != null && (respuesta.status() < 200 || respuesta.status() >= 300)) {
+            throw new RespuestaHttpException(respuesta.status());
+        }
     }
 
     private List<String> discoverLeafCategorySlugs(String topSlug) {

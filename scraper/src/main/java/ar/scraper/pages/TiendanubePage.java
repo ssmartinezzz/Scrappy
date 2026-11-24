@@ -324,7 +324,7 @@ public class TiendanubePage extends StorePage implements CatalogPage {
         while (url != null && pagina <= maxPaginas) {
             log.debug("[{}] JS p{} -> {}", sitio, pagina, url);
             try {
-                navigateConReintentos(url);
+                navegarExigiendoOk(url, pagina);
                 esperarListado();
 
                 String json = (String) page.evaluate(buildExtractorJs());

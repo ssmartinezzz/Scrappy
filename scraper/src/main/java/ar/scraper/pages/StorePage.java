@@ -100,10 +100,18 @@ abstract class StorePage extends BasePage {
     protected boolean crawlPaginas(int maxPaginas, String etiqueta, IntFunction<String> urlDePagina,
                                    Function<String, List<Product>> parse, Set<String> vistas,
                                    List<Product> result) {
+        return crawlPaginas(maxPaginas, etiqueta, urlDePagina, parse, vistas, result, false);
+    }
+
+    /** With {@code exigirOk}, a non-2xx page is recorded as a cut instead of reading as an empty page. */
+    protected boolean crawlPaginas(int maxPaginas, String etiqueta, IntFunction<String> urlDePagina,
+                                   Function<String, List<Product>> parse, Set<String> vistas,
+                                   List<Product> result, boolean exigirOk) {
         boolean agrego = false;
         for (int p = 1; p <= maxPaginas; p++) {
             try {
-                navigateConReintentos(urlDePagina.apply(p));
+                if (exigirOk) navegarExigiendoOk(urlDePagina.apply(p), p);
+                else navigateConReintentos(urlDePagina.apply(p));
                 List<Product> nuevos = parse.apply(page.content()).stream()
                         .filter(prod -> vistas.add(prod.url()))
                         .toList();
