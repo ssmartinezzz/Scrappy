@@ -156,4 +156,60 @@ class FlareSolverrClientTest {
                 .resolver("https://fullh4rd.com.ar/", 5_000);
         assertThat(ticket).isEmpty();
     }
+
+    @Test
+    @DisplayName("pagina devuelve el HTML renderizado, el status y el ticket")
+    void paginaReturnsRenderedHtml() {
+        bodyToReturn.set("""
+                {"status":"ok","message":"","solution":{"url":"https://fullh4rd.com.ar/prod/1","status":200,
+                "headers":{},"response":"<html><body>Precio especial</body></html>",
+                "cookies":[{"name":"cf_clearance","value":"abc123"}],"userAgent":"Mozilla/5.0 Chrome/152.0.0.0"}}
+                """);
+
+        Optional<FlareSolverrClient.Pagina> pagina = new FlareSolverrClient(baseUrl)
+                .pagina("https://fullh4rd.com.ar/prod/1", 5_000);
+
+        assertThat(pagina).isPresent();
+        assertThat(pagina.get().html()).isEqualTo("<html><body>Precio especial</body></html>");
+        assertThat(pagina.get().status()).isEqualTo(200);
+        assertThat(pagina.get().ticket().clearance("cf_clearance")).contains("abc123");
+    }
+
+    @Test
+    @DisplayName("pagina tambien acepta 'Challenge not detected' y devuelve el HTML")
+    void paginaAcceptsChallengeNotDetected() {
+        bodyToReturn.set("""
+                {"status":"ok","message":"Challenge not detected!","solution":{"url":"https://fullh4rd.com.ar/",
+                "status":200,"headers":{},"response":"<html>ok</html>","cookies":[],"userAgent":"Chrome/152"}}
+                """);
+
+        Optional<FlareSolverrClient.Pagina> pagina = new FlareSolverrClient(baseUrl)
+                .pagina("https://fullh4rd.com.ar/", 5_000);
+
+        assertThat(pagina).isPresent();
+        assertThat(pagina.get().html()).isEqualTo("<html>ok</html>");
+        assertThat(pagina.get().ticket().cookies()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("pagina con solution status distinto de 200 devuelve vacio")
+    void paginaNon200ReturnsEmpty() {
+        returnSolution(403, """
+                {"name":"cf_clearance","value":"abc123"}""");
+        assertThat(new FlareSolverrClient(baseUrl).pagina("https://fullh4rd.com.ar/", 5_000)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("Una URL con comillas produce un JSON valido en el cuerpo del request")
+    void urlWithQuoteIsEscapedInRequestBody() throws IOException {
+        returnSolution(200, """
+                {"name":"cf_clearance","value":"abc123"}""");
+        String url = "https://fullh4rd.com.ar/prod/1?q=\"x\"\\y";
+
+        new FlareSolverrClient(baseUrl).pagina(url, 5_000);
+
+        var sent = new com.fasterxml.jackson.databind.ObjectMapper().readTree(lastBody.get());
+        assertThat(sent.path("url").asText()).isEqualTo(url);
+        assertThat(sent.path("cmd").asText()).isEqualTo("request.get");
+    }
 }

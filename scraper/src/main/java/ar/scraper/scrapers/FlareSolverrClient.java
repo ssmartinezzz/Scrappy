@@ -27,6 +27,9 @@ public final class FlareSolverrClient {
 
     public record CfCookie(String name, String value) { }
 
+    /** The rendered page FlareSolverr solved, with the ticket that fetched it. */
+    public record Pagina(String html, int status, Ticket ticket) { }
+
     public record Ticket(List<CfCookie> cookies, String userAgent) {
         public Optional<String> clearance(String nombre) {
             return cookies.stream()
@@ -53,10 +56,17 @@ public final class FlareSolverrClient {
     }
 
     public Optional<Ticket> resolver(String url, int maxTimeoutMs) {
+        return pagina(url, maxTimeoutMs).map(Pagina::ticket);
+    }
+
+    /** Same failure semantics as {@link #resolver}; keeps the rendered HTML instead of dropping it. */
+    public Optional<Pagina> pagina(String url, int maxTimeoutMs) {
         try {
-            String body = """
-                    {"cmd":"request.get","url":"%s","maxTimeout":%d}
-                    """.formatted(url, maxTimeoutMs);
+            String body = json.createObjectNode()
+                    .put("cmd", "request.get")
+                    .put("url", url)
+                    .put("maxTimeout", maxTimeoutMs)
+                    .toString();
             HttpRequest req = HttpRequest.newBuilder()
                     .uri(URI.create(baseUrl + "/v1"))
                     .timeout(Duration.ofMillis(Math.max(maxTimeoutMs + 15_000, 30_000)))
@@ -75,7 +85,7 @@ public final class FlareSolverrClient {
         }
     }
 
-    private Optional<Ticket> parse(String body) {
+    private Optional<Pagina> parse(String body) {
         try {
             JsonNode root = json.readTree(body);
             if (!"ok".equals(root.path("status").asText())) {
@@ -99,16 +109,20 @@ public final class FlareSolverrClient {
             // Cloudflare no siempre desafía: sin challenge no hay clearance que emitir, y eso no es un bloqueo.
             if (root.path("message").asText().startsWith(SIN_CHALLENGE)) {
                 log.info("FlareSolverr no detectó challenge; se sigue sin cf_clearance");
-                return Optional.of(new Ticket(cookies, userAgent));
+                return Optional.of(armarPagina(solution, new Ticket(cookies, userAgent)));
             }
             if (cookies.stream().noneMatch(c -> c.name().equals("cf_clearance"))) {
                 log.warn("FlareSolverr respondió sin cf_clearance; no hay ticket que reutilizar");
                 return Optional.empty();
             }
-            return Optional.of(new Ticket(cookies, userAgent));
+            return Optional.of(armarPagina(solution, new Ticket(cookies, userAgent)));
         } catch (Exception e) {
             log.warn("FlareSolverr devolvió un payload inesperado: {}", e.getMessage());
             return Optional.empty();
         }
+    }
+
+    private static Pagina armarPagina(JsonNode solution, Ticket ticket) {
+        return new Pagina(solution.path("response").asText(""), solution.path("status").asInt(), ticket);
     }
 }
