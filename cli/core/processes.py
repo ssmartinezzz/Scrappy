@@ -17,6 +17,7 @@ from __future__ import annotations
 import logging
 import os
 import platform
+import re
 import signal
 import subprocess
 from dataclasses import dataclass, field
@@ -58,6 +59,28 @@ def _java_exe(cfg: Config) -> str:
     exe = "java.exe" if platform.system() == "Windows" else "java"
     vendored = cfg.tools.jdk21 / "bin" / exe
     return str(vendored) if vendored.is_file() else "java"
+
+
+DEFAULT_MAX_HEAP = "2g"
+_HEAP_RE = re.compile(r"\d+[mMgG]")
+
+
+def _max_heap(child_env: dict) -> str:
+    """`SCRAPER_MAX_HEAP` from the backend's environment, or the default.
+
+    Validated before it reaches `-Xmx`: a typo there makes the JVM exit at
+    boot with a message that lands in a log nobody is looking at.
+    """
+    value = (child_env.get("SCRAPER_MAX_HEAP") or "").strip()
+    if not value:
+        return DEFAULT_MAX_HEAP
+    if not _HEAP_RE.fullmatch(value):
+        raise ProcessError(
+            f"SCRAPER_MAX_HEAP={value!r} no es un tamaño de heap válido.",
+            action="Usá un entero con sufijo m o g (por ejemplo 2g o 3072m) en .env, "
+            "o borrá la variable para usar el default.",
+        )
+    return value
 
 
 def _npm_cmd(cfg: Config) -> str:
@@ -119,9 +142,15 @@ class ProcessManager:
             )
         log_path = service_log_path(cfg, "backend")
 
+        child_env = {**os.environ, **(env or {})}
+
+        # A heap dump holds whatever the heap held, credentials included: it goes to
+        # scraper/logs, which .gitignore covers, and is never meant to be shared.
         cmd = [
             _java_exe(cfg),
-            "-Xmx768m",
+            f"-Xmx{_max_heap(child_env)}",
+            "-XX:+HeapDumpOnOutOfMemoryError",
+            f"-XX:HeapDumpPath={log_dir(cfg)}",
             "-Dfile.encoding=UTF-8",
             f"-DDATABASE_PASSWORD={database_password}",
         ]
@@ -130,8 +159,6 @@ class ProcessManager:
         if python_dir:
             cmd.append(f"-DPYTHON_DIR={python_dir}")
         cmd += ["-jar", "scraper.jar"]
-
-        child_env = {**os.environ, **(env or {})}
 
         log_file = self._open_service_log(cfg, "backend")
         try:

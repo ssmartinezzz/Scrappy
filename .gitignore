@@ -2,6 +2,8 @@
 *.log
 scraper/*.log
 logs/
+# Heap dumps hold secrets: never commit them, wherever the JVM wrote one.
+*.hprof
 
 # Databases
 scraper.db
