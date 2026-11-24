@@ -89,8 +89,8 @@ class LibroCategoryClassifierTest {
         Vaso Cafe 790ml Grooved PP Pokemon => Bazar
         Vaso Cafe Doble 520ml. -Pared Grande- "Pokemon" => Bazar
         Vaso Plástico - Central Perk => Bazar
-        Belkin - Nintendo Switch 2 Case w/Integrated 10,000mAh Power Bank Charger, Portable Hard Shell Protective Carrying Case - SAGE => Otros
-        Belkin - Gaming Travel Bag - NINTENDO SWITCH 2 Black => Otros
+        Belkin - Nintendo Switch 2 Case w/Integrated 10,000mAh Power Bank Charger, Portable Hard Shell Protective Carrying Case - SAGE => Accesorio Gaming
+        Belkin - Gaming Travel Bag - NINTENDO SWITCH 2 Black => Accesorio Gaming
         Joystick Inalámbrico Gamesir G7 Pro Zenless Zone Zero Xbox Pc Android + Dock Y Funda => Joystick
         """)
     @DisplayName("a cup is Bazar and a console case is not a garment")

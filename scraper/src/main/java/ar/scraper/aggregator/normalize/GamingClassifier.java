@@ -2,22 +2,31 @@ package ar.scraper.aggregator.normalize;
 
 /**
  * A game title has no leading noun, so a game is "a platform was named and nothing hardware is the
- * object". Controllers and consoles are decided first so they never fall through to Videojuego.
+ * object". Controllers and consoles are decided first so they never fall through to Videojuego. What is sold
+ * for a console or a controller (case, dock, cable, gift card...) is its own category, decided before any of them.
+ * The token rules of {@link GamingReglas} run first (accessory, console) and last (controller, game): they read
+ * "(Nintendo Switch)" and "-PS4", which the keyword rules in between cannot see.
  */
 final class GamingClassifier implements FamiliaClassifier {
 
     @Override
     public String clasificar(TextoClasificable texto) {
-        if (esConsolaPorModelo(texto)) return "Consola";
-        if (esEstuche(texto)) return "Otros";
-        if (esControl(texto)) return "Joystick";
-        if (esConsolaPorNombre(texto)) return "Consola";
-        if (esVideojuego(texto)) return "Videojuego";
-        return "";
+        String tokens = GamingReglas.tokens(texto.normalizado());
+        String categoria = candidata(texto, tokens);
+        return categoria.isEmpty() || GamingReglas.esFueraDeGaming(tokens) ? "" : categoria;
     }
 
-    private boolean esEstuche(TextoClasificable texto) {
-        return texto.contiene(GarmentTaxonomy.KW_ESTUCHE_GAMING) && texto.contiene(GarmentTaxonomy.KW_PLATAFORMA);
+    private String candidata(TextoClasificable texto, String tokens) {
+        boolean plataforma = GamingReglas.puedeNombrarPlataforma(tokens);
+        if (plataforma && GamingReglas.esAccesorio(texto.normalizado(), tokens)) return "Accesorio Gaming";
+        if (GamingReglas.esConsola(tokens)) return "Consola";
+        if (esConsolaPorModelo(texto)) return "Consola";
+        if (esControl(texto)) return "Joystick";
+        if (esConsolaPorNombre(texto)) return "Consola";
+        if (plataforma && (GamingReglas.esControl(tokens) || GamingReglas.esVolante(tokens))) return "Joystick";
+        if (esVideojuego(texto)) return "Videojuego";
+        if (plataforma && GamingReglas.esVideojuego(tokens)) return "Videojuego";
+        return "";
     }
 
     private boolean esControl(TextoClasificable texto) {

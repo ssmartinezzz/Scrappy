@@ -155,13 +155,18 @@ class SubcategoryResolverTecnologiaTest {
     @CsvSource({
         "'Procesador Pentium Gold Cycling Edition',        CPU",
         "'Placa de Video Tenis Edition',                    GPU",
-        "'Mario Tennis Aces Nintendo Switch',              Videojuego",
         "'Mouse Pad Running Hockey Padel',                 Mousepad",
         "'Consola Futbol Edition 500 Juegos',              Consola",
     })
     @DisplayName("Una categoría de tecnología nunca recibe un deporte")
     void tecnologiaNuncaRecibeUnDeporte(String nombre, String categoria) {
         assertThat(resolver.resolver(nombre, categoria)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("Un videojuego recibe su plataforma, no el deporte que nombra")
+    void videojuegoRecibeLaPlataformaYNoElDeporte() {
+        assertThat(resolver.resolver("Mario Tennis Aces Nintendo Switch", "Videojuego")).isEqualTo("switch");
     }
 
     @Test

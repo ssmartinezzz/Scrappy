@@ -63,7 +63,9 @@ class V103AgreementTest extends PostgresTestBase {
                     String javaCat = clasificador.normalizarCategoria(f.raw(), f.nombre(), null);
                     String javaSub = resolver.resolver(f.nombre(), javaCat);
                     String[] sql = almacenado(st, f.url());
-                    boolean compararSub = CON_SUB_EN_SQL.contains(javaCat) || !javaCat.equals(f.raw());
+                    // V135 owns Accesorio Gaming and the Consola subs (V103 predates both).
+                    if ("Accesorio Gaming".equals(javaCat)) continue;
+                    boolean compararSub = (CON_SUB_EN_SQL.contains(javaCat) || !javaCat.equals(f.raw())) && !"Consola".equals(javaCat);
                     boolean otrosPorFaltaDeSenal = "Otros".equals(sql[0]) && OTROS_SI_EL_NOMBRE_NO_DICE.contains(f.raw())
                             && "Otros".equals(clasificador.normalizarCategoria("", f.nombre(), null));
                     if (otrosPorFaltaDeSenal) continue;

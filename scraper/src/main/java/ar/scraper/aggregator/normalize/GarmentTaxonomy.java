@@ -2173,6 +2173,9 @@ public final class GarmentTaxonomy {
         "palanca de cambios","control xbox","control ps4","control ps5"
     };
 
+    /** A guitar effects pedalboard carries "pedalera" and is no controller. */
+    public static final String[] KW_JOYSTICK_VETO = { " de efectos"," multi efectos"," multiefectos"," footswitch" };
+
     /** Sólo cuenta con contexto de gaming/racing. */
     public static final String[] KW_VOLANTE_GENERICO = { " volante ", " volantes " };
 
@@ -2466,10 +2469,6 @@ public final class GarmentTaxonomy {
         " mercusys"," d-link"," red "
     };
     public static final String[] KW_VIDEOJUEGO_LIDER = { " videojuego "," videojuegos " };
-    /** A case or bag for a console: not a game, and must not reach the garment families ("hard shell" -> Campera). */
-    public static final String[] KW_ESTUCHE_GAMING = {
-        " case "," case)"," cases "," carrying"," travel bag"," travel case"," hard shell"
-    };
 
     // Libros. Manga titles have no leading noun; the signal is a publisher, a format word or a known series + volume.
     public static final String[] KW_LIBRO_LIDER = {
