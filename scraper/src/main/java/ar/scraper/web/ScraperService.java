@@ -6,6 +6,7 @@ import ar.scraper.catalog.CatalogoActualizado;
 import ar.scraper.catalog.ProductPort;
 import ar.scraper.catalog.UpsertStats;
 import ar.scraper.ml.MlOutputPort;
+import ar.scraper.classification.SiteClassification;
 import ar.scraper.classification.SiteRegistry;
 import ar.scraper.classification.SitiosPort;
 import ar.scraper.scrape.ScrapeRunPort;
@@ -553,12 +554,6 @@ public class ScraperService implements CatalogSnapshotPort {
         }
 
         anunciar("Procesando y agregando resultados...");
-        // Baseline for the yield guard, captured before aggregation overwrites it.
-        Map<String, Integer> conteoPrevio = lastResult != null
-                ? lastResult.conteoPorSitio() : Map.of();
-        Set<String> sitiosDeEstaCorrida = resultados.stream()
-                .map(ScrapeResult::sitio).collect(Collectors.toSet());
-
         // El soft-delete se acota al started_at de la corrida, no a este batch: un resume trae sólo
         // la mitad reanudada. Sin corrida persistida el alcance vuelve a derivarse del batch, como
         // antes.
@@ -584,8 +579,7 @@ public class ScraperService implements CatalogSnapshotPort {
         // ── Guardia de rendimiento por sitio ───────────────────────────────── A broken scraper
         // returns an empty or truncated list without throwing, so the run reports success either
         // way.
-        List<SiteYieldGuard.Alerta> alertas = SiteYieldGuard.evaluar(
-                conteoPrevio, lastResult.conteoPorSitio(), sitiosDeEstaCorrida);
+        List<SiteYieldGuard.Alerta> alertas = alertasDeRendimiento(resultados, corrida);
         if (!alertas.isEmpty()) {
             synchronized (catalogLock) {
                 lastResult = new AggregatedResult(
@@ -632,6 +626,31 @@ public class ScraperService implements CatalogSnapshotPort {
         RUN_LOG.info("════════════════════════════════════════════════════════");
 
         transition(ScraperStatus.DONE, "Completado: " + lastResult.productos().size() + " productos");
+    }
+
+    /**
+     * The catalog cannot say what a site returned: the sweep never retires the rows of a site that
+     * came back empty, so its count stays put. The comparison is this run's yield against the last
+     * positive one on record, and only for sites in {@code resultados} — a resumed run holds just
+     * its own half. A failed history read skips the guard rather than the run.
+     */
+    List<SiteYieldGuard.Alerta> alertasDeRendimiento(List<ScrapeResult> resultados, RunState corrida) {
+        Map<String, Integer> baselinePorClave;
+        try {
+            baselinePorClave = scrapeRun.ultimoRendimientoPositivo(corrida != null ? corrida.runId() : -1L);
+        } catch (Exception e) {
+            LOG.warn("[SALUD] no se pudo leer el historial de rendimiento, se omite la guardia: {}",
+                    e.getMessage());
+            return List.of();
+        }
+        Map<String, Integer> previo = new HashMap<>();
+        Map<String, Integer> actual = new HashMap<>();
+        for (ScrapeResult r : resultados) {
+            previo.put(r.sitio(), baselinePorClave.getOrDefault(
+                    SiteClassification.sitioKey(r.sitio()), 0));
+            actual.put(r.sitio(), r.productos().size());
+        }
+        return SiteYieldGuard.evaluar(previo, actual, actual.keySet());
     }
 
     /** The browser lifecycle of one attempt; registered before use so a stop always finds it. */
