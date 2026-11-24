@@ -38,6 +38,12 @@ const CHIPS = {
   'tecnologia/Notebook': [c('gamer', 'Gamer')],
   'tecnologia/Monitor': [c('4k', '4K'), c('curvo', 'Curvo'), c('gaming', 'Gaming')],
   'tecnologia/Joystick': [c('gamepad', 'Gamepad'), c('volante', 'Volante')],
+  // V135: the platform; the stored values are what GamingReglas / V135 write.
+  'tecnologia/Consola': [c('playstation', 'PlayStation'), c('xbox', 'Xbox'), c('nintendo switch', 'Nintendo Switch'),
+    c('nintendo', 'Nintendo'), c('pc portátil', 'PC portátil'),
+    c('emulador portátil', 'Emulador portátil'), c('emulador tv', 'Emulador para TV'), c('retro', 'Retro')],
+  'tecnologia/Videojuego': [c('ps5', 'PS5'), c('ps4', 'PS4'), c('playstation retro', 'PlayStation retro'), c('switch 2', 'Switch 2'),
+    c('switch', 'Switch'), c('xbox', 'Xbox'), c('nintendo 3ds', 'Nintendo 3DS'), c('wii', 'Wii'), c('pc', 'PC'), c('retro', 'Retro')],
   'tecnologia/Red': [c('adaptador', 'Adaptador'), c('repetidor', 'Repetidor'), c('router', 'Router'), c('switch', 'Switch')],
   'tecnologia/Cable': [c('poder', 'Poder'), c('red', 'Red'), c('usb', 'USB'), c('video', 'Video')],
   'tecnologia/Impresión': [c('impresora', 'Impresora'), c('tinta', 'Tinta'), c('toner', 'Tóner')],
