@@ -129,6 +129,32 @@ El JSON viejo se importa una vez a la tabla (ver [`ML_PIPELINE.md`](./ML_PIPELIN
 
 ---
 
+### ¿Por qué el cierre de una corrida aplica los scores del ML y los suelta, en vez de retenerlos?
+
+**Decisión** (`run-health-identity-heap`): `ml_output.json` (~150.000 `scores` por producto) se usa
+una vez, en `MlEnricher.enriquecer`; después sólo sobrevive `MlOutputLiviano.aligerar` de él (todo
+menos los scores, que quedan como `{"total": N}`) — en memoria (`lastMlOutput`) y en
+`ml_output.payload`. Y el input (`ml_productos.json`) se escribe en streaming, dentro del slot de
+scoring, sin pasar por un `String`.
+
+**Razones**:
+1. **Era lo que más pesaba en el cierre, y nadie lo leía.** `/api/tendencias` mira `tendencias` y
+   "`scores` es un objeto no vacío"; el score, los badges y la categoría de cada producto se persisten
+   en `productos` y `producto_badge`. Medido sobre 169.481 filas: `-Xmx` mínimo 1728m → 1088m, pico
+   vivo 1521 → 1059 MB, cierre 26,7 s → 24,1 s (mediana de 5 corridas intercaladas).
+2. **Mismo resultado.** Los productos finales, el historial que recibe el ML, `ml_productos.json`
+   (SHA-256) y el body de `/api/tendencias` salen idénticos antes y después.
+3. **El input en streaming no cambia los bytes**: se escribe por un `Writer` y no por el camino UTF-8
+   de Jackson, que escapa los pares sustitutos (`\uD83D\uDE00`) donde el documento siempre llevó el
+   carácter. Un test fija los bytes contra la serialización vieja, con emoji incluido.
+
+**Consecuencias**: un lector nuevo que necesite los scores por producto no puede sacarlos de
+`ml_output` ni de `getLastMlOutput`; los lee de `productos`. Las filas viejas de `ml_output` (con
+todos los scores) siguen cargando: `cargarMlOutput` devuelve la forma liviana. No se tocó el snapshot
+anterior ni `delBatch` durante la recarga: son el estado servido y el fallback.
+
+---
+
 ### ¿Por qué Playwright headless y no requests/BeautifulSoup?
 
 **Decisión**: Playwright (Chromium headless) para todos los scrapers.

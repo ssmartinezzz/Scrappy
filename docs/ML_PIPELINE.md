@@ -13,8 +13,20 @@ Java: ResultAggregator.agregar()
         → subprocess: python ml_pipeline.py ml_productos.json ml_output.json ml_historial.json
         → borra ml_historial.json al terminar
     ↓ MlEnricher.enriquecer() → Product.MlScore populated
-    ↓ DatabaseService.guardarMlOutput()
+    ↓ MlOutputLiviano.aligerar(): los `scores` por producto ya se aplicaron, se sueltan
+    ↓ DatabaseService.guardarMlOutput(<output liviano>)
 ```
+
+El output completo (`ml_output.json`, ~150.000 entradas de `scores`) se lee a un árbol
+Jackson sólo mientras `enriquecer` lo consume: era lo más grande que vivía en el cierre de
+una corrida. Después de eso lo que se retiene en memoria (`ResultAggregator.getLastMlOutput`) y lo
+que se guarda en `ml_output.payload` es el mismo documento sin los `scores`: cada campo igual,
+salvo `"scores": {"total": N}` (sigue siendo un objeto no vacío si hubo scores, que es lo único
+que `/api/tendencias` mira de él, además de `tendencias`). Nadie lee los scores por producto
+desde ahí: lo que importa de cada uno (score, badges, categoría) se persiste en `productos` y
+`producto_badge`. Un payload viejo, con todos los scores, se lee igual y sale en la misma forma
+(`MlOutputLiviano.leer` los recorre sin armar el árbol). Si algún día un lector necesita los scores
+por producto, tiene que leerlos de `productos`, no de `ml_output`.
 
 ---
 

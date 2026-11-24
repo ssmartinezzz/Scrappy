@@ -235,7 +235,8 @@ cerró `marca_premium`, que era la violación más filosa (`url → sitio →
 es_premium`), y `V23` le puso integridad referencial al sitio. Queda
 `ml_output.payload` como **único** blob del esquema, deliberado: es un log de
 corridas —se poda a 10 filas, nunca se consulta adentro, siempre se lee
-entero— no dato del dominio.
+entero— no dato del dominio. Guarda el resumen de la corrida, no los `scores` por
+producto (ver abajo).
 
 > El matiz de 1FN que hizo falsa la afirmación anterior durante varias
 > migraciones está arriba, en **Regla de admisión**. El desarrollo completo
@@ -2136,8 +2137,19 @@ así, y acá está el motivo", no "no llegamos".
 
 | Item | Se queda como está porque |
 |---|---|
-| `ml_output.payload` | Set de claves dinámico por corrida (scores, clusters de tendencia) — no tiene una forma fija que tipar; los badges ya se normalizaron a `producto_badge` desde `V7`; se poda a 10 filas, nunca se consulta adentro y siempre se lee entero. Es un log de corrida, no dato de dominio: falla el test de `V14` en vez de pasarlo |
+| `ml_output.payload` | Set de claves dinámico por corrida (scores, clusters de tendencia) — no tiene una forma fija que tipar; los badges ya se normalizaron a `producto_badge` desde `V7`; se poda a 10 filas, nunca se consulta adentro y siempre se lee entero. Es un log de corrida, no dato de dominio: falla el test de `V14` en vez de pasarlo. Desde `run-health-identity-heap` el payload es el resumen: `scores` pasa a `{"total": N}` (ver el párrafo siguiente) |
 | `precios_externos` | Sus columnas `sitio`/`titulo`/`precio`/`condicion` dependen de `externo_url`, no del `id` sustituto — es una dependencia transitiva real. Pero cada fila es una **captura fechada** de una publicación de MercadoLibre: el título y el precio de esa URL cambian, y la fila registra lo que ERA el día que se comparó. Normalizarla a una tabla de publicaciones destruiría exactamente el dato que se guarda. Mismo carve-out que `saved_outfit_item` (V14) y `agent_reclassify_audit` (V4): un registro histórico no se normaliza contra una entidad mutable |
+
+**`ml_output.payload` guarda el resumen, no los scores por producto.** Antes cada fila
+pesaba ~100–140 MB (≈150.000 entradas de `scores`, copiadas a la tabla en cada corrida y diez
+veces por la poda), y lo único que se leía de ahí era `tendencias` más "`scores` es un objeto no
+vacío" (`/api/tendencias`, que al arrancar lo carga con `cargarMlOutput`). Hoy
+`MlOutputRepository.guardarMlOutput` valida el output completo y guarda `MlOutputLiviano.aligerar`
+de él: todos los campos, y `scores` como `{"total": N}`. `cargarMlOutput` lee las dos formas y
+devuelve la liviana, así que las filas viejas siguen cargando sin migración (y sin armar el árbol
+de scores); se van solas con la poda a 10 filas. El badge, el score y la categoría de cada producto
+nunca salieron de esta tabla: están en `productos` y `producto_badge`. No hay migración ni
+rollback: el esquema no cambia.
 
 **El único blob que sobrevive en el esquema es `ml_output.payload`.** Los
 `jsonb` de `saved_outfits` no cuentan: `V14` los borró (`slots_json` y

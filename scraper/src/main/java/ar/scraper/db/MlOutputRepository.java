@@ -1,5 +1,6 @@
 package ar.scraper.db;
 
+import ar.scraper.ml.MlOutputLiviano;
 import ar.scraper.ml.MlOutputPort;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -33,7 +34,7 @@ class MlOutputRepository implements MlOutputPort {
             return;
         }
         try {
-            String json = MAPPER.writeValueAsString(mlOutput);
+            String json = MAPPER.writeValueAsString(MlOutputLiviano.aligerar(mlOutput));
             java.time.OffsetDateTime now = Timestamps.now();
             jdbc.update("INSERT INTO ml_output (payload, created_at) VALUES (?, ?)", ps -> {
                 ps.setString(1, json);
@@ -64,7 +65,7 @@ class MlOutputRepository implements MlOutputPort {
             String payload = jdbc.query("SELECT payload FROM ml_output ORDER BY id DESC LIMIT 1",
                     rs -> rs.next() ? rs.getString(1) : null);
             if (payload != null) {
-                return MAPPER.readTree(payload);
+                return MlOutputLiviano.leer(payload);
             }
         } catch (Exception e) {
             LOG.warn("[DB] Error cargando ML output: {}", e.getMessage());

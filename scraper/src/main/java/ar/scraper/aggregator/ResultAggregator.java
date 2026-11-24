@@ -4,6 +4,7 @@ import ar.scraper.catalog.ClasificacionBloqueada;
 import ar.scraper.catalog.Facets;
 import ar.scraper.catalog.ProductPort;
 import ar.scraper.ml.CategoriaStatsPort;
+import ar.scraper.ml.MlOutputLiviano;
 import ar.scraper.ml.MlOutputPort;
 import ar.scraper.ml.FinanciacionEnricher;
 import ar.scraper.ml.MlEnricher;
@@ -48,7 +49,8 @@ public class ResultAggregator {
     private volatile int      lastCatRefinadas = 0;
 
     public JsonNode             getLastMlOutput()    { return lastMlOutput; }
-    public void                 setLastMlOutput(JsonNode n) { lastMlOutput = n; }
+    /** Keeps what the readers use (see {@link MlOutputLiviano}), never the per-product scores. */
+    public void                 setLastMlOutput(JsonNode n) { lastMlOutput = MlOutputLiviano.aligerar(n); }
     public void                 clearMlOutput()      { this.lastMlOutput = null; }
     public int                  getLastCatRefinadas(){ return lastCatRefinadas; }
     public MlEnricher           getMlEnricher()      { return mlEnricher; }
@@ -82,17 +84,18 @@ public class ResultAggregator {
             Map<String, Integer>         conteo,
             Map<String, String>          errores,
             Map<String, ExtractionStats> stats,
-            List<Product>                todos
+            int                          validos
     ) {}
 
     /**
-     * Output of {@link #ejecutarPipelineMl}: the pre-ML normalized list, the post-ML enriched list,
-     * and the raw ML output node.
+     * Output of {@link #ejecutarPipelineMl}: the post-ML enriched list, the category each product
+     * had before the model, and the ML output without its per-product scores, which are spent once
+     * they have been applied.
      */
     private record MlPipelineResult(
-            List<Product> normalizados,
-            List<Product> enriquecidos,
-            JsonNode      mlOut
+            List<Product>       enriquecidos,
+            Map<String, String> categoriaPrevia,
+            JsonNode            mlLiviano
     ) {}
 
     /** Products and an error together: the scraper gave up part-way, so absence proves nothing. */
@@ -141,23 +144,15 @@ public class ResultAggregator {
     public AggregatedResult agregar(List<ScrapeResult> resultados, boolean forceRetrain,
                                     ar.scraper.scrape.CorridaEnCurso corrida) {
         ValidationResult validacion = validarYContar(resultados);
-        List<Product>    sorted     = deduplicarYOrdenar(validacion.todos());
 
-        MlPipelineResult pipeline = ejecutarPipelineMl(sorted);
+        List<Product> enriquecidos = enriquecerYPersistir(resultados, corrida);
 
-        persistirCategoriasRefinadas(pipeline.normalizados(), pipeline.enriquecidos());
-
-        persistirProductos(pipeline.enriquecidos(), corrida, resultados);
-        mlOutput.guardarMlOutput(pipeline.mlOut());
-        if (pipeline.mlOut() != null && !pipeline.mlOut().path("categoriaStats").isMissingNode())
-            categoriaStats.guardarCategoriaStats(pipeline.mlOut().path("categoriaStats"));
-
-        List<Product> conFinanciacion = enriquecerSenalYFinanciacion(pipeline.enriquecidos());
+        List<Product> conFinanciacion = enriquecerSenalYFinanciacion(enriquecidos);
 
         AggregatedResult resultado = resultado(conFinanciacion, validacion.conteo(), validacion.errores(),
                 validacion.stats());
 
-        LOG.info("Agregacion: {} brutos -> {} unicos (normalizado+ML)", validacion.todos().size(), conFinanciacion.size());
+        LOG.info("Agregacion: {} brutos -> {} unicos (normalizado+ML)", validacion.validos(), conFinanciacion.size());
 
         LOG.info("[AGG] Lanzando entrenamiento del modelo en background...");
         pythonRunner.entrenarEnBackground(forceRetrain);
@@ -165,24 +160,51 @@ public class ResultAggregator {
         return resultado;
     }
 
+    /**
+     * The ML stage and every write it feeds, in its own frame: what only they need (the category
+     * each product had before the model, the output node) is garbage when they are done, before the
+     * signals are computed and the whole catalogue is reloaded.
+     */
+    private List<Product> enriquecerYPersistir(List<ScrapeResult> resultados,
+                                               ar.scraper.scrape.CorridaEnCurso corrida) {
+        MlPipelineResult pipeline = ejecutarPipelineMl(resultados);
+
+        persistirCategoriasRefinadas(pipeline.categoriaPrevia(), pipeline.enriquecidos());
+
+        persistirProductos(pipeline.enriquecidos(), corrida, resultados);
+        mlOutput.guardarMlOutput(pipeline.mlLiviano());
+        if (pipeline.mlLiviano() != null && !pipeline.mlLiviano().path("categoriaStats").isMissingNode())
+            categoriaStats.guardarCategoriaStats(pipeline.mlLiviano().path("categoriaStats"));
+
+        return pipeline.enriquecidos();
+    }
+
     private ValidationResult validarYContar(List<ScrapeResult> resultados) {
         Map<String, Integer>         conteo  = new LinkedHashMap<>();
         Map<String, String>          errores = new LinkedHashMap<>();
         Map<String, ExtractionStats> stats   = new LinkedHashMap<>();
-        List<Product>                todos   = new ArrayList<>();
+        int                          validos = 0;
 
         for (ScrapeResult r : resultados) {
-            List<Product> valid  = r.productos().stream().filter(ResultAggregator::isValid).toList();
-            int           misses = r.productos().size() - valid.size();
+            int valid  = (int) r.productos().stream().filter(ResultAggregator::isValid).count();
+            int misses = r.productos().size() - valid;
             conteo.put(r.sitio(), r.productos().size());
-            stats.put(r.sitio(), new ExtractionStats(r.sitio(), r.productos().size(), valid.size(), misses));
+            stats.put(r.sitio(), new ExtractionStats(r.sitio(), r.productos().size(), valid, misses));
             if (misses > 0)
-                LOG.warn("[METRICS] {}: {}/{} válidos ({} misses)", r.sitio(), valid.size(), r.productos().size(), misses);
+                LOG.warn("[METRICS] {}: {}/{} válidos ({} misses)", r.sitio(), valid, r.productos().size(), misses);
             if (!r.exitoso()) errores.put(r.sitio(), r.error());
-            todos.addAll(valid);   // only valid products flow downstream
+            validos += valid;
         }
 
-        return new ValidationResult(conteo, errores, stats, todos);
+        return new ValidationResult(conteo, errores, stats, validos);
+    }
+
+    /** Only valid products flow downstream. */
+    private static List<Product> productosValidos(List<ScrapeResult> resultados) {
+        List<Product> todos = new ArrayList<>();
+        for (ScrapeResult r : resultados)
+            r.productos().stream().filter(ResultAggregator::isValid).forEach(todos::add);
+        return todos;
     }
 
     /**
@@ -202,19 +224,38 @@ public class ResultAggregator {
     /**
      * (2) after stage-1b, because the visual classifier can override {@code categoria} on its own.
      */
-    private MlPipelineResult ejecutarPipelineMl(List<Product> sorted) {
+    private MlPipelineResult ejecutarPipelineMl(List<ScrapeResult> resultados) {
         Map<String, ClasificacionBloqueada> bloqueos = productos.cargarClasificacionBloqueada();
 
-        List<Product> normalizados = aplicarBloqueos(normalizer.normalizar(sorted), bloqueos);
+        List<Product> normalizados = normalizarYBloquear(resultados, bloqueos);
 
         LOG.info("[AGG] Ejecutando pipeline ML (esto puede tomar hasta 2 minutos)...");
         JsonNode mlOut  = pythonRunner.ejecutarEscribiendo(mlEnricher.productosParaMl(normalizados));
         LOG.info("[AGG] Pipeline ML completado.");
-        lastMlOutput    = mlOut;
+        JsonNode mlLiviano = MlOutputLiviano.aligerar(mlOut);
+        lastMlOutput = mlLiviano;
 
         List<Product> enriquecidos = aplicarBloqueos(mlEnricher.enriquecer(normalizados, mlOut), bloqueos);
 
-        return new MlPipelineResult(normalizados, enriquecidos, mlOut);
+        return new MlPipelineResult(enriquecidos, categoriaPorUrl(normalizados), mlLiviano);
+    }
+
+    /**
+     * Its own frame so the raw lists it builds on the way are garbage once the normalized ones exist,
+     * while the model runs.
+     */
+    private List<Product> normalizarYBloquear(List<ScrapeResult> resultados,
+                                              Map<String, ClasificacionBloqueada> bloqueos) {
+        List<Product> sorted = deduplicarYOrdenar(productosValidos(resultados));
+        return aplicarBloqueos(normalizer.normalizar(sorted), bloqueos);
+    }
+
+    private static Map<String, String> categoriaPorUrl(List<Product> productos) {
+        Map<String, String> categorias = new HashMap<>();
+        for (Product p : productos)
+            if (StringUtils.isNotBlank(p.url()))
+                categorias.put(p.url(), StringUtils.defaultString(p.categoria()));
+        return categorias;
     }
 
     /**
@@ -245,16 +286,10 @@ public class ResultAggregator {
     }
 
     /**
-     * Snapshots pre-ML categoria from {@code normalizados} and diffs it against post-ML categoria
-     * in {@code enriquecidos} by url; persists only the deltas and updates
-     * {@link #lastCatRefinadas}.
+     * Diffs the pre-ML categoria ({@code catOriginal}, by url) against the post-ML one in
+     * {@code enriquecidos}; persists only the deltas and updates {@link #lastCatRefinadas}.
      */
-    private void persistirCategoriasRefinadas(List<Product> normalizados, List<Product> enriquecidos) {
-        Map<String, String> catOriginal = new HashMap<>();
-        for (Product p : normalizados)
-            if (StringUtils.isNotBlank(p.url()))
-                catOriginal.put(p.url(), StringUtils.defaultString(p.categoria()));
-
+    private void persistirCategoriasRefinadas(Map<String, String> catOriginal, List<Product> enriquecidos) {
         int catRefinadas = 0;
         for (Product p : enriquecidos) {
             String pid = p.url();

@@ -556,7 +556,11 @@ public class ScraperService implements CatalogSnapshotPort {
                 ? new ar.scraper.scrape.CorridaEnCurso(corrida.runId(), corrida.startedAt())
                 : null;
 
+        // What the closing lines read afterwards is this summary, so the raw product lists can go as
+        // soon as the aggregation has consumed them.
+        List<RendimientoDeSitio> rendimientos = rendimientosDe(resultados);
         AggregatedResult delBatch = aggregator.agregar(resultados, forceRetrain, enCurso);
+        resultados = null;
         synchronized (catalogLock) {
             lastResult = catalogoEntero(delBatch);
         }
@@ -573,7 +577,7 @@ public class ScraperService implements CatalogSnapshotPort {
         // ── Guardia de rendimiento por sitio ───────────────────────────────── A broken scraper
         // returns an empty or truncated list without throwing, so the run reports success either
         // way.
-        List<SiteYieldGuard.Alerta> alertas = alertasDeRendimiento(resultados, corrida);
+        List<SiteYieldGuard.Alerta> alertas = alertasDe(rendimientos, corrida);
         if (!alertas.isEmpty()) {
             synchronized (catalogLock) {
                 lastResult = new AggregatedResult(
@@ -605,13 +609,13 @@ public class ScraperService implements CatalogSnapshotPort {
         RUN_LOG.info("[DB]      Por sitio: {} nuevos / {} precio cambió / {} sin cambio",
                 upsert.nuevos(), upsert.actualizados(), upsert.sinCambios());
 
-        List<String> vacios = resultados.stream()
-                .filter(r -> r.productos().isEmpty() && StringUtils.isBlank(r.error()))
-                .map(ScrapeResult::sitio).toList();
+        List<String> vacios = rendimientos.stream()
+                .filter(r -> r.productos() == 0 && StringUtils.isBlank(r.error()))
+                .map(RendimientoDeSitio::sitio).toList();
         if (!vacios.isEmpty())
             RUN_LOG.info("[AVISO]   Sitios sin productos: {}", String.join(", ", vacios));
 
-        List<String> conError = resultados.stream()
+        List<String> conError = rendimientos.stream()
                 .filter(r -> StringUtils.isNotBlank(r.error()))
                 .map(r -> r.sitio() + " (" + truncar(r.error(), 50) + ")").toList();
         if (!conError.isEmpty())
@@ -629,6 +633,19 @@ public class ScraperService implements CatalogSnapshotPort {
      * its own half. A failed history read skips the guard rather than the run.
      */
     List<SiteYieldGuard.Alerta> alertasDeRendimiento(List<ScrapeResult> resultados, RunState corrida) {
+        return alertasDe(rendimientosDe(resultados), corrida);
+    }
+
+    /** What the closing needs of a site's result once its products have been aggregated. */
+    private record RendimientoDeSitio(String sitio, int productos, String error) {}
+
+    private static List<RendimientoDeSitio> rendimientosDe(List<ScrapeResult> resultados) {
+        return resultados.stream()
+                .map(r -> new RendimientoDeSitio(r.sitio(), r.productos().size(), r.error()))
+                .toList();
+    }
+
+    private List<SiteYieldGuard.Alerta> alertasDe(List<RendimientoDeSitio> resultados, RunState corrida) {
         Map<String, Integer> baselinePorClave;
         try {
             baselinePorClave = scrapeRun.ultimoRendimientoPositivo(corrida != null ? corrida.runId() : -1L);
@@ -639,10 +656,10 @@ public class ScraperService implements CatalogSnapshotPort {
         }
         Map<String, Integer> previo = new HashMap<>();
         Map<String, Integer> actual = new HashMap<>();
-        for (ScrapeResult r : resultados) {
+        for (RendimientoDeSitio r : resultados) {
             previo.put(r.sitio(), baselinePorClave.getOrDefault(
                     SiteClassification.sitioKey(r.sitio()), 0));
-            actual.put(r.sitio(), r.productos().size());
+            actual.put(r.sitio(), r.productos());
         }
         return SiteYieldGuard.evaluar(previo, actual, actual.keySet());
     }
