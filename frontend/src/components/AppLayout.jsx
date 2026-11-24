@@ -513,6 +513,7 @@ export default function AppLayout() {
   const set      = payload => dispatch({ type:'SET', payload });
   const setFilter = payload => dispatch({ type:'SET_FILTER', payload });
   const loadingRef = useRef(false);
+  const loadSeqRef = useRef(0);
   const navigate = useNavigate();
   const location = useLocation();
   const topbarRef = useRef(null);
@@ -663,7 +664,6 @@ export default function AppLayout() {
       setStatusForBanner(st ?? null);
       if (st?.tieneData) {
         set({ scrapeStatus:st.status, scrapeMsg:st.mensaje });
-        loadFirstPage();
         loadFacets();
         loadFavoritos();
       }
@@ -753,29 +753,28 @@ export default function AppLayout() {
        S.precioMin, S.precioMax, S.orden, S.subCategoria,
        S.fit, S.estampado, S.deporte, S.escote, S.colorDominante]);
 
-  const loadFirstPage = useCallback(async () => {
-    if (loadingRef.current) return;
+  // The newest first-page read owns the grid: a filter change supersedes whatever
+  // is in flight, whose rows belong to the previous filter.
+  const loadPage = useCallback(async (page) => {
+    const seq = ++loadSeqRef.current;
     loadingRef.current = true;
-    const data = await fetchData(buildParams(0));
-    loadingRef.current = false;
-    if (data) {
+    try {
+      const data = await fetchData(buildParams(page));
+      if (seq !== loadSeqRef.current || !data) return;
       dispatch({ type:'APPEND_PRODS', payload:{
         prods: data.productos||[], total: data.meta?.total||0, meta: data.meta||{}
       }});
+    } finally {
+      if (seq === loadSeqRef.current) loadingRef.current = false;
     }
   }, [buildParams]);
 
+  const loadFirstPage = useCallback(() => loadPage(0), [loadPage]);
+
   const loadNextPage = useCallback(async () => {
     if (loadingRef.current || !S.hasMore) return;
-    loadingRef.current = true;
-    const data = await fetchData(buildParams(S.pag));
-    loadingRef.current = false;
-    if (data) {
-      dispatch({ type:'APPEND_PRODS', payload:{
-        prods: data.productos||[], total: data.meta?.total||0, meta: data.meta||{}
-      }});
-    }
-  }, [buildParams, S.pag, S.hasMore]);
+    await loadPage(S.pag);
+  }, [loadPage, S.pag, S.hasMore]);
 
   // Topbar re-scrape → navigate to /splash + reset scrape status
   const onReScrape = useCallback(() => {
