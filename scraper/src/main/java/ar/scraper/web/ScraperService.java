@@ -487,13 +487,7 @@ public class ScraperService implements CatalogSnapshotPort {
                     cancelado,
                     r -> {
                         int n = r.productos().size();
-                        boolean tieneError = StringUtils.isNotBlank(r.error());
-                        SitioEstado estado = (tieneError && n == 0) ? SitioEstado.ERROR : SitioEstado.DONE;
-
-                        int idx = indice.de(r.sitio());
-                        if (idx >= 0) actualizarProgreso(progSitios, idx, estado, n, r.error(), r.duracionMs());
-                        registrarSitioTerminado(r.sitio(), estado == SitioEstado.ERROR ? "ERROR" : "DONE",
-                                n, r.error());
+                        cerrarSitio(r, progSitios, indice);
 
                         int comp = completados.incrementAndGet();
                         int prods = productosAcumulados.addAndGet(n);
@@ -985,6 +979,19 @@ public class ScraperService implements CatalogSnapshotPort {
         } catch (Exception e) {
             LOG.warn("[RUN] no se pudo marcar '{}' en curso: {}", sitio, e.getMessage());
         }
+    }
+
+    /** A site that came back with an error and nothing to show is an ERROR; anything else is DONE. */
+    static SitioEstado estadoDe(ScrapeResult r) {
+        return StringUtils.isNotBlank(r.error()) && r.productos().isEmpty() ? SitioEstado.ERROR : SitioEstado.DONE;
+    }
+
+    void cerrarSitio(ScrapeResult r, List<SitioProgress> progSitios, IndiceDeSitios indice) {
+        SitioEstado estado = estadoDe(r);
+        int idx = indice.de(r.sitio());
+        if (idx >= 0) actualizarProgreso(progSitios, idx, estado, r.productos().size(), r.error(), r.duracionMs());
+        registrarSitioTerminado(r.sitio(), estado == SitioEstado.ERROR ? "ERROR" : "DONE",
+                r.productos().size(), r.error());
     }
 
     private void registrarSitioTerminado(String sitio, String status, int productos, String error) {

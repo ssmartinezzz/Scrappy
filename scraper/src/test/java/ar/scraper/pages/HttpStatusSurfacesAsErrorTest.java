@@ -19,6 +19,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -158,6 +159,48 @@ class HttpStatusSurfacesAsErrorTest {
 
         assertThat(os.scrapeAll()).isEmpty();
         assertThat(os.truncamiento()).contains("inicio").contains("HTTP 403");
+    }
+
+    private static final String HOME_CON_TRES_CATEGORIAS =
+            "<a href=\"https://tienda.test/notebooks\">n</a><a href=\"https://tienda.test/monitores\">m</a>"
+                    + "<a href=\"https://tienda.test/perifericos\">p</a>";
+
+    @Test
+    @DisplayName("osCommerce: a home that answers and categories that all refuse stop at the first 403")
+    void osCommerceBlockedAtDiscoveryStopsAskingCategories() {
+        Page page = conRespuestas(respuesta(200, null), respuesta(403, null));
+        when(page.content()).thenReturn(HOME_CON_TRES_CATEGORIAS);
+        OsCommercePage os = new OsCommercePage(page, 1000, "Venex", BASE, 0, MAX);
+
+        assertThat(os.scrapeAll()).isEmpty();
+
+        assertThat(os.truncamiento()).contains("categoría notebooks").contains("HTTP 403");
+        verify(page, times(2)).navigate(anyString(), any(Page.NavigateOptions.class));
+    }
+
+    @Test
+    @DisplayName("osCommerce: a 403 on one category after another answered does not abandon the rest")
+    void osCommerceOneForbiddenCategoryKeepsGoing() {
+        Page page = conRespuestas(respuesta(200, null), respuesta(200, null), respuesta(403, null));
+        when(page.content()).thenReturn(HOME_CON_TRES_CATEGORIAS);
+        OsCommercePage os = new OsCommercePage(page, 1000, "Venex", BASE, 0, MAX);
+
+        os.scrapeAll();
+
+        assertThat(os.truncamiento()).contains("HTTP 403");
+        verify(page, atLeast(5)).navigate(anyString(), any(Page.NavigateOptions.class));
+    }
+
+    @Test
+    @DisplayName("osCommerce: a category discovery answering 429 is retried after Retry-After")
+    void osCommerceDiscovery429IsRetried() {
+        Page page = conRespuestas(respuesta(200, null), respuesta(429, "3"), respuesta(200, null));
+        when(page.content()).thenReturn(HOME_CON_TRES_CATEGORIAS);
+        OsCommercePage os = new OsCommercePage(page, 1000, "Venex", BASE, 0, MAX);
+
+        os.scrapeAll();
+
+        assertThat(esperas(page)).startsWith(3_000L);
     }
 
     // ── Tiendanube ──────────────────────────────────────────────────────────
