@@ -212,6 +212,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V134` | Categoría `Zapatilla Trekking` (palabra propia `trekking`/`senderismo` o modelo `terrex`, `x ultra`, `columbia`, `merrell`, `outdoor`... sin señal de running); mueve a ella las filas de `Zapatilla` y de sus cuatro hermanas; la sub de deporte del calzado suma `basquet`, `handball` y `golf` |
 | `V135` | Categoría `Accesorio Gaming` (rubro tecnología): fundas, estuches, docks, bases de carga, adaptadores, cables AV, lectores de tarjeta, gift cards, la unidad de disco de la PS5; mueve a ella 312 filas activas, rescata de `Otros` juegos, consolas y controles, y da `sub_categoria` por plataforma a `Consola` (6), `Videojuego` (10) y `Joystick` (`gamepad`/`volante`, más ancho) |
 | `V136` | Une las filas gemelas de Tiendanube (`?entry_path=category[&entry_category_id=N]`) en la URL canónica: una fila por producto, hijos reubicados, trabas e historial conservados. **No es reversible desde los datos**: el rollback es el `pg_dump` previo |
+| `V137` | Plataforma de Fursten: `sitio.plataforma` pasa de `tiendanube` a `shopify` (sólo esa columna). Las filas viejas no se mapean a los handles nuevos: las retira el barrido de la primera corrida |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -6270,3 +6271,21 @@ pg_restore -U postgres -d scraper_restaurada scraper_antes_de_V136.dump
 El dump trae también `flyway_schema_history`, así que la base restaurada vuelve a estar en `V135`. Restaurarlo descarta **todo** lo escrito después del dump (scrapes, favoritos, corridas), no sólo esta migración; sólo es sano hacerlo enseguida. Con el código de esta rama el scraper vuelve a producir URL canónicas, así que las gemelas no reaparecen salvo que se vuelva también al código anterior.
 
 Composición con las otras: no hay SQL de rollback para ordenar con los demás bloques (`-- >>> rollback:V13x`). Si hay que deshacer varias, el dump previo a `V136` ya contiene el estado de todo lo anterior (`V135` y antes); un rollback por SQL de una migración **posterior** a `V136` (por ejemplo `V137`) corre PRIMERO, sobre la base ya fundida, y recién después se restaura el dump si hace falta volver antes de `V136`.
+
+---
+
+## `V137` — Fursten pasa de Tiendanube a Shopify
+
+`www.fursten.com.ar/productos/` redirige (301) a `fursten.com.ar`, que es Shopify (`cdn.shopify.com`, `Shopify.theme`, cookies `_shopify_*`). La migración cambia **sólo** `sitio.plataforma` de la fila `fursten` (`'shopify'` ya está en `sitio_plataforma_check`); `origen` (`config`), `monomarca`, `rubro_forzado` y `es_premium` quedan como estaban. La URL de `config.properties` pasa a `https://fursten.com.ar/`. Idempotente.
+
+Las filas de productos viejas (URL `www.fursten.com.ar/productos/<slug>/`) **no se mapean** a los productos nuevos (`fursten.com.ar/products/<handle>`): los slugs de Tiendanube traen sufijos al azar, así que cualquier cruce sería adivinar. El barrido de la primera corrida Shopify que traiga productos las desactiva (`sp_soft_delete_ausentes`, acotado al sitio que la corrida miró) y su `precio_historico` se queda en ellas; los productos nuevos arrancan sin historial. Hasta esa corrida, el catálogo sigue mostrando las filas viejas. La línea base de `SiteYieldGuard` (48, de Tiendanube) no bloquea nada: a lo sumo la primera corrida avisa `CAIDA_PARCIAL` si rinde menos de la mitad.
+
+### Rollback
+
+```sql
+-- >>> rollback:V137
+UPDATE sitio SET plataforma = 'tiendanube' WHERE sitio_key = 'fursten';
+-- <<< rollback:V137
+```
+
+Sólo devuelve la plataforma; no revive las filas que el barrido desactivó ni borra las de Shopify (hay que reactivarlas a mano o con un scrape Tiendanube, y la URL de `config.properties` vuelve a `https://www.fursten.com.ar/productos/` por git). Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V136`. `V136` no tiene bloque SQL (no es reversible desde los datos, ver arriba), así que la cadena termina ahí: lo anterior a `V136` sólo se alcanza restaurando el `pg_dump` previo.

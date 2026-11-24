@@ -215,6 +215,27 @@ class DatabaseServiceTest extends PostgresTestBase {
         assertThat(db.esProductoActivo("https://venex.com/otro")).isTrue();
     }
 
+    @Test
+    @DisplayName("un sitio que cambia de host: las filas del host viejo se desactivan con su historial y las nuevas quedan")
+    void aSiteThatMovedHostRetiresItsOldHostRows() {
+        // Fursten pasó de Tiendanube (www.fursten.com.ar/productos/<slug>) a Shopify (fursten.com.ar/products/<handle>):
+        // las URL no se corresponden, así que no se mapean; las viejas las retira el barrido de la primera corrida.
+        db.upsertProductos(List.of(
+                productoDe("Fursten", "https://www.fursten.com.ar/productos/remera-negra-x1k2/", "Remera Negra", 100.0),
+                productoDe("Fursten", "https://www.fursten.com.ar/productos/buzo-gris-p9q8/", "Buzo Gris", 200.0)));
+
+        UpsertStats stats = db.upsertProductos(List.of(
+                productoDe("Fursten", "https://fursten.com.ar/products/remera-negra", "Remera Negra", 110.0)));
+
+        assertThat(stats.nuevos()).isEqualTo(1);
+        assertThat(stats.desactivados()).isEqualTo(2);
+        assertThat(db.esProductoActivo("https://www.fursten.com.ar/productos/remera-negra-x1k2/")).isFalse();
+        assertThat(db.esProductoActivo("https://www.fursten.com.ar/productos/buzo-gris-p9q8/")).isFalse();
+        assertThat(db.esProductoActivo("https://fursten.com.ar/products/remera-negra")).isTrue();
+        assertThat(db.cargarHistorial("https://www.fursten.com.ar/productos/remera-negra-x1k2/"))
+                .as("el historial de precios queda en las filas retiradas").hasSize(1);
+    }
+
     // ── Scenario: Historial chart on new product (greenfield, no error) ──
 
     @Test
