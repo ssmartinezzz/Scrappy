@@ -26,6 +26,7 @@ import org.springframework.stereotype.Repository;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import javax.sql.DataSource;
@@ -51,6 +52,8 @@ class ProductRepository implements ProductPort {
     private static final int MAX_HIST_DAYS = 90;
     /** Rows per {@code sp_upsert_run} call: the peak of the serialised payload is one batch, not the catalogue. */
     static final int FILAS_POR_LOTE = 2000;
+    /** Rows per cursor round trip when the catalogue is read: pgjdbc buffers it all without this. */
+    static final int FETCH_SIZE = 2000;
     private static final DateTimeFormatter DT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
@@ -58,6 +61,9 @@ class ProductRepository implements ProductPort {
     private final RubroResolver rubroResolver;
     private final SiteRegistry siteRegistry;
     private final TransactionTemplate tx;
+    /** Own JdbcTemplate: fetch size is per statement, and only the catalogue reads want a cursor. */
+    private final JdbcTemplate streaming;
+    private final TransactionTemplate lectura;
     private final SitioCategoriaPort sitioCategorias;
     private final int filasPorLote;
 
@@ -75,6 +81,11 @@ class ProductRepository implements ProductPort {
         this.sitioCategorias = sitioCategorias;
         this.tx = new TransactionTemplate(txManager);
         this.jdbc = new JdbcTemplate(dataSource);
+        this.streaming = new JdbcTemplate(dataSource);
+        this.streaming.setFetchSize(FETCH_SIZE);
+        this.lectura = new TransactionTemplate(txManager);
+        this.lectura.setReadOnly(true);
+        this.lectura.setIsolationLevel(TransactionDefinition.ISOLATION_REPEATABLE_READ);
         this.rubroResolver = rubroResolver;
         this.siteRegistry = siteRegistry;
     }
@@ -412,19 +423,46 @@ class ProductRepository implements ProductPort {
     public List<Product> cargarProductos() {
         List<Product> result = new ArrayList<>();
         try {
-            Map<String, List<String>> tallesPorUrl = cargarMultivalor("producto_talle", "talle");
-            Map<String, List<String>> badgesPorUrl = cargarMultivalor("producto_badge", "badge");
-            jdbc.query(ProductRowMapper.COLUMNAS + " WHERE activo ORDER BY precio ASC", rs -> {
-                String url = rs.getString("url");
-                result.add(ProductRowMapper.map(rs,
-                        tallesPorUrl.getOrDefault(url, List.of()),
-                        badgesPorUrl.getOrDefault(url, List.of()), siteRegistry));
-            });
+            leerActivos(null, result);
             LOG.info("[DB] Cargados {} productos activos", result.size());
         } catch (Exception e) {
             LOG.error("[DB] Error cargando productos: {}", e.getMessage(), e);
         }
         return result;
+    }
+
+    /** Unlike {@link #cargarProductos()} a failure throws: an empty list would read as "all gone". */
+    @Override
+    public List<Product> cargarProductosPorUrl(Collection<String> urls) {
+        if (urls == null || urls.isEmpty()) return new ArrayList<>();
+        List<Product> result = new ArrayList<>();
+        leerActivos(new ArrayList<>(new LinkedHashSet<>(urls)), result);
+        return result;
+    }
+
+    /**
+     * Sizes, badges and rows come from one snapshot (REPEATABLE READ), so a write landing between
+     * the three queries cannot give a row the talles of another moment. Joined to an outer
+     * transaction it simply reads inside it. {@code urls == null} means the whole active catalogue.
+     */
+    private void leerActivos(List<String> urls, List<Product> destino) {
+        lectura.executeWithoutResult(status -> {
+            destino.clear();
+            Map<String, List<String>> talles = cargarMultivalor("producto_talle", "talle", urls);
+            Map<String, List<String>> badges = cargarMultivalor("producto_badge", "badge", urls);
+            String filtro = urls == null ? "" : " AND url = ANY(?)";
+            streaming.query(ProductRowMapper.COLUMNAS + " WHERE activo" + filtro + " ORDER BY precio ASC",
+                    ps -> enlazarUrls(ps, urls), rs -> {
+                        String url = rs.getString("url");
+                        destino.add(ProductRowMapper.map(rs,
+                                talles.getOrDefault(url, List.of()),
+                                badges.getOrDefault(url, List.of()), siteRegistry));
+                    });
+        });
+    }
+
+    private static void enlazarUrls(PreparedStatement ps, List<String> urls) throws SQLException {
+        if (urls != null) ps.setArray(1, ps.getConnection().createArrayOf("text", urls.toArray()));
     }
 
     @Override
@@ -484,9 +522,11 @@ class ProductRepository implements ProductPort {
         }
     }
 
-    private Map<String, List<String>> cargarMultivalor(String tabla, String columna) {
+    private Map<String, List<String>> cargarMultivalor(String tabla, String columna, List<String> urls) {
         Map<String, List<String>> porUrl = new HashMap<>();
-        jdbc.query("SELECT url," + columna + " FROM " + tabla + " ORDER BY url, posicion", rs -> {
+        String filtro = urls == null ? "" : " WHERE url = ANY(?)";
+        streaming.query("SELECT url," + columna + " FROM " + tabla + filtro + " ORDER BY url, posicion",
+                ps -> enlazarUrls(ps, urls), rs -> {
             porUrl.computeIfAbsent(rs.getString(1), k -> new ArrayList<>()).add(rs.getString(2));
         });
         return porUrl;

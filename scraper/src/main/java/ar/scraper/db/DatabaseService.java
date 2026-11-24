@@ -261,6 +261,10 @@ public class DatabaseService {
         return productPort.cargarProductos();
     }
 
+    public List<Product> cargarProductosPorUrl(java.util.Collection<String> urls) {
+        return productPort.cargarProductosPorUrl(urls);
+    }
+
     /** Busca un producto por URL sin filtrar por `activo` (incluye descontinuados). */
     public CatalogPage buscarCatalogo(CatalogFilter filtro, String orden, int page, int size) {
         return catalogQueryPort.buscar(filtro, orden, page, size);

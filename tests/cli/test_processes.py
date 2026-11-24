@@ -84,6 +84,67 @@ def test_backend_launch_appends_nonempty_password_too(tmp_path: Path):
     assert "-DDATABASE_PASSWORD=s3cret" in captured["cmd"]
 
 
+def _launch_cmd(tmp_path: Path, monkeypatch, env=None, is_windows=False) -> list:
+    monkeypatch.delenv("SCRAPER_MAX_HEAP", raising=False)
+    _prep(tmp_path)
+    captured = {}
+
+    def factory(cmd, *, cwd, **kwargs):
+        captured["cmd"] = cmd
+        return _FakePopen(cmd, cwd=cwd, **kwargs)
+
+    ProcessManager(is_windows=is_windows, popen_factory=factory).launch_backend(
+        _cfg(tmp_path), database_password="", env=env)
+    return captured["cmd"]
+
+
+def test_backend_heap_defaults_to_2g(tmp_path: Path, monkeypatch):
+    cmd = _launch_cmd(tmp_path, monkeypatch)
+
+    assert "-Xmx2g" in cmd
+    assert "-Xmx768m" not in cmd
+
+
+@pytest.mark.parametrize("value", ["3g", "3072m", "4G", "512M"])
+def test_backend_heap_comes_from_the_dotenv_passed_in(tmp_path: Path, monkeypatch, value):
+    cmd = _launch_cmd(tmp_path, monkeypatch, env={"SCRAPER_MAX_HEAP": value})
+
+    assert f"-Xmx{value}" in cmd
+    assert not [a for a in cmd if a.startswith("-Xmx") and a != f"-Xmx{value}"]
+
+
+def test_backend_heap_blank_value_falls_back_to_default(tmp_path: Path, monkeypatch):
+    cmd = _launch_cmd(tmp_path, monkeypatch, env={"SCRAPER_MAX_HEAP": "  "})
+
+    assert "-Xmx2g" in cmd
+
+
+@pytest.mark.parametrize("value", ["2gb", "g", "-1g", "2 g", "1.5g", "2048", "2g;rm", "0x10m"])
+def test_backend_heap_invalid_value_is_an_actionable_error_and_launches_nothing(
+        tmp_path: Path, monkeypatch, value):
+    monkeypatch.delenv("SCRAPER_MAX_HEAP", raising=False)
+    _prep(tmp_path)
+    launched = []
+    mgr = ProcessManager(is_windows=False,
+                         popen_factory=lambda cmd, *, cwd, **kw: launched.append(cmd))
+
+    cfg = _cfg(tmp_path)
+    with pytest.raises(ProcessError) as err:
+        mgr.launch_backend(cfg, database_password="", env={"SCRAPER_MAX_HEAP": value})
+
+    assert "SCRAPER_MAX_HEAP" in str(err.value)
+    assert launched == []
+
+
+@pytest.mark.parametrize("is_windows", [False, True])
+def test_backend_dumps_the_heap_into_scraper_logs_on_out_of_memory(
+        tmp_path: Path, monkeypatch, is_windows):
+    cmd = _launch_cmd(tmp_path, monkeypatch, is_windows=is_windows)
+
+    assert "-XX:+HeapDumpOnOutOfMemoryError" in cmd
+    assert f"-XX:HeapDumpPath={tmp_path / 'scraper' / 'logs'}" in cmd
+
+
 def test_teardown_windows_path_calls_taskkill_tree_kill_for_every_tracked_pid(tmp_path: Path):
     """1.6.2 — Windows path: `taskkill /T /F` for every tracked PID."""
     _prep(tmp_path)
