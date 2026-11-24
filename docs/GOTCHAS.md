@@ -535,6 +535,15 @@ foreverbstrd en 72 y Harvey en 108 (2026-09-28). Que el server ignore el
 parámetro se ve de otra forma: la página es **idéntica** a la anterior
 (`TiendanubePage.repiteLaAnterior`).
 
+**En Tiendanube la URL del link no es la URL del producto:** el tema agrega
+`?entry_path=category[&entry_category_id=N]` a los links de un listado, y como
+`productos.url` es la identidad, el mismo producto quedaba una vez por categoría
+(11.243 filas en 24 sitios, 603 productos con más de una fila activa). `TiendanubeUrl.canonica`
+saca sólo esos dos parámetros (el resto, su orden y el `#` quedan) en
+`TiendanubePage.producto`, la única puerta; `V136` funde lo ya guardado y no es
+reversible desde los datos (ver [`DATABASE.md`](./DATABASE.md)). Cualquier página nueva de
+Tiendanube que arme el `Product` sin pasar por ahí reabre el problema.
+
 **La API Legacy de VTEX da HTTP 400 pasado `_from` ≈ 2550, por consulta:** el
 header `resources` dice el total real (7151 en Sporting), pero una sola consulta
 nunca pasa de ~2550. `VtexPage` parte por el árbol de categorías (`fq=C:`).
