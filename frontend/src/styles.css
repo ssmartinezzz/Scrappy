@@ -625,10 +625,11 @@ body { overflow-x: hidden; }
 }
 /* A halo on its own layer: animating box-shadow repainted on every frame. */
 .gpu-fab-btn { position: relative; }
-.gpu-fab-btn:not(:disabled)::before { content: ''; position: absolute; inset: 0; z-index: -1;
-  border-radius: inherit; background: var(--p); pointer-events: none; will-change: transform, opacity;
-  animation: gpu-btn-pulse 2.2s ease-out infinite; }
-@media (prefers-reduced-motion: reduce) { .gpu-fab-btn::before { display: none; } }
+@media (prefers-reduced-motion: no-preference) {
+  .gpu-fab-btn:not(:disabled)::before { content: ''; position: absolute; inset: 0; z-index: -1;
+    border-radius: inherit; background: var(--p); pointer-events: none; will-change: transform, opacity;
+    animation: gpu-btn-pulse 2.2s ease-out infinite; }
+}
 
 /* ===== FINAN PANEL ===== */
 .finan-panel { padding: 1rem; width: 100%; max-width: 560px; }
