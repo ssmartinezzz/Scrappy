@@ -21,7 +21,6 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -47,8 +46,8 @@ class ResultAggregatorPartialSitesTest {
         FinanciacionEnricher financiacionEnricher = mock(FinanciacionEnricher.class);
         ProductPort productos = mock(ProductPort.class);
         when(normalizer.normalizar(anyList())).thenAnswer(inv -> inv.getArgument(0));
-        when(mlEnricher.serializarProductos(anyList())).thenReturn("[]");
-        when(pythonRunner.ejecutar(anyString())).thenReturn(null);
+        when(mlEnricher.productosParaMl(anyList())).thenReturn(out -> { });
+        when(pythonRunner.ejecutarEscribiendo(any())).thenReturn(null);
         when(mlEnricher.enriquecer(anyList(), any())).thenAnswer(inv -> inv.getArgument(0));
         when(senalEnricher.enriquecer(anyList())).thenAnswer(inv -> inv.getArgument(0));
         when(financiacionEnricher.enriquecer(anyList())).thenAnswer(inv -> inv.getArgument(0));

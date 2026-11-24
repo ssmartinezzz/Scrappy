@@ -81,6 +81,7 @@ class ScraperFactoryPlatformTest {
     private static final SiteRegistry SITE_REGISTRY = SiteRegistry.forTesting(Map.of(
             "forever", new SiteRegistry.Sitio("Forever", "forever", "shopify", false, null, "config"),
             "freres", new SiteRegistry.Sitio("Freres", "freres", "shopify", false, null, "config"),
+            "fursten", new SiteRegistry.Sitio("Fursten", "fursten", "shopify", false, null, "config", true, null),
             "vcp", new SiteRegistry.Sitio("Vcp", "vcp", "shopify", false, null, "config"),
             "foreverbstrd", new SiteRegistry.Sitio("Foreverbstrd", "foreverbstrd", "tiendanube", false, null, "config"),
             "barnes", new SiteRegistry.Sitio("Barnes", "barnes", "tiendanube", false, null, "config"),
@@ -110,6 +111,12 @@ class ScraperFactoryPlatformTest {
         }
         assertThat(construidas).as("exactly one page object per scrape").hasSize(1);
         return construidas.get(0);
+    }
+
+    @Test
+    @DisplayName("fursten left Tiendanube: its registry platform routes it to Shopify, never to the Tiendanube default")
+    void furstenRoutesToShopify() {
+        assertThat(paginaDe("fursten", "https://fursten.com.ar/").pagina()).isEqualTo(ShopifyPage.class);
     }
 
     @Test

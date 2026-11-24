@@ -40,12 +40,12 @@ public final class SiteYieldGuard {
         List<Alerta> alertas = new ArrayList<>();
         for (String sitio : scrapeados) {
             int antes = previo.getOrDefault(sitio, 0);
-            if (antes < BASELINE_MINIMO) continue;
-
             int ahora = actual.getOrDefault(sitio, 0);
-            if (ahora == 0) {
+            // A site that gave nothing is worth saying so from any positive baseline; the minimum
+            // only filters partial drops, where a handful of products swings by noise.
+            if (antes > 0 && ahora == 0) {
                 alertas.add(new Alerta(sitio, antes, 0, Severidad.CAIDA_TOTAL));
-            } else if (ahora < antes * UMBRAL_CAIDA) {
+            } else if (antes >= BASELINE_MINIMO && ahora < antes * UMBRAL_CAIDA) {
                 alertas.add(new Alerta(sitio, antes, ahora, Severidad.CAIDA_PARCIAL));
             }
         }

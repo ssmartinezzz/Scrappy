@@ -385,6 +385,27 @@ class ScrapeRunRepository implements ScrapeRunPort {
         return out;
     }
 
+    @Override
+    public Map<String, Integer> ultimoRendimientoPositivo(long excluirRunId) {
+        return Sql.traducir(() -> ultimoRendimientoPositivoSql(excluirRunId));
+    }
+
+    private Map<String, Integer> ultimoRendimientoPositivoSql(long excluirRunId) {
+        Map<String, Integer> out = new LinkedHashMap<>();
+        jdbc.query("""
+                SELECT DISTINCT ON (s.sitio_key) s.sitio_key, s.productos_count
+                  FROM scrape_run_site s
+                  JOIN scrape_run r ON r.id = s.scrape_run_id
+                 WHERE s.status = 'DONE'
+                   AND s.productos_count > 0
+                   AND r.finished_at IS NOT NULL
+                   AND r.id <> ?
+                 ORDER BY s.sitio_key, r.finished_at DESC, r.id DESC
+                """, ps -> ps.setLong(1, excluirRunId),
+                rs -> { out.put(rs.getString(1), rs.getInt(2)); });
+        return out;
+    }
+
     private static OffsetDateTime enUtc(Instant instante) {
         return instante.atOffset(ZoneOffset.UTC);
     }

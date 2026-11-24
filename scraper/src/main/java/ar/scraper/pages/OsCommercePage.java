@@ -36,8 +36,19 @@ public class OsCommercePage extends StorePage implements CatalogPage {
         List<String> topSlugs = discoverTopCategorySlugs();
         log.info("[{}] categorías top-level osCommerce: {}", sitio, topSlugs);
 
+        boolean algunaCategoriaRespondio = false;
         for (String topSlug : topSlugs) {
-            List<String> leaves = discoverLeafCategorySlugs(topSlug);
+            List<String> leaves;
+            try {
+                leaves = discoverLeafCategorySlugs(topSlug);
+                algunaCategoriaRespondio = true;
+            } catch (RespuestaHttpException e) {
+                registrarTruncamiento("categoría " + topSlug, e);
+                // A refusal before any category has answered is the site blocking us, not one
+                // forbidden category: asking the other ones only adds requests to a closed door.
+                if (e.status() == 403 && !algunaCategoriaRespondio && result.isEmpty()) break;
+                leaves = List.of();
+            }
             log.debug("[{}] {} -> {} sub-categorías leaf", sitio, topSlug, leaves.size());
             List<String> targets = resolveCrawlTargets(baseUrl, topSlug, leaves);
             String categoriaHintFallback = humanize(topSlug);
@@ -59,7 +70,7 @@ public class OsCommercePage extends StorePage implements CatalogPage {
         List<Product> result = new ArrayList<>();
         crawlPaginas(MAX_PAGES, "leaf=" + leafUrl, p -> leafUrl + (p > 1 ? "?page=" + p : ""),
                 html -> parseListing(html, sitio, baseUrl, categoriaHint, precioMin, precioMax),
-                new HashSet<>(), result);
+                new HashSet<>(), result, true);
         return result;
     }
 
@@ -78,11 +89,12 @@ public class OsCommercePage extends StorePage implements CatalogPage {
 
     private List<String> discoverTopCategorySlugs() {
         try {
-            navigateTo(baseUrl + "/");
+            navegarExigiendoOk(baseUrl + "/", 1);
             List<String> discovered = extractTopCategorySlugs(page.content());
             if (!discovered.isEmpty()) return discovered;
         } catch (Exception e) {
             log.debug("[{}] discover top slugs error: {}", sitio, e.getMessage());
+            if (e instanceof RespuestaHttpException) registrarTruncamiento("inicio", e);
         }
         log.warn("[{}] nav discovery returned 0 top-level slugs", sitio);
         return List.of();
@@ -90,9 +102,11 @@ public class OsCommercePage extends StorePage implements CatalogPage {
 
     private List<String> discoverLeafCategorySlugs(String topSlug) {
         try {
-            navigateTo(baseUrl + "/" + topSlug);
+            navegarExigiendoOk(baseUrl + "/" + topSlug, 1);
             List<String> leaves = extractLeafCategorySlugs(page.content(), topSlug);
             if (!leaves.isEmpty()) return leaves;
+        } catch (RespuestaHttpException e) {
+            throw e;
         } catch (Exception e) {
             log.debug("[{}] discover leaf slugs error for {}: {}", sitio, topSlug, e.getMessage());
         }

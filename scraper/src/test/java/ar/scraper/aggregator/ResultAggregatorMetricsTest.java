@@ -66,8 +66,8 @@ class ResultAggregatorMetricsTest {
 
         // Pass-through mocks — return the input list unchanged
         when(normalizer.normalizar(anyList())).thenAnswer(inv -> inv.getArgument(0));
-        when(mlEnricher.serializarProductos(anyList())).thenReturn("[]");
-        when(pythonRunner.ejecutar(anyString())).thenReturn(null);
+        when(mlEnricher.productosParaMl(anyList())).thenReturn(out -> { });
+        when(pythonRunner.ejecutarEscribiendo(any())).thenReturn(null);
         when(mlEnricher.enriquecer(anyList(), any())).thenAnswer(inv -> inv.getArgument(0));
         when(senalEnricher.enriquecer(anyList())).thenAnswer(inv -> inv.getArgument(0));
         when(financiacionEnricher.enriquecer(anyList())).thenAnswer(inv -> inv.getArgument(0));

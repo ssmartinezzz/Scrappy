@@ -216,6 +216,35 @@ class ScrapeRunRepositoryTest extends PostgresTestBase {
         assertThat(duraciones).containsEntry("midway", 15_000L).doesNotContainKey("harvey");
     }
 
+    // ── last positive yield ──────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("ultimoRendimientoPositivo skips zero, ERROR and unfinished rows and the excluded run")
+    void lastPositiveYield() {
+        Instant t0 = Instant.parse("2026-10-01T10:00:00Z");
+        corridaCerrada("freres", "DONE", 134, t0);
+        corridaCerrada("freres", "DONE", 0, t0.plus(1, ChronoUnit.DAYS));
+        corridaCerrada("freres", "ERROR", 0, t0.plus(2, ChronoUnit.DAYS));
+        corridaCerrada("midway", "DONE", 50, t0);
+        corridaCerrada("midway", "DONE", 70, t0.plus(1, ChronoUnit.DAYS));
+        long actual = corridaCerrada("midway", "DONE", 5, t0.plus(2, ChronoUnit.DAYS));
+        corridaCerrada("harvey", "DONE", 0, t0);
+        long sinCerrar = repo().crear(UUID.randomUUID(), t0, null, null, List.of("barnes"));
+        repo().marcarSitioTerminado(sinCerrar, "barnes", "DONE", 99, null, t0);
+
+        assertThat(repo().ultimoRendimientoPositivo(actual))
+                .containsEntry("freres", 134)
+                .containsEntry("midway", 70)
+                .doesNotContainKeys("harvey", "barnes");
+    }
+
+    private long corridaCerrada(String sitio, String status, int productos, Instant fin) {
+        long runId = repo().crear(UUID.randomUUID(), fin.minusSeconds(60), null, null, List.of(sitio));
+        repo().marcarSitioTerminado(runId, sitio, status, productos, null, fin);
+        repo().finalizar(runId, "COMPLETED", productos, fin);
+        return runId;
+    }
+
     private void sitioTerminado(String sitio, String status, Instant inicio, long segundos) {
         long runId = repo().crear(UUID.randomUUID(), inicio, null, null, List.of(sitio));
         repo().marcarSitioEnCurso(runId, sitio, inicio);

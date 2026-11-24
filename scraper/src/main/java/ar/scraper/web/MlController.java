@@ -52,8 +52,7 @@ public class MlController {
 
         Thread.ofVirtual().start(() -> {
             try {
-                String prodJson = aggregator.getMlEnricher().serializarProductos(r.productos());
-                var mlOut = pythonRunner.ejecutar(prodJson);
+                var mlOut = pythonRunner.ejecutarEscribiendo(aggregator.getMlEnricher().productosParaMl(r.productos()));
                 if (mlOut != null) {
                     var enriquecidos = aggregator.getMlEnricher().enriquecer(r.productos(), mlOut);
                     java.util.Map<String,String> catOrig = new java.util.HashMap<>();

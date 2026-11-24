@@ -101,6 +101,30 @@ class SiteYieldGuardTest {
     }
 
     @Test
+    void aSmallBaselineDroppingToZeroStillAlerts() {
+        // The minimum only filters partial drops: a 6-product site that returns nothing is blocked.
+        List<SiteYieldGuard.Alerta> alertas = SiteYieldGuard.evaluar(
+                Map.of("forever", 6), Map.of("forever", 0), Set.of("forever"));
+
+        assertThat(alertas).singleElement().satisfies(a ->
+                assertThat(a.severidad()).isEqualTo(SiteYieldGuard.Severidad.CAIDA_TOTAL));
+    }
+
+    @Test
+    void replayOfRun41RaisesSevenAlerts() {
+        // Last positive productos_count per site before run 41; all seven came back empty.
+        Map<String, Integer> previo = Map.of("venex", 2779, "fursten", 48, "vcp", 908,
+                "freres", 134, "flowin", 10, "baesics", 66, "forever", 6);
+        Map<String, Integer> actual = Map.of("venex", 0, "fursten", 0, "vcp", 0,
+                "freres", 0, "flowin", 0, "baesics", 0, "forever", 0);
+
+        List<SiteYieldGuard.Alerta> alertas = SiteYieldGuard.evaluar(previo, actual, previo.keySet());
+
+        assertThat(alertas).hasSize(7)
+                .allSatisfy(a -> assertThat(a.severidad()).isEqualTo(SiteYieldGuard.Severidad.CAIDA_TOTAL));
+    }
+
+    @Test
     void reportsEverySiteThatCollapsedNotJustTheFirst() {
         List<SiteYieldGuard.Alerta> alertas = SiteYieldGuard.evaluar(
                 Map.of("midway", 800, "barnes", 300, "freres", 150),

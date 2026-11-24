@@ -2,6 +2,7 @@ package ar.scraper.pages;
 
 import com.microsoft.playwright.ElementHandle;
 import com.microsoft.playwright.Page;
+import com.microsoft.playwright.Response;
 import com.microsoft.playwright.options.LoadState;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,8 +26,9 @@ public abstract class BasePage {
      */
     static final int NETWORK_IDLE_MAX_MS = 8_000;
 
-    protected void navigateTo(String url) {
-        page.navigate(url, new Page.NavigateOptions()
+    /** The main-resource response; null when the page cannot tell (that is unknown, not a failure). */
+    protected Response navigateTo(String url) {
+        Response respuesta = page.navigate(url, new Page.NavigateOptions()
                 .setTimeout(timeoutMs)
                 .setWaitUntil(com.microsoft.playwright.options.WaitUntilState.DOMCONTENTLOADED));
         try {
@@ -35,6 +37,66 @@ public abstract class BasePage {
                             .setTimeout(Math.min(NETWORK_IDLE_MAX_MS, timeoutMs)));
         } catch (Exception e) {
             log.debug("networkidle timeout: {}", e.getMessage());
+        }
+        return respuesta;
+    }
+
+    /** A non-2xx answer to a navigation the catalog depends on. */
+    static final class RespuestaHttpException extends RuntimeException {
+        private final int status;
+
+        RespuestaHttpException(int status) {
+            super("HTTP " + status);
+            this.status = status;
+        }
+
+        int status() {
+            return status;
+        }
+    }
+
+    static final int RETRY_AFTER_MAX_S = 60;
+    static final int RETRY_AFTER_DEFECTO_S = 10;
+    static final int REINTENTOS_429 = 2;
+
+    /**
+     * Ceiling for all the 429 waiting one page object does, so a site that throttles every page
+     * cannot spend the per-site timeout asleep.
+     */
+    static final long ESPERA_429_TOTAL_MAX_MS = 180_000;
+
+    private long espera429Ms;
+
+    /**
+     * Navigates and demands a 2xx. A 429 waits out Retry-After (capped) and retries a bounded
+     * number of times; any other non-2xx, or a 429 that persists, throws. A 404 past the first
+     * page is how a catalog ends, not a failure. A null response is unknown and passes.
+     */
+    protected void navegarExigiendoOk(String url, int pagina) {
+        for (int intento = 0; ; intento++) {
+            Response respuesta = navigateConReintentos(url);
+            if (respuesta == null) return;
+            int status = respuesta.status();
+            if (status >= 200 && status < 300) return;
+            if (status == 404 && pagina > 1) return;
+            if (status != 429 || intento >= REINTENTOS_429) throw new RespuestaHttpException(status);
+
+            long esperaMs = 1000L * segundosDeReintento(respuesta);
+            if (espera429Ms + esperaMs > ESPERA_429_TOTAL_MAX_MS) throw new RespuestaHttpException(status);
+            espera429Ms += esperaMs;
+            log.warn("HTTP 429 en {}: espero {}s antes de reintentar ({}/{})",
+                    url, esperaMs / 1000, intento + 1, REINTENTOS_429);
+            page.waitForTimeout(esperaMs);
+        }
+    }
+
+    static int segundosDeReintento(Response respuesta) {
+        String valor = respuesta.headers() == null ? null : respuesta.headers().get("retry-after");
+        if (StringUtils.isBlank(valor)) return RETRY_AFTER_DEFECTO_S;
+        try {
+            return Math.max(1, Math.min(RETRY_AFTER_MAX_S, Integer.parseInt(valor.trim())));
+        } catch (NumberFormatException e) {
+            return RETRY_AFTER_DEFECTO_S;
         }
     }
 
@@ -48,11 +110,10 @@ public abstract class BasePage {
      * Retries only {@code net::ERR_*}: a dropped connection or a network switch heals on its own.
      * A timeout already burned the page budget, and a closed target never comes back.
      */
-    protected void navigateConReintentos(String url) {
+    protected Response navigateConReintentos(String url) {
         for (int intento = 1; ; intento++) {
             try {
-                navigateTo(url);
-                return;
+                return navigateTo(url);
             } catch (RuntimeException e) {
                 if (intento >= NAV_INTENTOS || !esErrorDeRedTransitorio(e)) throw e;
                 log.debug("navegación a {} falló ({}), intento {}/{}", url, e.getMessage(), intento, NAV_INTENTOS);
@@ -79,11 +140,20 @@ public abstract class BasePage {
 
     /** Keeps the first cut only; later ones are usually the same outage seen again. */
     protected void registrarTruncamiento(int pagina, Exception e) {
+        registrarCorte("paginación cortada en p" + pagina, e);
+    }
+
+    /** For a cut that is not a page of a listing, such as the store's home. */
+    protected void registrarTruncamiento(String donde, Exception e) {
+        registrarCorte("catálogo cortado en " + donde, e);
+    }
+
+    private void registrarCorte(String donde, Exception e) {
         String motivo = StringUtils.abbreviate(
                 StringUtils.substringBefore(StringUtils.defaultString(e.getMessage(), e.getClass().getSimpleName()), "\n"),
                 MAX_MOTIVO);
-        log.warn("paginación cortada en p{}: {}", pagina, motivo);
-        if (truncamiento == null) truncamiento = "paginación cortada en p" + pagina + ": " + motivo;
+        log.warn("{}: {}", donde, motivo);
+        if (truncamiento == null) truncamiento = donde + ": " + motivo;
     }
 
     protected String safeText(ElementHandle el, String selector) {

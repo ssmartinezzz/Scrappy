@@ -29,7 +29,6 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -51,7 +50,7 @@ class ProductPromosSurvivePipelineTest {
                 .genero("hombre").talles(List.of()).promos(List.of(CUOTAS)).build();
 
         PythonRunner python = mock(PythonRunner.class);
-        when(python.ejecutar(anyString())).thenReturn(new ObjectMapper().readTree(
+        when(python.ejecutarEscribiendo(any())).thenReturn(new ObjectMapper().readTree(
                 "{\"scores\":{\"https://www.sporting.com.ar/galaxy-7/p\":{\"score\":0.7}}}"));
         HistorialPort historial = mock(HistorialPort.class);
         when(historial.getHistorialPrecios(anyList())).thenReturn(Map.of());

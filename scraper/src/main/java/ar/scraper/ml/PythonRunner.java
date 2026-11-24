@@ -114,15 +114,46 @@ public class PythonRunner {
      * parseado tal cual) → retorna el {@link JsonNode} leído.
      */
     public JsonNode ejecutar(String productosJson) {
-        return conReservaDeScoring(() -> ejecutarScoring(productosJson));
+        return conReservaDeScoring(() -> ejecutarScoring(
+                prod -> Files.writeString(prod, productosJson),
+                (hist, prod) -> historial.preparar(hist, productosJson)));
     }
 
-    private JsonNode ejecutarScoring(String productosJson) {
+    /**
+     * Igual, pero el input se escribe directo al archivo —ya con el slot reservado, porque dos
+     * corridas comparten {@code ml_productos.json}— y el historial lee las URLs de ese archivo, así
+     * que el catálogo serializado nunca existe entero en memoria.
+     */
+    public JsonNode ejecutarEscribiendo(ProductosParaMl productos) {
+        return conReservaDeScoring(() -> ejecutarScoring(
+                prod -> escribirProductos(productos, prod),
+                historial::preparar));
+    }
+
+    /** Deja escrito el input que el pipeline lee. */
+    @FunctionalInterface
+    private interface EscrituraDeInput {
+        void escribir(Path prod) throws IOException;
+    }
+
+    private void escribirProductos(ProductosParaMl productos, Path prod) throws IOException {
+        try (OutputStream out = new BufferedOutputStream(Files.newOutputStream(prod), 1 << 16)) {
+            productos.escribirEn(out);
+        } catch (RuntimeException e) {
+            // Mismo comportamiento que cuando el input se serializaba a un string: un producto que no
+            // se pudo serializar deja al pipeline con una lista vacía, no sin correr.
+            LOG.warn("[ML] Error serializando: {}", e.getMessage());
+            Files.writeString(prod, "[]");
+        }
+    }
+
+    private JsonNode ejecutarScoring(EscrituraDeInput input,
+                                     java.util.function.BiConsumer<Path, Path> prepararHistorial) {
         boolean useGpuSnapshot = this.useGpu;
         var stderrTail = new java.util.concurrent.ConcurrentLinkedDeque<String>();
-        Path histPath = Paths.get("").toAbsolutePath().resolve("ml_historial.json");
+        Path histPath = directorioDeTrabajo().resolve("ml_historial.json");
         try {
-            Path workDir   = Paths.get("").toAbsolutePath();
+            Path workDir   = directorioDeTrabajo();
             Path prodPath  = workDir.resolve("ml_productos.json");
             Path outPath   = workDir.resolve("ml_output.json");
             Path scriptPath = extraerScript(workDir);
@@ -136,7 +167,7 @@ public class PythonRunner {
                         e.getMessage());
             }
 
-            Files.writeString(prodPath, productosJson);
+            input.escribir(prodPath);
 
             String python = detectarPython();
             if (python == null) {
@@ -144,7 +175,7 @@ public class PythonRunner {
                 return null;
             }
 
-            historial.preparar(histPath, productosJson);
+            prepararHistorial.accept(histPath, prodPath);
 
             LOG.info("[ML] Ejecutando pipeline Python...");
             ProcessBuilder pb = construirProcessBuilderScoring(
@@ -185,6 +216,11 @@ public class PythonRunner {
         } finally {
             historial.descartar(histPath);
         }
+    }
+
+    /** Donde viven los tres archivos fijos del scoring. */
+    Path directorioDeTrabajo() {
+        return Paths.get("").toAbsolutePath();
     }
 
     public TrainingStatus getTrainingStatus() { return trainingStatus.get(); }

@@ -47,4 +47,12 @@ public interface ScrapeRunPort {
      * such run are absent.
      */
     Map<String, Long> duracionesHistoricasMs();
+
+    /**
+     * Per {@code sitio_key}, the {@code productos_count} of its latest DONE row above zero in a
+     * finished run other than {@code excluirRunId}. A site that never yielded is absent. This is
+     * what a site last returned, not what the catalog still holds for it: the sweep never retires
+     * the rows of a site that came back empty.
+     */
+    Map<String, Integer> ultimoRendimientoPositivo(long excluirRunId);
 }

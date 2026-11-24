@@ -83,7 +83,26 @@ public class TiendanubePage extends StorePage implements CatalogPage {
             log.debug("[{}] coleccion extra -> {}", sitio, extra);
             result.addAll(scrapeJs(extra));
         }
-        return result;
+        return unicosPorUrl(result);
+    }
+
+    /**
+     * One product listed in several categories shares one URL once the entry params are gone; the
+     * first listing stays, the same way the aggregator keeps the first of a repeated name.
+     */
+    static List<Product> unicosPorUrl(List<Product> productos) {
+        Set<String> vistas = new HashSet<>();
+        return productos.stream()
+                .filter(p -> StringUtils.isBlank(p.url()) || vistas.add(p.url()))
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    protected Product producto(String nombre, double precio, Double precioOriginal, String url,
+                               String imagenUrl, String categoria, String genero, List<String> talles,
+                               Integer sitioCategoriaOrigenId, Boolean enStock) {
+        return super.producto(nombre, precio, precioOriginal, TiendanubeUrl.canonica(url), imagenUrl,
+                categoria, genero, talles, sitioCategoriaOrigenId, enStock);
     }
 
     private List<Product> scrapeApi(String homeUrl) {
@@ -324,7 +343,7 @@ public class TiendanubePage extends StorePage implements CatalogPage {
         while (url != null && pagina <= maxPaginas) {
             log.debug("[{}] JS p{} -> {}", sitio, pagina, url);
             try {
-                navigateConReintentos(url);
+                navegarExigiendoOk(url, pagina);
                 esperarListado();
 
                 String json = (String) page.evaluate(buildExtractorJs());

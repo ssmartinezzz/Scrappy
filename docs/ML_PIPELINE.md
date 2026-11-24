@@ -4,15 +4,29 @@
 
 ```
 Java: ResultAggregator.agregar()
-    ↓ MlEnricher.serializarProductos() → ml_productos.json
-    ↓ PythonRunner.ejecutar()
+    ↓ MlEnricher.productosParaMl() + PythonRunner.ejecutarEscribiendo()
+        → escribe ml_productos.json con un JsonGenerator, ya con el slot de scoring reservado
+          (nunca existe como String ni como árbol)
         → extrae ml_pipeline.py del JAR (si no existe)
-        → PrecioHistoricoExporter escribe ml_historial.json desde la tabla
+        → PrecioHistoricoExporter lee las URLs de ml_productos.json con un parser y escribe
+          ml_historial.json desde la tabla
         → subprocess: python ml_pipeline.py ml_productos.json ml_output.json ml_historial.json
         → borra ml_historial.json al terminar
     ↓ MlEnricher.enriquecer() → Product.MlScore populated
-    ↓ DatabaseService.guardarMlOutput()
+    ↓ MlOutputLiviano.aligerar(): los `scores` por producto ya se aplicaron, se sueltan
+    ↓ DatabaseService.guardarMlOutput(<output liviano>)
 ```
+
+El output completo (`ml_output.json`, ~150.000 entradas de `scores`) se lee a un árbol
+Jackson sólo mientras `enriquecer` lo consume: era lo más grande que vivía en el cierre de
+una corrida. Después de eso lo que se retiene en memoria (`ResultAggregator.getLastMlOutput`) y lo
+que se guarda en `ml_output.payload` es el mismo documento sin los `scores`: cada campo igual,
+salvo `"scores": {"total": N}` (sigue siendo un objeto no vacío si hubo scores, que es lo único
+que `/api/tendencias` mira de él, además de `tendencias`). Nadie lee los scores por producto
+desde ahí: lo que importa de cada uno (score, badges, categoría) se persiste en `productos` y
+`producto_badge`. Un payload viejo, con todos los scores, se lee igual y sale en la misma forma
+(`MlOutputLiviano.leer` los recorre sin armar el árbol). Si algún día un lector necesita los scores
+por producto, tiene que leerlos de `productos`, no de `ml_output`.
 
 ---
 
@@ -370,7 +384,7 @@ $222k) y pasta ($16,8k), CPU am5 ($637k) y am4 ($276k). Las etiquetas de deporte
 `SubcategoryResolver` (tier 2: `running`, `hockey`, `tenis`...) se ponen por coincidencia de nombre
 sobre cualquier categoría, no son un tipo de producto, y **no** parten la distribución, salvo en
 `CATEGORIAS_DONDE_EL_DEPORTE_ES_TIPO` (Pelota, Paleta, Zapatilla, Botas, Botines, Repuesto de
-Bicicleta). Java manda `subCategoria` en `MlEnricher.serializarProductos`. Medido sobre las 82.653
+Bicicleta). Java manda `subCategoria` en `MlEnricher.productosParaMl`. Medido sobre las 82.653
 filas activas (2026-11-19): 0 filas sin sub cambian, 9.729 filas con sub sí (tecnología 57 %, el resto
 < 9 % salvo libros 24 % y deporte 16 %). `categoria_stats` sigue siendo por categoría (display).
 Nota: `MlEnricher` no manda `rubro` ni `cantidadUnidades`, así que la rama `tech|` y el precio

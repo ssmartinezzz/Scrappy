@@ -211,6 +211,8 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V133` | Mueve las `Zapatilla` sin tipo a `Zapatilla Skate/Running/Entrenamiento/Urbana` por el modelo del nombre (listas nuevas que solo aplican junto a una palabra de calzado, con veto deportivo); no toca `sub_categoria` |
 | `V134` | Categoría `Zapatilla Trekking` (palabra propia `trekking`/`senderismo` o modelo `terrex`, `x ultra`, `columbia`, `merrell`, `outdoor`... sin señal de running); mueve a ella las filas de `Zapatilla` y de sus cuatro hermanas; la sub de deporte del calzado suma `basquet`, `handball` y `golf` |
 | `V135` | Categoría `Accesorio Gaming` (rubro tecnología): fundas, estuches, docks, bases de carga, adaptadores, cables AV, lectores de tarjeta, gift cards, la unidad de disco de la PS5; mueve a ella 312 filas activas, rescata de `Otros` juegos, consolas y controles, y da `sub_categoria` por plataforma a `Consola` (6), `Videojuego` (10) y `Joystick` (`gamepad`/`volante`, más ancho) |
+| `V136` | Une las filas gemelas de Tiendanube (`?entry_path=category[&entry_category_id=N]`) en la URL canónica: una fila por producto, hijos reubicados, trabas e historial conservados. **No es reversible desde los datos**: el rollback es el `pg_dump` previo |
+| `V137` | Plataforma de Fursten: `sitio.plataforma` pasa de `tiendanube` a `shopify` (sólo esa columna). Las filas viejas no se mapean a los handles nuevos: las retira el barrido de la primera corrida |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -233,7 +235,8 @@ cerró `marca_premium`, que era la violación más filosa (`url → sitio →
 es_premium`), y `V23` le puso integridad referencial al sitio. Queda
 `ml_output.payload` como **único** blob del esquema, deliberado: es un log de
 corridas —se poda a 10 filas, nunca se consulta adentro, siempre se lee
-entero— no dato del dominio.
+entero— no dato del dominio. Guarda el resumen de la corrida, no los `scores` por
+producto (ver abajo).
 
 > El matiz de 1FN que hizo falsa la afirmación anterior durante varias
 > migraciones está arriba, en **Regla de admisión**. El desarrollo completo
@@ -2134,8 +2137,19 @@ así, y acá está el motivo", no "no llegamos".
 
 | Item | Se queda como está porque |
 |---|---|
-| `ml_output.payload` | Set de claves dinámico por corrida (scores, clusters de tendencia) — no tiene una forma fija que tipar; los badges ya se normalizaron a `producto_badge` desde `V7`; se poda a 10 filas, nunca se consulta adentro y siempre se lee entero. Es un log de corrida, no dato de dominio: falla el test de `V14` en vez de pasarlo |
+| `ml_output.payload` | Set de claves dinámico por corrida (scores, clusters de tendencia) — no tiene una forma fija que tipar; los badges ya se normalizaron a `producto_badge` desde `V7`; se poda a 10 filas, nunca se consulta adentro y siempre se lee entero. Es un log de corrida, no dato de dominio: falla el test de `V14` en vez de pasarlo. Desde `run-health-identity-heap` el payload es el resumen: `scores` pasa a `{"total": N}` (ver el párrafo siguiente) |
 | `precios_externos` | Sus columnas `sitio`/`titulo`/`precio`/`condicion` dependen de `externo_url`, no del `id` sustituto — es una dependencia transitiva real. Pero cada fila es una **captura fechada** de una publicación de MercadoLibre: el título y el precio de esa URL cambian, y la fila registra lo que ERA el día que se comparó. Normalizarla a una tabla de publicaciones destruiría exactamente el dato que se guarda. Mismo carve-out que `saved_outfit_item` (V14) y `agent_reclassify_audit` (V4): un registro histórico no se normaliza contra una entidad mutable |
+
+**`ml_output.payload` guarda el resumen, no los scores por producto.** Antes cada fila
+pesaba ~100–140 MB (≈150.000 entradas de `scores`, copiadas a la tabla en cada corrida y diez
+veces por la poda), y lo único que se leía de ahí era `tendencias` más "`scores` es un objeto no
+vacío" (`/api/tendencias`, que al arrancar lo carga con `cargarMlOutput`). Hoy
+`MlOutputRepository.guardarMlOutput` valida el output completo y guarda `MlOutputLiviano.aligerar`
+de él: todos los campos, y `scores` como `{"total": N}`. `cargarMlOutput` lee las dos formas y
+devuelve la liviana, así que las filas viejas siguen cargando sin migración (y sin armar el árbol
+de scores); se van solas con la poda a 10 filas. El badge, el score y la categoría de cada producto
+nunca salieron de esta tabla: están en `productos` y `producto_badge`. No hay migración ni
+rollback: el esquema no cambia.
 
 **El único blob que sobrevive en el esquema es `ml_output.payload`.** Los
 `jsonb` de `saved_outfits` no cuentan: `V14` los borró (`slots_json` y
@@ -6239,3 +6253,51 @@ DELETE FROM categoria WHERE nombre = 'Accesorio Gaming';
 ```
 
 El rollback **no es exacto**: devuelve a `Otros` toda fila de `Accesorio Gaming` (el origen no se guarda: venían de `Otros`, `Joystick`, `Videojuego`, `Cooler`, `Cable`...), vacía las subs de `Consola` y `Videojuego` (antes de `V135` no tenían) y devuelve las de `Joystick` a la regla vieja (`volante`/`racing`/`driving` y `gamepad`/`joystick`/`control`). **No devuelve** las filas que `V135` rescató de `Otros` hacia `Consola`, `Videojuego` y `Joystick`, ni las dos gorras: seguir en su categoría nueva es lo correcto. Hay que mover las filas antes de borrar la categoría (FK de `productos`, `sitio_categoria` y `categoria_stats`); por eso borra al final. Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V134`; no hay dependencia con él (`V134` sólo toca calzado).
+
+---
+
+## `V136` — gemelas de Tiendanube: una fila por producto
+
+El tema de Tiendanube agrega de dónde vino el visitante (`entry_path`, `entry_category_id`) a los links de un listado de categoría, y `productos.url` es la identidad: el mismo producto se guardaba una vez por categoría en la que aparecía. Medido en la base de dev antes de aplicar: **11.243 filas** de 24 sitios con esos parámetros (10.285 con `?entry_path=category` solo, 958 con `&entry_category_id=N`), y **603** productos con más de una fila activa (Harvey 445, Monkyforce 124). `TiendanubeUrl.canonica` los saca donde se arma el `Product` (una sola puerta para API, JS y todas las subclases); la migración funde las filas ya guardadas.
+
+- **Qué es candidata**: una fila cuya *query* (lo anterior a `#`) trae `entry_path` o `entry_category_id` como parámetro entero. Se sacan sólo esos dos; los demás parámetros, su orden y el fragmento quedan (`?variant=9&entry_path=category#a` es `?variant=9#a`). Una fila sin esos parámetros no se toca, tampoco `?my_entry_path=1` ni un `#...entry_path=...`. La regla está escrita dos veces (Java y SQL) y `V136MergeTiendanubeEntryTwinsTest` corre las dos sobre los mismos casos (`TiendanubeUrlCases`).
+- **Grupo y ganadora**: las gemelas más la fila canónica si ya existe. Ganadora = activa primero, después la de `touched_at` más reciente, después la `url` (desempate determinista). La fila canónica se crea si falta y se actualiza si existe, con las columnas de producto de la ganadora; `created_at` = el más viejo, `activo` = alguna activa, `visto_en_stock_at` = el más reciente, `en_stock` y `stock_chequeado_at` viajan juntos desde la ganadora. `producto_key` y `sitio_key` son generadas: no se insertan.
+- **La traba viaja con su clasificación**: si alguna gemela tiene `bloqueado_por`, la canónica queda con esa traba y con `categoria`, `genero`, `marca`, `rubro` y `sub_categoria` *de esa misma fila* (si hay varias, la de `bloqueado_at` más nuevo). Una traba sin su clasificación no protegería nada.
+- **Hijos con FK a `productos(url)`**: `precio_historico` (único `(url, fecha)`: una fila por fecha, con el precio de la mejor ranqueada que la tenga, o sea el de la ganadora si la tiene; no se pierde ninguna fecha), `precios_externos` (se reubican), `producto_talle` y `producto_badge` (por posición: la lista entera de la ganadora reemplaza a la de la canónica), `producto_tech_specs` (la de la mejor ranqueada que tenga), `favoritos` (uno por `(usuario, producto)` y uno entre los sin dueño, el de `added_at` más viejo), `notificacion_precio` (uno por `(usuario, producto, precio_nuevo)`; una `ENVIADA` gana siempre, si no se reenviaría), `promo_financiacion_producto` (`visto_at` máximo).
+- **Tablas con una URL y sin FK**: `image_embeddings` (queda el `computed_at` más nuevo), `saved_outfit_item`, `saved_pc_item`, `outfit_feedback_item` y `agent_reclassify_audit` se reubican.
+- **Sólo DML.** Los triggers diferidos de `catalog_version` (`productos`, `producto_talle`, `producto_badge`) hacen fallar cualquier `ALTER` sobre esas tablas mientras tienen eventos pendientes (por eso `V112` necesitó `SET CONSTRAINTS ALL IMMEDIATE`); acá no hay DDL sobre ellas, sólo tablas temporales `ON COMMIT DROP`. Sin `ON CONFLICT DO NOTHING` donde una regla de arriba pide otra cosa.
+- **Efecto sobre el catálogo**: los grupos se funden, así que `/api/*` deja de listar el mismo producto varias veces, y los puntajes ML que ya estaban calculados por URL vieja se rehacen en el próximo scrape.
+
+Medido sobre una copia de la base de dev (`pg_dump` de `scraper` a `scraper_identity_copy`), en una transacción, **~5,5 s**: filas con esos parámetros **11.243 → 0**; `productos` 188.142 → 183.527 (= las URL canónicas distintas de antes); activas 170.120 → 169.481; `precio_historico` 378.766 → 378.587 filas, y los pares `(url canónica, fecha)` distintos de antes (378.587) son exactamente las filas de después (ninguna fecha perdida); trabas 0 → 0 (la base de dev no tiene), favoritos 6 → 6, huérfanos 0 en todos los hijos; grupos con más de una fila activa 603 → 0 (Harvey 1.181 → 736 activas, Monkyforce 283 → 124, Morashop 316 → 281). Las trabas, los favoritos, las notificaciones, las promos y los embeddings los cubre el test con datos sembrados, no la copia.
+
+### Rollback
+
+**No es reversible desde los datos.** Las filas gemelas se borran y lo que las distinguía (de qué categoría vino cada link, el precio de una fecha que perdió contra la ganadora, las listas de talles y badges de las perdedoras) no se guarda en ningún lado. El único camino atrás es restaurar el `pg_dump` tomado **antes** de aplicarla:
+
+```bash
+pg_dump -U postgres -Fc scraper > scraper_antes_de_V136.dump   # ANTES de arrancar el backend con V136
+# volver atrás (con el backend parado): crear una base vacía y restaurar
+pg_restore -U postgres -d scraper_restaurada scraper_antes_de_V136.dump
+```
+
+El dump trae también `flyway_schema_history`, así que la base restaurada vuelve a estar en `V135`. Restaurarlo descarta **todo** lo escrito después del dump (scrapes, favoritos, corridas), no sólo esta migración; sólo es sano hacerlo enseguida. Con el código de esta rama el scraper vuelve a producir URL canónicas, así que las gemelas no reaparecen salvo que se vuelva también al código anterior.
+
+Composición con las otras: no hay SQL de rollback para ordenar con los demás bloques (`-- >>> rollback:V13x`). Si hay que deshacer varias, el dump previo a `V136` ya contiene el estado de todo lo anterior (`V135` y antes); un rollback por SQL de una migración **posterior** a `V136` (por ejemplo `V137`) corre PRIMERO, sobre la base ya fundida, y recién después se restaura el dump si hace falta volver antes de `V136`.
+
+---
+
+## `V137` — Fursten pasa de Tiendanube a Shopify
+
+`www.fursten.com.ar/productos/` redirige (301) a `fursten.com.ar`, que es Shopify (`cdn.shopify.com`, `Shopify.theme`, cookies `_shopify_*`). La migración cambia **sólo** `sitio.plataforma` de la fila `fursten` (`'shopify'` ya está en `sitio_plataforma_check`); `origen` (`config`), `monomarca`, `rubro_forzado` y `es_premium` quedan como estaban. La URL de `config.properties` pasa a `https://fursten.com.ar/`. Idempotente.
+
+Las filas de productos viejas (URL `www.fursten.com.ar/productos/<slug>/`) **no se mapean** a los productos nuevos (`fursten.com.ar/products/<handle>`): los slugs de Tiendanube traen sufijos al azar, así que cualquier cruce sería adivinar. El barrido de la primera corrida Shopify que traiga productos las desactiva (`sp_soft_delete_ausentes`, acotado al sitio que la corrida miró) y su `precio_historico` se queda en ellas; los productos nuevos arrancan sin historial. Hasta esa corrida, el catálogo sigue mostrando las filas viejas. La línea base de `SiteYieldGuard` (48, de Tiendanube) no bloquea nada: a lo sumo la primera corrida avisa `CAIDA_PARCIAL` si rinde menos de la mitad.
+
+### Rollback
+
+```sql
+-- >>> rollback:V137
+UPDATE sitio SET plataforma = 'tiendanube' WHERE sitio_key = 'fursten';
+-- <<< rollback:V137
+```
+
+Sólo devuelve la plataforma; no revive las filas que el barrido desactivó ni borra las de Shopify (hay que reactivarlas a mano o con un scrape Tiendanube, y la URL de `config.properties` vuelve a `https://www.fursten.com.ar/productos/` por git). Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V136`. `V136` no tiene bloque SQL (no es reversible desde los datos, ver arriba), así que la cadena termina ahí: lo anterior a `V136` sólo se alcanza restaurando el `pg_dump` previo.

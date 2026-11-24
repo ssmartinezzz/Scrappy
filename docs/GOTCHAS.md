@@ -496,6 +496,38 @@ no sirve. Un `precio_historico.json` junto al jar es el JSON viejo del ML: la pr
 corrida lo importa a la tabla (queda como `.legacy` hasta que la importación pasa,
 después `.imported`). Detalle en [`ML_PIPELINE.md`](./ML_PIPELINE.md) → Historial de precios.
 
+**El cierre de una corrida vivía con el output del ML entero en memoria, dos veces.** Con 169.481
+filas, `ml_output.json` trae ~147.000 entradas de `scores` y `PythonRunner` lo leía a un árbol
+Jackson (~1 GB: ~10 millones de `LinkedHashMap$Entry`). Ese árbol seguía vivo hasta el final de
+`agregar` (`lastMlOutput` lo retenía para siempre, y al arrancar `cargarMlOutput` volvía a armarlo
+desde `ml_output.payload`), así que durante una corrida convivían el viejo y el nuevo. Medido con el
+mismo harness sobre una copia de la base (catálogo de 169.481 filas, `-Xmx` en pasos de 64m): el
+`-Xmx` mínimo con el que el cierre termina pasó de **1728m a 1088m**, y el pico de heap vivo del cierre
+(histograma tras un `System.gc()` cada 250 ms) de **1521 MB a 1059 MB**. Hoy: el input del ML se
+escribe a `ml_productos.json` con un `JsonGenerator` (sin `String` ni árbol), el historial lee las
+URLs de ese archivo con un parser, los `scores` se sueltan apenas `MlEnricher.enriquecer` los
+consume y lo que se retiene y se guarda es `MlOutputLiviano.aligerar` del output (ver
+[`ML_PIPELINE.md`](./ML_PIPELINE.md)). Reglas: **no retengas el output del ML**, ni en un campo ni
+en una tabla — los scores por producto son entrada de `enriquecer`, no estado; y **una referencia
+local en un frame vivo es una raíz del GC** (el intérprete no hace análisis de vida), así que lo
+que el cierre sólo necesita un rato se arma en un método propio (`enriquecerYPersistir`,
+`normalizarYBloquear`) o se resume antes (`ScraperService` captura `rendimientos`, no la lista cruda
+de `ScrapeResult`). Lo que **no** se puede soltar: el snapshot anterior (`servedResult` lo sirve a los
+lectores durante toda la corrida), ni `delBatch` mientras `catalogoEntero` recarga (es el fallback si la
+recarga viene vacía o falla). Para medir esto no uses un `mock()` de Mockito de un colaborador que se
+llama por producto: registra cada invocación y suma ~200 MB de heap falso (`withSettings().stubOnly()`).
+
+**Los tests que escriben `ml_productos.json`, `ml_pipeline.py` o `ml_train.py` en el cwd chocan entre forks.**
+`forkCount=4` corre cuatro JVM sobre `scraper/` a la vez y `PythonRunner` resuelve esos archivos en el cwd;
+`Files.copy(..., REPLACE_EXISTING)` borra y recrea, así que dos extracciones simultáneas se
+pisan. En un loop de 48 corridas de `PythonRunnerProcessLaunchTest` en 4 JVM sobre un mismo cwd
+falló una con `Error inesperado: …/ml_train.py` (la extracción de otro fork). Un test nuevo de
+`PythonRunner` tiene que redefinir `directorioDeTrabajo()` apuntando a su `@TempDir`
+(`PythonRunnerProductosStreamTest` lo hace); los viejos siguen en el cwd. El respaldo/restauración de
+`ml_productos.json` que hacen no ayuda frente a otra JVM: una corrida de tests con el repo en el
+medio puede dejar ese archivo con el contenido de un test (es un artefacto de runtime: la próxima
+corrida del ML lo reescribe entero).
+
 **Un boot sin salida a internet necesita proxy en la JVM _y_ en el entorno.** El stage
 1b de `ml_pipeline.py` baja imágenes con `urllib`, que lee `http(s)_proxy` e ignora
 `-Dhttp.proxyHost`: unas 400 descargas a tiendas de terceros por corrida de ML. Para
@@ -534,6 +566,15 @@ p2..pk y `?page=2` no aporta nada nuevo. Un guard que cortaba ahí dejó
 foreverbstrd en 72 y Harvey en 108 (2026-09-28). Que el server ignore el
 parámetro se ve de otra forma: la página es **idéntica** a la anterior
 (`TiendanubePage.repiteLaAnterior`).
+
+**En Tiendanube la URL del link no es la URL del producto:** el tema agrega
+`?entry_path=category[&entry_category_id=N]` a los links de un listado, y como
+`productos.url` es la identidad, el mismo producto quedaba una vez por categoría
+(11.243 filas en 24 sitios, 603 productos con más de una fila activa). `TiendanubeUrl.canonica`
+saca sólo esos dos parámetros (el resto, su orden y el `#` quedan) en
+`TiendanubePage.producto`, la única puerta; `V136` funde lo ya guardado y no es
+reversible desde los datos (ver [`DATABASE.md`](./DATABASE.md)). Cualquier página nueva de
+Tiendanube que arme el `Product` sin pasar por ahí reabre el problema.
 
 **La API Legacy de VTEX da HTTP 400 pasado `_from` ≈ 2550, por consulta:** el
 header `resources` dice el total real (7151 en Sporting), pero una sola consulta

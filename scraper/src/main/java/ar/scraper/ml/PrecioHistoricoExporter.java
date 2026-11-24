@@ -3,6 +3,8 @@ package ar.scraper.ml;
 import ar.scraper.catalog.HistorialEntry;
 import ar.scraper.catalog.HistorialImportPort;
 import ar.scraper.catalog.HistorialPort;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.JsonToken;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.commons.lang3.StringUtils;
@@ -51,13 +53,28 @@ public class PrecioHistoricoExporter implements HistorialParaMl {
 
     @Override
     public void preparar(Path hist, String productosJson) {
+        prepararCon(hist, () -> urlsDe(MAPPER.getFactory().createParser(productosJson)));
+    }
+
+    /** Recorre el archivo con un parser: el catálogo serializado no se carga como árbol. */
+    @Override
+    public void preparar(Path hist, Path productos) {
+        prepararCon(hist, () -> urlsDe(MAPPER.getFactory().createParser(productos.toFile())));
+    }
+
+    private void prepararCon(Path hist, UrlsDeProductos urls) {
         importarLegacy(hist);
         try {
-            exportar(hist, urlsDe(productosJson));
+            exportar(hist, urls.leer());
         } catch (IOException e) {
             LOG.warn("[ML] No se pudo escribir el historial {} — el pipeline corre sin historia: {}",
                     hist, e.getMessage());
         }
+    }
+
+    @FunctionalInterface
+    private interface UrlsDeProductos {
+        List<String> leer() throws IOException;
     }
 
     @Override
@@ -120,12 +137,33 @@ public class PrecioHistoricoExporter implements HistorialParaMl {
         MAPPER.writeValue(hist.toFile(), diario);
     }
 
-    private static List<String> urlsDe(String productosJson) throws IOException {
+    /** The distinct, non-blank {@code url} of each element of a JSON array, in first-seen order. */
+    private static List<String> urlsDe(JsonParser parser) throws IOException {
         Set<String> urls = new LinkedHashSet<>();
-        for (JsonNode p : MAPPER.readTree(productosJson)) {
-            String url = p.path("url").asText("");
-            if (StringUtils.isNotBlank(url)) urls.add(url);
+        try (parser) {
+            if (parser.nextToken() != JsonToken.START_ARRAY) return new ArrayList<>(urls);
+            for (JsonToken elemento = parser.nextToken(); elemento != JsonToken.END_ARRAY;
+                    elemento = parser.nextToken()) {
+                if (elemento == JsonToken.START_OBJECT) {
+                    urlDelObjeto(parser, urls);
+                } else if (elemento.isStructStart()) {
+                    parser.skipChildren();
+                }
+            }
         }
         return new ArrayList<>(urls);
+    }
+
+    private static void urlDelObjeto(JsonParser parser, Set<String> urls) throws IOException {
+        while (parser.nextToken() == JsonToken.FIELD_NAME) {
+            boolean esUrl = "url".equals(parser.currentName());
+            JsonToken valor = parser.nextToken();
+            if (valor.isStructStart()) {
+                parser.skipChildren();
+            } else if (esUrl && valor != JsonToken.VALUE_NULL) {
+                String url = parser.getValueAsString("");
+                if (StringUtils.isNotBlank(url)) urls.add(url);
+            }
+        }
     }
 }
