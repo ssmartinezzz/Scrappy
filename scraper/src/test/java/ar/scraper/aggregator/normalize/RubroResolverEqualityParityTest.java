@@ -154,7 +154,7 @@ class RubroResolverEqualityParityTest {
                     if (CategoryGroups.esCategoriaConstruccion(cat) || CategoryGroups.esCategoriaHogar(cat)
                             || CategoryGroups.esCategoriaElectrodomesticos(cat)
                             || CategoryGroups.categoriasOficina().contains(cat)
-                            || (CategoryGroups.esCategoriaTech(cat) && sinRubroForzado(rubroForzadoPorSitio, sitioKey))
+                            || ((CategoryGroups.esCategoriaTech(cat) || CategoryGroups.esCategoriaCelulares(cat)) && sinRubroForzado(rubroForzadoPorSitio, sitioKey))
                             || CategoryGroups.esCategoriaDeporte(cat)
                             || CategoryGroups.esCategoriaJuguetes(cat)
                             || CategoryGroups.esCategoriaLibros(cat)

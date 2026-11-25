@@ -34,7 +34,8 @@ public final class TestRubros {
             new Rubro("juguetes", "Juguetes", 8, "IPC", 0, 0),
             new Rubro("libros", "Libros", 9, "IPC", 0, 0),
             new Rubro("belleza", "Belleza", 10, "IPC", 0, 1),
-            new Rubro("electrodomesticos", "Electrodomésticos", 11, "IPC", 0, 1));
+            new Rubro("electrodomesticos", "Electrodomésticos", 11, "IPC", 0, 1),
+            new Rubro("celulares", "Celulares", 12, USD, 0, 0));
 
     /** (categoria, sub) pairs whose rubro differs from their category's: a dining, garden or children's chair is a home product. */
     private static final List<String[]> SUBS_DE_SILLA = List.of(
@@ -71,6 +72,7 @@ public final class TestRubros {
         if (CategoryGroups.esCategoriaBelleza(cat)) return "belleza";
         if (CategoryGroups.esCategoriaConstruccion(cat)) return "construccion";
         if (CategoryGroups.esCategoriaElectrodomesticos(cat)) return "electrodomesticos";
+        if (CategoryGroups.esCategoriaCelulares(cat)) return "celulares";
         if (CategoryGroups.esCategoriaHogar(cat)) return "hogar";
         if (CategoryGroups.esCategoriaSuplemento(cat)) return "suplementos";
         if (CategoryGroups.esIndumentariaOCalzado(cat)) return "indumentaria";
