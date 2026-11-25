@@ -3,6 +3,9 @@ import { MemoryRouter, Route, Routes, useOutletContext } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import AppLayout from './AppLayout';
+// lazy() in AppLayout: a cold import inside a test outlasts its timeouts.
+import './AgentChatPanel';
+import './GpuTrainingOverlay';
 import { EventStreamProvider } from '../hooks/EventStreamProvider';
 import { useAuth } from '../auth/AuthProvider';
 import { fakeStream } from '../test/fakeEventStream';
