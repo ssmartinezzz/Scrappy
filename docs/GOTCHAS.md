@@ -826,8 +826,9 @@ Desde `indices-service` el "hace cuánto" se resuelve por FECHA:
 de las fechas reales del historial, nunca de una posición en la lista.
 
 **`rubro=tecnologia` deflacta por dólar oficial, el resto por IPC.**
-`DeflactorPorRubro.resolver(rubro)` es la única regla: `"tecnologia".equals(rubro)
-→ USD_OFICIAL`, cualquier otro valor → `IPC`. Deflactar una GPU por la canasta
+`DeflactorPorRubro.resolver(rubro, categoria)` es la única regla: el `categoria.indice` de la
+categoría si no es NULL (hoy sólo `TV y Audio`, USD_OFICIAL), si no el `rubro.indice`
+(`tecnologia` → USD_OFICIAL), y rubro nulo o desconocido → `IPC`. Deflactar una GPU por la canasta
 del IPC responde la pregunta equivocada — una GPU sube y baja con el dólar, no
 con la inflación general.
 

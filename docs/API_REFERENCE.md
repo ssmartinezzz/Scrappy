@@ -926,7 +926,7 @@ hardcodeada de 2024):
 
 | Campo | Tipo | |
 |---|---|---|
-| `indice` | `"IPC" \| "USD_OFICIAL"` | El índice que efectivamente deflactó, resuelto por `DeflactorPorRubro.resolver(producto.rubro)` — `tecnologia` usa el dólar oficial, el resto IPC |
+| `indice` | `"IPC" \| "USD_OFICIAL"` | El índice que efectivamente deflactó, resuelto por `DeflactorPorRubro.resolver(producto.rubro, producto.categoria)`: el índice de la categoría si tiene (`categoria.indice`, hoy `TV y Audio` con el dólar oficial), si no el del rubro (`rubro.indice`: `tecnologia` usa el dólar oficial, el resto IPC) |
 | `confianza` | `"observado" \| "extrapolado" \| "sin_datos"` | minúscula; `extrapolado` cuando el rango pedido excede el último punto de la serie |
 | `diasExtrapolados` | `number` | `0` si `confianza="observado"` |
 

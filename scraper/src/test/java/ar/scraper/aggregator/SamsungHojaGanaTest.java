@@ -1,5 +1,7 @@
 package ar.scraper.aggregator;
 
+import ar.scraper.testsupport.TestRubros;
+
 import ar.scraper.aggregator.normalize.CategoryClassifier;
 import ar.scraper.aggregator.normalize.GenderResolver;
 import ar.scraper.aggregator.normalize.GymratTagger;
@@ -45,7 +47,7 @@ class SamsungHojaGanaTest {
         when(arbol.categoriaPorOrigen("Samsung")).thenReturn(hojas);
         when(arbol.categoriaPorOrigen("Otra")).thenReturn(hojas);
         return new NormalizerService(new PackQuantityDetector(), new CategoryClassifier(), new BrandExtractor(),
-                new GenderResolver(), new SizeNormalizer(), new SubcategoryResolver(), new RubroResolver(registry),
+                new GenderResolver(), new SizeNormalizer(), new SubcategoryResolver(), TestRubros.resolver(registry),
                 new GymratTagger(), new SportResolver(), registry, arbol);
     }
 
@@ -82,7 +84,7 @@ class SamsungHojaGanaTest {
         SitioCategoriaPort arbol = mock(SitioCategoriaPort.class);
         when(arbol.categoriaPorOrigen("Prestigio")).thenReturn(Map.of(9, "Pequeño Electrodoméstico"));
         NormalizerService prestigio = new NormalizerService(new PackQuantityDetector(), new CategoryClassifier(), new BrandExtractor(),
-                new GenderResolver(), new SizeNormalizer(), new SubcategoryResolver(), new RubroResolver(registry),
+                new GenderResolver(), new SizeNormalizer(), new SubcategoryResolver(), TestRubros.resolver(registry),
                 new GymratTagger(), new SportResolver(), registry, arbol);
         Product p = Product.builder().sitio("Prestigio").nombre("Procesador 400 W AM115").url("https://x/p").sitioCategoriaOrigenId(9).build();
         Product n = prestigio.normalizar(List.of(p)).get(0);

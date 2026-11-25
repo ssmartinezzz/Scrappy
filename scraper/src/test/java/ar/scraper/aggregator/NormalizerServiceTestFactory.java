@@ -1,5 +1,7 @@
 package ar.scraper.aggregator;
 
+import ar.scraper.testsupport.TestRubros;
+
 import ar.scraper.aggregator.normalize.CategoryClassifier;
 import ar.scraper.aggregator.normalize.GenderResolver;
 import ar.scraper.aggregator.normalize.GymratTagger;
@@ -38,7 +40,7 @@ public final class NormalizerServiceTestFactory {
                 new GenderResolver(),
                 new SizeNormalizer(),
                 new SubcategoryResolver(),
-                new RubroResolver(siteRegistry),
+                TestRubros.resolver(siteRegistry),
                 new GymratTagger(),
                 new SportResolver(),
                 siteRegistry,

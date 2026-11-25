@@ -1,5 +1,7 @@
 package ar.scraper.aggregator.normalize;
 
+import ar.scraper.testsupport.TestRubros;
+
 import ar.scraper.classification.CategoryGroups;
 import ar.scraper.classification.RubroResolver;
 import ar.scraper.classification.SiteRegistry;
@@ -22,7 +24,7 @@ class SillaSubcategoriaTest {
 
     private final SubcategoryResolver subs = new SubcategoryResolver();
 
-    private final RubroResolver rubros = new RubroResolver(SiteRegistry.forTesting(Map.of(
+    private final RubroResolver rubros = TestRubros.resolver(SiteRegistry.forTesting(Map.of(
             "easy", new Sitio("Easy", "easy", "vtex", false, null, "config"),
             "venex", new Sitio("Venex", "venex", "osc", false, "tecnologia", "config"),
             "zentra", new Sitio("Zentra", "zentra", "tiendanube", false, "oficina", "config"),
@@ -126,9 +128,9 @@ class SillaSubcategoriaTest {
     @Test
     @DisplayName("the table has no entry for another category or an unknown sub")
     void tableIsClosed() {
-        assertThat(CategoryGroups.rubroDeSubcategoria("Mesa", "comedor")).isEmpty();
-        assertThat(CategoryGroups.rubroDeSubcategoria("Silla", "gamer")).isEmpty();
-        assertThat(CategoryGroups.rubroDeSubcategoria(null, "comedor")).isEmpty();
-        assertThat(CategoryGroups.rubroDeSubcategoria("Silla", null)).isEmpty();
+        assertThat(TestRubros.catalogo().fila("Mesa", "comedor")).isEmpty();
+        assertThat(TestRubros.catalogo().fila("Silla", "gamer")).isEmpty();
+        assertThat(TestRubros.catalogo().fila(null, "comedor")).isEmpty();
+        assertThat(TestRubros.catalogo().fila("Silla", null).orElseThrow().rubro()).as("a null sub is the category itself").isEqualTo("oficina");
     }
 }

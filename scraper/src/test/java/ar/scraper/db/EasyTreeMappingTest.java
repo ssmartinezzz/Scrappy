@@ -1,5 +1,7 @@
 package ar.scraper.db;
 
+import ar.scraper.testsupport.TestRubros;
+
 import ar.scraper.aggregator.NormalizerService;
 import ar.scraper.aggregator.ResultAggregator;
 import ar.scraper.aggregator.normalize.CategoryClassifier;
@@ -71,10 +73,10 @@ class EasyTreeMappingTest extends PostgresTestBase {
         DataSource conTransaccion = TestTransactions.aware(dataSource());
         SiteRegistry siteRegistry = new SiteRegistry(new JdbcSiteSource(conTransaccion));
         SitioCategoriaRepository arbol = new SitioCategoriaRepository(conTransaccion);
-        productos = new ProductRepository(conTransaccion, siteRegistry, new RubroResolver(siteRegistry), tm, arbol);
+        productos = new ProductRepository(conTransaccion, siteRegistry, TestRubros.resolver(siteRegistry), tm, arbol);
         normalizador = new NormalizerService(new PackQuantityDetector(), new CategoryClassifier(),
                 new BrandExtractor(), new GenderResolver(), new SizeNormalizer(), new SubcategoryResolver(),
-                new RubroResolver(siteRegistry), new GymratTagger(), new SportResolver(), siteRegistry, arbol);
+                TestRubros.resolver(siteRegistry), new GymratTagger(), new SportResolver(), siteRegistry, arbol);
         agregador = new ResultAggregator(normalizador, mock(PythonRunner.class), mock(MlEnricher.class),
                 mock(SenalEnricher.class), mock(FinanciacionEnricher.class), mock(MlOutputPort.class),
                 mock(CategoriaStatsPort.class), productos);

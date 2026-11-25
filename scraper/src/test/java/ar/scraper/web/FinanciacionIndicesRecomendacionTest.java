@@ -1,5 +1,7 @@
 package ar.scraper.web;
 
+import ar.scraper.testsupport.TestRubros;
+
 import ar.scraper.web.support.Wire;
 
 import ar.scraper.indices.Confianza;
@@ -59,7 +61,7 @@ class FinanciacionIndicesRecomendacionTest {
         when(db.historial()).thenReturn(historial);
         when(db.productos()).thenReturn(productos);
         when(productos.obtenerProducto(any())).thenReturn(java.util.Optional.empty());
-        controller = new FinanciacionController(service, indiceService, db.presets(), db.historial(), db.productos(), aggregator);
+        controller = new FinanciacionController(service, indiceService, TestRubros.deflactor(), db.presets(), db.historial(), db.productos(), aggregator);
     }
 
     // ── GET /api/indices ─────────────────────────────────────────────────

@@ -1,5 +1,7 @@
 package ar.scraper.aggregator;
 
+import ar.scraper.testsupport.TestRubros;
+
 import ar.scraper.aggregator.normalize.CategoryClassifier;
 import ar.scraper.aggregator.normalize.GenderResolver;
 import ar.scraper.aggregator.normalize.GymratTagger;
@@ -117,7 +119,7 @@ class CategoryReconciliationOrderTest {
         };
         return new NormalizerService(new PackQuantityDetector(), new CategoryClassifier(), new BrandExtractor(),
                 new GenderResolver(), new SizeNormalizer(), new SubcategoryResolver(),
-                new RubroResolver(siteRegistry), new GymratTagger(), new SportResolver(), siteRegistry, arbol);
+                TestRubros.resolver(siteRegistry), new GymratTagger(), new SportResolver(), siteRegistry, arbol);
     }
 
     private static Product producto(String url, String nombre, String categoria, Integer origenId) {

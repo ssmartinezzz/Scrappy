@@ -1,5 +1,7 @@
 package ar.scraper.aggregator.normalize;
 
+import ar.scraper.testsupport.TestRubros;
+
 import ar.scraper.classification.CategoryGroups;
 import ar.scraper.classification.RubroResolver;
 import ar.scraper.classification.SiteRegistry;
@@ -92,7 +94,7 @@ class RubroResolverEqualityParityTest {
                     r.nombre(), r.sitioKey(), r.plataforma(), r.esPremium(), r.rubroForzado(), r.origen()));
         }
         SiteRegistry registry = SiteRegistry.forTesting(cache);
-        RubroResolver equality = new RubroResolver(registry);
+        RubroResolver equality = TestRubros.resolver(registry);
 
         Map<String, String> rubroForzadoPorSitio = new HashMap<>();
         for (SeedRow r : rows) rubroForzadoPorSitio.put(r.sitioKey(), r.rubroForzado());

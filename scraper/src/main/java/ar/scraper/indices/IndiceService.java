@@ -23,6 +23,7 @@ public class IndiceService {
 
     private final IndicePort indicePort;
     private final Map<Indice, FuenteIndicePort> fuentesPorIndice;
+    private final DeflactorPorRubro deflactorPorRubro;
 
     private volatile Map<Indice, Serie> series = Map.of();
     private volatile String ultimaActualizacion = "sin datos";
@@ -57,8 +58,8 @@ public class IndiceService {
         return serieDe(indice).deflactor(desde, hasta);
     }
 
-    public Deflactor deflactorParaRubro(String rubro, LocalDate desde, LocalDate hasta) {
-        return deflactor(DeflactorPorRubro.resolver(rubro), desde, hasta);
+    public Deflactor deflactorParaRubro(String rubro, String categoria, LocalDate desde, LocalDate hasta) {
+        return deflactor(deflactorPorRubro.resolver(rubro, categoria), desde, hasta);
     }
 
     public Optional<Double> variacionMensual(Indice indice) {

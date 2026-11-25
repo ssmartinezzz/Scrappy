@@ -1,5 +1,7 @@
 package ar.scraper.config;
 
+import ar.scraper.classification.RubroCatalogo;
+import ar.scraper.indices.DeflactorPorRubro;
 import ar.scraper.indices.FuenteIndicePort;
 import ar.scraper.indices.Indice;
 import ar.scraper.indices.IndicePort;
@@ -14,8 +16,14 @@ import java.util.Map;
 class IndicesConfig {
 
     @Bean
-    IndiceService indiceService(IndicePort indicePort, Map<Indice, FuenteIndicePort> fuentesPorIndice) {
-        return new IndiceService(indicePort, fuentesPorIndice);
+    DeflactorPorRubro deflactorPorRubro(RubroCatalogo rubros) {
+        return new DeflactorPorRubro(rubros::indiceDeCategoria, rubros::indiceDeRubro);
+    }
+
+    @Bean
+    IndiceService indiceService(IndicePort indicePort, Map<Indice, FuenteIndicePort> fuentesPorIndice,
+                                DeflactorPorRubro deflactorPorRubro) {
+        return new IndiceService(indicePort, fuentesPorIndice, deflactorPorRubro);
     }
 
     @Bean

@@ -49,8 +49,8 @@ class V74HadriaticaTest extends PostgresTestBase {
                 st.executeUpdate("UPDATE sitio SET rubro_por_defecto = 'juguetes' WHERE sitio_key = 'easy'");
                 st.executeUpdate("UPDATE sitio SET rubro_por_defecto = 'hogar' WHERE sitio_key = 'easy'");
                 assertThatThrownBy(() -> st.executeUpdate(
-                        "UPDATE sitio SET rubro_por_defecto = 'indumentaria' WHERE sitio_key = 'easy'"))
-                        .hasMessageContaining("sitio_rubro_por_defecto_check");
+                        "UPDATE sitio SET rubro_por_defecto = 'ropa' WHERE sitio_key = 'easy'"))
+                        .hasMessageContaining("fk_sitio_rubro_por_defecto");
             } finally {
                 c.rollback();
             }
@@ -65,6 +65,7 @@ class V74HadriaticaTest extends PostgresTestBase {
             try (Statement st = c.createStatement()) {
                 int sitiosAntes = count(st, "SELECT count(*) FROM sitio");
 
+                st.execute(DocumentedRollback.sqlFor("V138"));
                 st.execute(DocumentedRollback.sqlFor("V74"));
 
                 assertThat(count(st, "SELECT count(*) FROM sitio WHERE sitio_key = 'hadriatica'")).isZero();
@@ -86,6 +87,7 @@ class V74HadriaticaTest extends PostgresTestBase {
             try (Statement st = c.createStatement()) {
                 insertProduct(st, "https://rollback.test/peluche", "Peluche");
 
+                st.execute(DocumentedRollback.sqlFor("V138"));
                 st.execute(DocumentedRollback.sqlFor("V74"));
 
                 assertThat(count(st, "SELECT count(*) FROM sitio WHERE sitio_key = 'hadriatica' "
@@ -107,6 +109,7 @@ class V74HadriaticaTest extends PostgresTestBase {
                 insertProduct(st, "https://rollback.test/peluche", "Peluche");
                 int antes = count(st, "SELECT count(*) FROM categoria");
 
+                st.execute(DocumentedRollback.sqlFor("V138"));
                 st.execute(DocumentedRollback.sqlFor("V74"));
 
                 assertThat(antes - count(st, "SELECT count(*) FROM categoria")).isEqualTo(6);
@@ -133,6 +136,7 @@ class V74HadriaticaTest extends PostgresTestBase {
                         """);
                 st.execute("SET CONSTRAINTS ALL IMMEDIATE");
 
+                st.execute(DocumentedRollback.sqlFor("V138"));
                 st.execute(DocumentedRollback.sqlFor("V74"));
 
                 assertThat(count(st, "SELECT count(*) FROM productos WHERE url = 'https://rollback.test/libro' "

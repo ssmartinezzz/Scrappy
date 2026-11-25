@@ -34,6 +34,7 @@ public class FinanciacionController {
 
     private final ScraperService service;
     private final IndiceService indiceService;
+    private final DeflactorPorRubro deflactorPorRubro;
     private final ar.scraper.financiacion.PresetPort presets;
     private final ar.scraper.catalog.HistorialPort historial;
     private final ar.scraper.catalog.ProductPort productos;
@@ -161,8 +162,10 @@ public class FinanciacionController {
         double precioAntiguo  = hist.get(puntoAntiguo).precio();
         LocalDate desde = LocalDate.parse(hist.get(puntoAntiguo).fecha());
         LocalDate hasta = LocalDate.parse(hist.get(hist.size() - 1).fecha());
-        Indice indice = DeflactorPorRubro.resolver(
-                productos.obtenerProducto(url).map(ar.scraper.model.Product::rubro).orElse(null));
+        var producto = productos.obtenerProducto(url);
+        Indice indice = deflactorPorRubro.resolver(
+                producto.map(ar.scraper.model.Product::rubro).orElse(null),
+                producto.map(ar.scraper.model.Product::categoria).orElse(null));
         Deflactor deflactor = indiceService.deflactor(indice, desde, hasta);
         double precioAjustado = precioAntiguo * deflactor.factor();
         double cambioReal = precioAjustado > 0

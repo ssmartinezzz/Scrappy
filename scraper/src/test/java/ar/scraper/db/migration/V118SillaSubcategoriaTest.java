@@ -1,5 +1,7 @@
 package ar.scraper.db.migration;
 
+import ar.scraper.testsupport.TestRubros;
+
 import ar.scraper.aggregator.normalize.SubcategoryResolver;
 import ar.scraper.classification.RubroResolver;
 import ar.scraper.classification.SiteRegistry;
@@ -40,7 +42,7 @@ class V118SillaSubcategoriaTest extends PostgresTestBase {
                 "v118libre", new Sitio("V118libre", "v118libre", "vtex", false, null, "config"),
                 "v118tec", new Sitio("V118tec", "v118tec", "osc", false, "tecnologia", "config"),
                 "v118hogar", new Sitio("V118hogar", "v118hogar", "tiendanube", false, "hogar", "config"));
-        RubroResolver rubros = new RubroResolver(SiteRegistry.forTesting(sitios));
+        RubroResolver rubros = TestRubros.resolver(SiteRegistry.forTesting(sitios));
         SubcategoryResolver subs = new SubcategoryResolver();
         try (Connection c = dataSource().getConnection()) {
             c.setAutoCommit(false);

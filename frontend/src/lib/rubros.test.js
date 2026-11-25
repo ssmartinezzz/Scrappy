@@ -24,8 +24,8 @@ describe('RUBROS', () => {
     }
   });
 
-  it('las claves coinciden EXACTAMENTE con el dominio CHECK de productos.rubro', () => {
-    // V27 abrió chk_productos_rubro_domain a estos cuatro valores. Si el
+  it('las claves coinciden EXACTAMENTE con las de la tabla rubro', () => {
+    // RubroTaxonomiaAgreementTest (backend) las compara con la base. Si el
     // frontend manda otra cosa a /api/data?rubro=, filtra por un valor que
     // ninguna fila tiene y la vista sale vacía.
     const conValor = RUBRO_KEYS.filter(Boolean);

@@ -410,7 +410,7 @@ valiendo para cualquier banda que sí filtre.
 
 Igual que cualquier alta, más el `CHECK` de plataforma si el valor es nuevo
 (`V27` para `inpro`). Si además el sitio inaugura un **rubro**, se amplían
-también `chk_productos_rubro_domain` y `sitio_rubro_forzado_check`, y las
+una fila en `rubro` (`V138`: las tres FK a `rubro(clave)` reemplazaron los CHECK, no hay nada que ampliar), las filas de `categoria_rubro` y las
 categorías nuevas necesitan su fila en la tabla `categoria` de `V13` — sin eso
 la FK rechaza el upsert y, como `ProductRepository` se traga los errores SQL,
 el síntoma es **"0 nuevos"** y no un error. Ver `docs/DATABASE.md`.

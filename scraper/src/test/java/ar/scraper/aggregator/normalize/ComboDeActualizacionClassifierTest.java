@@ -1,5 +1,7 @@
 package ar.scraper.aggregator.normalize;
 
+import ar.scraper.testsupport.TestRubros;
+
 import ar.scraper.classification.CategoryGroups;
 import ar.scraper.classification.RubroResolver;
 import ar.scraper.classification.SiteRegistry;
@@ -79,6 +81,6 @@ class ComboDeActualizacionClassifierTest {
     void esTecnologia() {
         assertThat(CategoryGroups.canonicalCategories()).contains(COMBO);
         assertThat(CategoryGroups.esCategoriaTech(COMBO)).isTrue();
-        assertThat(new RubroResolver(SiteRegistry.forTesting(java.util.Map.of())).resolver("compragamer", COMBO, "")).isEqualTo("tecnologia");
+        assertThat(TestRubros.resolver(SiteRegistry.forTesting(java.util.Map.of())).resolver("compragamer", COMBO, "")).isEqualTo("tecnologia");
     }
 }

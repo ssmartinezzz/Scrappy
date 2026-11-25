@@ -1,5 +1,7 @@
 package ar.scraper.aggregator;
 
+import ar.scraper.testsupport.TestRubros;
+
 import ar.scraper.aggregator.normalize.CategoryClassifier;
 import ar.scraper.aggregator.normalize.GenderResolver;
 import ar.scraper.aggregator.normalize.GymratTagger;
@@ -32,7 +34,7 @@ class NormalizerMonomarcaMarcaTest {
                 "midway", new Sitio("Midway", "midway", "tiendanube", false, null, "config", false)));
         return new NormalizerService(new PackQuantityDetector(), new CategoryClassifier(), new BrandExtractor(),
                 new GenderResolver(), new SizeNormalizer(), new SubcategoryResolver(),
-                new RubroResolver(registry), new GymratTagger(), new SportResolver(), registry,
+                TestRubros.resolver(registry), new GymratTagger(), new SportResolver(), registry,
                 org.mockito.Mockito.mock(ar.scraper.catalog.SitioCategoriaPort.class));
     }
 

@@ -1,5 +1,7 @@
 package ar.scraper.db;
 
+import ar.scraper.testsupport.TestRubros;
+
 import ar.scraper.classification.RubroResolver;
 import ar.scraper.classification.SiteRegistry;
 
@@ -22,7 +24,7 @@ public final class TestDatabaseServices {
         PlatformTransactionManager tm = TestTransactions.manager(raw);
         DataSource dataSource = TestTransactions.aware(raw);
         SiteRegistry siteRegistry = new SiteRegistry(new JdbcSiteSource(dataSource));
-        RubroResolver rubroResolver = new RubroResolver(siteRegistry);
+        RubroResolver rubroResolver = TestRubros.resolver(siteRegistry);
         return new DatabaseService(dataSource, siteRegistry, rubroResolver,
                 tx(new CronRepository(dataSource), tm),
                 new FavoritosRepository(dataSource), tx(new PresetRepository(dataSource), tm),
@@ -37,6 +39,15 @@ public final class TestDatabaseServices {
                 tx(new SavedPcsRepository(dataSource), tm),
                 new PreferenciaArmadorRepository(dataSource),
                 tx(new PreciosExternosRepository(dataSource), tm));
+    }
+
+    /** The real product port over {@code raw}, wired as {@link #create} wires it. */
+    public static ar.scraper.catalog.ProductPort productos(DataSource raw) {
+        PlatformTransactionManager tm = TestTransactions.manager(raw);
+        DataSource dataSource = TestTransactions.aware(raw);
+        SiteRegistry siteRegistry = new SiteRegistry(new JdbcSiteSource(dataSource));
+        return tx(new ProductRepository(dataSource, siteRegistry, TestRubros.resolver(siteRegistry), tm,
+                new SitioCategoriaRepository(dataSource)), tm);
     }
 
     /** The real promo read side, for tests outside this package (the repository is package-private). */

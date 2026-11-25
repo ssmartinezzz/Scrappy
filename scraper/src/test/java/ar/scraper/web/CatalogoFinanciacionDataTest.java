@@ -95,7 +95,7 @@ class CatalogoFinanciacionDataTest extends PostgresTestBase {
         // for it — stub the default so tests that don't care about senal/confianza
         // don't NPE on an unstubbed mock call.
         when(indiceService.deflactorParaRubro(
-                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
                 .thenReturn(ar.scraper.indices.Deflactor.NEUTRO);
     }
 

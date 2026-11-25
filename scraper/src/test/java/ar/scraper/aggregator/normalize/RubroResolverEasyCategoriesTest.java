@@ -1,5 +1,7 @@
 package ar.scraper.aggregator.normalize;
 
+import ar.scraper.testsupport.TestRubros;
+
 import ar.scraper.classification.RubroResolver;
 import ar.scraper.classification.SiteRegistry;
 import io.qameta.allure.Epic;
@@ -29,7 +31,7 @@ class RubroResolverEasyCategoriesTest {
         cache.put("compragamer", new SiteRegistry.Sitio("Compragamer", "compragamer", "custom", false, "tecnologia", "config"));
         cache.put("flowin", new SiteRegistry.Sitio("Flowin", "flowin", "tiendanube", false, "hogar", "config"));
         cache.put("mundoconstruccion", new SiteRegistry.Sitio("Mundo", "mundoconstruccion", "tiendanube", false, "construccion", "config"));
-        return new RubroResolver(SiteRegistry.forTesting(cache));
+        return TestRubros.resolver(SiteRegistry.forTesting(cache));
     }
 
     @ParameterizedTest(name = "[easy] {0} -> {1}")

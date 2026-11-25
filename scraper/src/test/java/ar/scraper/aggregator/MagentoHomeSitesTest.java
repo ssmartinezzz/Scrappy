@@ -1,5 +1,7 @@
 package ar.scraper.aggregator;
 
+import ar.scraper.testsupport.TestRubros;
+
 import ar.scraper.aggregator.normalize.CategoryClassifier;
 import ar.scraper.aggregator.normalize.GenderResolver;
 import ar.scraper.aggregator.normalize.GymratTagger;
@@ -36,7 +38,7 @@ class MagentoHomeSitesTest {
                 "somosrex", new Sitio("Somosrex", "somosrex", "magento", false, null, "config", false, "construccion"),
                 "sommiercenter", new Sitio("Sommiercenter", "sommiercenter", "magento", false, null, "config", false, "hogar")));
         return new NormalizerService(new PackQuantityDetector(), new CategoryClassifier(), new BrandExtractor(),
-                new GenderResolver(), new SizeNormalizer(), new SubcategoryResolver(), new RubroResolver(registry),
+                new GenderResolver(), new SizeNormalizer(), new SubcategoryResolver(), TestRubros.resolver(registry),
                 new GymratTagger(), new SportResolver(), registry, mock(SitioCategoriaPort.class));
     }
 

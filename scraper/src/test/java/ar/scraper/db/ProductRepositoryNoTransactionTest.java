@@ -1,5 +1,7 @@
 package ar.scraper.db;
 
+import ar.scraper.testsupport.TestRubros;
+
 import ar.scraper.catalog.UpsertStats;
 import ar.scraper.classification.RubroResolver;
 import ar.scraper.classification.SiteRegistry;
@@ -42,7 +44,7 @@ class ProductRepositoryNoTransactionTest {
         DataSource raw = unreachable();
         PlatformTransactionManager tm = TestTransactions.manager(raw);
         SiteRegistry siteRegistry = new SiteRegistry(new JdbcSiteSource(raw));
-        return new ProductRepository(raw, siteRegistry, new RubroResolver(siteRegistry), tm,
+        return new ProductRepository(raw, siteRegistry, TestRubros.resolver(siteRegistry), tm,
                 new SitioCategoriaRepository(raw));
     }
 

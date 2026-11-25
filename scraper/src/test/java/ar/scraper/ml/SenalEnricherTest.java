@@ -64,7 +64,7 @@ class SenalEnricherTest {
         );
         when(historial.getHistorialPrecios(anyList())).thenReturn(
                 Map.of("https://site.com/p1", historialEntries));
-        when(indices.deflactorParaRubro(any(), any(), any())).thenReturn(Deflactor.NEUTRO);
+        when(indices.deflactorParaRubro(any(), any(), any(), any())).thenReturn(Deflactor.NEUTRO);
 
         SenalEnricher enricher = new SenalEnricher(historial, indices);
         List<Product> result = enricher.enriquecer(List.of(producto("https://site.com/p1")));
@@ -90,7 +90,7 @@ class SenalEnricherTest {
                 new HistorialEntry("2026-03-01", 500000.0));
         when(historial.getHistorialPrecios(anyList())).thenReturn(
                 Map.of("https://site.com/gpu", historialEntries));
-        when(indices.deflactorParaRubro(any(), any(), any())).thenReturn(Deflactor.NEUTRO);
+        when(indices.deflactorParaRubro(any(), any(), any(), any())).thenReturn(Deflactor.NEUTRO);
 
         Product gpu = Product.builder()
                 .sitio("Sitio")
@@ -116,7 +116,7 @@ class SenalEnricherTest {
         enricher.enriquecer(List.of(gpu));
 
         Mockito.verify(indices).deflactorParaRubro(
-                "tecnologia", LocalDate.parse("2025-06-01"), LocalDate.parse("2026-03-01"));
+                "tecnologia", "GPU", LocalDate.parse("2025-06-01"), LocalDate.parse("2026-03-01"));
     }
 
     @Test
@@ -133,7 +133,7 @@ class SenalEnricherTest {
         assertThat(result).hasSize(1);
         assertThat(result.get(0).senal().senal()).isEqualTo("sin_datos");
         assertThat(result.get(0).senal().scoreCompra()).isEqualTo(50);
-        Mockito.verify(indices, Mockito.never()).deflactorParaRubro(any(), any(), any());
+        Mockito.verify(indices, Mockito.never()).deflactorParaRubro(any(), any(), any(), any());
     }
 
     @Test

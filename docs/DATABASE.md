@@ -213,6 +213,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V135` | Categoría `Accesorio Gaming` (rubro tecnología): fundas, estuches, docks, bases de carga, adaptadores, cables AV, lectores de tarjeta, gift cards, la unidad de disco de la PS5; mueve a ella 312 filas activas, rescata de `Otros` juegos, consolas y controles, y da `sub_categoria` por plataforma a `Consola` (6), `Videojuego` (10) y `Joystick` (`gamepad`/`volante`, más ancho) |
 | `V136` | Une las filas gemelas de Tiendanube (`?entry_path=category[&entry_category_id=N]`) en la URL canónica: una fila por producto, hijos reubicados, trabas e historial conservados. **No es reversible desde los datos**: el rollback es el `pg_dump` previo |
 | `V137` | Plataforma de Fursten: `sitio.plataforma` pasa de `tiendanube` a `shopify` (sólo esa columna). Las filas viejas no se mapean a los handles nuevos: las retira el barrido de la primera corrida |
+| `V138` | La taxonomía de rubros pasa a tablas, sin cambio de comportamiento: `rubro` (vocabulario, índice, pesos), `categoria_rubro` (categoría y sub → rubro, `pisa_forzado`), `categoria.indice`; los tres CHECK de rubro se reemplazan por FK a `rubro(clave)` |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -5778,7 +5779,7 @@ coincide gana): `gamer` (`gamer`, `gaming`, `throne`), `oficina` (`oficina`, `er
 `maxi cosi`, `booster`...), `exterior` fuerte (`jardín`, `exterior`, `outdoor`, `playa`, `camping`, `director`, `pesca`, `rattan`, `outzen`...), `comedor` (`comedor`, `eames`, `tulip`, `banqueta`, `taburete`,
 `bar`, `mecedora`...) y, último, `plegable` suelto (`exterior`): "silla de comedor plegable" es de comedor y "sillón director ejecutivo" de oficina. Sin señal no hay sub (abstención: el comportamiento de hoy).
 
-El rubro sale de una tabla de datos, `CategoryGroups.rubroDeSubcategoria`: `Silla|comedor`, `Silla|exterior` y `Silla|infantil` son `hogar`; `gamer` y `oficina` no tienen entrada (siguen en `oficina`).
+El rubro sale de una tabla de datos (desde `V138`, `categoria_rubro`; antes `CategoryGroups.rubroDeSubcategoria`): `Silla|comedor`, `Silla|exterior` y `Silla|infantil` son `hogar`; `gamer` y `oficina` no tienen entrada (siguen en `oficina`).
 `RubroResolver.resolver(sitio, categoria, rubroPrevio, sub)` la consulta **sólo en un sitio sin `rubro_forzado`**, justo antes de la rama que manda las categorías de oficina a `oficina`: todas las
 ramas forzadas (`tecnologia`, `oficina`, `suplementos`, `construccion`, `hogar`) devuelven antes, así que un sitio forzado se comporta exactamente como antes. `NormalizerService` resuelve la sub **antes**
 del rubro (la sub sólo depende de nombre y categoría) y `ProductRepository.aplicarReclasificacionAuditada` pasa la sub que recibe.
@@ -6301,3 +6302,50 @@ UPDATE sitio SET plataforma = 'tiendanube' WHERE sitio_key = 'fursten';
 ```
 
 Sólo devuelve la plataforma; no revive las filas que el barrido desactivó ni borra las de Shopify (hay que reactivarlas a mano o con un scrape Tiendanube, y la URL de `config.properties` vuelve a `https://www.fursten.com.ar/productos/` por git). Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V136`. `V136` no tiene bloque SQL (no es reversible desde los datos, ver arriba), así que la cadena termina ahí: lo anterior a `V136` sólo se alcanza restaurando el `pg_dump` previo.
+
+
+---
+
+## `V138` — la taxonomía de rubros pasa a tablas
+
+Antes, agregar un rubro tocaba tres CHECK (`chk_productos_rubro_domain`, `sitio_rubro_forzado_check`, `sitio_rubro_por_defecto_check`), la cadena de `if` de `RubroResolver`, `DeflactorPorRubro` y `frontend/src/lib/rubros.js`. `V138` lo vuelve datos, **sin cambiar el rubro ni el índice de ninguna fila**:
+
+| Objeto | Qué guarda |
+|---|---|
+| `rubro(clave PK, etiqueta, orden UNIQUE, indice FK, peso_forzado, peso_categoria)` | El vocabulario, en el orden de `rubros.js`; el índice de precios con que se deflacta (`tecnologia` USD oficial, el resto IPC); y los dos pesos que deciden un sitio forzado contra una categoría |
+| `categoria_rubro(categoria FK, sub_categoria, rubro FK, pisa_forzado, PK(categoria, sub_categoria))` | El rubro de una categoría en un sitio sin rubro forzado ni por defecto. `sub_categoria = ''` es la categoría entera. `Llavero`, `Conjunto` y `Otros` **no tienen fila**: su rubro lo da el sitio |
+| `categoria.indice` (nullable, FK a `indice`) | Pisa el índice del rubro para esa categoría. Hoy sólo `TV y Audio` (USD oficial) |
+| `fk_productos_rubro`, `fk_sitio_rubro_forzado`, `fk_sitio_rubro_por_defecto` | Reemplazan los tres CHECK; no diferibles. Un rubro nuevo es una fila, no un `ALTER` |
+
+**Los pesos.** Un sitio con `rubro_forzado` se queda con el producto cuando `peso_forzado(rubro forzado) >= peso_categoria(rubro de la categoría)`; si no, gana el rubro de la categoría. Con los datos de hoy reproduce la cadena vieja: `tecnologia` 2 / `oficina` 1 / el resto 0 de `peso_forzado`, e `indumentaria` 3 / `suplementos` 2 / `belleza`, `construccion`, `hogar` 1 / el resto 0 de `peso_categoria`. Una categoría sin fila no compite: el sitio forzado gana. `pisa_forzado = true` hace que una fila gane a un sitio forzado sin mirar los pesos (falso en todas hoy). Una `sub_categoria` con fila (`Silla|comedor`, `Silla|exterior`, `Silla|infantil` → `hogar`) sólo decide en un sitio **sin** rubro forzado.
+
+El orden de las reglas está en `RubroResolver` (lista de `RubroRule`); la instantánea inmutable la carga `JdbcRubroSource` después de Flyway. Una lectura fallida o una taxonomía vacía **hacen fallar el arranque**: a diferencia de `SiteRegistry`, no se traga el error, porque una taxonomía vacía reclasificaría todo en silencio.
+
+No escribe ninguna fila de `productos`: `catalog_version` no se bumpea y no hace falta el `SET CONSTRAINTS ALL IMMEDIATE` de `V112`. `RubroTaxonomiaAgreementTest` falla si las tablas y `CategoryGroups` se desalinean en cualquier sentido, o si `frontend/src/lib/rubros.js` no repite las claves, etiquetas y orden de `rubro` (los íconos y colores son del frontend, por eso el archivo sigue existiendo), y `RubroResolverEquivalenceTest` compara el resolvedor nuevo con una copia literal de la cadena vieja en todas las combinaciones.
+
+### Rollback
+
+```sql
+-- >>> rollback:V138
+ALTER TABLE sitio
+    DROP CONSTRAINT fk_sitio_rubro_forzado,
+    DROP CONSTRAINT fk_sitio_rubro_por_defecto,
+    ADD CONSTRAINT sitio_rubro_forzado_check
+        CHECK (rubro_forzado IN ('tecnologia','suplementos','oficina','construccion','hogar')),
+    ADD CONSTRAINT sitio_rubro_por_defecto_check
+        CHECK (rubro_por_defecto IS NULL
+               OR rubro_por_defecto IN ('tecnologia','suplementos','oficina','construccion','hogar','juguetes'));
+ALTER TABLE productos
+    DROP CONSTRAINT fk_productos_rubro,
+    ADD CONSTRAINT chk_productos_rubro_domain
+        CHECK (rubro IS NULL OR rubro IN ('indumentaria', 'tecnologia', 'suplementos',
+                                          'oficina', 'construccion', 'hogar',
+                                          'deporte', 'juguetes', 'libros', 'belleza'));
+ALTER TABLE categoria DROP COLUMN indice;
+DROP TABLE categoria_rubro;
+DROP TABLE rubro;
+DELETE FROM flyway_schema_history WHERE version = '138';
+-- <<< rollback:V138
+```
+
+Restaura los tres CHECK tal como estaban en `V137`. Falla si algún `productos.rubro`, `sitio.rubro_forzado` o `sitio.rubro_por_defecto` usa un rubro que no está en esas listas (por ejemplo uno agregado después de `V138`): hay que moverlo antes. El `DELETE` de `flyway_schema_history` es para que Flyway vuelva a aplicar `V138`. Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V137` y, por lo tanto, antes que el de `V112` (que re-lista el CHECK de `productos`): los tests de `V6`, `V24`, `V27`, `V45`, `V69`, `V71`, `V74`, `V90`, `V92`, `V93` y `V112` corren el de `V138` antes que el suyo.

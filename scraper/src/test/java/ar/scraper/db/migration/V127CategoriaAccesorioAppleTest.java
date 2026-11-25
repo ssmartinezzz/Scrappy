@@ -99,6 +99,9 @@ class V127CategoriaAccesorioAppleTest extends PostgresTestBase {
         try (Connection c = dataSource().getConnection()) {
             c.setAutoCommit(false);
             try (Statement st = c.createStatement()) {
+                // V138 moved the rubro CHECKs to foreign keys and the categories are referenced: its rollback goes first,
+                // before any row is written (a pending catalog_version trigger blocks the ALTER).
+                st.execute(DocumentedRollback.sqlFor("V138"));
                 fila(st, "aa", "Macstation", "Funda para iPad Pro", "Accesorio Apple", "tecnologia");
                 st.executeUpdate("UPDATE productos SET sub_categoria = 'iPad' WHERE url = 'https://x.test/aa'");
                 st.executeUpdate("INSERT INTO sitio_categoria (sitio_key, origen_id, nombre, categoria) "

@@ -30,6 +30,9 @@ class V117CategoriaPilaTest extends PostgresTestBase {
         try (Connection c = dataSource().getConnection()) {
             c.setAutoCommit(false);
             try (Statement st = c.createStatement()) {
+                // V138 moved the rubro CHECKs to foreign keys and the categories are referenced: its rollback goes first,
+                // before any row is written (a pending catalog_version trigger blocks the ALTER).
+                st.execute(DocumentedRollback.sqlFor("V138"));
                 st.executeUpdate("INSERT INTO productos (url, sitio, nombre, precio, categoria, rubro) "
                         + "VALUES ('https://x.test/pila', 'Arredo', 'Pilas Philco AA Alcalina X8', 5000, 'Pila', 'hogar')");
                 st.executeUpdate("INSERT INTO sitio_categoria (sitio_key, origen_id, nombre, categoria) "

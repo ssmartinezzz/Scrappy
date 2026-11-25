@@ -1,5 +1,7 @@
 package ar.scraper.aggregator.normalize;
 
+import ar.scraper.testsupport.TestRubros;
+
 import ar.scraper.classification.RubroResolver;
 import ar.scraper.classification.SiteRegistry;
 import io.qameta.allure.Epic;
@@ -29,7 +31,7 @@ class RubroResolverConstruccionHogarTest {
                 "Compragamer", "compragamer", "compragamer", false, "tecnologia", "config"));
         cache.put("inpro", new SiteRegistry.Sitio(
                 "Inpro", "inpro", "inpro", false, "oficina", "config"));
-        return new RubroResolver(SiteRegistry.forTesting(cache));
+        return TestRubros.resolver(SiteRegistry.forTesting(cache));
     }
 
     @Test

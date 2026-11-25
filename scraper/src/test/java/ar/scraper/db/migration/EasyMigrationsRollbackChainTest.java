@@ -26,6 +26,7 @@ class EasyMigrationsRollbackChainTest extends PostgresTestBase {
         try (Connection c = dataSource().getConnection()) {
             c.setAutoCommit(false);
             try (Statement st = c.createStatement()) {
+                st.execute(DocumentedRollback.sqlFor("V138"));
                 Map<String, Integer> removed = new LinkedHashMap<>();
                 for (String version : NEWEST_FIRST) {
                     int before = count(st, "SELECT count(*) FROM categoria");
@@ -132,6 +133,7 @@ class EasyMigrationsRollbackChainTest extends PostgresTestBase {
     }
 
     private static void runChain(Statement st) throws Exception {
+        st.execute(DocumentedRollback.sqlFor("V138"));
         for (String version : NEWEST_FIRST) {
             st.execute(DocumentedRollback.sqlFor(version));
         }

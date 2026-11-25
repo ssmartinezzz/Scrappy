@@ -1,5 +1,7 @@
 package ar.scraper.config;
 
+import ar.scraper.testsupport.TestRubros;
+
 import ar.scraper.classification.RubroResolver;
 import ar.scraper.classification.SiteRegistry;
 import ar.scraper.db.DatabaseService;
@@ -83,7 +85,7 @@ class TransactionalBeansTest extends PostgresTestBase {
         var runner = new ApplicationContextRunner()
                 .withUserConfiguration(TransactionConfigProbe.class)
                 .withBean(SiteRegistry.class, () -> SiteRegistry.forTesting(Map.of()))
-                .withBean(RubroResolver.class, () -> new RubroResolver(SiteRegistry.forTesting(Map.of())))
+                .withBean(RubroResolver.class, () -> TestRubros.resolver(SiteRegistry.forTesting(Map.of())))
                 // collaborators of the transactional beans that are not transactional themselves
                 .withBean(ar.scraper.db.PasswordResetRepository.class)
                 .withBean(ar.scraper.db.RefreshTokenRepository.class)

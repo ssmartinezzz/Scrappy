@@ -69,6 +69,7 @@ class V82ComboDeActualizacionTest extends PostgresTestBase {
             sembrar(st);
             aplicar(st);
 
+            st.execute(DocumentedRollback.sqlFor("V138"));
             st.execute(DocumentedRollback.sqlFor("V82"));
 
             assertThat(categoria(st, "kit-mother")).isEqualTo("Motherboard");

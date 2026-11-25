@@ -196,6 +196,7 @@ class V135GamingAgreementTest extends PostgresTestBase {
                 assertThat(estado(st, url("acc"))[0]).isEqualTo(ACCESORIO);
                 assertThat(estado(st, url("juego"))[1]).isEqualTo("switch");
 
+                st.execute(DocumentedRollback.sqlFor("V138"));
                 st.execute(DocumentedRollback.sqlFor("V135"));
 
                 assertThat(estado(st, url("acc"))).containsExactly("Otros", "");

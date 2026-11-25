@@ -1,5 +1,7 @@
 package ar.scraper.aggregator;
 
+import ar.scraper.testsupport.TestRubros;
+
 import ar.scraper.aggregator.normalize.CategoryClassifier;
 import ar.scraper.aggregator.normalize.GenderResolver;
 import ar.scraper.aggregator.normalize.GymratTagger;
@@ -41,7 +43,7 @@ class ArredoSoloHogarTest {
         SitioCategoriaPort arbol = mock(SitioCategoriaPort.class);
         when(arbol.categoriaPorOrigen("Arredo")).thenReturn(Map.of(HOJA_INDIVIDUALES, "Bazar", HOJA_FUNDAS, "Funda"));
         return new NormalizerService(new PackQuantityDetector(), new CategoryClassifier(), new BrandExtractor(),
-                new GenderResolver(), new SizeNormalizer(), new SubcategoryResolver(), new RubroResolver(registry),
+                new GenderResolver(), new SizeNormalizer(), new SubcategoryResolver(), TestRubros.resolver(registry),
                 new GymratTagger(), new SportResolver(), registry, arbol);
     }
 
@@ -83,7 +85,7 @@ class ArredoSoloHogarTest {
                 "otro", new SiteRegistry.Sitio("Otro", "otro", "vtex", false, null, "db", false, null)));
         NormalizerService otro = new NormalizerService(new PackQuantityDetector(), new CategoryClassifier(),
                 new BrandExtractor(), new GenderResolver(), new SizeNormalizer(), new SubcategoryResolver(),
-                new RubroResolver(registry), new GymratTagger(), new SportResolver(), registry,
+                TestRubros.resolver(registry), new GymratTagger(), new SportResolver(), registry,
                 mock(SitioCategoriaPort.class));
         Product p = Product.builder().sitio("Otro").nombre("Portaplato Tejido Liso").url("https://x/o").build();
         assertThat(otro.normalizar(List.of(p)).get(0).categoria()).isEqualTo("Sweater");

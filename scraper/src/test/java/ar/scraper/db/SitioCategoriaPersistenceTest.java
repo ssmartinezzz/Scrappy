@@ -1,5 +1,7 @@
 package ar.scraper.db;
 
+import ar.scraper.testsupport.TestRubros;
+
 import ar.scraper.catalog.SitioCategoriaPort;
 import ar.scraper.catalog.UpsertStats;
 import ar.scraper.classification.RubroResolver;
@@ -62,7 +64,7 @@ class SitioCategoriaPersistenceTest extends PostgresTestBase {
         PlatformTransactionManager tm = TestTransactions.manager(dataSource());
         DataSource conTransaccion = TestTransactions.aware(dataSource());
         SiteRegistry siteRegistry = new SiteRegistry(new JdbcSiteSource(conTransaccion));
-        return new ProductRepository(conTransaccion, siteRegistry, new RubroResolver(siteRegistry), tm, arbol);
+        return new ProductRepository(conTransaccion, siteRegistry, TestRubros.resolver(siteRegistry), tm, arbol);
     }
 
     private JdbcTemplate jdbc() {
