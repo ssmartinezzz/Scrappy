@@ -62,11 +62,11 @@ class SamsungHojaGanaTest {
     void leafBeatsAMisleadingName() {
         Product tv = normalizar("Samsung", "85\" Mini LED M80H 4K Samsung Vision AI Smart TV", TV);
         assertThat(tv.categoria()).isEqualTo("TV y Audio");
-        assertThat(tv.rubro()).isEqualTo("tecnologia");
+        assertThat(tv.rubro()).as("V139: a Televisor is an appliance on a store with no forced rubro").isEqualTo("electrodomesticos");
         assertThat(normalizar("Samsung", "Cajón Inferior de Freezer", PARTES).categoria()).isEqualTo("Otros");
         Product heladera = normalizar("Samsung", "Freezer Superior Heladera Twin Cooling Plus 382L", HELADERA);
         assertThat(heladera.categoria()).isEqualTo("Heladera");
-        assertThat(heladera.rubro()).isEqualTo("hogar");
+        assertThat(heladera.rubro()).isEqualTo("electrodomesticos");
     }
 
     @Test
@@ -89,7 +89,7 @@ class SamsungHojaGanaTest {
         Product p = Product.builder().sitio("Prestigio").nombre("Procesador 400 W AM115").url("https://x/p").sitioCategoriaOrigenId(9).build();
         Product n = prestigio.normalizar(List.of(p)).get(0);
         assertThat(n.categoria()).isEqualTo("Pequeño Electrodoméstico");
-        assertThat(n.rubro()).isEqualTo("hogar");
+        assertThat(n.rubro()).isEqualTo("electrodomesticos");
     }
 
     @Test

@@ -172,7 +172,7 @@ public class AgentController {
         }
         Product previo = dbProducto.get();
 
-        String subCategoria = body.subCategoriaPropuesta();
+        String subCategoria = StringUtils.defaultIfBlank(body.subCategoriaPropuesta(), previo.subCategoria());
         String marca = body.marcaPropuesta();
         String genero = body.generoPropuesto();
 
@@ -186,7 +186,7 @@ public class AgentController {
                 (StringUtils.isNotBlank(marca)) ? marca : previo.marca(),
                 (StringUtils.isNotBlank(genero)) ? genero : previo.genero(),
                 previo.talles(),
-                (StringUtils.isNotBlank(subCategoria)) ? subCategoria : previo.subCategoria(),
+                subCategoria,
                 previo,
                 actor);
 
@@ -198,13 +198,13 @@ public class AgentController {
         // The catalog is served from lastResult, so without this patch the reclassification would
         // not show in /api/data or /api/mejores until the next scrape.
         String sitioKey = SiteClassification.sitioKey(previo.sitio());
-        String rubro = rubroResolver.resolver(sitioKey, body.categoriaPropuesta(), previo.rubro());
+        String rubro = rubroResolver.resolver(sitioKey, body.categoriaPropuesta(), previo.rubro(), subCategoria);
         service.actualizarProductoEnMemoria(
                 body.url(),
                 body.categoriaPropuesta(),
                 (StringUtils.isNotBlank(marca)) ? marca : previo.marca(),
                 (StringUtils.isNotBlank(genero)) ? genero : previo.genero(),
-                (StringUtils.isNotBlank(subCategoria)) ? subCategoria : previo.subCategoria(),
+                subCategoria,
                 rubro);
 
         return ResponseEntity.ok(ApiResponse.ok(new AgentDtos.Applied(true, 1, "Reclasificación aplicada.")));

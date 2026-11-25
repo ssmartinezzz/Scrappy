@@ -91,6 +91,6 @@ class MagentoHomeSitesTest {
     @DisplayName("Somos Rex keeps its sports and home categories")
     void somosrexKeepsHomeAndSports() {
         assertThat(normalizar("Somosrex", "Paleta de Pádel Bullpadel Vertex 04").rubro()).isEqualTo("deporte");
-        assertThat(normalizar("Somosrex", "Termotanque Eléctrico Sherman 55 Lts De Pie TEPC055").rubro()).isEqualTo("hogar");
+        assertThat(normalizar("Somosrex", "Termotanque Eléctrico Sherman 55 Lts De Pie TEPC055").rubro()).isEqualTo("electrodomesticos");
     }
 }

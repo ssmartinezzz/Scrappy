@@ -214,6 +214,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V136` | Une las filas gemelas de Tiendanube (`?entry_path=category[&entry_category_id=N]`) en la URL canónica: una fila por producto, hijos reubicados, trabas e historial conservados. **No es reversible desde los datos**: el rollback es el `pg_dump` previo |
 | `V137` | Plataforma de Fursten: `sitio.plataforma` pasa de `tiendanube` a `shopify` (sólo esa columna). Las filas viejas no se mapean a los handles nuevos: las retira el barrido de la primera corrida |
 | `V138` | La taxonomía de rubros pasa a tablas, sin cambio de comportamiento: `rubro` (vocabulario, índice, pesos), `categoria_rubro` (categoría y sub → rubro, `pisa_forzado`), `categoria.indice`; los tres CHECK de rubro se reemplazan por FK a `rubro(clave)` |
+| `V139` | Rubro `electrodomesticos` (orden 11, IPC, pesa como `hogar`): las 11 categorías de electrodoméstico salen de `hogar`, ocho subs de `TV y Audio` pasan a él en los sitios sin rubro forzado, Cetrogar lo toma por defecto y las partes de repuesto de Samsung entran a `Pequeño Electrodoméstico`; reubica las filas guardadas (activas e inactivas) y bumpea `catalog_version` una vez |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -6350,4 +6351,57 @@ DELETE FROM flyway_schema_history WHERE version = '138';
 -- <<< rollback:V138
 ```
 
-Restaura los tres CHECK tal como estaban en `V137`. Falla si algún `productos.rubro`, `sitio.rubro_forzado` o `sitio.rubro_por_defecto` usa un rubro que no está en esas listas (por ejemplo uno agregado después de `V138`): hay que moverlo antes. El `DELETE` de `flyway_schema_history` es para que Flyway vuelva a aplicar `V138`. Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V137` y, por lo tanto, antes que el de `V112` (que re-lista el CHECK de `productos`): los tests de `V6`, `V24`, `V27`, `V45`, `V69`, `V71`, `V74`, `V90`, `V92`, `V93` y `V112` corren el de `V138` antes que el suyo.
+Restaura los tres CHECK tal como estaban en `V137`. Falla si algún `productos.rubro`, `sitio.rubro_forzado` o `sitio.rubro_por_defecto` usa un rubro que no está en esas listas (por ejemplo uno agregado después de `V138`): hay que moverlo antes. El `DELETE` de `flyway_schema_history` es para que Flyway vuelva a aplicar `V138`. En una cadena de rollbacks corre después del de `V139` y antes que el de `V137` y, por lo tanto, antes que el de `V112` (que re-lista el CHECK de `productos`): los tests de `V6`, `V24`, `V27`, `V45`, `V69`, `V71`, `V74`, `V90`, `V92`, `V93` y `V112` corren el de `V139` y el de `V138` antes que el suyo.
+
+
+---
+
+## `V139` — rubro `electrodomesticos`
+
+Una fila nueva de `rubro` (`electrodomesticos`, etiqueta `Electrodomésticos`, orden 11, índice IPC, `peso_forzado` 0, `peso_categoria` 1: pesa como `hogar`) y el resto son filas de `V138`, sin tocar el esquema:
+
+| Qué | Cambio |
+|---|---|
+| `categoria_rubro`, categoría entera | Salen de `hogar`: `Aire Acondicionado`, `Aspiradora`, `Calefactor`, `Calefón`, `Campana y Extractor`, `Cocina y Horno`, `Heladera`, `Lavarropas`, `Pequeño Electrodoméstico`, `Termotanque`, `Ventilador` |
+| `categoria_rubro`, `TV y Audio` por sub | `Televisor`, `Parlante`, `Soporte`, `Barra de Sonido`, `Proyector`, `Radio`, `Tocadiscos` y `Equipo de Música` son `electrodomesticos`. `Handy`, `Consola y Mixer` y la sub vacía siguen en `tecnologia` (la fila `TV y Audio`, sub `''`). La fila de una sub sólo decide en un sitio **sin** rubro forzado: Venex, Fullh4rd y el resto de las tiendas de tecnología se quedan con su TV y su audio |
+| `categoria.indice` | No cambia: `TV y Audio` sigue en USD oficial aunque su rubro sea IPC. `Heladera` y compañía deflactan por IPC, como cuando eran `hogar` |
+| `sitio.rubro_por_defecto` | Cetrogar: `tecnologia` → `electrodomesticos`. Lo que ninguna categoría decide (`Otros`, `Llavero`, `Conjunto`, categoría vacía) se lee como electrodoméstico. Samsung **sigue** en `tecnologia`: sus fundas de Tab y sus sensores SmartThings son tecnología |
+| `sitio_categoria` de Samsung | Las hojas de repuestos (`Accesorios` bajo Linea Hogar, y `Repuesto de heladera`, `de aspiradora`, `de microondas`: `origen_id` 166, 258–264, 274–279) pasan de `Otros` a `Pequeño Electrodoméstico`. Samsung está en `SITIOS_DONDE_LA_HOJA_GANA`, así que la hoja manda sobre el nombre. No hace falta ninguna regla del clasificador |
+
+Las filas guardadas, activas e inactivas, terminan donde `RubroResolver` las pondría; una fila con `bloqueado_por` no se toca:
+
+- las 11 categorías: el rubro forzado del sitio si pesa al menos lo que `electrodomesticos` (`tecnologia` y `oficina`), si no `electrodomesticos`. Es la misma comparación de pesos del resolvedor, leída de la tabla: Fullh4rd conserva su aspiradora en `tecnologia`;
+- `TV y Audio` con una de las ocho subs, en un sitio sin rubro forzado;
+- en un sitio cuyo rubro por defecto es `electrodomesticos`, las filas cuya categoría no tiene fila en `categoria_rubro`;
+- las 37 filas de repuestos de Samsung (estantes, anaqueles, cajones, tapas, fábrica de hielo y tanque de la heladera; carcasa, depósito, filtro y boquilla de la aspiradora; plato y guía del microondas): categoría `Pequeño Electrodoméstico`, rubro `electrodomesticos` y `sub_categoria = 'Accesorio y Repuesto'` cuando el primer sustantivo es uno de los de `ElectroSubcategoryResolver` (`anaquel`, `estante`, `cajon`, `tapa`, `filtro`, `boquilla`, `deposito`, `guia`), vacía en el resto. Quedan en `Otros` las fundas y cubiertas de Tab y Galaxy Book, los controles remotos, los accesorios de The Freestyle y los sensores.
+
+`catalog_version` se bumpea una sola vez, al `COMMIT`, por el trigger de `V40`. Es re-ejecutable y no necesita el `SET CONSTRAINTS ALL IMMEDIATE` de `V112`: no hay `ALTER TABLE` sobre `productos`. El rubro se busca por `orden = 11` y las listas son un literal con `;` partido en SQL, como en `V138` (Sonar S1192).
+
+### Rollback
+
+```sql
+-- >>> rollback:V139
+UPDATE productos p
+   SET categoria = 'Otros', sub_categoria = '', rubro = 'tecnologia'
+  FROM sitio_categoria sc
+ WHERE sc.id = p.sitio_categoria_id
+   AND sc.sitio_key = 'samsung'
+   AND sc.origen_id IN (166, 258, 259, 260, 261, 262, 263, 264, 274, 275, 276, 277, 278, 279)
+   AND p.categoria = 'Pequeño Electrodoméstico';
+UPDATE sitio_categoria SET categoria = 'Otros'
+ WHERE sitio_key = 'samsung' AND origen_id IN (166, 258, 259, 260, 261, 262, 263, 264, 274, 275, 276, 277, 278, 279);
+UPDATE productos
+   SET rubro = CASE WHEN categoria IN ('Aire Acondicionado', 'Aspiradora', 'Calefactor', 'Calefón', 'Campana y Extractor',
+                                        'Cocina y Horno', 'Heladera', 'Lavarropas', 'Pequeño Electrodoméstico', 'Termotanque',
+                                        'Ventilador')
+                    THEN 'hogar' ELSE 'tecnologia' END
+ WHERE rubro = 'electrodomesticos';
+UPDATE sitio SET rubro_por_defecto = 'tecnologia' WHERE sitio_key = 'cetrogar';
+DELETE FROM categoria_rubro WHERE rubro = 'electrodomesticos' AND sub_categoria <> '';
+UPDATE categoria_rubro SET rubro = 'hogar' WHERE rubro = 'electrodomesticos';
+DELETE FROM rubro WHERE clave = 'electrodomesticos';
+DELETE FROM flyway_schema_history WHERE version = '139';
+-- <<< rollback:V139
+```
+
+Devuelve las 11 categorías a `hogar`, `TV y Audio` y lo que Cetrogar leía por defecto a `tecnologia`, y las partes de Samsung a `Otros`. No distingue lo que `V139` movió de lo que ya era `electrodomesticos` por una corrida posterior: toda fila con ese rubro vuelve por categoría, y la que no sea de las 11 queda en `tecnologia`. Falla en el `DELETE FROM rubro` si otro sitio quedó con `rubro_forzado` o `rubro_por_defecto = 'electrodomesticos'`: hay que moverlo antes. Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V138`.

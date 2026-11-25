@@ -33,11 +33,16 @@ public final class TestRubros {
             new Rubro("deporte", "Deporte", 7, "IPC", 0, 0),
             new Rubro("juguetes", "Juguetes", 8, "IPC", 0, 0),
             new Rubro("libros", "Libros", 9, "IPC", 0, 0),
-            new Rubro("belleza", "Belleza", 10, "IPC", 0, 1));
+            new Rubro("belleza", "Belleza", 10, "IPC", 0, 1),
+            new Rubro("electrodomesticos", "Electrodomésticos", 11, "IPC", 0, 1));
 
     /** (categoria, sub) pairs whose rubro differs from their category's: a dining, garden or children's chair is a home product. */
     private static final List<String[]> SUBS_DE_SILLA = List.of(
             new String[] {"Silla", "comedor"}, new String[] {"Silla", "exterior"}, new String[] {"Silla", "infantil"});
+
+    /** The subs of {@code TV y Audio} that are home appliances: a store with no forced rubro files them under electrodomesticos. */
+    public static final List<String> SUBS_ELECTRO_DE_TV_Y_AUDIO = List.of(
+            "Televisor", "Parlante", "Soporte", "Barra de Sonido", "Proyector", "Radio", "Tocadiscos", "Equipo de Música");
 
     private TestRubros() {}
 
@@ -48,6 +53,7 @@ public final class TestRubros {
             if (rubro != null) filas.add(new CategoriaRubro(categoria, "", rubro, false));
         }
         for (String[] par : SUBS_DE_SILLA) filas.add(new CategoriaRubro(par[0], par[1], "hogar", false));
+        for (String sub : SUBS_ELECTRO_DE_TV_Y_AUDIO) filas.add(new CategoriaRubro("TV y Audio", sub, "electrodomesticos", false));
         return new RubroCatalogo(RUBROS, filas, Map.of("TV y Audio", USD));
     }
 
@@ -64,6 +70,7 @@ public final class TestRubros {
     static String rubroDeCategoria(String cat) {
         if (CategoryGroups.esCategoriaBelleza(cat)) return "belleza";
         if (CategoryGroups.esCategoriaConstruccion(cat)) return "construccion";
+        if (CategoryGroups.esCategoriaElectrodomesticos(cat)) return "electrodomesticos";
         if (CategoryGroups.esCategoriaHogar(cat)) return "hogar";
         if (CategoryGroups.esCategoriaSuplemento(cat)) return "suplementos";
         if (CategoryGroups.esIndumentariaOCalzado(cat)) return "indumentaria";

@@ -129,11 +129,14 @@ class ConstruccionHogarCategoryClassifierTest {
                 "Inflable", "Químico de Pileta", "Accesorio de Pileta", "Carpa", "Bolsa de Dormir", "Conservadora",
                 "Termo y Botella", "Artículo de Camping", "Alimento para Mascota", "Cama para Mascota", "Higiene de Mascota", "Accesorio para Mascota",
                 "Lubricante", "Líquido Automotor", "Batería de Auto", "Escobilla de Auto", "Limpieza de Auto", "Accesorio de Auto",
-                "Herramienta de Auto", "Seguridad Vial", "Termotanque", "Calefón", "Calefactor", "Ventilador",
-                "Aire Acondicionado", "Heladera", "Lavarropas", "Cocina y Horno", "Campana y Extractor", "Aspiradora",
-                "Pequeño Electrodoméstico");
+                "Herramienta de Auto", "Seguridad Vial");
+        // V139: the 11 appliances left hogar for their own group.
+        assertThat(CategoryGroups.categoriasElectrodomesticos()).containsExactlyInAnyOrder(
+                "Termotanque", "Calefón", "Calefactor", "Ventilador", "Aire Acondicionado", "Heladera", "Lavarropas",
+                "Cocina y Horno", "Campana y Extractor", "Aspiradora", "Pequeño Electrodoméstico");
         assertThat(CategoryGroups.canonicalCategories())
                 .containsAll(CategoryGroups.categoriasConstruccion())
-                .containsAll(CategoryGroups.categoriasHogar());
+                .containsAll(CategoryGroups.categoriasHogar())
+                .containsAll(CategoryGroups.categoriasElectrodomesticos());
     }
 }

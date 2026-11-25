@@ -128,6 +128,7 @@ class V134ZapatillaTrekkingTest extends PostgresTestBase {
                 assertThat(estado(st, url("movida"))[0]).isEqualTo(TREKKING);
                 assertThat(estado(st, url("basquet"))[1]).isEqualTo("básquet");
 
+                st.execute(DocumentedRollback.sqlFor("V139"));
                 st.execute(DocumentedRollback.sqlFor("V138"));
                 st.execute(DocumentedRollback.sqlFor("V134"));
 
