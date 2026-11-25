@@ -326,15 +326,21 @@ describe('authSession — bootstrap skips the sibling probe when no lock says a 
     vi.resetModules();
     const tab = await import('./authSession');
 
-    const start = Date.now();
-    const ok = await tab.bootstrap();
-    const elapsed = Date.now() - start;
+    // Fake timers: a real 150 ms timer can read as 149 ms on the millisecond wall clock.
+    vi.useFakeTimers();
+    try {
+      const arranque = tab.bootstrap();
 
-    expect(ok).toBe(true);
-    expect(tab.getAccessToken()).toBe('tokNoLocks');
-    expect(elapsed).toBeGreaterThanOrEqual(150);
+      await vi.advanceTimersByTimeAsync(149);
+      expect(global.fetch).not.toHaveBeenCalled();
 
-    delete globalThis.BroadcastChannel;
+      await vi.advanceTimersByTimeAsync(1);
+      expect(await arranque).toBe(true);
+      expect(tab.getAccessToken()).toBe('tokNoLocks');
+    } finally {
+      vi.useRealTimers();
+      delete globalThis.BroadcastChannel;
+    }
   });
 });
 
