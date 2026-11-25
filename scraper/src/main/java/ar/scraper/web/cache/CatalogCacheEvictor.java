@@ -1,6 +1,7 @@
 package ar.scraper.web.cache;
 
 import ar.scraper.catalog.CatalogoActualizado;
+import ar.scraper.pcs.PcBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.cache.CacheManager;
@@ -12,7 +13,7 @@ import java.util.StringJoiner;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 
-/** Empties every snapshot-derived cache when the catalog readers are served changes. */
+/** Empties every snapshot-derived cache, and the PC builder's memo, when the catalog readers are served changes. */
 @Component
 @RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 class CatalogCacheEvictor {
@@ -34,6 +35,7 @@ class CatalogCacheEvictor {
             }
             cache.clear();
         }
+        PcBuilder.soltarMemo();
         LOG.info("[CACHE] catalogo v{} cambio, caches vaciadas: {}", evento.version(), resumen);
     }
 }

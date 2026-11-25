@@ -142,6 +142,7 @@ Scrappy/
         │   ├── db/                         ← DatabaseService (fachada, HikariCP) + *Repository por tabla
         │   └── web/                        ← un @RestController por recurso (Catalogo, Comparador, Outfits, Pcs, Ml…), transporte
         │       ├── cache/                  ← CatalogoDerivadoCache (@Cacheable: grupos, marcas, mejores),
+        │       │                                  CatalogoPaginas (las páginas, sobre el proxy del anterior),
         │       │                                  CatalogCacheEvictor (vacía al publicarse CatalogoActualizado)
         │       └── events/                 ← InProcessStatusEvents (bus en memoria de estado de scrape/ML)
         └── resources/

@@ -13,7 +13,10 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 import java.util.Map;
 
-/** Views derived from the in-memory snapshot, cached per snapshot version. */
+/**
+ * Views derived from the in-memory snapshot, cached per snapshot version. Only {@code @Cacheable} methods and their
+ * keys live here: anything that calls one of them from this class would bypass the proxy (see {@link CatalogoPaginas}).
+ */
 @Component
 public class CatalogoDerivadoCache {
 
@@ -94,10 +97,6 @@ public class CatalogoDerivadoCache {
         return MarcasPicksView.marcasRanking(r, k.rubro(), k.q(), k.sort());
     }
 
-    public MarcasPicksDtos.MarcasPagina marcasPagina(MarcasKey k, String cursor, int limite) {
-        return MarcasPicksView.paginaMarcas(marcas(k), k.sort(), cursor, limite);
-    }
-
     @Cacheable(cacheNames = CacheNames.MEJORES, key = "#k", sync = true)
     public List<MarcasPicksDtos.MejoresCategoria> mejores(MejoresKey k) {
         var r = snapshot.getLastResult();
@@ -114,21 +113,6 @@ public class CatalogoDerivadoCache {
         var r = snapshot.getLastResult();
         if (r == null) return Map.of();
         return MarcasPicksView.ranking(r, k.rubro(), k.gymrat(), k.genero());
-    }
-
-    public MarcasPicksDtos.PicksPagina picks(MejoresKey k, String categoria, String cursor, int limite) {
-        return picks(k, categoria, null, cursor, limite);
-    }
-
-    /**
-     * Like {@link #picks(MejoresKey, String, String, int)} restricted to one stored {@code subCategoria} (exact match
-     * after trimming; blank means no restriction). The cached ranking is filtered BEFORE paging, so cursor, nextCursor
-     * and total all describe the filtered list. The filter keeps the ranking order, so the keyset binary search still
-     * applies; it is one O(n) pass over a single category per request, not memoized.
-     */
-    public MarcasPicksDtos.PicksPagina picks(MejoresKey k, String categoria, String subCategoria, String cursor, int limite) {
-        var ranking = rankingPicks(k).getOrDefault(categoria, List.of());
-        return MarcasPicksView.pagina(MarcasPicksView.filtrarPorSub(ranking, subCategoria), cursor, limite, politicaStock);
     }
 
     private static String normalizar(String s) {

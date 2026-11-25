@@ -78,6 +78,8 @@ public class ScraperService implements CatalogSnapshotPort {
     private volatile boolean forceRetrain = false;
     /** The turn is held by a re-normalisation: nothing to cancel, and {@link #cancelar} must not flag it. */
     private volatile boolean renormalizando = false;
+    /** A re-normalisation committed but its reload failed: the next one reloads even if it writes nothing. */
+    private volatile boolean recargaPendiente = false;
 
     /**
      * {@code RunState} is null whenever the run bookkeeping failed to open its row, and
@@ -440,8 +442,12 @@ public class ScraperService implements CatalogSnapshotPort {
                 throw new ar.scraper.api.ApiException(org.springframework.http.HttpStatus.CONFLICT, "ml_en_curso",
                         "Ya hay una corrida del pipeline ML en vuelo. Esperá a que termine y volvé a intentar.");
             }
-            recargarCatalogoTrasRenormalizar();
-            return salida.get();
+            Map<String, Integer> resultado = salida.get();
+            if (recargaPendiente || resultado == null || lastResult == null
+                    || resultado.getOrDefault("escriturasAplicadas", 1) != 0) {
+                recargarCatalogoTrasRenormalizar();
+            }
+            return resultado;
         } finally {
             renormalizando = false;
             cancelado.set(false);
@@ -449,11 +455,16 @@ public class ScraperService implements CatalogSnapshotPort {
         }
     }
 
-    /** The commit already happened: a failed reload leaves the old snapshot served and says so. */
+    /**
+     * The commit already happened: a failed reload leaves the old snapshot served and says so. Skipped by the caller
+     * when no row was written and a snapshot is being served, since the database then equals what memory already holds.
+     */
     private void recargarCatalogoTrasRenormalizar() {
+        recargaPendiente = true;
         try {
             AggregatedResult nuevo = aggregator.fromDB(productos.cargarProductos());
             synchronized (catalogLock) { lastResult = nuevo; }
+            recargaPendiente = false;
             publicarCambio();
         } catch (Exception e) {
             LOG.warn("[RENORM] Escrito en la DB pero no se pudo recargar el catálogo en memoria: {}", e.getMessage());

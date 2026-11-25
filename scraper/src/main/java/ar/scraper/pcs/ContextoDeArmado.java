@@ -5,6 +5,7 @@ import ar.scraper.model.Product;
 import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 
@@ -24,7 +25,7 @@ public final class ContextoDeArmado {
     private final Set<String> socketsConCpuElegible;
     private final Map<String, TechSpecs> mejorCpuPorSocket;
     private final boolean sinPresupuesto;
-    private final Map<Product, TechSpecs> specsPorProducto;
+    private final Function<Product, TechSpecs> lectorDeSpecs;
 
     public static ContextoDeArmado inicial(int wattsMin) {
         return inicial(wattsMin, null, Certificacion.NINGUNA, PreferenciasDeArmado.NINGUNA);
@@ -62,38 +63,53 @@ public final class ContextoDeArmado {
      */
     public static ContextoDeArmado inicial(int wattsMin, Gama gamaPedida, Certificacion certificacionMinima,
             PreferenciasDeArmado preferencias, Set<String> socketsConCpuElegible, boolean sinPresupuesto) {
+        return inicial(wattsMin, gamaPedida, certificacionMinima, preferencias, socketsConCpuElegible,
+                sinPresupuesto, memoPorArmado());
+    }
+
+    /**
+     * {@code lectorDeSpecs} answers {@link #specsDe}: it must return what {@link TechSpecsParser#parse} returns for the
+     * product, and may be shared between builds and threads. The overloads without it memoize per build.
+     */
+    public static ContextoDeArmado inicial(int wattsMin, Gama gamaPedida, Certificacion certificacionMinima,
+            PreferenciasDeArmado preferencias, Set<String> socketsConCpuElegible, boolean sinPresupuesto,
+            Function<Product, TechSpecs> lectorDeSpecs) {
         return new ContextoDeArmado(TechSpecs.EMPTY, "", wattsMin, gamaPedida, certificacionMinima, preferencias,
-                socketsConCpuElegible, Map.of(), sinPresupuesto, new IdentityHashMap<>());
+                socketsConCpuElegible, Map.of(), sinPresupuesto, lectorDeSpecs);
+    }
+
+    private static Function<Product, TechSpecs> memoPorArmado() {
+        Map<Product, TechSpecs> memo = new IdentityHashMap<>();
+        return p -> memo.computeIfAbsent(p, q -> TechSpecsParser.parse(q.nombre(), q.categoria()));
     }
 
     public ContextoDeArmado conMother(TechSpecs motherSpecs) {
         return new ContextoDeArmado(motherSpecs, derivarMotherDdr(motherSpecs), wattsMin, gamaPedida,
                 certificacionMinima, preferencias, socketsConCpuElegible, mejorCpuPorSocket, sinPresupuesto,
-                specsPorProducto);
+                lectorDeSpecs);
     }
 
     public ContextoDeArmado conSocketsConCpuElegible(Set<String> sockets) {
         return new ContextoDeArmado(motherSpecs, motherDdr, wattsMin, gamaPedida,
-                certificacionMinima, preferencias, sockets, mejorCpuPorSocket, sinPresupuesto, specsPorProducto);
+                certificacionMinima, preferencias, sockets, mejorCpuPorSocket, sinPresupuesto, lectorDeSpecs);
     }
 
     public ContextoDeArmado conMejorCpuPorSocket(Map<String, TechSpecs> mejorCpu) {
         return new ContextoDeArmado(motherSpecs, motherDdr, wattsMin, gamaPedida,
                 certificacionMinima, preferencias, socketsConCpuElegible, Map.copyOf(mejorCpu), sinPresupuesto,
-                specsPorProducto);
+                lectorDeSpecs);
     }
 
     /** Same contexto with the price tiebreak flipped to the dearer piece; nothing else reads the flag. */
     public ContextoDeArmado conSinPresupuesto(boolean sinPresupuesto) {
         return new ContextoDeArmado(motherSpecs, motherDdr, wattsMin, gamaPedida,
                 certificacionMinima, preferencias, socketsConCpuElegible, mejorCpuPorSocket, sinPresupuesto,
-                specsPorProducto);
+                lectorDeSpecs);
     }
 
     /** Every contexto derived from one {@code inicial} shares the memo: one parse per product per build. */
     public TechSpecs specsDe(Product producto) {
-        return specsPorProducto.computeIfAbsent(producto,
-                p -> TechSpecsParser.parse(p.nombre(), p.categoria()));
+        return lectorDeSpecs.apply(producto);
     }
 
     public TechSpecs motherSpecs() {

@@ -57,6 +57,14 @@ public class PcBuilder {
     public PcBuilder() {
     }
 
+    /**
+     * Drops what builds memoized from the catalog (its categories, pools and parsed specs). Called when the catalog
+     * changes so an old snapshot's products are not kept alive until the next request; a build in flight keeps its own.
+     */
+    public static void soltarMemo() {
+        MemoDeCatalogo.soltar();
+    }
+
     private static final java.util.regex.Pattern COMBO = java.util.regex.Pattern.compile(
             "\\bcombo\\b|\\+\\s*(kit|procesador|micro|cpu|mother|motherboard|memoria|ram|monitor|fuente|teclado|mouse|auricular)\\b",
             java.util.regex.Pattern.CASE_INSENSITIVE);
@@ -101,6 +109,11 @@ public class PcBuilder {
         return armar(productos, presupuesto, conGpu, excluirUrls, gamaPedida, prefs, uso, ModoPresupuesto.AHORRAR);
     }
 
+    /**
+     * {@code productos} must not be mutated once passed: what is derived from the catalog (categories, pools, parsed
+     * specs) is memoized per list instance, which is how the snapshot and {@link ar.scraper.catalog.PoliticaStock}'s
+     * filtered copy are published.
+     */
     public PcBuild armar(List<Product> productos, double presupuesto, boolean conGpu, Set<String> excluirUrls,
             Gama gamaPedida, PreferenciasDeArmado prefs, Uso uso, ModoPresupuesto modo) {
         if (productos == null) productos = List.of();
@@ -109,9 +122,8 @@ public class PcBuilder {
         final Uso usoResuelto = uso != null ? uso : Uso.GAMING;
         final boolean gastarTodo = modo == ModoPresupuesto.GASTAR_TODO && presupuesto > 0;
 
-        Map<String, List<Product>> porCategoria = productos.stream()
-                .filter(p -> p.categoria() != null)
-                .collect(Collectors.groupingBy(Product::categoria));
+        final List<Product> catalogo = productos;
+        final MemoDeCatalogo memo = MemoDeCatalogo.de(catalogo);
 
         List<SlotDeArmado> slots;
         if (usoResuelto == Uso.HOMELAB && preferencias.tamanioGabinete() == TamanioGabinete.MINI) {
@@ -126,7 +138,7 @@ public class PcBuilder {
 
         Map<String, List<Product>> poolsDisponibles = new HashMap<>();
         Function<String, List<Product>> pools = categoria -> poolsDisponibles.computeIfAbsent(categoria,
-                c -> poolDisponible(porCategoria, c, excluir));
+                c -> memo.pool(catalogo, c, excluir));
 
         List<PcPick> picks = new ArrayList<>();
         List<String> sinStock = new ArrayList<>();
@@ -144,10 +156,10 @@ public class PcBuilder {
         // CriterioPorEjesTecnicos recibe por llamada.
         ContextoDeArmado contexto =
                 ContextoDeArmado.inicial(wattsMin, gamaPedida, certMin, preferencias, Set.of(),
-                        presupuesto <= 0);
+                        presupuesto <= 0, memo::specsDe);
         if (gamaPedida != null && indiceDeSiExiste(slots, "cpu") >= 0) {
             contexto = contexto.conSocketsConCpuElegible(
-                    socketsConCpuElegible(porCategoria, excluir, gamaPedida, preferencias, contexto));
+                    socketsConCpuElegible(memo.todos(catalogo, "CPU"), excluir, gamaPedida, preferencias, contexto));
         }
         int iCpu = indiceDeSiExiste(slots, "cpu");
         Map<String, Product> cpuObjetivo = Map.of();
@@ -233,7 +245,7 @@ public class PcBuilder {
             }
         }
         return new PcBuild(picks, sinStock, sinCompatible, presupuesto, totalEstimado, mensajes,
-                referencias(picks, excluir.isEmpty() ? pools : c -> poolDisponible(porCategoria, c, Set.of()),
+                referencias(picks, excluir.isEmpty() ? pools : c -> memo.pool(catalogo, c, Set.of()),
                         contexto, usoResuelto));
     }
 
@@ -328,20 +340,6 @@ public class PcBuilder {
         return -1;
     }
 
-    /** Soft filters: excluded urls, then combos — each one dropped only if something else is left. */
-    private static List<Product> poolDisponible(Map<String, List<Product>> porCategoria, String categoria,
-            Set<String> excluir) {
-        List<Product> pool = porCategoria.getOrDefault(categoria, List.of());
-        if (!excluir.isEmpty()) {
-            List<Product> frescos = pool.stream()
-                    .filter(p -> !excluir.contains(p.url()))
-                    .collect(Collectors.toList());
-            if (!frescos.isEmpty()) pool = frescos;
-        }
-        List<Product> sinCombos = pool.stream().filter(p -> !esCombo(p.nombre())).collect(Collectors.toList());
-        return sinCombos.isEmpty() ? pool : sinCombos;
-    }
-
     /** A board is affordable only if what it leaves of mother + cpu money still buys its socket's target CPU. */
     private static boolean dejaLugarAlCpu(Product mother, Map<String, Product> cpuObjetivo, double motherMasCpu,
             ContextoDeArmado contexto) {
@@ -400,9 +398,8 @@ public class PcBuilder {
      * sólo mira gama y marca, y exige socket legible: un CPU sin socket no puede afirmar una
      * plataforma, aunque el slot cpu igual lo dejaría pasar por abstención.
      */
-    private static Set<String> socketsConCpuElegible(Map<String, List<Product>> porCategoria, Set<String> excluir,
+    private static Set<String> socketsConCpuElegible(List<Product> cpuPool, Set<String> excluir,
             Gama gamaPedida, PreferenciasDeArmado preferencias, ContextoDeArmado contexto) {
-        List<Product> cpuPool = porCategoria.getOrDefault("CPU", List.of());
         if (!excluir.isEmpty()) {
             List<Product> frescos = cpuPool.stream().filter(p -> !excluir.contains(p.url()))
                     .collect(Collectors.toList());

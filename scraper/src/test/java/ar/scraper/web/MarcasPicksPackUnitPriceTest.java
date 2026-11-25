@@ -58,7 +58,7 @@ class MarcasPicksPackUnitPriceTest {
     private void wireController() {
         service          = mock(ScraperService.class);
         grouping          = mock(GroupingService.class);
-        controller = new MarcasPicksController(service, new ar.scraper.web.cache.CatalogoDerivadoCache(service, grouping));
+        controller = ar.scraper.web.support.MarcasPicksDePrueba.controller(service, new ar.scraper.web.cache.CatalogoDerivadoCache(service, grouping));
     }
 
     /** Non-pack product (cantidadUnidades = 1). */

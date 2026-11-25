@@ -35,7 +35,7 @@ class MarcasBrowserPaginadoTest {
     void setUp() {
         service = mock(ScraperService.class);
         when(service.snapshotVersion()).thenReturn(1L);
-        controller = new MarcasPicksController(service, new CatalogoDerivadoCache(service, mock(GroupingService.class)));
+        controller = ar.scraper.web.support.MarcasPicksDePrueba.controller(service, new CatalogoDerivadoCache(service, mock(GroupingService.class)));
     }
 
     private static void add(List<Product> out, String marca, double precio, int n) {

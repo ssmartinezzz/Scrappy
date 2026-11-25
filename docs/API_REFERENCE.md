@@ -1001,7 +1001,8 @@ entrenamiento de imagen (ver `docs/ML_PIPELINE.md`).
 **Atómico.** Todo lo que cambia (`categoria`, `marca`, `genero`, talles, `sub_categoria` y
 `rubro`) se escribe en UNA transacción: entra entero o no entra nada. Una falla de la escritura
 responde `500` y no deja nada a medias. Las filas bloqueadas (`bloqueado_por`) no se tocan, ni
-sus talles. Cuando termina, el catálogo en memoria se recarga desde la base.
+sus talles. Cuando termina, el catálogo en memoria se recarga desde la base, salvo que no haya escrito ninguna fila
+(`escriturasAplicadas` = 0) y ya haya un catálogo servido: la base y la memoria son entonces la misma.
 
 **Toma el turno de scrape y el slot de scoring**, como `POST /ml/aplicar`: mientras corre,
 `GET /status` dice `RUNNING` (con el mensaje `Re-normalizando el catálogo...`) y ningún scrape ni

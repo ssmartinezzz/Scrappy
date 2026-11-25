@@ -1547,6 +1547,28 @@ prohíbe que el bean dependa de `ActorResolver`. Las anotaciones de cache viven
 en un único bean, `CatalogoDerivadoCache`, que los controllers reciben por inyección. Las claves normalizan a minúsculas (los filtros ya comparan sin
 mayúsculas) pero no hacen `trim`: los endpoints tampoco.
 
+**La paginación vive en otro bean, `CatalogoPaginas`.** `/api/marcas-browser` y `/api/mejores/picks` son una página
+(búsqueda binaria por cursor) sobre el ranking entero que cachean `marcas` y `rankingPicks`; ese ranking se pide a través
+del proxy. Si la página fuera un método del mismo bean, la llamada sería `this.marcas(k)`, no pasaría por el proxy y
+re-rankearía el catálogo en cada request (así estuvieron las caches `marcas` y `mejoresRanking` sin usarse desde que se
+agregó la paginación). El tope de memoria es el de `CacheConfig`: 64 entradas de marcas y 16 de ranking, ~5 MB por ranking
+del catálogo entero (24 B por `Ranked`, los `Product` son los del snapshot) y vaciadas con él; una carga que empezó antes
+del vaciado puede dejar una entrada con la versión vieja, que nadie vuelve a pedir y que el TTL (30 min) o el tope sacan.
+
+`PcBuilder` guarda por instancia de lista del catálogo (una sola, `MemoDeCatalogo`) las categorías, los pools sin combos
+y las specs parseadas de lo que armó: es válido porque el snapshot y la copia filtrada de `PoliticaStock` se publican y no
+se mutan. La referencia a la lista es débil y `CatalogCacheEvictor` la suelta al publicarse `CatalogoActualizado`.
+
+**`/api/mejores` sirve un gzip memoizado.** Tomcat comprimía los 3,3 MB en cada request (60 ms contra 22 ms sin comprimir).
+`web.cache.CuerposGzip` guarda los bytes gzip con **la instancia de la lista** que devuelve `CatalogoDerivadoCache.mejores`
+como clave (Caffeine, `weakKeys`, tope 16): los bytes viven y mueren con esa entrada, sin un segundo TTL ni una segunda
+versión que pueda quedar vieja. Si la entrada de `mejores` se vacía, nadie vuelve a pedir esa instancia y el recolector se
+lleva la clave; además un listener propio de `CatalogoActualizado` vacía el memo en el acto. `RespuestaGzip` decide la
+negociación (`Accept-Encoding` con q-values, `*`, `gzip;q=0`), serializa `ApiResponse.ok(vista)` con el mismo `JsonMapper`
+del converter HTTP y responde con `Content-Encoding: gzip`, `Content-Length` y `Vary: Accept-Encoding` agregado al `Vary` de
+CORS; con ese `Content-Encoding` puesto Tomcat no vuelve a comprimir. Con `server.compression.enabled=false`, sin gzip en el
+cliente o con una vista vacía, el endpoint responde como antes por el camino tipado.
+
 ### ¿Por qué los avisos de baja de precio usan un outbox en Postgres y no Kafka?
 
 Cuando una corrida baja un precio más de 5% (y no más de 90%), cada usuario activo con email que lo tiene en
