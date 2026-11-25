@@ -21,7 +21,7 @@ ON CONFLICT (clave) DO NOTHING;
 
 UPDATE categoria_rubro
    SET rubro = (SELECT clave FROM rubro WHERE orden = 12)
- WHERE sub_categoria = ''
+ WHERE length(sub_categoria) = 0
    AND categoria = 'Celular';
 
 UPDATE productos p
@@ -29,7 +29,7 @@ UPDATE productos p
   FROM categoria_rubro cr, sitio s, rubro e
  WHERE e.orden = 12
    AND cr.rubro = e.clave
-   AND cr.sub_categoria = ''
+   AND length(cr.sub_categoria) = 0
    AND p.categoria = cr.categoria
    AND s.sitio_key = p.sitio_key
    AND COALESCE(s.rubro_forzado, '') = ''
