@@ -51,7 +51,7 @@ class CatalogoBadgeMembershipTest extends ar.scraper.db.support.PostgresTestBase
         service          = mock(ScraperService.class);
         indiceService = mock(IndiceService.class);
         when(indiceService.deflactorParaRubro(
-                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
                 .thenReturn(ar.scraper.indices.Deflactor.NEUTRO);
         config            = mock(ScraperConfig.class);
         db                = TestDatabaseServices.create(dataSource());

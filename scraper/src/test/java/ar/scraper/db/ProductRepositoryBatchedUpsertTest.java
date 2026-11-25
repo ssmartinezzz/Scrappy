@@ -1,5 +1,7 @@
 package ar.scraper.db;
 
+import ar.scraper.testsupport.TestRubros;
+
 import ar.scraper.catalog.UpsertStats;
 import ar.scraper.classification.RubroResolver;
 import ar.scraper.classification.SiteRegistry;
@@ -36,7 +38,7 @@ class ProductRepositoryBatchedUpsertTest extends PostgresTestBase {
         DataSource contando = contando(TestTransactions.aware(dataSource()));
         PlatformTransactionManager tm = TestTransactions.manager(dataSource());
         SiteRegistry registry = new SiteRegistry(new JdbcSiteSource(contando));
-        return new ProductRepository(contando, registry, new RubroResolver(registry), tm,
+        return new ProductRepository(contando, registry, TestRubros.resolver(registry), tm,
                 new SitioCategoriaRepository(contando), filasPorLote);
     }
 

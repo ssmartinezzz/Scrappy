@@ -1,7 +1,9 @@
 package ar.scraper.config;
 
 import ar.scraper.classification.BrandExtractor;
+import ar.scraper.classification.RubroCatalogo;
 import ar.scraper.classification.RubroResolver;
+import ar.scraper.classification.RubroSource;
 import ar.scraper.classification.SiteRegistry;
 import ar.scraper.classification.SiteSource;
 import org.springframework.context.annotation.Bean;
@@ -16,8 +18,13 @@ class ClassificationConfig {
     }
 
     @Bean
-    RubroResolver rubroResolver(SiteRegistry siteRegistry) {
-        return new RubroResolver(siteRegistry);
+    RubroCatalogo rubroCatalogo(RubroSource rubroSource) {
+        return rubroSource.cargar();
+    }
+
+    @Bean
+    RubroResolver rubroResolver(SiteRegistry siteRegistry, RubroCatalogo rubroCatalogo) {
+        return new RubroResolver(siteRegistry, rubroCatalogo);
     }
 
     @Bean

@@ -39,10 +39,11 @@ class CheckDomainTest extends PostgresTestBase {
 
     private static final List<String> CHECK_CONSTRAINT_NAMES = List.of(
             "chk_productos_genero_domain",
-            "chk_productos_rubro_domain",
+            "fk_productos_rubro",
             "chk_productos_ml_segment_domain");
 
     private static final String CHECK_VIOLATION = "23514";
+    private static final String FOREIGN_KEY_VIOLATION = "23503";
 
     // `sitio` is never truncated, so without this every insert below only passed when
     // another test class happened to leave a 'Sitio' row behind.
@@ -56,7 +57,7 @@ class CheckDomainTest extends PostgresTestBase {
     }
 
     @Test
-    @DisplayName("all three CHECK constraints exist on productos")
+    @DisplayName("the two CHECK constraints and the rubro foreign key (V138) exist on productos")
     void allThreeCheckConstraintsExist() throws Exception {
         for (String name : CHECK_CONSTRAINT_NAMES) {
             assertThat(constraintExists(name)).as("constraint %s exists", name).isTrue();
@@ -97,12 +98,12 @@ class CheckDomainTest extends PostgresTestBase {
     }
 
     @Test
-    @DisplayName("rubro CHECK rejects an out-of-domain value")
+    @DisplayName("rubro foreign key (V138) rejects a value that is not in the rubro table")
     void rubroRejectsOutOfDomainValue() {
         assertThatThrownBy(() -> insertarConRubro("https://check-domain.test/rubro-bad", "ropa"))
                 .isInstanceOf(SQLException.class)
                 .extracting(e -> ((SQLException) e).getSQLState())
-                .isEqualTo(CHECK_VIOLATION);
+                .isEqualTo(FOREIGN_KEY_VIOLATION);
     }
 
     @Test
@@ -170,7 +171,7 @@ class CheckDomainTest extends PostgresTestBase {
         try (Connection c = dataSource().getConnection();
              PreparedStatement ps = c.prepareStatement(
                      "SELECT 1 FROM pg_constraint WHERE conrelid = 'productos'::regclass "
-                             + "AND contype = 'c' AND conname = ?")) {
+                             + "AND contype IN ('c', 'f') AND conname = ?")) {
             ps.setString(1, name);
             try (ResultSet rs = ps.executeQuery()) {
                 return rs.next();

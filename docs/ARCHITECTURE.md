@@ -230,8 +230,8 @@ decoración) entran por la misma razón en `V45`. `hogar` existe para que un
 almohadón o una funda no caigan en la taxonomía de indumentaria.
 
 `deporte` (bicicletas, fitness, kayaks, `Pelota`, `Paleta`) y `juguetes` entran en `V69`: son equipamiento y no
-prendas, y una tienda de juguetes es un sitio posible. `sitio_rubro_forzado_check` queda en 5 valores hasta que un
-sitio necesite forzar alguno de los dos.
+prendas, y una tienda de juguetes es un sitio posible. `sitio_rubro_forzado_check` (desde `V138`, `fk_sitio_rubro_forzado`) quedó en 5 valores hasta que un
+sitio necesitó forzar alguno de los dos.
 
 ---
 
@@ -921,7 +921,7 @@ de productos. Elegir uno recién entonces abre la galería. `RubroCard`
 (`ui/rubro-card.jsx`) es un `role="button"`, no un `<a>`: un rubro es un paso del
 flujo local del panel, no una ruta —el mismo criterio que `CategoryCard`—.
 
-**Gymrat no es un rubro.** `rubro` es un dominio cerrado (`chk_productos_rubro_domain`)
+**Gymrat no es un rubro.** `rubro` es un dominio cerrado (la tabla `rubro`, FK desde `productos.rubro`)
 y `gymrat` es un tag ortogonal (`productos.gymrat`), así que la card pide
 `/api/mejores?gymrat=true` en vez de inventar un rubro `'gymrat'`. Dentro del
 panel `'gymrat'` es sólo la clave de cache local; nunca viaja como `rubro`.
@@ -1451,8 +1451,9 @@ SQL.
 la canasta del IPC — sube o baja con el dólar, porque son productos
 importados o dolarizados en origen. Deflactarlo por IPC contesta una pregunta
 distinta de la que el usuario está haciendo. `DeflactorPorRubro.resolver` es
-la política mínima que separa las dos preguntas: `tecnologia → USD_OFICIAL`,
-todo el resto → `IPC`.
+la política mínima que separa las dos preguntas: el índice de la categoría si tiene uno
+(`categoria.indice`), si no el del rubro (`rubro.indice`: `tecnologia → USD_OFICIAL`),
+todo el resto → `IPC`. Desde `V138` el mapa vive en tablas (ver «La taxonomía de rubros es datos» más abajo).
 
 **Por qué el dólar OFICIAL del BNA y no un blend con el "blue" o el MEP
 (D2).** Es la referencia que usan los importadores formales para poner
@@ -1688,7 +1689,7 @@ sitioCategoriaOrigenId (Integer)
 Un único parser, `ar.scraper.aggregator.text.PrecioParser`, lo resuelve al
 momento del scrape — ver `V17` más abajo.
 
-`rubro` tiene **nueve** valores desde `V74` (ocho desde `V69`): `indumentaria` · `tecnologia` ·
+`rubro` tiene **diez** valores desde `V90`/`V112` (nueve desde `V74`, ocho desde `V69`): `indumentaria` · `tecnologia` ·
 `suplementos` · `oficina` · `construccion` · `hogar` · `deporte` · `juguetes` · `libros`. Lo resuelve `RubroResolver` por
 `sitio.rubro_forzado`, salvo donde decide la categoría. `suplementos`: un
 suplemento es un suplemento lo venda quien lo venda, y por eso gana sobre el
@@ -1701,6 +1702,8 @@ regla sus sillas quedaban en `indumentaria`. `tecnologia` también sale de la ca
 periférico gamer de una tienda deportiva sin rubro forzado pasa a `tecnologia`. `deporte` y `juguetes` siguen el mismo
 criterio (decisión D-6): equipamiento deportivo y juguetes por categoría, sólo sin rubro forzado, y un rubro forzado
 gana siempre. La ropa deportiva se queda en `indumentaria`; el `deporte` de `SportResolver` es una dimensión aparte, que etiqueta tanto `indumentaria` como el rubro `deporte`, así una pelota de fútbol sigue en el filtro de fútbol. `GymratTagger` no: gymrat es ropa.
+
+**La taxonomía de rubros es datos, no código (`V138`, decisión TR0).** Agregar un rubro tocaba tres CHECK, la cadena de `if` de `RubroResolver`, `DeflactorPorRubro`, `ml_pipeline` y `rubros.js`: seis lugares que debían coincidir y que ningún test cruzaba. Ahora `rubro` y `categoria_rubro` son la fuente, `RubroResolver` es una lista ordenada de reglas chicas sobre una instantánea inmutable (`RubroCatalogo`, leída por `RubroSource`), y un rubro nuevo es filas de una migración más su entrada en `frontend/src/lib/rubros.js`, que pone ícono y color y se quedó del lado del frontend para no sumar un pedido al arranque (`RubroTaxonomiaAgreementTest` falla si no repite la tabla). `ml_pipeline` sigue mirando `tecnologia` por nombre. La precedencia que antes era el **orden** de la cadena (un sitio forzado a `tecnologia` le gana a toda categoría salvo indumentaria; uno forzado a `oficina`, a las de belleza, hogar y construcción pero no a suplementos ni indumentaria; los demás sólo a las de rubros sin peso) pasa a ser dos pesos por rubro, `peso_forzado` y `peso_categoria`: gana el sitio forzado si `peso_forzado >= peso_categoria`. Se eligió peso y no una lista de excepciones por sitio porque el caso futuro (un mousepad en una tienda de tecnología) es una propiedad de la **categoría**, y para eso está `pisa_forzado`. Una taxonomía que no carga o viene vacía hace fallar el arranque (a diferencia de `SiteRegistry`): vacía reclasificaría todo en silencio. `RubroResolverEquivalenceTest` guarda una copia literal de la cadena vieja y exige 0 diferencias; `RubroTaxonomiaAgreementTest` exige que tablas y `CategoryGroups` coincidan en ambos sentidos.
 
 `sitioCategoriaOrigenId` es la hoja del árbol de categorías del propio sitio donde éste ubica al producto
 (`categoryId` en VTEX): `null` es "el sitio no la publica", nunca un sentinel. Sólo `VtexPage` la llena; el upsert la

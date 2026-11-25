@@ -2,6 +2,8 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+// lazy() in AppLayout: a cold import inside a test outlasts findBy's timeout.
+import './components/AgentChatPanel';
 import App from './App';
 import { resetSession } from './lib/authSession';
 

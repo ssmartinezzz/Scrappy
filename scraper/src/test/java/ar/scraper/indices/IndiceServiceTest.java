@@ -1,5 +1,7 @@
 package ar.scraper.indices;
 
+import ar.scraper.testsupport.TestRubros;
+
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
@@ -38,7 +40,7 @@ class IndiceServiceTest {
 
     @Test
     void sinDatosPersistidosNiRefrescoElDeflactorEsNeutro() {
-        IndiceService service = new IndiceService(new IndicePortEnMemoria(), Map.of());
+        IndiceService service = new IndiceService(new IndicePortEnMemoria(), Map.of(), TestRubros.deflactor());
         service.cargarDesdeDB();
 
         Deflactor d = service.deflactor(Indice.IPC, LocalDate.parse("2026-01-01"), LocalDate.parse("2026-02-01"));
@@ -50,7 +52,7 @@ class IndiceServiceTest {
     void cargarDesdeDBLevantaLoYaPersistidoSinNecesitarRed() {
         IndicePortEnMemoria db = new IndicePortEnMemoria();
         db.guardar(List.of(punto(Indice.IPC, "2026-01-31", 100.0), punto(Indice.IPC, "2026-02-28", 110.0)));
-        IndiceService service = new IndiceService(db, Map.of());
+        IndiceService service = new IndiceService(db, Map.of(), TestRubros.deflactor());
 
         service.cargarDesdeDB();
 
@@ -64,7 +66,7 @@ class IndiceServiceTest {
         IndicePortEnMemoria db = new IndicePortEnMemoria();
         FuenteIndicePort fuente = indice -> List.of(
                 punto(Indice.IPC, "2026-01-31", 100.0), punto(Indice.IPC, "2026-02-28", 120.0));
-        IndiceService service = new IndiceService(db, Map.of(Indice.IPC, fuente));
+        IndiceService service = new IndiceService(db, Map.of(Indice.IPC, fuente), TestRubros.deflactor());
         service.cargarDesdeDB();
 
         service.refrescar();
@@ -82,7 +84,7 @@ class IndiceServiceTest {
         FuenteIndicePort ipcQueFalla = indice -> { throw new FuenteIndiceException("caída de red"); };
         FuenteIndicePort usdOk = indice -> List.of(
                 punto(Indice.USD_OFICIAL, "2026-09-17", 1500.0), punto(Indice.USD_OFICIAL, "2026-09-18", 1510.0));
-        IndiceService service = new IndiceService(db, Map.of(Indice.IPC, ipcQueFalla, Indice.USD_OFICIAL, usdOk));
+        IndiceService service = new IndiceService(db, Map.of(Indice.IPC, ipcQueFalla, Indice.USD_OFICIAL, usdOk), TestRubros.deflactor());
         service.cargarDesdeDB();
 
         service.refrescar();
@@ -108,7 +110,7 @@ class IndiceServiceTest {
             valor *= 1.02;
         }
         db.guardar(puntos);
-        IndiceService service = new IndiceService(db, Map.of());
+        IndiceService service = new IndiceService(db, Map.of(), TestRubros.deflactor());
         service.cargarDesdeDB();
 
         ResumenIndice resumen = service.resumen(Indice.IPC);
@@ -120,7 +122,7 @@ class IndiceServiceTest {
 
     @Test
     void resumenDeIndiceSinDatosEsSinDatos() {
-        IndiceService service = new IndiceService(new IndicePortEnMemoria(), Map.of());
+        IndiceService service = new IndiceService(new IndicePortEnMemoria(), Map.of(), TestRubros.deflactor());
         service.cargarDesdeDB();
 
         ResumenIndice resumen = service.resumen(Indice.USD_OFICIAL);

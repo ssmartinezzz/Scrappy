@@ -51,7 +51,7 @@ public class SenalEnricher {
                 continue;
             }
 
-            SenalCompra senal = clasificar(historialPorUrl.get(p.url()), p.rubro());
+            SenalCompra senal = clasificar(historialPorUrl.get(p.url()), p.rubro(), p.categoria());
 
             result.add(withSenal(p, senal));
             if (!"sin_datos".equals(senal.senal())) enriquecidos++;
@@ -66,7 +66,7 @@ public class SenalEnricher {
      * classifies against — but here it resolves that point's DATE, not a months-ago guess from how
      * many rows happen to exist.
      */
-    private SenalCompra clasificar(List<HistorialEntry> puntos, String rubro) {
+    private SenalCompra clasificar(List<HistorialEntry> puntos, String rubro, String categoria) {
         if (puntos == null || puntos.isEmpty()) return SenalCompra.EMPTY;
 
         List<HistorialEntry> ordenado = puntos.stream()
@@ -75,7 +75,7 @@ public class SenalEnricher {
         LocalDate desde = LocalDate.parse(ordenado.get(Math.max(0, ordenado.size() - 13)).fecha());
         LocalDate hasta = LocalDate.parse(ordenado.get(ordenado.size() - 1).fecha());
 
-        Deflactor deflactor = indiceService.deflactorParaRubro(rubro, desde, hasta);
+        Deflactor deflactor = indiceService.deflactorParaRubro(rubro, categoria, desde, hasta);
         return SenalCalculator.compute(puntos, deflactor.factor()).conConfianza(deflactor.confianza());
     }
 

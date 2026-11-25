@@ -571,7 +571,13 @@ export default function AppLayout() {
       // Re-normaliza el catálogo ya persistido (sin re-scrapear) ANTES de
       // entrenar, para que el clasificador de imagen no aprenda de etiquetas
       // categoria/marca stale dejadas por reglas viejas de NormalizerService.
-      await renormalizarCatalogo();
+      const renormalizado = await renormalizarCatalogo();
+      if (!renormalizado) {
+        // 409 (a scrape or an ML run holds the turn) or a rolled-back write: training on stale labels
+        // would be worse than not training.
+        setGpuTraining(prev => ({ ...prev, running:false, error:'No se pudo actualizar las categorías (hay un scraping o un pipeline ML en curso, o la escritura falló). Reintentá en un momento.' }));
+        return;
+      }
       setGpuTraining(prev => ({ ...prev, phase:'starting', msg:'' }));
       // Armed before the POST: the training event can arrive ahead of its response.
       gpuWatching.current = true;

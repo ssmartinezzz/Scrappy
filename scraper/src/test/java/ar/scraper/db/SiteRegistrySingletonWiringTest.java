@@ -62,6 +62,11 @@ class SiteRegistrySingletonWiringTest {
         }
 
         @Bean
+        ar.scraper.classification.RubroCatalogo rubroCatalogo() {
+            return ar.scraper.testsupport.TestRubros.catalogo();
+        }
+
+        @Bean
         DataSource dataSource() {
             return new DataSource() {
                 @Override

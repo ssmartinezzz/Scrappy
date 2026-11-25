@@ -66,8 +66,8 @@ Scrappy/
         │   │                                  PreciosExternosPort (los puertos los implementan
         │   │                                  @Repository package-private en db/) + ProductKey
         │   ├── classification/             ← área: SiteRegistry, SiteClassification, BrandExtractor,
-        │   │                                  RubroResolver, CategoryGroups, SitiosPort (lo
-        │   │                                  implementa un @Repository package-private en db/)
+        │   │                                  RubroResolver, RubroCatalogo, RubroSource, CategoryGroups,
+        │   │                                  SitiosPort (los implementan @Repository package-private en db/)
         │   ├── scrape/                     ← área: CorridaInterrumpida, ScraperStatus, ScrapeRunPort
         │   │                                  (lo implementa un @Repository package-private en db/) +
         │   │                                  ScrapeControlPort (lo implementa ScrapeControlAdapter,

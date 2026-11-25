@@ -1,5 +1,7 @@
 package ar.scraper.aggregator.normalize;
 
+import ar.scraper.testsupport.TestRubros;
+
 import ar.scraper.classification.CategoryGroups;
 import ar.scraper.classification.RubroResolver;
 import ar.scraper.classification.SiteRegistry;
@@ -26,7 +28,7 @@ class RubroResolverHadriaticaTest {
         Map<String, SiteRegistry.Sitio> cache = new LinkedHashMap<>();
         cache.put("hadriatica", new SiteRegistry.Sitio("Hadriatica", "hadriatica", "tiendanube", false, null, "config", false, "juguetes"));
         cache.put("gamerfactory", new SiteRegistry.Sitio("GamerFactory", "gamerfactory", "tiendanube", false, "tecnologia", "config"));
-        return new RubroResolver(SiteRegistry.forTesting(cache));
+        return TestRubros.resolver(SiteRegistry.forTesting(cache));
     }
 
     @Test

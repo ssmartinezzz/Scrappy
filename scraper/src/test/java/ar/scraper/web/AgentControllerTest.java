@@ -1,5 +1,7 @@
 package ar.scraper.web;
 
+import ar.scraper.testsupport.TestRubros;
+
 import ar.scraper.web.api.ApiExceptionHandler;
 import ar.scraper.web.support.Wire;
 
@@ -85,7 +87,7 @@ class AgentControllerTest {
         service               = mock(ScraperService.class);
         config                = mock(ScraperConfig.class);
         db                    = mock(DatabaseService.class);
-        when(db.rubroResolver()).thenReturn(new RubroResolver(SiteRegistry.forTesting(Map.of())));
+        when(db.rubroResolver()).thenReturn(TestRubros.resolver(SiteRegistry.forTesting(Map.of())));
         productos             = mock(ProductPort.class);
         when(db.productos()).thenReturn(productos);
         catalogAgentService   = mock(CatalogAgentService.class);

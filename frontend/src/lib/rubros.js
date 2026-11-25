@@ -6,8 +6,8 @@
  * rubro nuevo entra al backend y queda inalcanzable desde media UI: sin error,
  * sin warning, sólo productos que no aparecen en una pantalla y sí en otra.
  *
- * Las claves son exactamente el dominio de `chk_productos_rubro_domain`
- * (`V27`). Mandar cualquier otra cosa a `/api/data?rubro=` filtra por un valor
+ * Claves, etiquetas y orden son los de la tabla `rubro` (`V138`);
+ * `RubroTaxonomiaAgreementTest` (backend) falla si divergen. Mandar cualquier otra cosa a `/api/data?rubro=` filtra por un valor
  * que ninguna fila tiene y devuelve una vista vacía.
  */
 

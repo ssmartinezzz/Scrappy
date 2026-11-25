@@ -29,6 +29,7 @@ class V94VinchaBandanaTrajeDeportivoTest extends PostgresTestBase {
                         ('t', 'V94 Test', 'Tracksuit Mocha', 1, 'Traje Deportivo', 'indumentaria', true)
                     """);
 
+            st.execute(DocumentedRollback.sqlFor("V138"));
             st.execute(DocumentedRollback.sqlFor("V94"));
 
             assertThat(uno(st, "SELECT count(*) FROM categoria WHERE nombre IN ('Vincha', 'Bandana', 'Traje Deportivo')")).isEqualTo("0");

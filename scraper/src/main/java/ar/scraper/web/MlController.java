@@ -80,7 +80,7 @@ public class MlController {
 
     @PostMapping("/ml/renormalizar")
     public ResponseEntity<ApiResponse<Map<String, Integer>>> mlRenormalizar() {
-        return ResponseEntity.ok(ApiResponse.ok(aggregator.renormalizarCatalogo()));
+        return ResponseEntity.ok(ApiResponse.ok(service.renormalizarCatalogo()));
     }
 
     @GetMapping("/ml/estado")

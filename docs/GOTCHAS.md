@@ -21,6 +21,14 @@
 
 ### Corridas parciales y retomas
 
+⚠️ **`POST /api/ml/renormalizar` muestra `RUNNING` sin ser un scrape.** Toma el turno de
+`tomarElTurno` (para que `iniciarScraping`/`reanudar` no arranquen en medio de la escritura) y el
+slot de scoring, y en un `finally` restaura el estado y el mensaje anteriores; no toca `scrape_run`.
+Un lector de `ScraperStatus` que asuma que `RUNNING` es una corrida con `progreso` y `run` tiene que
+tolerar que no los haya, o que sean los de la corrida anterior. `cancelar()` devuelve `false` en esa
+ventana. Escribe todo en una transacción (`ProductPort.actualizarNormalizaciones`): una fila que viola
+una FK deshace las demás, y un `SUCCESS_NO_INFO` del driver tira en vez de adivinar qué filas entraron.
+
 ⚠️ **El hilo de la corrida atrapaba `Exception`, y un `OutOfMemoryError` no lo es: la corrida 26
 quedó RUNNING para siempre.** Los 49 sitios terminaron y el ML también (69.276
 productos); después el upsert final armó el catálogo entero como un único `String` JSON
@@ -826,8 +834,9 @@ Desde `indices-service` el "hace cuánto" se resuelve por FECHA:
 de las fechas reales del historial, nunca de una posición en la lista.
 
 **`rubro=tecnologia` deflacta por dólar oficial, el resto por IPC.**
-`DeflactorPorRubro.resolver(rubro)` es la única regla: `"tecnologia".equals(rubro)
-→ USD_OFICIAL`, cualquier otro valor → `IPC`. Deflactar una GPU por la canasta
+`DeflactorPorRubro.resolver(rubro, categoria)` es la única regla: el `categoria.indice` de la
+categoría si no es NULL (hoy sólo `TV y Audio`, USD_OFICIAL), si no el `rubro.indice`
+(`tecnologia` → USD_OFICIAL), y rubro nulo o desconocido → `IPC`. Deflactar una GPU por la canasta
 del IPC responde la pregunta equivocada — una GPU sube y baja con el dólar, no
 con la inflación general.
 

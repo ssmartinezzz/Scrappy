@@ -1,5 +1,7 @@
 package ar.scraper.aggregator;
 
+import ar.scraper.testsupport.TestRubros;
+
 import ar.scraper.aggregator.normalize.CategoryClassifier;
 import ar.scraper.aggregator.normalize.GenderResolver;
 import ar.scraper.aggregator.normalize.GymratTagger;
@@ -46,7 +48,7 @@ class ToyLeafWinsOverNameTest {
         when(arbol.categoriaPorOrigen("Elmundodeljuguete")).thenReturn(hojas);
         when(arbol.categoriaPorOrigen("Easy")).thenReturn(hojas);
         return new NormalizerService(new PackQuantityDetector(), new CategoryClassifier(), new BrandExtractor(),
-                new GenderResolver(), new SizeNormalizer(), new SubcategoryResolver(), new RubroResolver(registry),
+                new GenderResolver(), new SizeNormalizer(), new SubcategoryResolver(), TestRubros.resolver(registry),
                 new GymratTagger(), new SportResolver(), registry, arbol);
     }
 

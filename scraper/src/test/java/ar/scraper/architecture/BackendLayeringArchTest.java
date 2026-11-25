@@ -199,12 +199,12 @@ class BackendLayeringArchTest {
             }
         });
 
-    // The product aggregate's 14 methods on DatabaseService (extract-catalog-query-port).
+    // The product aggregate's methods on DatabaseService (extract-catalog-query-port).
     private static final Set<String> METODOS_PRODUCTOS =
         Set.of("obtenerProducto", "obtenerProductoPorKey", "cargarProductos",
                "cargarClasificacionBloqueada", "estaBloqueado", "esProductoActivo",
                "contarEmbeddings", "upsertProductos", "upsertParcial", "actualizarCategoria",
-               "actualizarNormalizacion", "marcarDescontinuado", "limpiarProductos",
+               "marcarDescontinuado", "limpiarProductos",
                "aplicarReclasificacionAuditada");
 
     @ArchTest

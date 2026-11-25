@@ -38,6 +38,8 @@ class V45RollbackRoundTripTest extends PostgresTestBase {
         try (Connection c = dataSource().getConnection()) {
             c.setAutoCommit(false);
             try (Statement st = c.createStatement()) {
+                // V138 replaced the rubro CHECKs with foreign keys: its rollback restores them first.
+                st.execute(DocumentedRollback.sqlFor("V138"));
                 assertThat(domainOf(st, "productos", "chk_productos_rubro_domain"))
                         .contains("construccion", "hogar");
                 assertThat(domainOf(st, "sitio", "sitio_rubro_forzado_check"))
@@ -65,6 +67,7 @@ class V45RollbackRoundTripTest extends PostgresTestBase {
         try (Connection c = dataSource().getConnection()) {
             c.setAutoCommit(false);
             try (Statement st = c.createStatement()) {
+                st.execute(DocumentedRollback.sqlFor("V138"));
                 st.executeUpdate("""
                         INSERT INTO productos (url, sitio, nombre, precio, rubro, categoria)
                         VALUES ('%s', 'Mrplacadeco', 'Placa Mármol Autoadhesiva', 9990,

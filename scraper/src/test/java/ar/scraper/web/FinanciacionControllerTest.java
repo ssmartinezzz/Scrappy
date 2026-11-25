@@ -1,5 +1,7 @@
 package ar.scraper.web;
 
+import ar.scraper.testsupport.TestRubros;
+
 import ar.scraper.web.support.Wire;
 
 import ar.scraper.scrape.ScraperStatus;
@@ -68,7 +70,7 @@ class FinanciacionControllerTest {
         db                    = mock(DatabaseService.class);
         presets               = mock(PresetPort.class);
         when(db.presets()).thenReturn(presets);
-        controller = new FinanciacionController(service, indiceService, db.presets(), db.historial(), db.productos(), aggregator);
+        controller = new FinanciacionController(service, indiceService, TestRubros.deflactor(), db.presets(), db.historial(), db.productos(), aggregator);
     }
 
     private Product producto(String url, double precio, SenalFinanciacion finan) {

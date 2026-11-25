@@ -66,7 +66,7 @@ class CatalogoContadoresGlobalesTest extends ar.scraper.db.support.PostgresTestB
         // Every seeded product gets a real precio_historico row, so SenalEnricher
         // always resolves a deflactor for it; this test doesn't care about senal.
         when(indiceService.deflactorParaRubro(
-                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
                 .thenReturn(ar.scraper.indices.Deflactor.NEUTRO);
         controller = new CatalogoController(service, db.presets(), db.historial(), db.catalogQuery(), db.productos(), config, indiceService);
     }

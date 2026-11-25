@@ -1,5 +1,7 @@
 package ar.scraper.web.cache;
 
+import ar.scraper.testsupport.TestRubros;
+
 import ar.scraper.aggregator.NormalizerService;
 import ar.scraper.aggregator.ResultAggregator.AggregatedResult;
 import ar.scraper.aggregator.normalize.CategoryClassifier;
@@ -32,7 +34,7 @@ class MarcasPicksViewMonomarcaTest {
                 "monkyforce", new Sitio("Monkyforce", "monkyforce", "monkyforce", false, null, "config", true)));
         var normalizer = new NormalizerService(new PackQuantityDetector(), new CategoryClassifier(),
                 new BrandExtractor(), new GenderResolver(), new SizeNormalizer(), new SubcategoryResolver(),
-                new RubroResolver(registry), new GymratTagger(), new SportResolver(), registry,
+                TestRubros.resolver(registry), new GymratTagger(), new SportResolver(), registry,
                 org.mockito.Mockito.mock(ar.scraper.catalog.SitioCategoriaPort.class));
         List<Product> crudos = List.of(
                 Product.builder().sitio("Monkyforce").nombre("Buzo Oversize").precio(100).url("http://m/1")

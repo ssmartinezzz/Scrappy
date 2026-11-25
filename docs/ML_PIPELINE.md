@@ -474,7 +474,7 @@ con `rubro_forzado` `tecnologia`/`oficina`, que sigue ganando. `SubcategoryResol
 (`eau de parfum`, `edp`, `parfum`), `Eau de Toilette` (`eau de toilette`, `edt`), `Body Splash` (`body splash`, `body mist`,
 `splash`) y `Colonia` (`colonia`, `eau de cologne`); gana la primera en ese orden y, si ninguna aparece, queda `''`. El tier
 deportivo (`hockey`, `running`...) no corre para `Perfume`. `KW_PERFUME` ya no matchea `splash` pelado ni `colonia` como
-subcadena (las antiparras `Base-X Splash` y la `Teja Colonial` eran `Perfume`). `POST /api/ml/renormalizar` actualiza la `sub_categoria` de las filas guardadas pero NO su `rubro` (lo alinea `V90`), y unas `Perfume` mal clasificadas (los inflables `Splash` de Elmundodeljuguete) conservan la categoría hasta el próximo scrape del sitio.
+subcadena (las antiparras `Base-X Splash` y la `Teja Colonial` eran `Perfume`). `POST /api/ml/renormalizar` actualiza la `sub_categoria` y el `rubro` de las filas guardadas, y unas `Perfume` mal clasificadas (los inflables `Splash` de Elmundodeljuguete) conservan la categoría hasta el próximo scrape del sitio.
 
 **Moda de mujer por sustantivo líder, y `Bijouterie`** (`V92`). Las Pepas dejó 144 filas en `Otros`; quedan 15 (`llavero`, `aplique`,
 `cuaderno`, `boligrafo`, `pin`: sin categoría). `IndumentariaClassifier` suma al final reglas por **primera palabra** del nombre
@@ -515,8 +515,8 @@ su franquicia (`pokemon`, `dragon ball`, `magic`, `yu-gi-oh`, `one piece`, `lorc
 `Wall Panel` (`KW_WALL_PANEL`: wall panel, wallpanel, panel wpc) corre antes de `Placa Decorativa` en `ConstruccionClassifier`; el "panel ranurado" de
 ferretería no es un wall panel.
 
-**Sillas** (`V118`). `Silla` tiene `sub_categoria` por nombre: `gamer`, `oficina`, `infantil`, `exterior`, `comedor` (en ese orden de precedencia; sin señal queda vacía). El rubro lo decide la tabla
-`CategoryGroups.rubroDeSubcategoria`: `comedor`, `exterior` e `infantil` son `hogar`, `gamer` y `oficina` siguen en `oficina`, y un sitio con `rubro_forzado` conserva el suyo. Detalle y medición en `docs/DATABASE.md` (`V118`).
+**Sillas** (`V118`). `Silla` tiene `sub_categoria` por nombre: `gamer`, `oficina`, `infantil`, `exterior`, `comedor` (en ese orden de precedencia; sin señal queda vacía). El rubro lo decide la fila de
+`categoria_rubro` (`V138`; antes `CategoryGroups.rubroDeSubcategoria`): `comedor`, `exterior` e `infantil` son `hogar`, `gamer` y `oficina` siguen en `oficina`, y un sitio con `rubro_forzado` conserva el suyo. Detalle y medición en `docs/DATABASE.md` (`V118`).
 
 **Electrodomésticos chicos y TV y Audio** (`V128`). `SubcategoryResolver` delega en `ElectroSubcategoryResolver`, que le da `sub_categoria` a `Pequeño Electrodoméstico` (13 valores, de `Cafetera` a `Tostadora y Sandwichera`) y a `TV y Audio` (10, de `Barra de Sonido` a `Tocadiscos`) por el **sustantivo líder** del nombre. Cada regla es `cat|sub|líderes|alguna|veto` y gana la primera que dispara: el nombre (sin acentos, con `/ : , ; + ( ) [ ]` como espacios, tras el prefijo de venta, `set`, `kit` y `mini`) debe empezar con un líder, contener alguna de `alguna` si la hay y ninguna de `veto`. Por eso "Soporte para Smart TV" es `Soporte`, "Accesorio para cafetera" es `Accesorio y Repuesto` y "Combo Licuadora + Batidora" es `Licuadora y Exprimidor`. Sin regla queda `''`, sin catch-all, y ninguna de las dos categorías recibe el tier 2 deportivo. El mismo vocabulario escribe `V128` sobre lo guardado (`V128ElectroTvAudioAgreementTest` lo vigila). Con sub, el precio se puntúa contra `<categoría>|<sub>` (ver "Sub-categoría en la clave de precios"): el efecto aparece en el próximo `aplicar`.
 

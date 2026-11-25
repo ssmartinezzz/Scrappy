@@ -404,15 +404,6 @@ public class DatabaseService {
     }
 
     /**
-     * Actualiza categoria/marca/genero/talles de un producto ya persistido sin re-scrapear (bulk
-     * re-normalización). Camino de MÁQUINA: respeta el lock.
-     */
-    public int actualizarNormalizacion(String url, String categoria, String marca,
-                                        String genero, List<String> talles, String subCategoria) {
-        return productPort.actualizarNormalizacion(url, categoria, marca, genero, talles, subCategoria);
-    }
-
-    /**
      * Una sola transacción: el UPDATE de clasificación, el UPDATE de rubro/lock y el INSERT de
      * auditoría se confirman juntos o ninguno de los tres.
      */

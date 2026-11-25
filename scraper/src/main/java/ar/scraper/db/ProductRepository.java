@@ -5,6 +5,7 @@ import ar.scraper.classification.SiteClassification;
 import ar.scraper.classification.SiteRegistry;
 import ar.scraper.catalog.ClasificacionBloqueada;
 import ar.scraper.catalog.FavoritosProtegidosException;
+import ar.scraper.catalog.Normalizacion;
 import ar.scraper.catalog.ProductPort;
 import ar.scraper.catalog.SitioCategoriaPort;
 import ar.scraper.model.SitioCategoriaNodo;
@@ -679,19 +680,59 @@ class ProductRepository implements ProductPort {
     }
 
     /**
-     * Actualiza categoria/marca/genero/talles de un producto ya existente en la DB sin re-scrapear.
+     * One transaction, three batches. The sizes are replaced (DELETE + INSERT, as
+     * {@link #reemplazarTalles}) only for the urls the UPDATE really reached, so a locked row keeps
+     * everything. A failure anywhere propagates and rolls the whole batch back.
      */
     @Override
-    @Transactional(rollbackFor = Exception.class)
-    public int actualizarNormalizacion(String url, String categoria, String marca,
-                                        String genero, List<String> talles, String subCategoria) {
-        if (url == null) return 0;
-        try {
-            return updateNormalizacion(url, categoria, marca, genero, talles, subCategoria, true);
-        } catch (Exception e) {
-            LOG.warn("[DB] Error actualizando normalizacion: {}", e.getMessage());
-            Sql.marcarRollback();
-            return 0;
+    public Set<String> actualizarNormalizaciones(List<Normalizacion> filas) {
+        List<Normalizacion> validas = filas.stream().filter(f -> StringUtils.isNotBlank(f.url())).toList();
+        if (validas.isEmpty()) return Set.of();
+        return tx.execute(status -> {
+            int[][] conteos = jdbc.batchUpdate(
+                    "UPDATE productos SET categoria=?, marca=?, genero=?, sub_categoria=?, "
+                            + "rubro=COALESCE(NULLIF(?, ''), rubro) WHERE url=? AND bloqueado_por IS NULL",
+                    validas, filasPorLote, (ps, f) -> {
+                        ps.setString(1, StringUtils.defaultString(f.categoria()));
+                        if (StringUtils.isBlank(f.marca())) ps.setNull(2, java.sql.Types.VARCHAR);
+                        else ps.setString(2, f.marca());
+                        ps.setString(3, StringUtils.defaultString(f.genero()));
+                        ps.setString(4, StringUtils.defaultString(f.subCategoria()));
+                        ps.setString(5, StringUtils.defaultString(f.rubro()));
+                        ps.setString(6, f.url());
+                    });
+            Set<String> actualizadas = new LinkedHashSet<>();
+            int i = 0;
+            for (int[] lote : conteos) {
+                for (int n : lote) {
+                    if (n == java.sql.Statement.SUCCESS_NO_INFO) {
+                        throw new IllegalStateException(
+                                "The driver did not report per-row update counts for the normalisation batch");
+                    }
+                    if (n > 0) actualizadas.add(validas.get(i).url());
+                    i++;
+                }
+            }
+            reemplazarTalles(validas.stream()
+                    .filter(f -> f.talles() != null && actualizadas.contains(f.url())).toList());
+            return actualizadas;
+        });
+    }
+
+    private void reemplazarTalles(List<Normalizacion> filas) {
+        if (filas.isEmpty()) return;
+        jdbc.batchUpdate("DELETE FROM producto_talle WHERE url=?", filas, filasPorLote,
+                (ps, f) -> ps.setString(1, f.url()));
+        List<Object[]> nuevos = new ArrayList<>();
+        for (Normalizacion f : filas) {
+            short posicion = 0;
+            for (String talle : f.talles()) {
+                if (StringUtils.isBlank(talle)) continue;
+                nuevos.add(new Object[]{f.url(), ++posicion, talle});
+            }
+        }
+        if (!nuevos.isEmpty()) {
+            jdbc.batchUpdate("INSERT INTO producto_talle (url, posicion, talle) VALUES (?,?,?)", nuevos);
         }
     }
 

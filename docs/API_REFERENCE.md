@@ -926,7 +926,7 @@ hardcodeada de 2024):
 
 | Campo | Tipo | |
 |---|---|---|
-| `indice` | `"IPC" \| "USD_OFICIAL"` | El índice que efectivamente deflactó, resuelto por `DeflactorPorRubro.resolver(producto.rubro)` — `tecnologia` usa el dólar oficial, el resto IPC |
+| `indice` | `"IPC" \| "USD_OFICIAL"` | El índice que efectivamente deflactó, resuelto por `DeflactorPorRubro.resolver(producto.rubro, producto.categoria)`: el índice de la categoría si tiene (`categoria.indice`, hoy `TV y Audio` con el dólar oficial), si no el del rubro (`rubro.indice`: `tecnologia` usa el dólar oficial, el resto IPC) |
 | `confianza` | `"observado" \| "extrapolado" \| "sin_datos"` | minúscula; `extrapolado` cuando el rango pedido excede el último punto de la serie |
 | `diasExtrapolados` | `number` | `0` si `confianza="observado"` |
 
@@ -998,13 +998,23 @@ Re-aplica las reglas actuales de `NormalizerService` sobre el catálogo ya
 persistido en la DB (sin re-scrapear). Síncrono — corre antes de cada
 entrenamiento de imagen (ver `docs/ML_PIPELINE.md`).
 
-`totalRevisados`/`categoriaCambiada`/`marcaCambiada` describen el diff
-**intencional** detectado por `NormalizerService` (significado sin cambios).
-`escrituras*` (agent-chat-finetune) son aditivos y describen el resultado
-**real** del `UPDATE` en DB: `escriturasIntentadas` = productos con algún
-campo cambiado, `escriturasAplicadas` = filas realmente actualizadas,
-`escriturasFallidas` = 0 filas afectadas o excepción — un producto que falla
-no aborta el resto del batch.
+**Atómico.** Todo lo que cambia (`categoria`, `marca`, `genero`, talles, `sub_categoria` y
+`rubro`) se escribe en UNA transacción: entra entero o no entra nada. Una falla de la escritura
+responde `500` y no deja nada a medias. Las filas bloqueadas (`bloqueado_por`) no se tocan, ni
+sus talles. Cuando termina, el catálogo en memoria se recarga desde la base.
+
+**Toma el turno de scrape y el slot de scoring**, como `POST /ml/aplicar`: mientras corre,
+`GET /status` dice `RUNNING` (con el mensaje `Re-normalizando el catálogo...`) y ningún scrape ni
+retoma puede arrancar; al terminar, con éxito o con error, vuelven el estado y el mensaje
+anteriores. Si ya hay un scrape o una renormalización (`scrape_en_curso`) o una corrida de scoring
+(`ml_en_curso`), responde **409** y no cambia nada.
+
+`totalRevisados`/`categoriaCambiada`/`marcaCambiada`/`rubroCambiado` describen el diff
+detectado por `NormalizerService`. `escrituras*` describen el resultado **real** de la
+escritura: `escriturasIntentadas` = filas con algún campo cambiado y sin bloqueo,
+`escriturasAplicadas` = filas realmente actualizadas, `escriturasFallidas` = filas que ni se
+actualizaron ni están bloqueadas (la fila desapareció), `escriturasOmitidasPorBloqueo` = filas
+bloqueadas. Una segunda llamada seguida da `escriturasIntentadas` = 0.
 
 ---
 

@@ -1,5 +1,7 @@
 package ar.scraper.aggregator;
 
+import ar.scraper.testsupport.TestRubros;
+
 import ar.scraper.aggregator.normalize.GenderResolver;
 import ar.scraper.aggregator.normalize.GymratTagger;
 import ar.scraper.aggregator.normalize.PackQuantityDetector;
@@ -41,7 +43,7 @@ class SfccLeafWinsOverNameTest {
         when(arbol.categoriaPorOrigen(nombre)).thenReturn(Map.of(PACK_DE_MEDIAS, "Medias"));
         return new NormalizerService(new PackQuantityDetector(), new CategoryClassifier(), new BrandExtractor(),
                 new GenderResolver(), new SizeNormalizer(), new SubcategoryResolver(),
-                new RubroResolver(registry), new GymratTagger(), new SportResolver(), registry, arbol);
+                TestRubros.resolver(registry), new GymratTagger(), new SportResolver(), registry, arbol);
     }
 
     private static Product producto(String sitio, String nombre, Integer origen) {

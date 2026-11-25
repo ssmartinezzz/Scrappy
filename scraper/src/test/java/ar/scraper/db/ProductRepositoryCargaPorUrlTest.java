@@ -1,5 +1,7 @@
 package ar.scraper.db;
 
+import ar.scraper.testsupport.TestRubros;
+
 import ar.scraper.classification.RubroResolver;
 import ar.scraper.classification.SiteRegistry;
 import ar.scraper.db.support.PostgresTestBase;
@@ -46,7 +48,7 @@ class ProductRepositoryCargaPorUrlTest extends PostgresTestBase {
         PlatformTransactionManager tm = TestTransactions.manager(raw);
         DataSource aware = TestTransactions.aware(raw);
         SiteRegistry registry = new SiteRegistry(new JdbcSiteSource(aware));
-        return new ProductRepository(aware, registry, new RubroResolver(registry), tm,
+        return new ProductRepository(aware, registry, TestRubros.resolver(registry), tm,
                 new SitioCategoriaRepository(aware));
     }
 

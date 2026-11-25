@@ -111,11 +111,12 @@ class TallesRoundTripTest extends PostgresTestBase {
 
     @Test
     @DisplayName("The machine normalization path replaces the size list")
-    void actualizarNormalizacionReplacesTheSizeList() {
+    void actualizarNormalizacionesReplacesTheSizeList() {
         String url = "https://site.com/talles-normalizacion";
         db.upsertProductos(List.of(producto(url, List.of("UNICO"))));
 
-        db.actualizarNormalizacion(url, "Remera", "Nike", "unisex", List.of("S", "M"), "Basicas");
+        TestDatabaseServices.productos(dataSource()).actualizarNormalizaciones(List.of(
+                new ar.scraper.catalog.Normalizacion(url, "Remera", "Nike", "unisex", List.of("S", "M"), "Basicas", "")));
 
         Optional<Product> encontrado = db.obtenerProducto(url);
         assertThat(encontrado).isPresent();
@@ -124,17 +125,14 @@ class TallesRoundTripTest extends PostgresTestBase {
 
     @Test
     @DisplayName("Writing sizes for a URL that does not exist writes nothing and reports it")
-    void writingTallesForAnUnknownUrlIsRejectedByTheForeignKey() throws Exception {
-        // producto_talle.url is FK-bound to productos(url), so a size list for
-        // an unknown product now fails at the INSERT instead of being a silent
-        // no-op UPDATE. Both callers must still honour their documented
-        // contracts: 0 rows for the machine path, false for the human one, and
-        // no orphan rows either way. The pre-existing nonexistent-url test
-        // passes an EMPTY list, which never reaches the INSERT at all.
+    void writingTallesForAnUnknownUrlWritesNothing() throws Exception {
+        // The machine path writes sizes only for urls its UPDATE reached; the human one fails at the
+        // producto_talle FK. Neither leaves orphan rows.
         String url = "https://site.com/talles-url-inexistente";
 
-        int filas = db.actualizarNormalizacion(url, "Buzo", "Nike", "hombre", List.of("M", "L"), "Canguro");
-        assertThat(filas).isZero();
+        var actualizadas = TestDatabaseServices.productos(dataSource()).actualizarNormalizaciones(List.of(
+                new ar.scraper.catalog.Normalizacion(url, "Buzo", "Nike", "hombre", List.of("M", "L"), "Canguro", "")));
+        assertThat(actualizadas).isEmpty();
 
         boolean aplicado = db.aplicarReclasificacionAuditada(url, "Buzo", "Nike", "hombre",
                 List.of("M", "L"), "Canguro", producto(url, List.of("M", "L")), "santi");

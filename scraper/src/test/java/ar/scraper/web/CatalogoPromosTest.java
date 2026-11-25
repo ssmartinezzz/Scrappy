@@ -42,7 +42,7 @@ class CatalogoPromosTest extends ar.scraper.db.support.PostgresTestBase {
         ScraperService service = mock(ScraperService.class);
         IndiceService indiceService = mock(IndiceService.class);
         when(indiceService.deflactorParaRubro(
-                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
                 .thenReturn(ar.scraper.indices.Deflactor.NEUTRO);
         ScraperConfig config = mock(ScraperConfig.class);
         when(config.getMoneda()).thenReturn("ARS");

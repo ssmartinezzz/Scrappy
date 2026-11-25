@@ -1,5 +1,7 @@
 package ar.scraper.db;
 
+import ar.scraper.catalog.Normalizacion;
+import ar.scraper.catalog.ProductPort;
 import ar.scraper.db.support.PostgresTestBase;
 import ar.scraper.model.Product;
 import io.qameta.allure.Epic;
@@ -13,6 +15,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -22,7 +25,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <p>Design D5 found two machine write paths that bypass {@code sp_upsert_run}
  * and would otherwise still revert a lock: {@link DatabaseService#actualizarCategoria}
  * (called on every scrape from {@code ResultAggregator.persistirCategoriasRefinadas}
- * and from {@code POST /api/ml/aplicar}) and {@link DatabaseService#actualizarNormalizacion}
+ * and from {@code POST /api/ml/aplicar}) and {@link ProductPort#actualizarNormalizaciones}
  * (called from {@code POST /api/ml/renormalizar}'s bulk path). Both are PUBLIC,
  * MACHINE-facing methods and MUST no-op on a locked row.</p>
  *
@@ -37,15 +40,17 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 @Epic("Persistence")
 @Feature("Manual classification lock")
-@Story("Machine write paths (actualizarCategoria/actualizarNormalizacion) no-op on a locked row")
+@Story("Machine write paths (actualizarCategoria/actualizarNormalizaciones) no-op on a locked row")
 @DisplayName("DatabaseService — lock guard on machine write paths, human path unaffected")
 class DatabaseServiceLockGuardTest extends PostgresTestBase {
 
     private DatabaseService db;
+    private ProductPort productos;
 
     @BeforeEach
     void setUp() {
         db = TestDatabaseServices.create(dataSource());
+        productos = TestDatabaseServices.productos(dataSource());
     }
 
     private Product producto(String url, String categoria, String marca, String genero) {
@@ -109,56 +114,62 @@ class DatabaseServiceLockGuardTest extends PostgresTestBase {
         assertThat(reloaded.get().categoria()).isEqualTo("Pantalón");
     }
 
-    // ─── actualizarNormalizacion (machine path — bulk renormalize) ─────────
+    // ─── actualizarNormalizaciones (machine path — bulk renormalize) ───────
+
+    private Normalizacion norm(String url, String categoria, String marca, String genero,
+                               List<String> talles, String sub) {
+        return new Normalizacion(url, categoria, marca, genero, talles, sub, "");
+    }
 
     @Test
-    @DisplayName("actualizarNormalizacion is a no-op (0 rows) on a locked product")
-    void actualizarNormalizacionNoOpsOnLockedProduct() throws Exception {
+    @DisplayName("actualizarNormalizaciones leaves a locked product wholly untouched, sizes included")
+    void actualizarNormalizacionesLeavesALockedProductUntouched() throws Exception {
         String url = "https://site.com/norm-locked";
         db.upsertProductos(List.of(producto(url, "Remera", "Nike", "hombre")));
         lockProduct(url, "local");
 
-        int rows = db.actualizarNormalizacion(url, "Pantalón", "Adidas", "mujer", List.of("S"), "trekking");
+        Set<String> updated = productos.actualizarNormalizaciones(
+                List.of(norm(url, "Pantalón", "Adidas", "mujer", List.of("S", "L"), "trekking")));
 
-        assertThat(rows).isEqualTo(0);
-        Optional<Product> reloaded = db.obtenerProducto(url);
-        assertThat(reloaded).isPresent();
-        assertThat(reloaded.get().categoria()).isEqualTo("Remera");
-        assertThat(reloaded.get().marca()).isEqualTo("Nike");
+        assertThat(updated).isEmpty();
+        Product reloaded = db.obtenerProducto(url).orElseThrow();
+        assertThat(reloaded.categoria()).isEqualTo("Remera");
+        assertThat(reloaded.marca()).isEqualTo("Nike");
+        assertThat(reloaded.talles()).containsExactly("M");
     }
 
     @Test
-    @DisplayName("actualizarNormalizacion still works (1 row) on an unlocked product")
-    void actualizarNormalizacionStillWorksOnUnlockedProduct() throws Exception {
+    @DisplayName("actualizarNormalizaciones updates an unlocked product and reports its url")
+    void actualizarNormalizacionesUpdatesAnUnlockedProduct() {
         String url = "https://site.com/norm-unlocked";
         db.upsertProductos(List.of(producto(url, "Remera", "Nike", "hombre")));
 
-        int rows = db.actualizarNormalizacion(url, "Pantalón", "Adidas", "mujer", List.of("S"), "trekking");
+        Set<String> updated = productos.actualizarNormalizaciones(
+                List.of(norm(url, "Pantalón", "Adidas", "mujer", List.of("S"), "trekking")));
 
-        assertThat(rows).isEqualTo(1);
-        Optional<Product> reloaded = db.obtenerProducto(url);
-        assertThat(reloaded).isPresent();
-        assertThat(reloaded.get().categoria()).isEqualTo("Pantalón");
-        assertThat(reloaded.get().marca()).isEqualTo("Adidas");
+        assertThat(updated).containsExactly(url);
+        Product reloaded = db.obtenerProducto(url).orElseThrow();
+        assertThat(reloaded.categoria()).isEqualTo("Pantalón");
+        assertThat(reloaded.marca()).isEqualTo("Adidas");
     }
 
     @Test
-    @DisplayName("review fix F2: talles updates on a locked product even though classification stays frozen")
-    void actualizarNormalizacionStillUpdatesTallesOnLockedProduct() throws Exception {
-        // talles is NOT a locked column (design D3 / SpUpsertRunColumnCoverageTest
-        // classifies it OVERWRITTEN, not LOCKED) — a talles-only change must reach
-        // the DB regardless of bloqueado_por, same as sp_upsert_run already does.
-        String url = "https://site.com/norm-locked-talles";
-        db.upsertProductos(List.of(producto(url, "Remera", "Nike", "hombre")));
-        lockProduct(url, "local");
+    @DisplayName("actualizarNormalizaciones skips only the locked row of a mixed batch")
+    void actualizarNormalizacionesSkipsOnlyTheLockedRow() throws Exception {
+        String libre = "https://site.com/mixed-free";
+        String bloqueada = "https://site.com/mixed-locked";
+        db.upsertProductos(List.of(producto(libre, "Remera", "Nike", "hombre"),
+                producto(bloqueada, "Remera", "Nike", "hombre")));
+        lockProduct(bloqueada, "local");
 
-        int rows = db.actualizarNormalizacion(url, "Remera", "Nike", "hombre", List.of("S", "M", "L"), "");
+        Set<String> updated = productos.actualizarNormalizaciones(List.of(
+                norm(libre, "Pantalón", "Nike", "hombre", List.of("L"), ""),
+                norm(bloqueada, "Pantalón", "Nike", "hombre", List.of("L"), "")));
 
-        Optional<Product> reloaded = db.obtenerProducto(url);
-        assertThat(reloaded).isPresent();
-        assertThat(reloaded.get().categoria()).isEqualTo("Remera");
-        assertThat(reloaded.get().marca()).isEqualTo("Nike");
-        assertThat(reloaded.get().talles()).containsExactly("S", "M", "L");
+        assertThat(updated).containsExactly(libre);
+        assertThat(db.obtenerProducto(libre).orElseThrow().talles()).containsExactly("L");
+        assertThat(db.obtenerProducto(bloqueada).orElseThrow().talles()).containsExactly("M");
+        assertThat(db.obtenerProducto(bloqueada).orElseThrow().categoria()).isEqualTo("Remera");
     }
 
     // ─── Human path (aplicarReclasificacionAuditada) — MUST still work on a locked row ──
