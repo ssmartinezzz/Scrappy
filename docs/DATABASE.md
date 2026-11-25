@@ -215,6 +215,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V137` | Plataforma de Fursten: `sitio.plataforma` pasa de `tiendanube` a `shopify` (sólo esa columna). Las filas viejas no se mapean a los handles nuevos: las retira el barrido de la primera corrida |
 | `V138` | La taxonomía de rubros pasa a tablas, sin cambio de comportamiento: `rubro` (vocabulario, índice, pesos), `categoria_rubro` (categoría y sub → rubro, `pisa_forzado`), `categoria.indice`; los tres CHECK de rubro se reemplazan por FK a `rubro(clave)` |
 | `V139` | Rubro `electrodomesticos` (orden 11, IPC, pesa como `hogar`): las 11 categorías de electrodoméstico salen de `hogar`, ocho subs de `TV y Audio` pasan a él en los sitios sin rubro forzado, Cetrogar lo toma por defecto y las partes de repuesto de Samsung entran a `Pequeño Electrodoméstico`; reubica las filas guardadas (activas e inactivas) y bumpea `catalog_version` una vez |
+| `V140` | Rubro `celulares` (orden 12, dólar, `peso_categoria` 0: pesa como `tecnologia` como categoría): `Celular` sale de `tecnologia` en los sitios sin rubro forzado, sub nueva `Batería Externa` (power banks, antes `Cargador`); reubica las filas guardadas (activas e inactivas) y bumpea `catalog_version` una vez |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -6351,7 +6352,7 @@ DELETE FROM flyway_schema_history WHERE version = '138';
 -- <<< rollback:V138
 ```
 
-Restaura los tres CHECK tal como estaban en `V137`. Falla si algún `productos.rubro`, `sitio.rubro_forzado` o `sitio.rubro_por_defecto` usa un rubro que no está en esas listas (por ejemplo uno agregado después de `V138`): hay que moverlo antes. El `DELETE` de `flyway_schema_history` es para que Flyway vuelva a aplicar `V138`. En una cadena de rollbacks corre después del de `V139` y antes que el de `V137` y, por lo tanto, antes que el de `V112` (que re-lista el CHECK de `productos`): los tests de `V6`, `V24`, `V27`, `V45`, `V69`, `V71`, `V74`, `V90`, `V92`, `V93` y `V112` corren el de `V139` y el de `V138` antes que el suyo.
+Restaura los tres CHECK tal como estaban en `V137`. Falla si algún `productos.rubro`, `sitio.rubro_forzado` o `sitio.rubro_por_defecto` usa un rubro que no está en esas listas (por ejemplo uno agregado después de `V138`): hay que moverlo antes. El `DELETE` de `flyway_schema_history` es para que Flyway vuelva a aplicar `V138`. En una cadena de rollbacks corre después de los de `V140` y `V139` y antes que el de `V137` y, por lo tanto, antes que el de `V112` (que re-lista el CHECK de `productos`): los tests de `V6`, `V24`, `V27`, `V45`, `V69`, `V71`, `V74`, `V90`, `V92`, `V93` y `V112` corren el de `V140`, el de `V139` y el de `V138` antes que el suyo.
 
 
 ---
@@ -6404,4 +6405,40 @@ DELETE FROM flyway_schema_history WHERE version = '139';
 -- <<< rollback:V139
 ```
 
-Devuelve las 11 categorías a `hogar`, `TV y Audio` y lo que Cetrogar leía por defecto a `tecnologia`, y las partes de Samsung a `Otros`. No distingue lo que `V139` movió de lo que ya era `electrodomesticos` por una corrida posterior: toda fila con ese rubro vuelve por categoría, y la que no sea de las 11 queda en `tecnologia`. Falla en el `DELETE FROM rubro` si otro sitio quedó con `rubro_forzado` o `rubro_por_defecto = 'electrodomesticos'`: hay que moverlo antes. Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V138`.
+Devuelve las 11 categorías a `hogar`, `TV y Audio` y lo que Cetrogar leía por defecto a `tecnologia`, y las partes de Samsung a `Otros`. No distingue lo que `V139` movió de lo que ya era `electrodomesticos` por una corrida posterior: toda fila con ese rubro vuelve por categoría, y la que no sea de las 11 queda en `tecnologia`. Falla en el `DELETE FROM rubro` si otro sitio quedó con `rubro_forzado` o `rubro_por_defecto = 'electrodomesticos'`: hay que moverlo antes. En una cadena de rollbacks corre después del de `V140` y antes que el de `V138`.
+
+---
+
+## `V140` — rubro `celulares`
+
+Una fila nueva de `rubro` (`celulares`, etiqueta `Celulares`, orden 12, índice USD oficial, `peso_forzado` 0, `peso_categoria` 0) y el resto son filas de `V138`, sin tocar el esquema. `peso_categoria` 0 es lo que `tecnologia` tenía como categoría: un sitio con rubro forzado (Venex y el resto de las tiendas de tecnología, la oficina) conserva sus teléfonos, y la mudanza sólo alcanza a las tiendas sin rubro forzado.
+
+| Qué | Cambio |
+|---|---|
+| `categoria_rubro` | `Celular` pasa de `tecnologia` a `celulares`. `Accesorio Apple`, `Tablet`, `Reloj`, `Auricular` y el resto de la tecnología siguen donde estaban |
+| Índice de precio | Dólar, como `tecnologia`: un teléfono se cotiza en USD. El rubro lo trae su fila; `categoria.indice` no cambia |
+| Sub `Batería Externa` | Valor nuevo de `Celular`, sacado de `Cargador`: el cargador cuyo nombre es un power bank (`power bank`, `powerbank`, `batería externa`, `batería portátil`, `cargador ... portátil`, `external battery`, `portable charger`, o un cargador que nombra N mAh). La misma regex que `SubcategoryResolver.POWER_BANK`; sólo cuando la sub ganadora hubiera sido `Cargador`: `Soporte para celular y power bank` sigue `Soporte` y `Smartphone ... 5000mAh` sigue `Smartphone` |
+
+Las filas guardadas, activas e inactivas, terminan donde `RubroResolver` las pondría; una fila con `bloqueado_por` no se toca ni en rubro ni en sub:
+
+- `Celular` en un sitio sin rubro forzado: `celulares`;
+- `Celular` / `Cargador` cuyo nombre es un power bank: `Batería Externa`. Se lee el nombre como `TextoClasificable`: minúsculas, sin los acentos de `AccentStripper`, un espacio a cada lado y la puntuación intacta.
+
+Los cargadores, power banks, soportes y vidrios de teléfono que hoy están en `Otros` **no** los mueve la migración: los reclasifica `AccesorioDeTelefonoClassifier` (corre en `CategoryClassifier` después de las familias, la hoja y el raw, así que sólo lee lo que ninguna otra reclama) en el próximo scrape o `renormalizar`, y el rubro sigue a la categoría. `ml_pipeline.py` lee `celulares` como `tecnologia` (`RUBROS_TECH`: grupo `tech|`, sin género), así que si el rubro le llega, el grupo de precios de un teléfono no cambia.
+
+`catalog_version` se bumpea una sola vez, al `COMMIT`, por el trigger de `V40`. Es re-ejecutable y no necesita el `SET CONSTRAINTS ALL IMMEDIATE` de `V112`: no hay `ALTER TABLE` sobre `productos`. El rubro se busca por `orden = 12` (Sonar S1192).
+
+### Rollback
+
+```sql
+-- >>> rollback:V140
+UPDATE productos SET sub_categoria = 'Cargador'
+ WHERE categoria = 'Celular' AND sub_categoria = 'Batería Externa';
+UPDATE productos SET rubro = 'tecnologia' WHERE rubro = 'celulares';
+UPDATE categoria_rubro SET rubro = 'tecnologia' WHERE rubro = 'celulares';
+DELETE FROM rubro WHERE clave = 'celulares';
+DELETE FROM flyway_schema_history WHERE version = '140';
+-- <<< rollback:V140
+```
+
+Devuelve las filas de `celulares` a `tecnologia` y las `Batería Externa` a `Cargador`. No distingue lo que `V140` movió de lo que ya era `celulares` por una corrida posterior: toda fila con ese rubro vuelve a `tecnologia`. Falla en el `DELETE FROM rubro` si otro sitio quedó con `rubro_forzado` o `rubro_por_defecto = 'celulares'`: hay que moverlo antes. Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V139`.

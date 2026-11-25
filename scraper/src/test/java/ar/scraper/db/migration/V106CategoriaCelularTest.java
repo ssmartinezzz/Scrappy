@@ -15,13 +15,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 class V106CategoriaCelularTest extends PostgresTestBase {
 
     @Test
-    @DisplayName("the category exists, so the FK accepts what the classifier produces, and it is technology")
+    @DisplayName("the category exists, so the FK accepts what the classifier produces, and it has its own group (celulares since V140)")
     void laCategoriaExiste() throws Exception {
         try (Connection c = dataSource().getConnection(); Statement st = c.createStatement()) {
             assertThat(cuantos(st, "SELECT count(*) FROM categoria WHERE nombre = 'Celular'")).isEqualTo(1);
         }
         assertThat(CategoryGroups.canonicalCategories()).contains("Celular");
-        assertThat(CategoryGroups.esCategoriaTech("Celular")).isTrue();
+        assertThat(CategoryGroups.esCategoriaCelulares("Celular")).isTrue();
     }
 
     @Test
@@ -32,6 +32,7 @@ class V106CategoriaCelularTest extends PostgresTestBase {
             try (Statement st = c.createStatement()) {
                 // V138 moved the rubro CHECKs to foreign keys and the categories are referenced: its rollback goes first,
                 // before any row is written (a pending catalog_version trigger blocks the ALTER).
+                st.execute(DocumentedRollback.sqlFor("V140"));
                 st.execute(DocumentedRollback.sqlFor("V139"));
                 st.execute(DocumentedRollback.sqlFor("V138"));
                 st.executeUpdate("INSERT INTO productos (url, sitio, nombre, precio, categoria, rubro) "

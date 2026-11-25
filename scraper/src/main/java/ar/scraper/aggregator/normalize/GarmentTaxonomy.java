@@ -2586,6 +2586,51 @@ public final class GarmentTaxonomy {
         " magsafe 3 "," airpods "
     };
 
+    /**
+     * A charger, power bank, holder or glass with one of these is not for a phone: tool and vehicle batteries, jump starters, AA/AAA cells,
+     * watch, notebook, camera and drone chargers, hubs and adapters, and things that only share the noun (wall film, hair clippers, lanterns).
+     */
+    public static final String[] KW_ACCESORIO_TELEFONO_VETO = {
+        " arrancador "," arrancadores "," mantenedor "," herramienta "," herramientas "," worksite "," milwaukee "," lusqtoff "," einhell ",
+        " ecoline "," dewalt "," bosch "," black+decker "," daihatsu "," ion de litio "," iones de litio "," ion litio "," ion-li "," jump starter ",
+        " pila "," pilas ",
+        " forerunner "," fenix "," vivoactive "," amazfit "," garmin "," smartwatch "," reloj ",
+        " notebook "," notebooks "," laptop "," laptops "," macbook "," dock "," power cord ",
+        " akaso "," instax "," fujifilm "," dji "," tello "," drone "," camara "," camaras "," gopro ",
+        " starlink "," hub "," hdmi "," vga "," rj45 "," ethernet "," displayport ",
+        " farol "," linterna "," taza "," cortadora "," cortapelo "," corta pelo "," patillera "," balanza "," kindle ",
+        " madera "," bambu "," decoracion "," decorativo "," decorativa "," brazalete "," deportivo "," deportiva "," running "," controller "," mando "
+    };
+    /** Battery voltages of tools and vehicles; they veto only when the name gives no USB or phone connector. */
+    public static final String[] KW_ACCESORIO_TELEFONO_VETO_TENSION = {
+        " 6v "," 12v "," 18v "," 20v "," 21.5v "," 24v "," 40v "," 42v "," 60v "
+    };
+    /** A USB or phone connector in the name: a 12 V car socket is then the input of a phone charger, not a car battery. */
+    public static final String[] KW_ACCESORIO_TELEFONO_CONECTOR = {
+        " usb "," usb-c "," usb‑c "," usb-a "," usbc "," usb/ "," tipo c "," tipo-c "," type-c "," type c "," micro usb "," lightning ",
+        " celular "," celulares "
+    };
+    /** A charger needs one of these to be a phone charger: a connector, a wireless or magnetic standard, a phone brand, or a form factor. */
+    public static final String[] KW_CARGADOR_TELEFONO_SENAL = {
+        " usb ","usb-c","usb‑c","usb-a"," usbc "," usb/ "," tipo c "," tipo-c "," type-c "," type c "," micro usb "," lightning "," puerto "," puertos ",
+        " inalambrico "," inalambrica "," wireless "," qi "," qi2 "," qi-"," magnetico "," magnetica "," magsafe ",
+        " celular "," celulares "," iphone "," smartphone "," samsung "," motorola "," xiaomi "," apple ",
+        " de pared "," pared "," para auto "," de auto "," de coche "," para coche "," portatil "
+    };
+    public static final String[] KW_POWER_BANK = {
+        " power bank "," powerbank "," power banks "," powerbanks "," bateria externa "," baterias externas "," bateria portatil ",
+        " cargador portatil "," cargadores portatiles "," portable charger "," external battery "
+    };
+    public static final String[] KW_SOPORTE_DE_TELEFONO = { " soporte "," soportes "," holder "," pop socket "," popsocket " };
+    public static final String[] KW_PORTACELULAR = { " portacelular "," portacelulares " };
+    public static final String[] KW_VIDRIO_DE_TELEFONO = {
+        " vidrio templado "," vidrio "," mica "," micas "," hidrogel "," protector de pantalla "," film protector "
+    };
+    /** Brands that name a phone on their own, beyond {@link #KW_CELULAR_ATADO}. */
+    public static final String[] KW_TELEFONO_MARCA = {
+        " samsung "," motorola "," xiaomi "," redmi "," huawei "," realme "," zte "," infinix "," galaxy "
+    };
+
     public static boolean anyMatch(String text, String[] keywords) {
         for (String kw : keywords) if (text.contains(kw)) return true;
         return false;

@@ -10,6 +10,7 @@ public class CategoryClassifier {
 
     private static final NutricionClassifier NUTRICION = new NutricionClassifier();
     private static final BellezaClassifier BELLEZA = new BellezaClassifier();
+    private static final AccesorioDeTelefonoClassifier ACCESORIO_DE_TELEFONO = new AccesorioDeTelefonoClassifier();
 
     private static final FamiliaClassifier[] FAMILIAS_DE_TIEMPO_LIBRE = {
         new CamarasClassifier(),
@@ -95,6 +96,11 @@ public class CategoryClassifier {
             if (alias != null) return alias;
             String aliasCompleto = CategoryAliases.canonical(cleaned);
             if (aliasCompleto != null) return aliasCompleto;
+        }
+        // Outside FAMILIAS_EN_ORDEN: a family outranks the curated leaf, and "con soporte para celular" on a treadmill must not.
+        if (StringUtils.isNotBlank(nombre)) {
+            String accesorio = ACCESORIO_DE_TELEFONO.clasificar(TextoClasificable.de(nombre));
+            if (!accesorio.isEmpty()) return accesorio;
         }
         // A trailing weight or volume says food only when nothing else describes the row: "Fondo Galvite 0,5 L"
         // under a "Pinturas" leaf is paint, and abstaining is honest.

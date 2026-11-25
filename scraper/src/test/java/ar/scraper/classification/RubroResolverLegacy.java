@@ -64,7 +64,7 @@ final class RubroResolverLegacy {
             return "libros";
         } else if (StringUtils.isBlank(rubroForzado) && CategoryGroups.esCategoriaJuguetes(cat)) {
             return "juguetes";
-        } else if (StringUtils.isBlank(rubroForzado) && CategoryGroups.esCategoriaTech(cat)) {
+        } else if (StringUtils.isBlank(rubroForzado) && (CategoryGroups.esCategoriaTech(cat) || CategoryGroups.esCategoriaCelulares(cat))) {
             return "tecnologia";
         } else if (StringUtils.isNotBlank(rubroPorDefecto)) {
             return rubroPorDefecto;

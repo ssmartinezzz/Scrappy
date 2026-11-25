@@ -57,7 +57,7 @@ class CelularHojaTest {
         Product cable = normalizar("Cable de datos C to C 1.8m | Max 5A| 100W");
         assertThat(cable.categoria()).isEqualTo("Celular");
         assertThat(cable.subCategoria()).isEqualTo("Cable");
-        assertThat(cable.rubro()).isEqualTo("tecnologia");
+        assertThat(cable.rubro()).isEqualTo("celulares");
         assertThat(normalizar("Smart Tag").categoria()).isEqualTo("Celular");
         assertThat(normalizar("Funda Slim Magnética").subCategoria()).isEqualTo("Funda");
     }

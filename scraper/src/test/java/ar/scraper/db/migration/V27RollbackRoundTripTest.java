@@ -68,6 +68,7 @@ class V27RollbackRoundTripTest extends PostgresTestBase {
             c.setAutoCommit(false);
             try (Statement st = c.createStatement()) {
                 // V138 replaced the rubro CHECKs with foreign keys: its rollback restores them first.
+                st.execute(DocumentedRollback.sqlFor("V140"));
                 st.execute(DocumentedRollback.sqlFor("V139"));
                 st.execute(DocumentedRollback.sqlFor("V138"));
                 assertThat(domainOf(st, "productos", "chk_productos_rubro_domain")).contains("oficina");
@@ -150,6 +151,7 @@ class V27RollbackRoundTripTest extends PostgresTestBase {
                 // V91 widened it once more (19 values, a `laspepas` row): it goes first of all.
                 // V115 and V116 seeded two more magento rows: newest first.
                 // V121-V126 added the sfcc and odoo platforms and their four sites on top: they go before anything else.
+                st.execute(DocumentedRollback.sqlFor("V140"));
                 st.execute(DocumentedRollback.sqlFor("V139"));
                 st.execute(DocumentedRollback.sqlFor("V138"));
                 st.execute(DocumentedRollback.sqlFor("V127"));

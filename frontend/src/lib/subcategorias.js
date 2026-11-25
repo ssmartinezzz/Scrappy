@@ -58,6 +58,8 @@ const CHIPS = {
   'electrodomesticos/Pequeño Electrodoméstico': ['Accesorio y Repuesto', 'Afeitadora y Cortadora', 'Batidora y Mixer', 'Cafetera', 'Depiladora',
     'Freidora', 'Licuadora y Exprimidor', 'Pava Eléctrica', 'Plancha de Ropa', 'Planchita y Rizador', 'Procesadora', 'Secador de Pelo',
     'Tostadora y Sandwichera'],
+  // V140: the phone category has its own rubro; Batería Externa is carved out of Cargador (power banks).
+  'celulares/Celular': ['Smartphone', 'Funda', 'Protector', 'Cargador', 'Batería Externa', 'Cable', 'Soporte', 'Repuesto'],
   // V129: Argentine retail words; the chip label is the stored value.
   'construccion/Iluminación': ['Aplique', 'Colgante', 'Farol y Estaca', 'Guirnalda', 'Lamparita', 'Lámpara de Pie',
     'Luz de Emergencia', 'Panel y Listón', 'Plafón', 'Portalámpara', 'Reflector', 'Spot', 'Tira LED', 'Velador'],

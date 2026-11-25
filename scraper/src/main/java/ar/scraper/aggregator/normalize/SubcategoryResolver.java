@@ -365,12 +365,16 @@ public class SubcategoryResolver {
         {"Repuesto", " boton ", " tapa trasera ", " puerto de carga ", " bandeja ", " repuesto ", " kit de reparacion ", " modulo "},
         {"Funda", " funda ", " fundas ", " case ", " carcasa ", " carcasas ", " estuche ", " cover ", " bumper ", " forro "},
         {"Protector", " protector ", " protectores ", " vidrio ", " templado ", " film ", " mica ", " hidrogel "},
-        {"Cargador", " cargador ", " cargadores ", " adaptador ", " power bank ", " bateria externa ", " bateria portatil ", " base de carga "},
+        {"Cargador", " cargador ", " cargadores ", " adaptador ", " power bank ", " powerbank ", " bateria externa ", " bateria portatil ", " external battery ", " portable charger ", " base de carga "},
         {"Cable", " cable ", " cables "},
         {"Soporte", " soporte ", " soportes ", " holder ", " pop socket ", " popsocket ", " grip ", " anillo ", " tripode ", " palo selfie ", " ventosa "}
     };
     private static final java.util.regex.Pattern SENAL_DE_TELEFONO = java.util.regex.Pattern.compile(
         " (?:celular|celulares|smartphone|smartphones|iphone|galaxy [asmzf]\\d{1,3}|galaxy z|moto [ge]\\d*|redmi|poco|5g|4g)\\b| galaxy xcover|\\d+ ?gb ");
+
+    /** A charger that is a power bank. V140 repeats this regex over the stored rows: keep the two in step. */
+    private static final java.util.regex.Pattern POWER_BANK = java.util.regex.Pattern.compile(
+        " (?:power ?banks?|baterias? externas?|bateria portatil|external batter(?:y|ies)|portable charger)(?![a-z0-9])| cargador(?:es)? portatil(?![a-z0-9])|[0-9] ?mah(?![a-z0-9])");
 
     private static String subDeCelular(String n) {
         String mejor = "";
@@ -381,6 +385,7 @@ public class SubcategoryResolver {
                 if (at >= 0 && at < posicion) { posicion = at; mejor = sub[0]; }
             }
         }
+        if ("Cargador".equals(mejor) && POWER_BANK.matcher(n).find()) return "Batería Externa";
         if (!mejor.isEmpty()) return mejor;
         return SENAL_DE_TELEFONO.matcher(n).find() ? "Smartphone" : "";
     }

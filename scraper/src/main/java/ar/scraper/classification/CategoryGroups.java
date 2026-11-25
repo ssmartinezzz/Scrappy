@@ -50,8 +50,11 @@ public final class CategoryGroups {
         "Cooler","Fuente","Motherboard","Red","Cable","Impresión","Mousepad",
         "Joystick","Micrófono","UPS","Tablet","Cámara","Reloj",
         "Mini PC", "Combo de Actualización", "TV y Audio",
-        "Consola", "Videojuego", "Celular", "Accesorio Apple", "Accesorio Gaming"
+        "Consola", "Videojuego", "Accesorio Apple", "Accesorio Gaming"
     );
+
+    /** Phones and what is sold for them: they left {@code CATEGORIAS_TECH} for their own rubro. */
+    private static final Set<String> CATEGORIAS_CELULARES = Set.of("Celular");
 
     /** Aparte de {@code INDUMENTARIA_O_CALZADO_EXTRA} a propósito: una pelota no es ropa. */
     private static final Set<String> CATEGORIAS_DEPORTE = Set.of(
@@ -125,6 +128,7 @@ public final class CategoryGroups {
         all.addAll(CATEGORIAS_SUPLEMENTO);
         all.addAll(CATEGORIAS_CALZADO);
         all.addAll(CATEGORIAS_TECH);
+        all.addAll(CATEGORIAS_CELULARES);
         all.addAll(CATEGORIAS_DEPORTE);
         all.addAll(CATEGORIAS_JUGUETES);
         all.addAll(CATEGORIAS_LIBROS);
@@ -177,6 +181,10 @@ public final class CategoryGroups {
 
     public static boolean esCategoriaTech(String cat) {
         return cat != null && CATEGORIAS_TECH.contains(cat);
+    }
+
+    public static boolean esCategoriaCelulares(String cat) {
+        return cat != null && CATEGORIAS_CELULARES.contains(cat);
     }
 
     public static boolean esCategoriaHogar(String cat) {

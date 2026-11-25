@@ -52,7 +52,7 @@ class CelularClassifierTest {
         "Vidrio Templado iPhone Antiespia KVR PRO (Pack x2)|Protector",
         "Protector Lente de Cámara KVR PRO para Samsung Galaxy S|Protector",
         "Soporte para Celular con Ventosa - Groovy Stick|Soporte",
-        "Cargador Portátil Magnético 10000mAh para iPhone MagSafe|Cargador",
+        "Cargador Portátil Magnético 10000mAh para iPhone MagSafe|Batería Externa",
         "Cable de carga rápida para iPhone Lightning 1m|Cable",
     })
     @DisplayName("an accessory the name ties to a phone is Celular, with its own sub")
