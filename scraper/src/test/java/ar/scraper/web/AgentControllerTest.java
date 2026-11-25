@@ -572,6 +572,25 @@ class AgentControllerTest {
     }
 
     @Test
+    @DisplayName("apply → the rubro patched in memory follows the proposed sub: a Televisor is electrodomesticos, a Handy is tecnologia")
+    void applyResolvesTheInMemoryRubroWithTheSub() {
+        when(service.getStatus()).thenReturn(ScraperStatus.IDLE);
+        Product current = producto("https://a.com/1", "Otros", "Samsung", "", List.of());
+        when(service.getLastResult()).thenReturn(mockResult(List.of(current)));
+        when(productos.obtenerProducto(current.url())).thenReturn(Optional.of(current));
+        when(productos.aplicarReclasificacionAuditada(any(), any(), any(), any(), any(), any(), any(), any()))
+                .thenReturn(true);
+
+        controller.agentApply(new ReclassifyProposal(current.url(), "Producto", "Otros", "TV y Audio", "Televisor", "", ""));
+        controller.agentApply(new ReclassifyProposal(current.url(), "Producto", "Otros", "TV y Audio", "Handy", "", ""));
+
+        verify(service).actualizarProductoEnMemoria(
+                current.url(), "TV y Audio", "Samsung", "", "Televisor", "electrodomesticos");
+        verify(service).actualizarProductoEnMemoria(
+                current.url(), "TV y Audio", "Samsung", "", "Handy", "tecnologia");
+    }
+
+    @Test
     @DisplayName("manual-classification-lock Phase 7: agentApply passes actorResolver.current(), never a bare literal")
     void applyPassesTheActorResolverCurrentValueToTheWritePath() {
         ar.scraper.security.ActorResolver actorResolver = mock(ar.scraper.security.ActorResolver.class);
