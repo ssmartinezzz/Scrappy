@@ -102,6 +102,61 @@ class ScraperServiceRenormalizarTest {
     }
 
     @Test
+    @DisplayName("nothing written and a snapshot served: the memory is not reloaded and the version does not move")
+    void nothingWrittenSkipsTheReload() {
+        service.setLastResultParaTest(catalogo("viejo"));
+        long version = service.snapshotVersion();
+        Map<String, Integer> sinEscrituras = Map.of("escriturasAplicadas", 0, "escriturasFallidas", 2);
+        when(aggregator.renormalizarCatalogo()).thenReturn(sinEscrituras);
+
+        assertThat(service.renormalizarCatalogo()).isEqualTo(sinEscrituras);
+
+        verify(aggregator, never()).fromDB(anyList());
+        verify(productos, never()).cargarProductos();
+        assertThat(service.getLastResult().productos()).extracting(Product::nombre).containsExactly("viejo");
+        assertThat(service.snapshotVersion()).isEqualTo(version);
+        assertThat(service.getStatus()).isEqualTo(ScraperStatus.IDLE);
+    }
+
+    @Test
+    @DisplayName("after a failed reload the next call reloads even if it writes nothing, and the one after that does not")
+    void failedReloadIsRetried() {
+        service.setLastResultParaTest(catalogo("viejo"));
+        when(aggregator.fromDB(anyList())).thenThrow(new IllegalStateException("db")).thenReturn(catalogo("nuevo"));
+        service.renormalizarCatalogo();
+        assertThat(service.getLastResult().productos()).extracting(Product::nombre).containsExactly("viejo");
+        when(aggregator.renormalizarCatalogo()).thenReturn(Map.of("escriturasAplicadas", 0));
+
+        service.renormalizarCatalogo();
+        assertThat(service.getLastResult().productos()).extracting(Product::nombre).containsExactly("nuevo");
+
+        service.renormalizarCatalogo();
+        verify(aggregator, Mockito.times(2)).fromDB(anyList());
+    }
+
+    @Test
+    @DisplayName("nothing written but no snapshot in memory: it is still loaded")
+    void nothingWrittenStillLoadsWhenThereIsNoSnapshot() {
+        when(aggregator.renormalizarCatalogo()).thenReturn(Map.of("escriturasAplicadas", 0));
+
+        service.renormalizarCatalogo();
+
+        assertThat(service.getLastResult()).isNotNull();
+        verify(aggregator).fromDB(anyList());
+    }
+
+    @Test
+    @DisplayName("a result without the write count reloads: absence of the number is not proof of no writes")
+    void unknownWriteCountReloads() {
+        service.setLastResultParaTest(catalogo("viejo"));
+        when(aggregator.renormalizarCatalogo()).thenReturn(Map.of("refinados", 5));
+
+        service.renormalizarCatalogo();
+
+        assertThat(service.getLastResult().productos()).extracting(Product::nombre).containsExactly("nuevo");
+    }
+
+    @Test
     @DisplayName("with no catalog in memory yet, it is loaded after the write")
     void loadsTheCatalogWhenThereWasNone() {
         assertThat(service.getLastResult()).isNull();

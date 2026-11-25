@@ -46,7 +46,7 @@ class MarcasPicksGymratTest {
         service = mock(ScraperService.class);
         when(service.getLastResult()).thenReturn(catalogo);
         when(service.snapshotVersion()).thenReturn(1L);
-        controller = new MarcasPicksController(service,
+        controller = ar.scraper.web.support.MarcasPicksDePrueba.controller(service,
                 new CatalogoDerivadoCache(service, mock(GroupingService.class)));
 
         ctx = new AnnotationConfigApplicationContext();

@@ -93,12 +93,15 @@ public class RecomendadosController {
         return result;
     }
 
+    private static boolean generoMantieneTodos(String generoSolicitado) {
+        return StringUtils.isBlank(generoSolicitado) || "unisex".equalsIgnoreCase(generoSolicitado);
+    }
+
     private boolean generoBridgeMatch(Product p, String generoSolicitado) {
         String g = p.genero() != null ? p.genero().trim() : "";
         if (g.isEmpty()) return true;
         if ("unisex".equalsIgnoreCase(g)) return true;
-        if (StringUtils.isBlank(generoSolicitado)) return true;
-        if ("unisex".equalsIgnoreCase(generoSolicitado)) return true;
+        if (generoMantieneTodos(generoSolicitado)) return true;
         return g.equalsIgnoreCase(generoSolicitado);
     }
 
@@ -122,7 +125,10 @@ public class RecomendadosController {
                     .filter(p -> c.equalsIgnoreCase(p.categoria()))
                     .collect(Collectors.toList());
         }
-        candidatos = broadenGenero(candidatos, genero);
+        // Blank or unisex keeps every product (generoBridgeMatch is true for all), so the regroup would only reorder:
+        // rank the list as it is, breaking ties as the grouped list would have.
+        boolean mantieneTodos = generoMantieneTodos(genero);
+        if (!mantieneTodos) candidatos = broadenGenero(candidatos, genero);
 
         // Clamp instead of rejecting: a negative page or size <= 0 would reach the rank with a
         // negative index and surface as a 500.
@@ -131,7 +137,7 @@ public class RecomendadosController {
         int desde = (int) Math.min((long) paginaPedida * tamanio, candidatos.size());
 
         RecommendationService.PaginaRankeada ranked =
-                recommendationService.rankPagina(candidatos, feedback, desde, tamanio);
+                recommendationService.rankPagina(candidatos, feedback, desde, tamanio, mantieneTodos);
         List<Product> pagina = ranked.productos();
         int total = ranked.total();
 

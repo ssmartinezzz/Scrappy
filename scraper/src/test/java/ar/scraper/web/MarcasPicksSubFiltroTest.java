@@ -30,7 +30,7 @@ class MarcasPicksSubFiltroTest {
     @BeforeEach
     void setUp() {
         service = mock(ScraperService.class);
-        controller = new MarcasPicksController(service, new CatalogoDerivadoCache(service, mock(GroupingService.class)));
+        controller = ar.scraper.web.support.MarcasPicksDePrueba.controller(service, new CatalogoDerivadoCache(service, mock(GroupingService.class)));
     }
 
     private static Product p(String url, int scoreP, String sub) {

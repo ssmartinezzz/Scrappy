@@ -3,12 +3,16 @@ package ar.scraper.web;
 import ar.scraper.api.ApiResponse;
 import ar.scraper.web.cache.CatalogoDerivadoCache;
 import ar.scraper.web.cache.CatalogoDerivadoCache.MarcasKey;
+import ar.scraper.web.cache.CatalogoPaginas;
 import ar.scraper.web.cache.CatalogoDerivadoCache.MejoresKey;
 import ar.scraper.web.dto.MarcasPicksDtos;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 
 @RestController
@@ -18,6 +22,8 @@ public class MarcasPicksController {
 
     private final ScraperService service;
     private final CatalogoDerivadoCache derivados;
+    private final CatalogoPaginas paginas;
+    private final RespuestaGzip gzip;
 
     /**
      * Every brand with at least two products, in keyset pages. {@code sort} is {@code nombre} (default, A-Z),
@@ -32,14 +38,24 @@ public class MarcasPicksController {
             @RequestParam(required = false) String cursor,
             @RequestParam(required = false) Integer limit) {
         if (service.getLastResult() == null) return ResponseEntity.noContent().build();
-        return ResponseEntity.ok(ApiResponse.ok(derivados.marcasPagina(
+        return ResponseEntity.ok(ApiResponse.ok(paginas.marcasPagina(
                 MarcasKey.de(service.snapshotVersion(), rubro, q, sort), cursor, limit == null ? 48 : limit)));
     }
 
-    @GetMapping("/mejores")
-    public ResponseEntity<ApiResponse<List<MarcasPicksDtos.MejoresCategoria>>> mejoresPorCategoria(@RequestParam(required = false) String rubro,
+    /** The HTTP face of {@link #mejoresPorCategoria(String, Boolean, String)}: gzip from the memo when the client takes it. */
+    @GetMapping(value = "/mejores", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<?> mejores(@RequestParam(required = false) String rubro,
             @RequestParam(required = false) Boolean gymrat,
-            @RequestParam(required = false) String genero) {
+            @RequestParam(required = false) String genero,
+            @RequestHeader(value = HttpHeaders.ACCEPT_ENCODING, required = false) String acceptEncoding) {
+        var tipada = mejoresPorCategoria(rubro, gymrat, genero);
+        if (tipada.getBody() == null) return tipada;
+        Optional<ResponseEntity<byte[]>> comprimida = gzip.de(acceptEncoding, tipada.getBody().getData());
+        return comprimida.isPresent() ? comprimida.get() : tipada;
+    }
+
+    public ResponseEntity<ApiResponse<List<MarcasPicksDtos.MejoresCategoria>>> mejoresPorCategoria(String rubro,
+            Boolean gymrat, String genero) {
         if (service.getLastResult() == null) return ResponseEntity.noContent().build();
         return ResponseEntity.ok(ApiResponse.ok(
                 derivados.mejores(MejoresKey.de(service.snapshotVersion(), rubro, gymrat, genero))));
@@ -60,7 +76,7 @@ public class MarcasPicksController {
             @RequestParam(required = false) String cursor,
             @RequestParam(required = false) Integer limit) {
         if (service.getLastResult() == null) return ResponseEntity.noContent().build();
-        return ResponseEntity.ok(ApiResponse.ok(derivados.picks(
+        return ResponseEntity.ok(ApiResponse.ok(paginas.picks(
                 MejoresKey.de(service.snapshotVersion(), rubro, gymrat, genero), categoria, subCategoria, cursor,
                 limit == null ? 24 : limit)));
     }

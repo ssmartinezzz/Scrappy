@@ -456,6 +456,13 @@ Las anotaciones de cache viven sólo en `CatalogoDerivadoCache`, y un cacheado q
 respuesta de uno a todos. Con `sync=true` no se puede usar `unless`: el método
 devuelve vacío, nunca `null`. Detalle en `docs/ARCHITECTURE.md`.
 
+**Un método `@Cacheable` que se llama con `this` es un método sin cache.** El proxy de Spring sólo intercepta las
+llamadas que llegan desde otro bean: `marcasPagina` y `picks` llamaban a `marcas(k)`/`rankingPicks(k)` dentro de
+`CatalogoDerivadoCache`, así que el ranking del catálogo entero se recalculaba en cada request y las dos caches no
+guardaban nada (los tests unitarios, que construyen el bean a mano, pasaban igual). Lo que consume un `@Cacheable`
+va en otro bean que recibe el proxy inyectado (`CatalogoPaginas`), y su test levanta un contexto Spring real y cuenta
+cuántas veces se calculó. Lo mismo vale para `@Transactional`.
+
 **Tests contra Postgres:** `PostgresTestBase` auto-selecciona Testcontainers (si
 hay Docker) o el portable local, y se skipea con mensaje si no hay ninguno —
 nunca hace fallar la suite por falta de infra.

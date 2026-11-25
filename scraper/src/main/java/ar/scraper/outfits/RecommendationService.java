@@ -5,6 +5,7 @@ import ar.scraper.model.Product;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
@@ -39,36 +40,57 @@ public class RecommendationService {
 
     public PaginaRankeada rankPagina(List<Product> productos, OutfitService.FeedbackModel feedback,
             int desde, int tamanio) {
+        return rankPagina(productos, feedback, desde, tamanio, false);
+    }
+
+    /**
+     * {@code empateComoAgrupado} ranks a list as if it had first been grouped by category (categories in order of first
+     * appearance, each one keeping its own order) without building that list: a tie on score, scoreP and url, which only
+     * a repeated or blank url can produce, goes to the product whose category appeared first, then to the earlier one.
+     */
+    public PaginaRankeada rankPagina(List<Product> productos, OutfitService.FeedbackModel feedback,
+            int desde, int tamanio, boolean empateComoAgrupado) {
         if (productos == null) return new PaginaRankeada(List.of(), 0);
         OutfitService.FeedbackModel modelo = feedback != null ? feedback : OutfitService.FeedbackModel.empty();
 
         Set<String> exclude          = modelo.exclude();
         Set<String> excludeCategoria = modelo.excludeCategoria();
         Map<String, Integer> boostLikeCount = modelo.boostLikeCount();
+        boolean usaClave = !exclude.isEmpty() || !boostLikeCount.isEmpty();
+
+        Desempate desempate = new Desempate(productos, empateComoAgrupado);
+        Comparator<Puntuado> orden = Comparator
+                .comparingDouble(Puntuado::scoreNegado)
+                .thenComparingInt(Puntuado::scoreP)
+                .thenComparing(Puntuado::url)
+                .thenComparing(desempate::comparar);
 
         long necesarios = Math.max(1L, (long) desde + tamanio);
         PriorityQueue<Puntuado> mejores = new PriorityQueue<>(
-                (int) Math.min(necesarios, productos.size() + 1L), ORDEN.reversed());
+                (int) Math.min(necesarios, productos.size() + 1L), orden.reversed());
         int total = 0;
         for (Product p : productos) {
             // Hard veto (infantil, sport-specific) — runs FIRST, before pair/categoria exclude,
             // regardless of caller, query params or relaxation fallback.
             if (!EligibilityPolicy.elegible(p)) continue;
-            if (exclude.contains(OutfitService.FeedbackModel.keyOf(p))) continue;
+            String clave = usaClave ? OutfitService.FeedbackModel.keyOf(p) : null;
+            if (usaClave && exclude.contains(clave)) continue;
             if (p.categoria() != null && excludeCategoria.contains(p.categoria())) continue;
 
-            Puntuado candidato = new Puntuado(p, -finalScore(p, boostLikeCount),
-                    p.ml() != null ? p.ml().scoreP() : 50, StringUtils.defaultString(p.url()), total++);
+            double scoreNegado = -finalScore(p, boostLikeCount, clave);
+            int scoreP = p.ml() != null ? p.ml().scoreP() : 50;
+            String url = StringUtils.defaultString(p.url());
+            int posicion = total++;
             if (mejores.size() < necesarios) {
-                mejores.add(candidato);
-            } else if (ORDEN.compare(candidato, mejores.peek()) < 0) {
+                mejores.add(new Puntuado(p, scoreNegado, scoreP, url, posicion));
+            } else if (entraAntesQue(scoreNegado, scoreP, url, p, posicion, mejores.peek(), desempate)) {
                 mejores.poll();
-                mejores.add(candidato);
+                mejores.add(new Puntuado(p, scoreNegado, scoreP, url, posicion));
             }
         }
 
         Puntuado[] ordenados = mejores.toArray(new Puntuado[0]);
-        Arrays.sort(ordenados, ORDEN);
+        Arrays.sort(ordenados, orden);
         List<Product> pagina = new ArrayList<>();
         for (int i = desde; i < ordenados.length; i++) {
             pagina.add(ordenados[i].producto());
@@ -76,19 +98,63 @@ public class RecommendationService {
         return new PaginaRankeada(pagina, total);
     }
 
+    /** The comparison of the ranking order, on primitives, so a product that cannot enter allocates nothing. */
+    private static boolean entraAntesQue(double scoreNegado, int scoreP, String url, Product p, int posicion,
+            Puntuado peor, Desempate desempate) {
+        int c = Double.compare(scoreNegado, peor.scoreNegado());
+        if (c == 0) c = Integer.compare(scoreP, peor.scoreP());
+        if (c == 0) c = url.compareTo(peor.url());
+        if (c == 0) c = desempate.comparar(p, posicion, peor.producto(), peor.posicion());
+        return c < 0;
+    }
+
     public record PaginaRankeada(List<Product> productos, int total) {}
 
     private record Puntuado(Product producto, double scoreNegado, int scoreP, String url, int posicion) {}
 
-    private static final Comparator<Puntuado> ORDEN = Comparator
-            .comparingDouble(Puntuado::scoreNegado)
-            .thenComparingInt(Puntuado::scoreP)
-            .thenComparing(Puntuado::url)
-            .thenComparingInt(Puntuado::posicion);
+    /**
+     * Last key of the ranking: the position in the iterated list or, when the list stands for one grouped by category,
+     * the position in that grouping. The category order is read from the whole list the first time a tie needs it.
+     */
+    private static final class Desempate {
+        private final List<Product> productos;
+        private final boolean agrupado;
+        private Map<String, Integer> ordenDeCategoria;
 
-    private double finalScore(Product p, Map<String, Integer> boostLikeCount) {
+        Desempate(List<Product> productos, boolean agrupado) {
+            this.productos = productos;
+            this.agrupado = agrupado;
+        }
+
+        int comparar(Puntuado a, Puntuado b) {
+            return comparar(a.producto(), a.posicion(), b.producto(), b.posicion());
+        }
+
+        int comparar(Product a, int posicionA, Product b, int posicionB) {
+            if (agrupado) {
+                String categoriaA = StringUtils.defaultString(a.categoria());
+                String categoriaB = StringUtils.defaultString(b.categoria());
+                if (!categoriaA.equals(categoriaB)) {
+                    Map<String, Integer> orden = ordenDeCategoria();
+                    return Integer.compare(orden.get(categoriaA), orden.get(categoriaB));
+                }
+            }
+            return Integer.compare(posicionA, posicionB);
+        }
+
+        private Map<String, Integer> ordenDeCategoria() {
+            if (ordenDeCategoria == null) {
+                Map<String, Integer> orden = new HashMap<>();
+                for (Product p : productos) orden.putIfAbsent(StringUtils.defaultString(p.categoria()), orden.size());
+                ordenDeCategoria = orden;
+            }
+            return ordenDeCategoria;
+        }
+    }
+
+    private double finalScore(Product p, Map<String, Integer> boostLikeCount, String clave) {
         double base = baseMlScore(p);
-        double multiplier = boostMultiplier(p, boostLikeCount);
+        double multiplier = boostMultiplier(boostLikeCount, clave);
         return base * multiplier;
     }
 
@@ -108,8 +174,8 @@ public class RecommendationService {
         return base;
     }
 
-    private double boostMultiplier(Product p, Map<String, Integer> boostLikeCount) {
-        int likes = boostLikeCount.getOrDefault(OutfitService.FeedbackModel.keyOf(p), 0);
+    private double boostMultiplier(Map<String, Integer> boostLikeCount, String clave) {
+        int likes = clave == null ? 0 : boostLikeCount.getOrDefault(clave, 0);
         double multiplier = 1.0 + Math.min(likes, BOOST_LIKES_CAP) * BOOST_STEP_PER_LIKE;
         return Math.min(multiplier, BOOST_MULTIPLIER_CAP);
     }

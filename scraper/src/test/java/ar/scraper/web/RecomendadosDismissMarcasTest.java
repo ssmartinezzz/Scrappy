@@ -60,7 +60,7 @@ class RecomendadosDismissMarcasTest {
         recommendationService = mock(RecommendationService.class);
         SujetoDePrueba.entrar("ADMIN");
         controller = new RecomendadosController(service, db.feedback(), recommendationService, new ar.scraper.security.ActorResolver());
-        marcas = new MarcasPicksController(service, new ar.scraper.web.cache.CatalogoDerivadoCache(service, grouping));
+        marcas = ar.scraper.web.support.MarcasPicksDePrueba.controller(service, new ar.scraper.web.cache.CatalogoDerivadoCache(service, grouping));
     }
 
     // ── POST /api/recomendados/dismiss-categoria ─────────────────────────

@@ -6,6 +6,7 @@ import ar.scraper.model.Product;
 import ar.scraper.web.cache.CatalogoDerivadoCache;
 import ar.scraper.web.cache.CatalogoDerivadoCache.MarcasKey;
 import ar.scraper.web.cache.CatalogoDerivadoCache.MejoresKey;
+import ar.scraper.web.cache.CatalogoPaginas;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -13,23 +14,26 @@ import org.mockito.Mockito;
 import java.util.List;
 import java.util.Map;
 
+import static ar.scraper.web.support.MarcasPicksDePrueba.sinGzip;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/** The brand browser and the per-category picks ask the cache bean, keyed by the snapshot version. */
+/** The brand browser and the per-category picks ask the cache beans, keyed by the snapshot version. */
 class MarcasPicksCacheTest {
 
     private ScraperService service;
     private CatalogoDerivadoCache derivados;
+    private CatalogoPaginas paginas;
     private MarcasPicksController endpoints;
 
     @BeforeEach
     void setUp() {
         service = mock(ScraperService.class);
         derivados = mock(CatalogoDerivadoCache.class);
-        endpoints = new MarcasPicksController(service, derivados);
+        paginas = mock(CatalogoPaginas.class);
+        endpoints = new MarcasPicksController(service, derivados, paginas, sinGzip());
         Product p = Product.builder()
                 .sitio("Sitio")
                 .nombre("Remera")
@@ -58,13 +62,13 @@ class MarcasPicksCacheTest {
 
     @Test
     void brandsComeFromTheCacheBean() {
-        when(derivados.marcasPagina(Mockito.any(), Mockito.any(), Mockito.anyInt()))
+        when(paginas.marcasPagina(Mockito.any(), Mockito.any(), Mockito.anyInt()))
             .thenReturn(new ar.scraper.web.dto.MarcasPicksDtos.MarcasPagina(List.of(), null, 0));
 
         var respuesta = endpoints.marcasBrowser("Indumentaria", "NIKE", "count", "abc", 10);
 
         assertThat(respuesta.getStatusCode().value()).isEqualTo(200);
-        verify(derivados).marcasPagina(MarcasKey.de(7, "indumentaria", "nike", "count"), "abc", 10);
+        verify(paginas).marcasPagina(MarcasKey.de(7, "indumentaria", "nike", "count"), "abc", 10);
     }
 
     @Test
@@ -83,6 +87,6 @@ class MarcasPicksCacheTest {
 
         assertThat(endpoints.marcasBrowser(null, null, "count", null, null).getStatusCode().value()).isEqualTo(204);
         assertThat(endpoints.mejoresPorCategoria(null).getStatusCode().value()).isEqualTo(204);
-        Mockito.verifyNoInteractions(derivados);
+        Mockito.verifyNoInteractions(derivados, paginas);
     }
 }
