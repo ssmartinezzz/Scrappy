@@ -73,6 +73,7 @@ class V86V87SeedFashionSitesTest extends PostgresTestBase {
                 // Newest first: V91 widened the CHECK again and seeded a 'magento' row the narrower one would reject.
                 // V115 and V116 seeded two more magento rows: newest first.
                 // V121-V126 added the sfcc and odoo platforms and their four sites on top: they go before anything else.
+                st.execute(DocumentedRollback.sqlFor("V139"));
                 st.execute(DocumentedRollback.sqlFor("V138"));
                 st.execute(DocumentedRollback.sqlFor("V127"));
                 st.execute(DocumentedRollback.sqlFor("V126"));

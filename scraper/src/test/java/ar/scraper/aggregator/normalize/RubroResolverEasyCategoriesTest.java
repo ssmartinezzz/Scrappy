@@ -36,11 +36,11 @@ class RubroResolverEasyCategoriesTest {
 
     @ParameterizedTest(name = "[easy] {0} -> {1}")
     @CsvSource({
-            "Heladera, hogar",
+            "Heladera, electrodomesticos",
             "Parrilla, hogar",
             "Lubricante, hogar",
             "Carpa, hogar",
-            "Termotanque, hogar",
+            "Termotanque, electrodomesticos",
             "Maceta, hogar",
             "Sanitario, hogar",
             "Cemento, construccion",
@@ -146,8 +146,9 @@ class RubroResolverEasyCategoriesTest {
     }
 
     @Test
-    @DisplayName("a hogar category still beats a forced construccion rubro, as it always did")
-    void hogarCategoryBeatsForcedConstruccion() {
-        assertThat(resolver().resolver("mundoconstruccion", "Heladera", "indumentaria")).isEqualTo("hogar");
+    @DisplayName("an appliance category (V139: electrodomesticos, weight 1 like hogar) still beats a forced construccion rubro")
+    void applianceCategoryBeatsForcedConstruccion() {
+        assertThat(resolver().resolver("mundoconstruccion", "Heladera", "indumentaria")).isEqualTo("electrodomesticos");
+        assertThat(resolver().resolver("mundoconstruccion", "Maceta", "indumentaria")).isEqualTo("hogar");
     }
 }

@@ -60,11 +60,11 @@ class V138RubroTablasTest extends PostgresTestBase {
     }
 
     @Test
-    @DisplayName("seeds the ten rubros in rubros.js order, the dollar only for tecnologia, and TV y Audio as the one category index")
+    @DisplayName("seeds the ten rubros in rubros.js order (V139 appends the eleventh), the dollar only for tecnologia, and TV y Audio as the one category index")
     void seed() throws Exception {
         enTransaccion(st -> {
             assertThat(text(st, "SELECT string_agg(clave, ',' ORDER BY orden) FROM rubro"))
-                    .isEqualTo("indumentaria,tecnologia,suplementos,oficina,construccion,hogar,deporte,juguetes,libros,belleza");
+                    .isEqualTo("indumentaria,tecnologia,suplementos,oficina,construccion,hogar,deporte,juguetes,libros,belleza,electrodomesticos");
             assertThat(text(st, "SELECT string_agg(clave, ',' ORDER BY orden) FROM rubro WHERE indice = 'USD_OFICIAL'"))
                     .isEqualTo("tecnologia");
             assertThat(text(st, "SELECT string_agg(nombre || '=' || indice, ',') FROM categoria WHERE indice IS NOT NULL"))
@@ -77,6 +77,7 @@ class V138RubroTablasTest extends PostgresTestBase {
     @DisplayName("the documented rollback restores the three CHECKs of V137 and drops the new objects and the Flyway row")
     void rollbackDocumentadoCorre() throws Exception {
         enTransaccion(st -> {
+            st.execute(DocumentedRollback.sqlFor("V139"));
             st.execute(DocumentedRollback.sqlFor("V138"));
 
             assertThat(scalar(st, "SELECT count(*) FROM information_schema.tables WHERE table_name IN ('rubro', 'categoria_rubro')")).isZero();
@@ -91,12 +92,14 @@ class V138RubroTablasTest extends PostgresTestBase {
                     .isInstanceOfSatisfying(SQLException.class, e -> assertThat(e.getSQLState()).isEqualTo(SQLSTATE_CHECK));
         });
         enTransaccion(st -> {
+            st.execute(DocumentedRollback.sqlFor("V139"));
             st.execute(DocumentedRollback.sqlFor("V138"));
             assertThatThrownBy(() -> st.execute(SITIO.formatted("'deporte'", "NULL")))
                     .as("rubro_forzado is back to its five values")
                     .isInstanceOfSatisfying(SQLException.class, e -> assertThat(e.getSQLState()).isEqualTo(SQLSTATE_CHECK));
         });
         enTransaccion(st -> {
+            st.execute(DocumentedRollback.sqlFor("V139"));
             st.execute(DocumentedRollback.sqlFor("V138"));
             st.execute(SITIO.formatted("'hogar'", "'juguetes'"));
             assertThatThrownBy(() -> st.execute("UPDATE sitio SET rubro_por_defecto = 'libros' WHERE sitio_key = 'v138test'"))

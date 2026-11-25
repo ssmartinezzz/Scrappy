@@ -75,6 +75,7 @@ class V92BijouterieYAromatizantesTest extends PostgresTestBase {
                         + "VALUES ('V92 Test', 'v92test', 'shopify', false, NULL, 'config') ON CONFLICT DO NOTHING");
                 // V112 renamed the rubro; its rollback restores the CHECK this historical migration was written against.
                 // V138 replaced the rubro CHECK with a foreign key: its rollback restores the CHECK first.
+                st.execute(DocumentedRollback.sqlFor("V139"));
                 st.execute(DocumentedRollback.sqlFor("V138"));
                 st.execute(DocumentedRollback.sqlFor("V112"));
                 cuerpo.correr(st);

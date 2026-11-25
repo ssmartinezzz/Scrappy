@@ -98,8 +98,13 @@ public final class CategoryGroups {
         "Parrilla", "Accesorio de Parrilla", "Carbón y Leña", "Pileta", "Inflable", "Químico de Pileta", "Accesorio de Pileta",
         "Carpa", "Bolsa de Dormir", "Conservadora", "Termo y Botella", "Artículo de Camping", "Alimento para Mascota", "Cama para Mascota",
         "Higiene de Mascota", "Accesorio para Mascota", "Lubricante", "Líquido Automotor", "Batería de Auto", "Escobilla de Auto", "Limpieza de Auto",
-        "Accesorio de Auto", "Herramienta de Auto", "Seguridad Vial", "Termotanque", "Calefón", "Calefactor", "Ventilador",
-        "Aire Acondicionado", "Heladera", "Lavarropas", "Cocina y Horno", "Campana y Extractor", "Aspiradora", "Pequeño Electrodoméstico"
+        "Accesorio de Auto", "Herramienta de Auto", "Seguridad Vial"
+    );
+
+    /** Appliances: they left {@code CATEGORIAS_HOGAR} for their own rubro, and what accepted a home category accepts these too. */
+    private static final Set<String> CATEGORIAS_ELECTRODOMESTICOS = Set.of(
+        "Termotanque", "Calefón", "Calefactor", "Ventilador", "Aire Acondicionado", "Heladera", "Lavarropas",
+        "Cocina y Horno", "Campana y Extractor", "Aspiradora", "Pequeño Electrodoméstico"
     );
 
     /** Standalone canonical categories not covered by the sets above. */
@@ -126,6 +131,7 @@ public final class CategoryGroups {
         all.addAll(CATEGORIAS_OFICINA);
         all.addAll(CATEGORIAS_CONSTRUCCION);
         all.addAll(CATEGORIAS_HOGAR);
+        all.addAll(CATEGORIAS_ELECTRODOMESTICOS);
         all.addAll(CATEGORIAS_BELLEZA);
         all.addAll(CATEGORIAS_OTRAS);
         all.addAll(CATEGORIAS_SIN_RUBRO);
@@ -177,12 +183,20 @@ public final class CategoryGroups {
         return cat != null && CATEGORIAS_HOGAR.contains(cat);
     }
 
+    public static boolean esCategoriaElectrodomesticos(String cat) {
+        return cat != null && CATEGORIAS_ELECTRODOMESTICOS.contains(cat);
+    }
+
     public static Set<String> categoriasConstruccion() {
         return CATEGORIAS_CONSTRUCCION;
     }
 
     public static Set<String> categoriasHogar() {
         return CATEGORIAS_HOGAR;
+    }
+
+    public static Set<String> categoriasElectrodomesticos() {
+        return CATEGORIAS_ELECTRODOMESTICOS;
     }
 
     /** Office categories; the rubro of each is the row of {@code categoria_rubro}. */

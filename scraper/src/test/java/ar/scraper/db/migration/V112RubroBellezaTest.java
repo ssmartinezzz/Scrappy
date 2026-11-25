@@ -83,6 +83,7 @@ class V112RubroBellezaTest extends PostgresTestBase {
             try (Statement st = c.createStatement()) {
                 st.execute("SET CONSTRAINTS ALL IMMEDIATE");
                 // V138 replaced the rubro CHECK with a foreign key: its rollback restores the CHECK first.
+                st.execute(DocumentedRollback.sqlFor("V139"));
                 st.execute(DocumentedRollback.sqlFor("V138"));
                 st.execute("INSERT INTO sitio (nombre, sitio_key, plataforma, es_premium, rubro_forzado, origen) "
                         + "VALUES ('V112 Test', 'v112test', 'shopify', false, NULL, 'config') ON CONFLICT DO NOTHING");

@@ -26,6 +26,7 @@ class V84BombachaTest extends PostgresTestBase {
         enTransaccion(st -> {
             assertThat(unaColumna(st, "SELECT count(*) FROM categoria WHERE nombre = 'Bombacha'")).isEqualTo("1");
             // The documented rollback removes it; the replay must put it back (idempotent insert).
+            st.execute(DocumentedRollback.sqlFor("V139"));
             st.execute(DocumentedRollback.sqlFor("V138"));
             st.execute(DocumentedRollback.sqlFor("V84"));
             assertThat(unaColumna(st, "SELECT count(*) FROM categoria WHERE nombre = 'Bombacha'")).isEqualTo("0");
@@ -126,6 +127,7 @@ class V84BombachaTest extends PostgresTestBase {
             aplicar(st);
             assertThat(categoria(st, "tanga-calz")).isEqualTo("Bombacha");
 
+            st.execute(DocumentedRollback.sqlFor("V139"));
             st.execute(DocumentedRollback.sqlFor("V138"));
             st.execute(DocumentedRollback.sqlFor("V84"));
 

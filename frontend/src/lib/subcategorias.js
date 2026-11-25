@@ -50,9 +50,12 @@ const CHIPS = {
   'tecnologia/Cámara': [c('exterior', 'Exterior'), c('interior', 'Interior'), c('wifi', 'WiFi')],
   'tecnologia/Reloj': [c('deportivo', 'Deportivo'), c('smartwatch', 'Smartwatch')],
   // V128: Title Case values, so the chip label is the stored value.
+  // V139: eight of the ten moved to electrodomesticos; a forced technology store still holds all ten under tecnologia.
   'tecnologia/TV y Audio': ['Barra de Sonido', 'Consola y Mixer', 'Equipo de Música', 'Handy', 'Parlante', 'Proyector', 'Radio',
     'Soporte', 'Tocadiscos', 'Televisor'],
-  'hogar/Pequeño Electrodoméstico': ['Accesorio y Repuesto', 'Afeitadora y Cortadora', 'Batidora y Mixer', 'Cafetera', 'Depiladora',
+  'electrodomesticos/TV y Audio': ['Barra de Sonido', 'Equipo de Música', 'Parlante', 'Proyector', 'Radio', 'Soporte', 'Tocadiscos',
+    'Televisor'],
+  'electrodomesticos/Pequeño Electrodoméstico': ['Accesorio y Repuesto', 'Afeitadora y Cortadora', 'Batidora y Mixer', 'Cafetera', 'Depiladora',
     'Freidora', 'Licuadora y Exprimidor', 'Pava Eléctrica', 'Plancha de Ropa', 'Planchita y Rizador', 'Procesadora', 'Secador de Pelo',
     'Tostadora y Sandwichera'],
   // V129: Argentine retail words; the chip label is the stored value.

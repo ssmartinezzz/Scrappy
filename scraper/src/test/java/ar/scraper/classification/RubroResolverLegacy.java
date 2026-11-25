@@ -5,7 +5,8 @@ import org.apache.commons.lang3.StringUtils;
 
 /**
  * The rubro if-chain exactly as it was before the taxonomy moved into tables, kept as the oracle of
- * {@code RubroResolverEquivalenceTest}. Do not edit it: its whole value is that it is the old behaviour.
+ * {@code RubroResolverEquivalenceTest}. Do not edit it: its whole value is that it is the old behaviour. The one line that
+ * changed is {@code catEsHogar}: the appliances left {@code CATEGORIAS_HOGAR} (V139) and the old chain still counts them as home.
  */
 final class RubroResolverLegacy {
 
@@ -27,7 +28,7 @@ final class RubroResolverLegacy {
         boolean catEsTextil = CategoryGroups.esIndumentariaOCalzado(cat);
         boolean catEsSuppl  = CategoryGroups.esCategoriaSuplemento(cat);
         boolean catEsConstr = CategoryGroups.esCategoriaConstruccion(cat);
-        boolean catEsHogar  = CategoryGroups.esCategoriaHogar(cat);
+        boolean catEsHogar  = CategoryGroups.esCategoriaHogar(cat) || CategoryGroups.esCategoriaElectrodomesticos(cat);
         SiteRegistry.Sitio sitio = siteRegistry.porKey(sitioKey);
         String rubroForzado = sitio.rubroForzado();
         String rubroPorDefecto = sitio.rubroPorDefecto();

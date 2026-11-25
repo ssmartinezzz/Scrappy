@@ -119,11 +119,15 @@ public class NormalizerService {
     private static String soloHogar(String sitioKey, String categoria, String categoriaDelArbol) {
         boolean yObra = SITIOS_SOLO_HOGAR_Y_OBRA.contains(sitioKey);
         if (!yObra && !SITIOS_SOLO_HOGAR.contains(sitioKey)) return categoria;
-        if (CategoryGroups.esCategoriaHogar(categoria)
+        if (esDeHogarOElectro(categoria)
                 || (yObra && (CategoryGroups.esCategoriaConstruccion(categoria) || CategoryGroups.esCategoriaDeporte(categoria)
                     || CATEGORIAS_DE_OBRA_Y_HOGAR_EXTRA.contains(categoria))))
             return categoria;
-        return CategoryGroups.esCategoriaHogar(categoriaDelArbol) ? categoriaDelArbol : "Otros";
+        return esDeHogarOElectro(categoriaDelArbol) ? categoriaDelArbol : "Otros";
+    }
+
+    private static boolean esDeHogarOElectro(String categoria) {
+        return CategoryGroups.esCategoriaHogar(categoria) || CategoryGroups.esCategoriaElectrodomesticos(categoria);
     }
 
     private static String celularDelArbol(String sitioKey, String categoriaDelArbol, String categoria) {

@@ -26,6 +26,7 @@ class V88TopYTopDeportivoTest extends PostgresTestBase {
         enTransaccion(st -> {
             assertThat(unaColumna(st, "SELECT count(*) FROM categoria WHERE nombre IN ('Top', 'Top Deportivo')"))
                     .isEqualTo("2");
+            st.execute(DocumentedRollback.sqlFor("V139"));
             st.execute(DocumentedRollback.sqlFor("V138"));
             st.execute(DocumentedRollback.sqlFor("V88"));
             assertThat(unaColumna(st, "SELECT count(*) FROM categoria WHERE nombre IN ('Top', 'Top Deportivo')"))
@@ -160,6 +161,7 @@ class V88TopYTopDeportivoTest extends PostgresTestBase {
             aplicar(st);
             assertThat(categoria(st, "top-vestir")).isEqualTo("Top");
 
+            st.execute(DocumentedRollback.sqlFor("V139"));
             st.execute(DocumentedRollback.sqlFor("V138"));
             st.execute(DocumentedRollback.sqlFor("V88"));
 

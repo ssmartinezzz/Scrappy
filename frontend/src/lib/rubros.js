@@ -6,7 +6,7 @@
  * rubro nuevo entra al backend y queda inalcanzable desde media UI: sin error,
  * sin warning, sólo productos que no aparecen en una pantalla y sí en otra.
  *
- * Claves, etiquetas y orden son los de la tabla `rubro` (`V138`);
+ * Claves, etiquetas y orden son los de la tabla `rubro` (`V138`, y `V139` suma `electrodomesticos`);
  * `RubroTaxonomiaAgreementTest` (backend) falla si divergen. Mandar cualquier otra cosa a `/api/data?rubro=` filtra por un valor
  * que ninguna fila tiene y devuelve una vista vacía.
  */
@@ -24,6 +24,7 @@ export const RUBROS = [
   { key: 'juguetes',     icon: '🧸', label: 'Juguetes'     },
   { key: 'libros',       icon: '📚', label: 'Libros'       },
   { key: 'belleza',      icon: '🌸', label: 'Belleza'      },
+  { key: 'electrodomesticos', icon: '🔌', label: 'Electrodomésticos' },
 ];
 
 export const RUBRO_KEYS = RUBROS.map((r) => r.key);

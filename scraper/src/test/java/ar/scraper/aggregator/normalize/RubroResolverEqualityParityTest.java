@@ -152,6 +152,7 @@ class RubroResolverEqualityParityTest {
                 for (String rubroExistente : rubrosExistentes) {
                     total++;
                     if (CategoryGroups.esCategoriaConstruccion(cat) || CategoryGroups.esCategoriaHogar(cat)
+                            || CategoryGroups.esCategoriaElectrodomesticos(cat)
                             || CategoryGroups.categoriasOficina().contains(cat)
                             || (CategoryGroups.esCategoriaTech(cat) && sinRubroForzado(rubroForzadoPorSitio, sitioKey))
                             || CategoryGroups.esCategoriaDeporte(cat)

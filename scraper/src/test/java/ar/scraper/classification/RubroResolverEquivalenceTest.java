@@ -17,14 +17,17 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @Epic("Clasificación")
 @Feature("Rubro por tablas")
-@DisplayName("RubroResolver sobre tablas == la cadena de if de antes, combinación por combinación")
+@DisplayName("RubroResolver sobre tablas == la cadena de if de antes más las mudanzas de V139, combinación por combinación")
 class RubroResolverEquivalenceTest {
 
-    private static final List<String> SUBS = Arrays.asList(null, "", "comedor", "exterior", "infantil", "gamer");
+    private static final String ELECTRO = "electrodomesticos";
+    private static final String TV_Y_AUDIO = "TV y Audio";
+    private static final List<String> SUBS = Arrays.asList(
+            null, "", "comedor", "exterior", "infantil", "gamer", "Televisor", "Equipo de Música", "Handy", "Consola y Mixer");
     private static final List<String> FORZADOS =
             Arrays.asList(null, "", "tecnologia", "suplementos", "oficina", "construccion", "hogar");
     private static final List<String> POR_DEFECTO =
-            Arrays.asList(null, "", "tecnologia", "suplementos", "oficina", "construccion", "hogar", "juguetes");
+            Arrays.asList(null, "", "tecnologia", "suplementos", "oficina", "construccion", "hogar", "juguetes", ELECTRO);
     private static final List<String> GUARDADOS = new ArrayList<>(Arrays.asList(null, ""));
 
     static {
@@ -32,7 +35,7 @@ class RubroResolverEquivalenceTest {
     }
 
     @Test
-    @DisplayName("0 differences over every category x sub x forced x default x stored")
+    @DisplayName("0 differences over every category x sub x forced x default x stored, apart from the V139 delta")
     void sameAnswerEverywhere() {
         List<String> categorias = new ArrayList<>(new TreeSet<>(CategoryGroups.canonicalCategories()));
         categorias.addAll(Arrays.asList(null, "", "Categoria Inexistente"));
@@ -61,7 +64,7 @@ class RubroResolverEquivalenceTest {
                             combinaciones++;
                             String esperado;
                             try {
-                                esperado = viejo.resolver(sitio, categoria, guardado, sub);
+                                esperado = conLasMudanzasDeElectro(viejo.resolver(sitio, categoria, guardado, sub), categoria, sub, forzado);
                             } catch (NullPointerException e) {
                                 lanzoElViejo++;
                                 assertThat(categoria).as("the old chain only threw on a null category").isNull();
@@ -92,6 +95,18 @@ class RubroResolverEquivalenceTest {
         RubroResolver nuevo = TestRubros.resolver(registry);
 
         assertThat(nuevo.resolver("x", "Silla", "")).isEqualTo(nuevo.resolver("x", "Silla", "", ""));
+    }
+
+    /**
+     * The only intended difference from the old chain (V139): an appliance category the old chain called hogar is
+     * electrodomesticos, and so is a TV y Audio sub that is an appliance on a site with no forced rubro. A forced
+     * tecnologia or oficina site still keeps both, because those rubros weigh at least as much as electrodomesticos.
+     */
+    private static String conLasMudanzasDeElectro(String viejo, String categoria, String sub, String forzado) {
+        if ("hogar".equals(viejo) && CategoryGroups.esCategoriaElectrodomesticos(categoria)) return ELECTRO;
+        boolean sitioLibre = forzado == null || forzado.isEmpty();
+        if (sitioLibre && TV_Y_AUDIO.equals(categoria) && sub != null && TestRubros.SUBS_ELECTRO_DE_TV_Y_AUDIO.contains(sub)) return ELECTRO;
+        return viejo;
     }
 
     private static String clave(String forzado, String porDefecto) {
