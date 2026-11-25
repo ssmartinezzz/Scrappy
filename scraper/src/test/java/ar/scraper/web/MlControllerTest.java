@@ -337,12 +337,35 @@ class MlControllerTest {
     // ── POST /api/ml/renormalizar ────────────────────────────────────────
 
     @Test
-    void mlRenormalizarDelegatesToAggregatorAndReturnsResult() {
-        when(aggregator.renormalizarCatalogo()).thenReturn(Map.of("refinados", 5));
+    void mlRenormalizarDelegatesToTheServiceAndReturnsResult() {
+        when(service.renormalizarCatalogo()).thenReturn(Map.of("refinados", 5));
 
         var resp = controller.mlRenormalizar();
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
-        verify(aggregator).renormalizarCatalogo();
+        verify(service).renormalizarCatalogo();
+        verify(aggregator, never()).renormalizarCatalogo();
+    }
+
+    @Test
+    void mlRenormalizarAnswers409WhenTheServiceRefusesTheTurn() {
+        when(service.renormalizarCatalogo()).thenThrow(new ar.scraper.api.ApiException(
+                org.springframework.http.HttpStatus.CONFLICT, "scrape_en_curso", "Hay un scraping en curso."));
+
+        var resp = Wire.answer(() -> controller.mlRenormalizar());
+
+        assertThat(resp.getStatusCode().value()).isEqualTo(409);
+        assertThat(Wire.error(resp).get("code").asText()).isEqualTo("scrape_en_curso");
+    }
+
+    @Test
+    void mlRenormalizarAnswers409WhenScoringIsBusy() {
+        when(service.renormalizarCatalogo()).thenThrow(new ar.scraper.api.ApiException(
+                org.springframework.http.HttpStatus.CONFLICT, "ml_en_curso", "Ya hay una corrida del pipeline ML."));
+
+        var resp = Wire.answer(() -> controller.mlRenormalizar());
+
+        assertThat(resp.getStatusCode().value()).isEqualTo(409);
+        assertThat(Wire.error(resp).get("code").asText()).isEqualTo("ml_en_curso");
     }
 }

@@ -1,6 +1,7 @@
 package ar.scraper.aggregator;
 
 import ar.scraper.catalog.ClasificacionBloqueada;
+import ar.scraper.catalog.Normalizacion;
 import ar.scraper.catalog.ProductPort;
 import ar.scraper.ml.CategoriaStatsPort;
 import ar.scraper.ml.MlOutputPort;
@@ -18,22 +19,21 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 /**
  * RED→GREEN coverage for {@link ResultAggregator#renormalizarCatalogo()}'s
- * write-reconciliation fix (agent-chat-finetune WU2): before this fix,
- * {@code categoriaCambiada}/{@code marcaCambiada} were incremented from the
- * intended diff BEFORE the write, and any write exception was silently
- * swallowed — the {@code [RENORM]} log (and API response) reported intended
- * changes as if they had actually been persisted.
+ * write reconciliation: the counters of what was written come from the urls the
+ * single batch really updated, and a failed batch propagates instead of being counted.
  */
 @Epic("Aggregation & Grouping")
 @Feature("Renormalize catalog")
-@DisplayName("ResultAggregator — renormalizarCatalogo write-reconciliation")
+@DisplayName("ResultAggregator — renormalizarCatalogo write-reconciliation (one batch)")
 class ResultAggregatorRenormalizarTest {
 
     private NormalizerService    normalizer;
@@ -82,124 +82,120 @@ class ResultAggregatorRenormalizarTest {
                 .build();
     }
 
-    @Test
-    @DisplayName("escrituras* reflect the REAL row count, not the intended diff — one failure never aborts the batch")
-    void reconcilesIntendedVsAppliedAndIsolatesPerProductFailure() {
-        // 3 productos con categoría cambiada por la renormalización:
-        //   p1 -> UPDATE devuelve 1 fila (escritura realmente aplicada)
-        //   p2 -> UPDATE devuelve 0 filas (no existía más / no aplicó)
-        //   p3 -> UPDATE lanza una excepción
-        Product p1Antes = producto("http://test.com/1", "Zapatilla");
-        Product p2Antes = producto("http://test.com/2", "Zapatilla");
-        Product p3Antes = producto("http://test.com/3", "Zapatilla");
-        Product p1Ahora = producto("http://test.com/1", "Calzado Deportivo");
-        Product p2Ahora = producto("http://test.com/2", "Calzado Deportivo");
-        Product p3Ahora = producto("http://test.com/3", "Calzado Deportivo");
+    private Product conRubro(String url, String categoria, String rubro) {
+        return producto(url, categoria).toBuilder().rubro(rubro).build();
+    }
 
-        when(productos.cargarProductos()).thenReturn(List.of(p1Antes, p2Antes, p3Antes));
-        when(normalizer.normalizar(anyList())).thenReturn(List.of(p1Ahora, p2Ahora, p3Ahora));
-
-        when(productos.actualizarNormalizacion(eq("http://test.com/1"), anyString(), anyString(),
-                anyString(), anyList(), anyString())).thenReturn(1);
-        when(productos.actualizarNormalizacion(eq("http://test.com/2"), anyString(), anyString(),
-                anyString(), anyList(), anyString())).thenReturn(0);
-        when(productos.actualizarNormalizacion(eq("http://test.com/3"), anyString(), anyString(),
-                anyString(), anyList(), anyString())).thenThrow(new RuntimeException("boom"));
-
-        Map<String, Integer> resultado = aggregator.renormalizarCatalogo();
-
-        // Batch isolation: los 3 productos fueron revisados pese al fallo de p3.
-        assertThat(resultado.get("totalRevisados")).isEqualTo(3);
-        assertThat(resultado.get("categoriaCambiada")).isEqualTo(3); // diff intencional, sin cambiar semántica
-
-        assertThat(resultado.get("escriturasIntentadas")).isEqualTo(3);
-        assertThat(resultado.get("escriturasAplicadas")).isEqualTo(1);
-        assertThat(resultado.get("escriturasFallidas")).isEqualTo(2);
-
-        verify(productos).actualizarNormalizacion(eq("http://test.com/1"), anyString(), anyString(),
-                anyString(), anyList(), anyString());
-        verify(productos).actualizarNormalizacion(eq("http://test.com/2"), anyString(), anyString(),
-                anyString(), anyList(), anyString());
-        verify(productos).actualizarNormalizacion(eq("http://test.com/3"), anyString(), anyString(),
-                anyString(), anyList(), anyString());
+    @SuppressWarnings("unchecked")
+    private List<Normalizacion> escrito() {
+        var captor = org.mockito.ArgumentCaptor.forClass(List.class);
+        verify(productos).actualizarNormalizaciones(captor.capture());
+        return (List<Normalizacion>) captor.getValue();
     }
 
     @Test
-    @DisplayName("manual-classification-lock: locked URLs are skipped from writes, counted separately, never in escriturasFallidas")
-    void lockedUrlsAreSkippedFromWritesAndCountedSeparately() {
-        Product p1Antes = producto("http://test.com/1", "Zapatilla");
-        Product p4Antes = producto("http://test.com/4", "Zapatilla"); // locked
-        Product p1Ahora = producto("http://test.com/1", "Calzado Deportivo");
-        Product p4Ahora = producto("http://test.com/4", "Calzado Deportivo"); // title-derived diff, but locked
-
-        when(productos.cargarProductos()).thenReturn(List.of(p1Antes, p4Antes));
-        when(normalizer.normalizar(anyList())).thenReturn(List.of(p1Ahora, p4Ahora));
-        when(productos.cargarClasificacionBloqueada()).thenReturn(
-                Map.of("http://test.com/4", new ClasificacionBloqueada("Zapatilla", "", "", "", "indumentaria")));
-
-        when(productos.actualizarNormalizacion(eq("http://test.com/1"), anyString(), anyString(),
-                anyString(), anyList(), anyString())).thenReturn(1);
+    @DisplayName("escrituras* reflect the urls the batch really updated, not the intended diff")
+    void reconcilesIntendedVsApplied() {
+        // p1 updated; p2 not updated and not locked (the row is gone)
+        when(productos.cargarProductos()).thenReturn(List.of(
+                producto("http://test.com/1", "Zapatilla"), producto("http://test.com/2", "Zapatilla")));
+        when(normalizer.normalizar(anyList())).thenReturn(List.of(
+                producto("http://test.com/1", "Calzado Deportivo"), producto("http://test.com/2", "Calzado Deportivo")));
+        when(productos.actualizarNormalizaciones(anyList())).thenReturn(Set.of("http://test.com/1"));
 
         Map<String, Integer> resultado = aggregator.renormalizarCatalogo();
 
         assertThat(resultado.get("totalRevisados")).isEqualTo(2);
-        assertThat(resultado.get("categoriaCambiada")).isEqualTo(2); // diff intencional detectado para ambos
-
-        assertThat(resultado.get("escriturasIntentadas")).isEqualTo(1); // solo p1 — p4 nunca se intenta
+        assertThat(resultado.get("categoriaCambiada")).isEqualTo(2);
+        assertThat(resultado.get("escriturasIntentadas")).isEqualTo(2);
         assertThat(resultado.get("escriturasAplicadas")).isEqualTo(1);
-        assertThat(resultado.get("escriturasFallidas")).isEqualTo(0); // p4 NO cuenta como fallida
-        assertThat(resultado.get("escriturasOmitidasPorBloqueo")).isEqualTo(1);
-
-        verify(productos).actualizarNormalizacion(eq("http://test.com/1"), anyString(), anyString(),
-                anyString(), anyList(), anyString());
-        verify(productos, never()).actualizarNormalizacion(eq("http://test.com/4"), anyString(), anyString(),
-                anyString(), anyList(), anyString());
+        assertThat(resultado.get("escriturasFallidas")).isEqualTo(1);
+        assertThat(escrito()).extracting(Normalizacion::url)
+                .containsExactly("http://test.com/1", "http://test.com/2");
     }
 
     @Test
-    @DisplayName("review fix F3: a product locked AFTER the entry snapshot (race window) is attributed by a live check, not counted as a failure")
+    @DisplayName("a failed batch propagates: nothing is counted as partially written")
+    void aFailedBatchPropagates() {
+        when(productos.cargarProductos()).thenReturn(List.of(producto("http://test.com/3", "Zapatilla")));
+        when(normalizer.normalizar(anyList())).thenReturn(List.of(producto("http://test.com/3", "Calzado Deportivo")));
+        when(productos.actualizarNormalizaciones(anyList())).thenThrow(new IllegalStateException("boom"));
+
+        assertThatThrownBy(() -> aggregator.renormalizarCatalogo())
+                .isInstanceOf(IllegalStateException.class).hasMessage("boom");
+    }
+
+    @Test
+    @DisplayName("manual-classification-lock: locked URLs never enter the batch, are counted separately, never in escriturasFallidas")
+    void lockedUrlsAreSkippedFromWritesAndCountedSeparately() {
+        when(productos.cargarProductos()).thenReturn(List.of(
+                producto("http://test.com/1", "Zapatilla"), producto("http://test.com/4", "Zapatilla")));
+        when(normalizer.normalizar(anyList())).thenReturn(List.of(
+                producto("http://test.com/1", "Calzado Deportivo"), producto("http://test.com/4", "Calzado Deportivo")));
+        when(productos.cargarClasificacionBloqueada()).thenReturn(
+                Map.of("http://test.com/4", new ClasificacionBloqueada("Zapatilla", "", "", "", "indumentaria")));
+        when(productos.actualizarNormalizaciones(anyList())).thenReturn(Set.of("http://test.com/1"));
+
+        Map<String, Integer> resultado = aggregator.renormalizarCatalogo();
+
+        assertThat(resultado.get("totalRevisados")).isEqualTo(2);
+        assertThat(resultado.get("categoriaCambiada")).isEqualTo(2);
+        assertThat(resultado.get("escriturasIntentadas")).isEqualTo(1);
+        assertThat(resultado.get("escriturasAplicadas")).isEqualTo(1);
+        assertThat(resultado.get("escriturasFallidas")).isEqualTo(0);
+        assertThat(resultado.get("escriturasOmitidasPorBloqueo")).isEqualTo(1);
+        assertThat(escrito()).extracting(Normalizacion::url).containsExactly("http://test.com/1");
+    }
+
+    @Test
+    @DisplayName("a product locked AFTER the entry snapshot is attributed by a live check, not counted as a failure")
     void productLockedAfterSnapshotIsCountedAsOmittedNotFailed() {
-        // p5 is NOT in the entry-time bloqueos snapshot (it got locked mid-run,
-        // after the snapshot was taken but before the loop reached its row) —
-        // the guarded UPDATE correctly returns 0 rows, but the code must not
-        // ASSUME "failure" just because the stale snapshot didn't know about it.
-        Product p5Antes = producto("http://test.com/5", "Zapatilla");
-        Product p5Ahora = producto("http://test.com/5", "Calzado Deportivo");
-
-        when(productos.cargarProductos()).thenReturn(List.of(p5Antes));
-        when(normalizer.normalizar(anyList())).thenReturn(List.of(p5Ahora));
-        when(productos.cargarClasificacionBloqueada()).thenReturn(Map.of()); // empty at snapshot time
-
-        when(productos.actualizarNormalizacion(eq("http://test.com/5"), anyString(), anyString(),
-                anyString(), anyList(), anyString())).thenReturn(0); // guard fired: now locked
-        when(productos.estaBloqueado("http://test.com/5")).thenReturn(true); // live read confirms the lock
+        when(productos.cargarProductos()).thenReturn(List.of(producto("http://test.com/5", "Zapatilla")));
+        when(normalizer.normalizar(anyList())).thenReturn(List.of(producto("http://test.com/5", "Calzado Deportivo")));
+        when(productos.cargarClasificacionBloqueada()).thenReturn(Map.of());
+        when(productos.actualizarNormalizaciones(anyList())).thenReturn(Set.of());
+        when(productos.estaBloqueado("http://test.com/5")).thenReturn(true);
 
         Map<String, Integer> resultado = aggregator.renormalizarCatalogo();
 
         assertThat(resultado.get("escriturasIntentadas")).isEqualTo(1);
         assertThat(resultado.get("escriturasAplicadas")).isEqualTo(0);
-        assertThat(resultado.get("escriturasFallidas")).isEqualTo(0); // never — the WARN comment's own invariant
+        assertThat(resultado.get("escriturasFallidas")).isEqualTo(0);
         assertThat(resultado.get("escriturasOmitidasPorBloqueo")).isEqualTo(1);
-
-        verify(productos).estaBloqueado("http://test.com/5");
     }
 
     @Test
-    @DisplayName("no changes detected -> zero escrituras*, no write calls")
-    void noChangesDetected_zeroEscrituras() {
-        Product antes = producto("http://test.com/unchanged", "Zapatilla");
-        Product ahora = producto("http://test.com/unchanged", "Zapatilla");
+    @DisplayName("a rubro change alone is a change: it is counted and written with the normalized rubro")
+    void aRubroChangeIsWritten() {
+        when(productos.cargarProductos()).thenReturn(List.of(conRubro("http://test.com/6", "Heladera", "hogar")));
+        when(normalizer.normalizar(anyList())).thenReturn(List.of(conRubro("http://test.com/6", "Heladera", "electrodomesticos")));
+        when(productos.actualizarNormalizaciones(anyList())).thenReturn(Set.of("http://test.com/6"));
 
-        when(productos.cargarProductos()).thenReturn(List.of(antes));
-        when(normalizer.normalizar(anyList())).thenReturn(List.of(ahora));
+        Map<String, Integer> resultado = aggregator.renormalizarCatalogo();
+
+        assertThat(resultado.get("rubroCambiado")).isEqualTo(1);
+        assertThat(resultado.get("categoriaCambiada")).isEqualTo(0);
+        assertThat(resultado.get("escriturasAplicadas")).isEqualTo(1);
+        assertThat(escrito()).singleElement().satisfies(f -> {
+            assertThat(f.rubro()).isEqualTo("electrodomesticos");
+            assertThat(f.talles()).as("sizes did not change: left alone").isNull();
+        });
+    }
+
+    @Test
+    @DisplayName("no changes detected -> zero escrituras*, an empty batch")
+    void noChangesDetected_zeroEscrituras() {
+        when(productos.cargarProductos()).thenReturn(List.of(producto("http://test.com/unchanged", "Zapatilla")));
+        when(normalizer.normalizar(anyList())).thenReturn(List.of(producto("http://test.com/unchanged", "Zapatilla")));
+        when(productos.actualizarNormalizaciones(anyList())).thenReturn(Set.of());
 
         Map<String, Integer> resultado = aggregator.renormalizarCatalogo();
 
         assertThat(resultado.get("totalRevisados")).isEqualTo(1);
-        assertThat(resultado.get("categoriaCambiada")).isEqualTo(0);
+        assertThat(resultado.get("rubroCambiado")).isEqualTo(0);
         assertThat(resultado.get("escriturasIntentadas")).isEqualTo(0);
         assertThat(resultado.get("escriturasAplicadas")).isEqualTo(0);
         assertThat(resultado.get("escriturasFallidas")).isEqualTo(0);
-        verify(productos, never()).actualizarNormalizacion(anyString(), anyString(), anyString(), anyString(), anyList(), anyString());
+        assertThat(escrito()).isEmpty();
     }
 }

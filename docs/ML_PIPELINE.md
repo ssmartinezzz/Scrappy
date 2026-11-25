@@ -474,7 +474,7 @@ con `rubro_forzado` `tecnologia`/`oficina`, que sigue ganando. `SubcategoryResol
 (`eau de parfum`, `edp`, `parfum`), `Eau de Toilette` (`eau de toilette`, `edt`), `Body Splash` (`body splash`, `body mist`,
 `splash`) y `Colonia` (`colonia`, `eau de cologne`); gana la primera en ese orden y, si ninguna aparece, queda `''`. El tier
 deportivo (`hockey`, `running`...) no corre para `Perfume`. `KW_PERFUME` ya no matchea `splash` pelado ni `colonia` como
-subcadena (las antiparras `Base-X Splash` y la `Teja Colonial` eran `Perfume`). `POST /api/ml/renormalizar` actualiza la `sub_categoria` de las filas guardadas pero NO su `rubro` (lo alinea `V90`), y unas `Perfume` mal clasificadas (los inflables `Splash` de Elmundodeljuguete) conservan la categoría hasta el próximo scrape del sitio.
+subcadena (las antiparras `Base-X Splash` y la `Teja Colonial` eran `Perfume`). `POST /api/ml/renormalizar` actualiza la `sub_categoria` y el `rubro` de las filas guardadas, y unas `Perfume` mal clasificadas (los inflables `Splash` de Elmundodeljuguete) conservan la categoría hasta el próximo scrape del sitio.
 
 **Moda de mujer por sustantivo líder, y `Bijouterie`** (`V92`). Las Pepas dejó 144 filas en `Otros`; quedan 15 (`llavero`, `aplique`,
 `cuaderno`, `boligrafo`, `pin`: sin categoría). `IndumentariaClassifier` suma al final reglas por **primera palabra** del nombre

@@ -25,7 +25,7 @@ function json(data) {
 function router() {
   return vi.fn().mockImplementation((url, init) => {
     const u = String(url);
-    if (u.includes('/api/ml/renormalizar')) return Promise.resolve(json({ ok: true }));
+    if (u.includes('/api/ml/renormalizar')) return Promise.resolve(json({ data: { totalRevisados: 0 } }));
     if (u.includes('/api/ml/entrenar')) return entrenar(init);
     if (u.includes('/api/status'))       return Promise.resolve(json(STATUS));
     if (u.includes('/api/ml/estado'))    return Promise.resolve(json(estado));

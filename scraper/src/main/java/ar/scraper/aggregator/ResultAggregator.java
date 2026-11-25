@@ -2,6 +2,7 @@ package ar.scraper.aggregator;
 
 import ar.scraper.catalog.ClasificacionBloqueada;
 import ar.scraper.catalog.Facets;
+import ar.scraper.catalog.Normalizacion;
 import ar.scraper.catalog.ProductPort;
 import ar.scraper.ml.CategoriaStatsPort;
 import ar.scraper.ml.MlOutputLiviano;
@@ -39,7 +40,7 @@ public class ResultAggregator {
     // Declared dual dependency: guardarMlOutput/ guardarCategoriaStats below belong to repositories
     // out of this slice's scope.
     // upsertProductos/cargarClasificacionBloqueada/actualizarCategoria/cargarProductos/
-    // actualizarNormalizacion/estaBloqueado go through ProductPort instead.
+    // actualizarNormalizaciones/estaBloqueado go through ProductPort instead.
     private final MlOutputPort         mlOutput;
     private final CategoriaStatsPort   categoriaStats;
     private final ProductPort          productos;
@@ -342,7 +343,10 @@ public class ResultAggregator {
 
     /**
      * Re-aplica las reglas actuales de {@link NormalizerService} sobre el catálogo YA persistido en
-     * la DB, sin re-scrapear (no toca internet, no usa Playwright).
+     * la DB, sin re-scrapear (no toca internet, no usa Playwright). Todo lo que cambia se escribe en
+     * UNA transacción: o entra entero o no entra nada, y una falla de la escritura se propaga.
+     * El caller es dueño del turno de scrape y del slot de scoring (ver
+     * {@code ScraperService#renormalizarCatalogo}).
      */
     public Map<String, Integer> renormalizarCatalogo() {
         List<Product> actuales      = productos.cargarProductos();
@@ -352,14 +356,10 @@ public class ResultAggregator {
         int totalRevisados   = 0;
         int categoriaCambiada = 0;
         int marcaCambiada     = 0;
-
-        // Antes de este fix, una excepción en el write se tragaba sin contarla en ningún lado, y un
-        // UPDATE de 0 filas no se distinguía de uno exitoso.
-        int escriturasIntentadas = 0;
-        int escriturasAplicadas  = 0;
-        int escriturasFallidas   = 0;
-        // Contado aparte, nunca en escriturasFallidas.
+        int rubroCambiado     = 0;
         int escriturasOmitidasPorBloqueo = 0;
+
+        List<Normalizacion> aEscribir = new ArrayList<>();
 
         int n = Math.min(actuales.size(), renormalizados.size());
         for (int i = 0; i < n; i++) {
@@ -368,67 +368,57 @@ public class ResultAggregator {
             if (antes.url() == null || !antes.url().equals(ahora.url())) continue;
 
             totalRevisados++;
-            String catAntes = StringUtils.defaultString(antes.categoria());
             String catAhora = StringUtils.defaultString(ahora.categoria());
-            String marcaAntes = StringUtils.defaultString(antes.marca());
             String marcaAhora = StringUtils.defaultString(ahora.marca());
-            String genAntes = StringUtils.defaultString(antes.genero());
             String genAhora = StringUtils.defaultString(ahora.genero());
+            String subCatAhora = StringUtils.defaultString(ahora.subCategoria());
+            String rubroAhora = StringUtils.defaultString(ahora.rubro());
             List<String> tallesAntes = antes.talles() != null ? antes.talles() : List.of();
             List<String> tallesAhora = ahora.talles() != null ? ahora.talles() : List.of();
 
-            boolean catCambio       = !catAntes.equals(catAhora);
-            boolean marcaCambio     = !marcaAntes.equals(marcaAhora);
-            boolean genCambio       = !genAntes.equals(genAhora);
-            boolean tallesCambio    = !tallesAntes.equals(tallesAhora);
-            String subCatAntes      = StringUtils.defaultString(antes.subCategoria());
-            String subCatAhora      = StringUtils.defaultString(ahora.subCategoria());
-            boolean subCatCambio    = !subCatAntes.equals(subCatAhora);
+            boolean catCambio    = !StringUtils.defaultString(antes.categoria()).equals(catAhora);
+            boolean marcaCambio  = !StringUtils.defaultString(antes.marca()).equals(marcaAhora);
+            boolean genCambio    = !StringUtils.defaultString(antes.genero()).equals(genAhora);
+            boolean subCatCambio = !StringUtils.defaultString(antes.subCategoria()).equals(subCatAhora);
+            boolean rubroCambio  = !StringUtils.defaultString(antes.rubro()).equals(rubroAhora);
+            boolean tallesCambio = !tallesAntes.equals(tallesAhora);
 
             if (catCambio)   categoriaCambiada++;
             if (marcaCambio) marcaCambiada++;
+            if (rubroCambio) rubroCambiado++;
 
-            if (catCambio || marcaCambio || genCambio || tallesCambio || subCatCambio) {
+            if (catCambio || marcaCambio || genCambio || tallesCambio || subCatCambio || rubroCambio) {
                 if (bloqueos != null && bloqueos.containsKey(ahora.url())) {
                     escriturasOmitidasPorBloqueo++;
                     continue;
                 }
-                escriturasIntentadas++;
-                try {
-                    int rows = productos.actualizarNormalizacion(ahora.url(), catAhora, marcaAhora, genAhora, tallesAhora, subCatAhora);
-                    if (rows > 0) {
-                        escriturasAplicadas++;
-                    } else if (productos.estaBloqueado(ahora.url())) {
-                        // A 0-row guarded write in that window is a correct lock skip, not a write
-                        // failure; attribute it from a LIVE read taken right now, never from the
-                        // stale snapshot.
-                        escriturasOmitidasPorBloqueo++;
-                    } else {
-                        escriturasFallidas++;
-                    }
-                } catch (Exception e) {
-                    escriturasFallidas++;
-                    LOG.warn("[RENORM] Error escribiendo normalización para {}: {}", ahora.url(), e.getMessage());
-                }
+                aEscribir.add(new Normalizacion(ahora.url(), catAhora, marcaAhora, genAhora,
+                        tallesCambio ? tallesAhora : null, subCatAhora, rubroAhora));
             }
         }
 
-        if (escriturasFallidas > 0) {
-            LOG.warn("[RENORM] Catálogo re-normalizado: {} revisados, {} con categoría cambiada, {} con marca cambiada — "
-                    + "{}/{} escrituras aplicadas, {} fallidas, {} omitidas por bloqueo",
-                    totalRevisados, categoriaCambiada, marcaCambiada,
-                    escriturasAplicadas, escriturasIntentadas, escriturasFallidas, escriturasOmitidasPorBloqueo);
-        } else {
-            LOG.info("[RENORM] Catálogo re-normalizado: {} revisados, {} con categoría cambiada, {} con marca cambiada — "
-                    + "{}/{} escrituras aplicadas, {} omitidas por bloqueo",
-                    totalRevisados, categoriaCambiada, marcaCambiada, escriturasAplicadas, escriturasIntentadas,
-                    escriturasOmitidasPorBloqueo);
+        // A row neither updated nor locked is gone (or locked meanwhile: a LIVE read tells them apart,
+        // never the stale snapshot).
+        Set<String> actualizadas = productos.actualizarNormalizaciones(aEscribir);
+        int escriturasIntentadas = aEscribir.size();
+        int escriturasFallidas = 0;
+        for (Normalizacion f : aEscribir) {
+            if (actualizadas.contains(f.url())) continue;
+            if (productos.estaBloqueado(f.url())) escriturasOmitidasPorBloqueo++;
+            else escriturasFallidas++;
         }
+        int escriturasAplicadas = actualizadas.size();
+
+        LOG.info("[RENORM] Catálogo re-normalizado: {} revisados, {} con categoría cambiada, {} con marca cambiada, "
+                + "{} con rubro cambiado — {}/{} escrituras aplicadas, {} sin fila, {} omitidas por bloqueo",
+                totalRevisados, categoriaCambiada, marcaCambiada, rubroCambiado,
+                escriturasAplicadas, escriturasIntentadas, escriturasFallidas, escriturasOmitidasPorBloqueo);
 
         Map<String, Integer> resultado = new LinkedHashMap<>();
         resultado.put("totalRevisados", totalRevisados);
         resultado.put("categoriaCambiada", categoriaCambiada);
         resultado.put("marcaCambiada", marcaCambiada);
+        resultado.put("rubroCambiado", rubroCambiado);
         resultado.put("escriturasIntentadas", escriturasIntentadas);
         resultado.put("escriturasAplicadas", escriturasAplicadas);
         resultado.put("escriturasFallidas", escriturasFallidas);

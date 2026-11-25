@@ -84,6 +84,20 @@ public class PythonRunner {
     public boolean isScoringEnCurso() { return scoringEnCurso.get(); }
 
     /**
+     * Runs {@code cuerpo} holding the scoring slot. {@code false} (body not run) means the slot was
+     * busy; unlike {@link #conReservaDeScoring} a body that yields nothing cannot be mistaken for it.
+     */
+    public boolean conSlotDeScoring(Runnable cuerpo) {
+        if (!scoringEnCurso.compareAndSet(false, true)) return false;
+        try {
+            cuerpo.run();
+            return true;
+        } finally {
+            scoringEnCurso.set(false);
+        }
+    }
+
+    /**
      * Ejecuta {@code cuerpo} con el slot de scoring reservado, o devuelve {@code null} sin correrlo
      * si ya había una corrida en vuelo.
      */

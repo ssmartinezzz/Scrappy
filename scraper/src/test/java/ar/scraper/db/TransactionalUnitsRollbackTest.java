@@ -332,15 +332,18 @@ class TransactionalUnitsRollbackTest extends PostgresTestBase {
     }
 
     @Test
-    @DisplayName("actualizarNormalizacion keeps the previous sizes when writing the new ones fails")
-    void actualizarNormalizacionKeepsPreviousSizes() throws Exception {
+    @DisplayName("actualizarNormalizaciones throws and keeps the previous row and sizes when writing the new sizes fails")
+    void actualizarNormalizacionesKeepsPreviousSizes() throws Exception {
         db.upsertParcial(List.of(producto("https://t/a", 1000)));
+        var port = TestDatabaseServices.productos(dataSource());
         try (var fault = FaultInjection.raiseOn(dataSource(), "producto_talle", "INSERT", null)) {
-            int rows = db.actualizarNormalizacion("https://t/a", "Remera", "Nike", "unisex", List.of("L", "XL"), "");
-
-            assertThat(rows).isZero();
+            org.assertj.core.api.Assertions.assertThatThrownBy(() -> port.actualizarNormalizaciones(List.of(
+                    new ar.scraper.catalog.Normalizacion("https://t/a", "Pantalon", "Nike", "unisex",
+                            List.of("L", "XL"), "", ""))))
+                    .isInstanceOf(RuntimeException.class);
         }
         assertThat(text("SELECT string_agg(talle, ',') FROM producto_talle WHERE url = 'https://t/a'")).isEqualTo("M");
+        assertThat(text("SELECT categoria FROM productos WHERE url = 'https://t/a'")).isEqualTo("Remera");
     }
 
     @Test

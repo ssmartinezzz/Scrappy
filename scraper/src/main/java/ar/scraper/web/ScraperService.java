@@ -76,6 +76,8 @@ public class ScraperService implements CatalogSnapshotPort {
             java.util.Optional.empty();
     private volatile int ultimasCategoriasRefinadas = 0;
     private volatile boolean forceRetrain = false;
+    /** The turn is held by a re-normalisation: nothing to cancel, and {@link #cancelar} must not flag it. */
+    private volatile boolean renormalizando = false;
 
     /**
      * {@code RunState} is null whenever the run bookkeeping failed to open its row, and
@@ -402,11 +404,60 @@ public class ScraperService implements CatalogSnapshotPort {
 
     /** RUNNING sólo si no lo estaba ya, atómicamente: gana exactamente uno. */
     private boolean tomarElTurno() {
+        return tomarElTurnoDesde() != null;
+    }
+
+    /** The status the turn was taken from, or {@code null} when someone else holds it. */
+    private ScraperStatus tomarElTurnoDesde() {
         for (ScraperStatus libre : new ScraperStatus[]{
                 ScraperStatus.IDLE, ScraperStatus.DONE, ScraperStatus.ERROR}) {
-            if (status.compareAndSet(libre, ScraperStatus.RUNNING)) return true;
+            if (status.compareAndSet(libre, ScraperStatus.RUNNING)) return libre;
         }
-        return false;
+        return null;
+    }
+
+    /**
+     * Re-normalises the stored catalog atomically. Holds the scrape turn (so neither
+     * {@link #iniciarScraping} nor {@link #reanudar} can start) and the scoring slot (so a scoring run
+     * cannot interleave); if either is busy nothing changes and a 409 is thrown. Whatever happens, the
+     * previous status and message are restored: this never leaves RUNNING behind and never touches
+     * {@code scrape_run}. The in-memory catalog is swapped only after the transaction committed.
+     */
+    public Map<String, Integer> renormalizarCatalogo() {
+        ScraperStatus previo = tomarElTurnoDesde();
+        if (previo == null) {
+            throw new ar.scraper.api.ApiException(org.springframework.http.HttpStatus.CONFLICT, "scrape_en_curso",
+                    "Hay un scraping en curso. Esperá a que termine y volvé a intentar.");
+        }
+        String mensajePrevio = statusMsg.get();
+        renormalizando = true;
+        try {
+            anunciar("Re-normalizando el catálogo...");
+            AtomicReference<Map<String, Integer>> salida = new AtomicReference<>();
+            boolean tomado = aggregator.getPythonRunner().conSlotDeScoring(
+                    () -> salida.set(aggregator.renormalizarCatalogo()));
+            if (!tomado) {
+                throw new ar.scraper.api.ApiException(org.springframework.http.HttpStatus.CONFLICT, "ml_en_curso",
+                        "Ya hay una corrida del pipeline ML en vuelo. Esperá a que termine y volvé a intentar.");
+            }
+            recargarCatalogoTrasRenormalizar();
+            return salida.get();
+        } finally {
+            renormalizando = false;
+            cancelado.set(false);
+            transition(previo, mensajePrevio);
+        }
+    }
+
+    /** The commit already happened: a failed reload leaves the old snapshot served and says so. */
+    private void recargarCatalogoTrasRenormalizar() {
+        try {
+            AggregatedResult nuevo = aggregator.fromDB(productos.cargarProductos());
+            synchronized (catalogLock) { lastResult = nuevo; }
+            publicarCambio();
+        } catch (Exception e) {
+            LOG.warn("[RENORM] Escrito en la DB pero no se pudo recargar el catálogo en memoria: {}", e.getMessage());
+        }
     }
 
     private void ejecutarScraping(Set<String> sitiosSeleccionados) throws Exception {
@@ -892,7 +943,7 @@ public class ScraperService implements CatalogSnapshotPort {
 
     /** Idempotent; a no-op when nothing runs.. */
     public boolean cancelar() {
-        if (status.get() != ScraperStatus.RUNNING) return false;
+        if (status.get() != ScraperStatus.RUNNING || renormalizando) return false;
         cancelado.set(true);
         anunciar("Cancelando...");
         RUN_LOG.warn("[CANCEL]  Cancelación pedida por el usuario");

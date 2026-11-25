@@ -6323,6 +6323,8 @@ El orden de las reglas está en `RubroResolver` (lista de `RubroRule`); la insta
 
 No escribe ninguna fila de `productos`: `catalog_version` no se bumpea y no hace falta el `SET CONSTRAINTS ALL IMMEDIATE` de `V112`. `RubroTaxonomiaAgreementTest` falla si las tablas y `CategoryGroups` se desalinean en cualquier sentido, o si `frontend/src/lib/rubros.js` no repite las claves, etiquetas y orden de `rubro` (los íconos y colores son del frontend, por eso el archivo sigue existiendo), y `RubroResolverEquivalenceTest` compara el resolvedor nuevo con una copia literal de la cadena vieja en todas las combinaciones.
 
+**`POST /api/ml/renormalizar` escribe `rubro` y es atómico.** `ProductPort.actualizarNormalizaciones` actualiza `categoria`, `marca`, `genero`, `sub_categoria` y `rubro` de todas las filas cambiadas en UNA transacción (lotes JDBC, `WHERE url = ? AND bloqueado_por IS NULL`); una fila que viola `fk_productos_categoria` o `fk_productos_rubro` deshace todas, talles incluidos. Los talles se reemplazan sólo si cambiaron y sólo en las filas realmente actualizadas: una fila bloqueada no pierde nada.
+
 ### Rollback
 
 ```sql

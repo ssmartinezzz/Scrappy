@@ -1073,15 +1073,36 @@ paths:
   /api/ml/renormalizar:
     post:
       tags: [ML]
-      summary: Re-apply current NormalizerService rules over the persisted catalog.
+      summary: Re-apply current NormalizerService rules over the persisted catalog, atomically.
+      description: >-
+        Every changed row (category, brand, gender, sizes, sub-category, rubro) is written in one
+        transaction: all or nothing. Locked rows (`bloqueado_por`) are left untouched. The call holds
+        the scrape turn and the scoring slot, so `GET /api/status` reads `RUNNING` while it runs and
+        goes back to its previous value and message afterwards.
       x-access: ADMIN
       responses:
         "200":
-          description: "`data`: `{ totalRevisados, categoriaCambiada, marcaCambiada, escrituras* }`"
+          description: >-
+            `data`: `{ totalRevisados, categoriaCambiada, marcaCambiada, rubroCambiado, escriturasIntentadas,
+            escriturasAplicadas, escriturasFallidas, escriturasOmitidasPorBloqueo }`
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiResponse"
+        "409":
+          description: >-
+            `scrape_en_curso` (a scrape or another renormalization holds the turn) or `ml_en_curso`
+            (a scoring run is in flight). Nothing was changed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          description: The write failed and rolled back; nothing was changed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
 
   /api/ml/entrenar:
     post:

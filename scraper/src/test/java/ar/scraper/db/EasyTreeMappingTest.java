@@ -176,6 +176,7 @@ class EasyTreeMappingTest extends PostgresTestBase {
         assertThat(primera.get("categoriaCambiada")).isZero();
         assertThat(segunda.get("totalRevisados")).isEqualTo(4);
         assertThat(segunda.get("categoriaCambiada")).isZero();
+        assertThat(segunda.get("escriturasIntentadas")).as("a second run has nothing to write").isZero();
         assertThat(segunda.get("escriturasAplicadas")).isZero();
         assertThat(categoriaGuardada("http://easy.test/soporte")).isEqualTo("Sanitario");
         assertThat(categoriaGuardada("http://easy.test/porta-martillo")).isEqualTo("Caja de Herramientas");

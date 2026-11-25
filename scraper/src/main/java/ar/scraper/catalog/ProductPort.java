@@ -5,6 +5,7 @@ import ar.scraper.model.Product;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 public interface ProductPort {
 
@@ -67,8 +68,14 @@ public interface ProductPort {
      */
     int actualizarMl(List<Product> productos);
 
-    int actualizarNormalizacion(String url, String categoria, String marca, String genero,
-                                List<String> talles, String subCategoria);
+    /**
+     * Writes the normalisation of already-stored products in ONE transaction: all of it commits or
+     * none of it does, and any SQL failure is thrown, never counted. A locked row
+     * ({@code bloqueado_por}) is left wholly untouched, its sizes included.
+     *
+     * @return the urls really updated (a locked or vanished row is not in it)
+     */
+    Set<String> actualizarNormalizaciones(List<Normalizacion> filas);
 
     void marcarDescontinuado(String url);
 
