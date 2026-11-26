@@ -117,6 +117,8 @@ public class CategoryClassifier {
                 && !clasificable.sinPrefijoDeVentaEmpiezaCon(GarmentTaxonomy.KW_LLAVERO_VETO_LIDER)
                 && !clasificable.contiene(GarmentTaxonomy.KW_LLAVERO_VETO))
             return "Llavero";
+        // Before the leisure families: "Playstation Heritage Desk Mat" is a desk mat, not a console product.
+        if (MousepadReglas.reclamaAntesDeLasFamilias(clasificable)) return MousepadReglas.CATEGORIA;
         String tiempoLibre = primeraCategoria(FAMILIAS_DE_TIEMPO_LIBRE, clasificable);
         if (!tiempoLibre.isEmpty()) return tiempoLibre;
         // Before the guard, which vetoes jewelry words on purpose (collar, anillo, broche: pet collars, rings, clasps).

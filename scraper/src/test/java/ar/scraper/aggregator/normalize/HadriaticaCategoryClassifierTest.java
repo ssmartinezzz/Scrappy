@@ -248,7 +248,7 @@ class HadriaticaCategoryClassifierTest {
         Puzzle Super Mario - 250 piezas - Jigsaw Puzzle - Viene con lata! => Juguete
         LEGO Harry Potter Dobby The House-Elf Building Toy Set => LEGO
         Hot Wheels Mario Kart Glider Bowser Diecast Car [Standard Kart + Bowser Kite] => Juguete
-        MousePad Sanrio Retro => Mousepad
+        MousePad Sanrio Retro => Mousepad y Mat
         RELOJ CASIO VINTAGE CA-53WF-8B => Reloj
         Medias Largas Sanrio - Kuromi => Medias
         Cable HDMI-HDMI M-M Comun 1.5M => Cable

@@ -63,7 +63,7 @@ class TechCategoryClassifierTest {
         "'Impresora Laser Pantum BP2300W Wifi',                        Impresión",
         "'Toner Alternativo Brother TN1060',                           Impresión",
         // El resto
-        "'Mouse Pad Fantech MP64 Basic 640x210x2mm Black',             Mousepad",
+        "'Mouse Pad Fantech MP64 Basic 640x210x2mm Black',             Mousepad y Mat",
         "'Joystick Redragon Saturn Pc USB G807',                       Joystick",
         "'Volante Logitech G29 PS5 PC Con Pedalera',                   Joystick",
         "'Microfono Fantech MCX03 Leviosa Max RGB Black USB Type C',   Micrófono",
@@ -134,7 +134,7 @@ class TechCategoryClassifierTest {
         assertThat(cat("Camara Wifi Ezviz BM1 2mp Baby Call Monitor")).isEqualTo("Cámara");
 
         // Mousepad ANTES que Mouse
-        assertThat(cat("Mouse Pad Venex")).isEqualTo("Mousepad");
+        assertThat(cat("Mouse Pad Venex")).isEqualTo("Mousepad y Mat");
 
         // Notebook ANTES que RAM y Almacenamiento: la notebook los declara
         assertThat(cat("Notebook Lenovo IdeaPad 3 8GB RAM 512GB SSD")).isEqualTo("Notebook");

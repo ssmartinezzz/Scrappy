@@ -60,16 +60,17 @@ class V138RubroTablasTest extends PostgresTestBase {
     }
 
     @Test
-    @DisplayName("seeds the ten rubros in rubros.js order (V139 appends the eleventh, V140 the twelfth), the dollar for tecnologia and celulares, and TV y Audio as the one category index")
+    @DisplayName("seeds the ten rubros in rubros.js order (V139 appends the eleventh, V140 the twelfth), the dollar for tecnologia and celulares, and TV y Audio as the category index (V142 adds Mousepad y Mat)")
     void seed() throws Exception {
         enTransaccion(st -> {
             assertThat(text(st, "SELECT string_agg(clave, ',' ORDER BY orden) FROM rubro"))
                     .isEqualTo("indumentaria,tecnologia,suplementos,oficina,construccion,hogar,deporte,juguetes,libros,belleza,electrodomesticos,celulares");
             assertThat(text(st, "SELECT string_agg(clave, ',' ORDER BY orden) FROM rubro WHERE indice = 'USD_OFICIAL'"))
                     .isEqualTo("tecnologia,celulares");
-            assertThat(text(st, "SELECT string_agg(nombre || '=' || indice, ',') FROM categoria WHERE indice IS NOT NULL"))
-                    .isEqualTo("TV y Audio=USD_OFICIAL");
-            assertThat(scalar(st, "SELECT count(*) FROM categoria_rubro WHERE pisa_forzado")).isZero();
+            assertThat(text(st, "SELECT string_agg(nombre || '=' || indice, ',' ORDER BY nombre) FROM categoria WHERE indice IS NOT NULL"))
+                    .isEqualTo("Mousepad y Mat=USD_OFICIAL,TV y Audio=USD_OFICIAL");
+            assertThat(text(st, "SELECT string_agg(categoria || '/' || sub_categoria, ',' ORDER BY categoria) FROM categoria_rubro WHERE pisa_forzado"))
+                    .as("V138 left the flag false everywhere; V142 sets it on exactly these two rows").isEqualTo("Escritorio/Motorizado,Mousepad y Mat/");
         });
     }
 
@@ -77,6 +78,7 @@ class V138RubroTablasTest extends PostgresTestBase {
     @DisplayName("the documented rollback restores the three CHECKs of V137 and drops the new objects and the Flyway row")
     void rollbackDocumentadoCorre() throws Exception {
         enTransaccion(st -> {
+            st.execute(DocumentedRollback.sqlFor("V142"));
             st.execute(DocumentedRollback.sqlFor("V141"));
             st.execute(DocumentedRollback.sqlFor("V140"));
             st.execute(DocumentedRollback.sqlFor("V139"));
@@ -94,6 +96,7 @@ class V138RubroTablasTest extends PostgresTestBase {
                     .isInstanceOfSatisfying(SQLException.class, e -> assertThat(e.getSQLState()).isEqualTo(SQLSTATE_CHECK));
         });
         enTransaccion(st -> {
+            st.execute(DocumentedRollback.sqlFor("V142"));
             st.execute(DocumentedRollback.sqlFor("V141"));
             st.execute(DocumentedRollback.sqlFor("V140"));
             st.execute(DocumentedRollback.sqlFor("V139"));
@@ -103,6 +106,7 @@ class V138RubroTablasTest extends PostgresTestBase {
                     .isInstanceOfSatisfying(SQLException.class, e -> assertThat(e.getSQLState()).isEqualTo(SQLSTATE_CHECK));
         });
         enTransaccion(st -> {
+            st.execute(DocumentedRollback.sqlFor("V142"));
             st.execute(DocumentedRollback.sqlFor("V141"));
             st.execute(DocumentedRollback.sqlFor("V140"));
             st.execute(DocumentedRollback.sqlFor("V139"));

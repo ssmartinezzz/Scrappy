@@ -78,7 +78,7 @@ class ConstruccionHogarCategoryClassifierTest {
             "'Funda Celular Samsung Flip Wallet A3 2016 black',            Celular",
             "'Alfombra Para Silla Gamer GXT 715 Trust',                    Silla",
             "'ALFOMBRA GAMER COOLERMASTER FLOOR MAT FM510',                Cooler",
-            "'Alfombrilla de escritorio Xl',                               'Mat Escritorio'",
+            "'Alfombrilla de escritorio Xl',                               'Mousepad y Mat'",
             "'Lámpara de Piso Led',                                        Iluminación",
             "'Zapatillas Nike Terra Manta',                                Zapatilla",
             "'Combo ASUS Placa de video RTX 5070 12GB PRIME + Fuente ASUS Prime 750W', GPU",

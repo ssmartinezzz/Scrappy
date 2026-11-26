@@ -45,17 +45,21 @@ public final class TestRubros {
     public static final List<String> SUBS_ELECTRO_DE_TV_Y_AUDIO = List.of(
             "Televisor", "Parlante", "Soporte", "Barra de Sonido", "Proyector", "Radio", "Tocadiscos", "Equipo de Música");
 
+    /** Categories whose rubro beats a forced site (V142): a pad is oficina in a technology store too. */
+    private static final java.util.Set<String> PISAN_AL_SITIO = java.util.Set.of("Mousepad y Mat");
+
     private TestRubros() {}
 
     public static RubroCatalogo catalogo() {
         List<CategoriaRubro> filas = new ArrayList<>();
         for (String categoria : new TreeSet<>(CategoryGroups.canonicalCategories())) {
             String rubro = rubroDeCategoria(categoria);
-            if (rubro != null) filas.add(new CategoriaRubro(categoria, "", rubro, false));
+            if (rubro != null) filas.add(new CategoriaRubro(categoria, "", rubro, PISAN_AL_SITIO.contains(categoria)));
         }
+        filas.add(new CategoriaRubro("Escritorio", "Motorizado", "oficina", true));
         for (String[] par : SUBS_DE_SILLA) filas.add(new CategoriaRubro(par[0], par[1], "hogar", false));
         for (String sub : SUBS_ELECTRO_DE_TV_Y_AUDIO) filas.add(new CategoriaRubro("TV y Audio", sub, "electrodomesticos", false));
-        return new RubroCatalogo(RUBROS, filas, Map.of("TV y Audio", USD));
+        return new RubroCatalogo(RUBROS, filas, Map.of("TV y Audio", USD, "Mousepad y Mat", USD));
     }
 
     public static RubroResolver resolver(SiteRegistry registry) {

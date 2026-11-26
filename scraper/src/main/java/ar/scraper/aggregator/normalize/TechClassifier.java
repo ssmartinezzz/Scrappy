@@ -84,7 +84,11 @@ final class TechClassifier implements FamiliaClassifier {
         if (texto.contiene(GarmentTaxonomy.KW_AURICULAR) && !texto.contiene(GarmentTaxonomy.KW_AURICULAR_VETO)
                 && !texto.empiezaCon(GarmentTaxonomy.KW_AURICULAR_NO_LIDER))
             return "Auricular";
-        if (texto.contiene(GarmentTaxonomy.KW_MOUSEPAD))                     return "Mousepad";
+        if (texto.contiene(GarmentTaxonomy.KW_MOUSEPAD)) {
+            if (!MousepadReglas.esPaquete(texto)) return MousepadReglas.CATEGORIA;
+            String delPaquete = MousepadReglas.categoriaDelPaquete(texto);
+            if (!delPaquete.isEmpty()) return delPaquete;
+        }
         if (texto.contiene(GarmentTaxonomy.KW_TECLADO))                      return "Teclado";
         if (texto.contiene(GarmentTaxonomy.KW_MOUSE)
                 || (texto.contiene(GarmentTaxonomy.KW_MOUSE_GENERICO) && !texto.contiene(GarmentTaxonomy.KW_MOUSE_VETO)))

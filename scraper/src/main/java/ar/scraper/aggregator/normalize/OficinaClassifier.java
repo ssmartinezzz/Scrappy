@@ -9,7 +9,7 @@ final class OficinaClassifier implements FamiliaClassifier {
         if (texto.contiene(GarmentTaxonomy.KW_SOPORTE_MONITOR)) return "Soporte Monitor";
         if (texto.contiene(GarmentTaxonomy.KW_SOPORTE_LAPTOP))  return "Soporte Laptop";
         if (texto.contiene(GarmentTaxonomy.KW_ORGANIZACION))    return "Organización";
-        if (texto.contiene(GarmentTaxonomy.KW_MAT_ESCRITORIO))  return "Mat Escritorio";
+        if (texto.contiene(GarmentTaxonomy.KW_MAT_ESCRITORIO) && !MousepadReglas.esPaquete(texto)) return MousepadReglas.CATEGORIA;
         if (texto.contiene(GarmentTaxonomy.KW_SILLA))           return "Silla";
         if (texto.contiene(GarmentTaxonomy.KW_ESCRITORIO)
                 && !texto.contiene(GarmentTaxonomy.KW_ESCRITORIO_PARTE))
