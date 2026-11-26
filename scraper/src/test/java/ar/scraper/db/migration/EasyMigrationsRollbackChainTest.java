@@ -26,6 +26,7 @@ class EasyMigrationsRollbackChainTest extends PostgresTestBase {
         try (Connection c = dataSource().getConnection()) {
             c.setAutoCommit(false);
             try (Statement st = c.createStatement()) {
+                st.execute(DocumentedRollback.sqlFor("V143"));
                 st.execute(DocumentedRollback.sqlFor("V142"));
                 st.execute(DocumentedRollback.sqlFor("V141"));
                 st.execute(DocumentedRollback.sqlFor("V140"));
@@ -137,6 +138,7 @@ class EasyMigrationsRollbackChainTest extends PostgresTestBase {
     }
 
     private static void runChain(Statement st) throws Exception {
+        st.execute(DocumentedRollback.sqlFor("V143"));
         st.execute(DocumentedRollback.sqlFor("V142"));
         st.execute(DocumentedRollback.sqlFor("V141"));
         st.execute(DocumentedRollback.sqlFor("V140"));

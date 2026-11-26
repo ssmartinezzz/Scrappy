@@ -112,7 +112,6 @@ class AccesorioDeTelefonoClassifierTest {
         "Cargador + 2 Pilas Noganet Nga-5100",
         "Power Bank Jump Starter Gadnic 1000mah",
         "Cargador Para Forerunner 45 55 165 255 265 955 Fenix 5 6 7 8 Vivoactive 3 4 4s",
-        "Cargador Para W12 W26 Kw66 Ls05 Sw022 Solar Ls05 Moto Watch 100 Kieslect L11 K10",
         "Cargador magnético inalámbrico de carga rápida OMNIA A1 + para Apple Watch de Adam Elements - Blanco",
         "Cargador universal p/notebooks -90w -8 conectores -Probattery",
         "Cargador Pared Dellorean 140W Ultra Rápido 4 Salidas USB-C USB Macbook iPhone Notebook",

@@ -302,7 +302,7 @@ class EasyFamilyCategoryClassifierTest {
                 caso("Carretilla Bebé Plegable Con Capota", "Otros"),
                 caso("Carretilla Rueda de Goma 75 Lts Deper", "Herramienta de Jardín"),
                 caso("Bolsa De Boxeo Proyec 90X35 cm Con Cadena", "Otros"),
-                caso("Cortadora de Pelo Inalámbrica Philips", "Otros"),
+                caso("Cortadora de Pelo Inalámbrica Philips", "Pequeño Electrodoméstico"),
                 caso("Careta de Soldar Fotosensible Silver Shadow", "Protección Personal"),
                 caso("Disco Para Pesas 5 Kg Fundición", "Pesas"));
     }

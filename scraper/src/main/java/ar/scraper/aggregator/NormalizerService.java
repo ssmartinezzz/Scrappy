@@ -56,6 +56,14 @@ public class NormalizerService {
     // Stores whose tree is curated end to end: the leaf outranks the name (a fridge drawer is not an office organizer,
     // a Mini LED TV is not a bag), except where the name says another device.
     private static final Set<String> SITIOS_DONDE_LA_HOJA_GANA = Set.of("samsung", "prestigio", "naldo", "cetrogar", "oncity", "dexter", "moov");
+    // Where such a leaf also holds what only shares its noun, the name wins when it says one of these: bakeware under "Fuentes y
+    // recipientes", a motherboard under "Placas de video", a power strip under "Cables". A watch charger under "Smartwatches" is
+    // checked apart (esAccesorioDeReloj): a strap that names "Redmi 5" reads as a phone, and must stay a Reloj.
+    private static final Map<String, Set<String>> CATEGORIAS_QUE_PISAN_LA_HOJA = Map.of(
+            "Fuente", Set.of("Bazar"),
+            "GPU", Set.of("Motherboard", "CPU", "RAM"),
+            "Cable", Set.of("Ficha y Prolongador"),
+            "Tablet", Set.of("Juguete"));
     // Sites whose whole catalogue is one gender, whatever the name says. A toy store sells to kids: its
     // backpacks, shoes and dolls' dresses are not adult picks. Equus is a men's-only shop. Ayrun is women's
     // gymwear whose names carry no gender word ("Musculosa Seamless Animal"). Somos Rex and Sommier Center are
@@ -130,9 +138,11 @@ public class NormalizerService {
         return CategoryGroups.esCategoriaHogar(categoria) || CategoryGroups.esCategoriaElectrodomesticos(categoria);
     }
 
-    private static String celularDelArbol(String sitioKey, String categoriaDelArbol, String categoria) {
+    private static String celularDelArbol(String sitioKey, String categoriaDelArbol, String categoria, String nombre) {
         boolean hojaGana = "Celular".equals(categoriaDelArbol) || SITIOS_DONDE_LA_HOJA_GANA.contains(sitioKey);
         return hojaGana && StringUtils.isNotBlank(categoriaDelArbol) && !OTROS_EQUIPOS_QUE_NO_CEDEN.contains(categoria)
+                && !CATEGORIAS_QUE_PISAN_LA_HOJA.getOrDefault(categoriaDelArbol, Set.of()).contains(categoria)
+                && !("Reloj".equals(categoriaDelArbol) && CategoryClassifier.esAccesorioDeReloj(nombre))
                 ? categoriaDelArbol : categoria;
     }
 
@@ -163,7 +173,8 @@ public class NormalizerService {
                 ? CategoryClassifier.separarLego(delArbol, nombre)
                 : esOtrosEnSuSitio(sitioKey, nombre)
                         ? "Otros"
-                        : soloHogar(sitioKey, categoryClassifier.normalizarCategoria(p.categoria(), nombre, delArbol), delArbol));
+                        : soloHogar(sitioKey, categoryClassifier.normalizarCategoria(p.categoria(), nombre, delArbol), delArbol),
+                nombre);
         String subCategoria   = subcategoryResolver.resolver(nombre, cat);
         String rubro          = rubroResolver.resolver(sitioKey, cat, p.rubro(), subCategoria);
         String genero         = generoFijo(sitioKey, p.genero())

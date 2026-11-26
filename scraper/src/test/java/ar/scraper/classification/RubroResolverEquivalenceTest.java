@@ -17,7 +17,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @Epic("Clasificación")
 @Feature("Rubro por tablas")
-@DisplayName("RubroResolver sobre tablas == la cadena de if de antes más las mudanzas de V139, V140 y V142, combinación por combinación")
+@DisplayName("RubroResolver sobre tablas == la cadena de if de antes más las mudanzas de V139, V140, V142 y V143, combinación por combinación")
 class RubroResolverEquivalenceTest {
 
     private static final String ELECTRO = "electrodomesticos";
@@ -25,7 +25,7 @@ class RubroResolverEquivalenceTest {
     private static final String OFICINA = "oficina";
     private static final String TV_Y_AUDIO = "TV y Audio";
     private static final List<String> SUBS = Arrays.asList(
-            null, "", "comedor", "exterior", "infantil", "gamer", "Televisor", "Equipo de Música", "Handy", "Consola y Mixer", "Motorizado");
+            null, "", "comedor", "exterior", "infantil", "gamer", "Televisor", "Equipo de Música", "Handy", "Consola y Mixer", "Motorizado", "analógico");
     private static final List<String> FORZADOS =
             Arrays.asList(null, "", "tecnologia", "suplementos", "oficina", "construccion", "hogar");
     private static final List<String> POR_DEFECTO =
@@ -37,7 +37,7 @@ class RubroResolverEquivalenceTest {
     }
 
     @Test
-    @DisplayName("0 differences over every category x sub x forced x default x stored, apart from the V139, V140 and V142 deltas")
+    @DisplayName("0 differences over every category x sub x forced x default x stored, apart from the V139, V140, V142 and V143 deltas")
     void sameAnswerEverywhere() {
         List<String> categorias = new ArrayList<>(new TreeSet<>(CategoryGroups.canonicalCategories()));
         categorias.addAll(Arrays.asList(null, "", "Categoria Inexistente"));
@@ -111,6 +111,7 @@ class RubroResolverEquivalenceTest {
         if ("hogar".equals(viejo) && CategoryGroups.esCategoriaElectrodomesticos(categoria)) return ELECTRO;
         boolean sitioLibre = forzado == null || forzado.isEmpty();
         if (sitioLibre && "tecnologia".equals(viejo) && CategoryGroups.esCategoriaCelulares(categoria)) return CELULARES;
+        if (sitioLibre && "Reloj".equals(categoria) && "analógico".equals(sub)) return "indumentaria";
         if (sitioLibre && TV_Y_AUDIO.equals(categoria) && sub != null && TestRubros.SUBS_ELECTRO_DE_TV_Y_AUDIO.contains(sub)) return ELECTRO;
         return viejo;
     }

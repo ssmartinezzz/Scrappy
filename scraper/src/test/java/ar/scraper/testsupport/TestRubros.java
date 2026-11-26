@@ -57,6 +57,7 @@ public final class TestRubros {
             if (rubro != null) filas.add(new CategoriaRubro(categoria, "", rubro, PISAN_AL_SITIO.contains(categoria)));
         }
         filas.add(new CategoriaRubro("Escritorio", "Motorizado", "oficina", true));
+        filas.add(new CategoriaRubro("Reloj", "analógico", "indumentaria", false));
         for (String[] par : SUBS_DE_SILLA) filas.add(new CategoriaRubro(par[0], par[1], "hogar", false));
         for (String sub : SUBS_ELECTRO_DE_TV_Y_AUDIO) filas.add(new CategoriaRubro("TV y Audio", sub, "electrodomesticos", false));
         return new RubroCatalogo(RUBROS, filas, Map.of("TV y Audio", USD, "Mousepad y Mat", USD));

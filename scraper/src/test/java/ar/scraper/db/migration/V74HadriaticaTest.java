@@ -65,6 +65,8 @@ class V74HadriaticaTest extends PostgresTestBase {
             try (Statement st = c.createStatement()) {
                 int sitiosAntes = count(st, "SELECT count(*) FROM sitio");
 
+                st.execute(DocumentedRollback.sqlFor("V143"));
+
                 st.execute(DocumentedRollback.sqlFor("V142"));
                 st.execute(DocumentedRollback.sqlFor("V141"));
                 st.execute(DocumentedRollback.sqlFor("V140"));
@@ -91,6 +93,8 @@ class V74HadriaticaTest extends PostgresTestBase {
             try (Statement st = c.createStatement()) {
                 insertProduct(st, "https://rollback.test/peluche", "Peluche");
 
+                st.execute(DocumentedRollback.sqlFor("V143"));
+
                 st.execute(DocumentedRollback.sqlFor("V142"));
                 st.execute(DocumentedRollback.sqlFor("V141"));
                 st.execute(DocumentedRollback.sqlFor("V140"));
@@ -116,6 +120,8 @@ class V74HadriaticaTest extends PostgresTestBase {
             try (Statement st = c.createStatement()) {
                 insertProduct(st, "https://rollback.test/peluche", "Peluche");
                 int antes = count(st, "SELECT count(*) FROM categoria");
+
+                st.execute(DocumentedRollback.sqlFor("V143"));
 
                 st.execute(DocumentedRollback.sqlFor("V142"));
                 st.execute(DocumentedRollback.sqlFor("V141"));
@@ -148,6 +154,8 @@ class V74HadriaticaTest extends PostgresTestBase {
                         VALUES ('https://rollback.test/libro', 'Hadriatica', 'ONE PIECE 003 - IVREA', 1000, 'libros', 'Libro')
                         """);
                 st.execute("SET CONSTRAINTS ALL IMMEDIATE");
+
+                st.execute(DocumentedRollback.sqlFor("V143"));
 
                 st.execute(DocumentedRollback.sqlFor("V142"));
                 st.execute(DocumentedRollback.sqlFor("V141"));

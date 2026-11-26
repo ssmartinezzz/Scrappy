@@ -312,6 +312,7 @@ public class SubcategoryResolver {
         if (GamingReglas.handles(categoria)) return GamingReglas.sub(categoria, nombre);
         if (NetworkingReglas.handles(categoria)) return NetworkingReglas.sub(nombre);
         if (MousepadReglas.handles(categoria)) return MousepadReglas.sub(nombre);
+        if (RelojReglas.handles(categoria) && RelojReglas.esMalla(nombre)) return RelojReglas.MALLA;
         if (EscritorioReglas.handles(categoria)) return EscritorioReglas.sub(nombre);
         for (LeadingNounRules reglas : POR_SUSTANTIVO) {
             if (reglas.handles(categoria)) return reglas.resolver(categoria, nombre);
@@ -332,6 +333,9 @@ public class SubcategoryResolver {
                 }
             }
         }
+
+        // A watch with no smart or sport word: the sport tier below is not for it either.
+        if (RelojReglas.handles(categoria)) return RelojReglas.analogico(nombre);
 
         // Same for a Funko: "Funko Pop! Alien 3 - Ripley & The Runner" is not a running product.
         if ("Juguete".equals(categoria) && n.contains(" funko")) return "";

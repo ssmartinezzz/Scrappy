@@ -23,7 +23,7 @@ final class HerramientasClassifier implements FamiliaClassifier {
 
     private String clasificarAccesorio(TextoClasificable texto) {
         if (lidera(texto, GarmentTaxonomy.KW_LIJA_LIDER)) return "Lija";
-        if (texto.empiezaCon(GarmentTaxonomy.KW_CAJA_HERRAMIENTAS_LIDER)) return "Caja de Herramientas";
+        if (texto.empiezaCon(GarmentTaxonomy.KW_CAJA_HERRAMIENTAS_LIDER) || esGabineteDeTaller(texto)) return "Caja de Herramientas";
         if (lidera(texto, GarmentTaxonomy.KW_ACCESORIO_HERRAMIENTA_LIDER)
                 || calificado(texto, GarmentTaxonomy.KW_MECHA_LIDER, GarmentTaxonomy.KW_MECHA_CALIFICADOR)
                 || calificado(texto, GarmentTaxonomy.KW_BATERIA_HERRAMIENTA_LIDER,
@@ -44,6 +44,11 @@ final class HerramientasClassifier implements FamiliaClassifier {
     private boolean espatulaDeObra(TextoClasificable texto) {
         return calificado(texto, GarmentTaxonomy.KW_ESPATULA_LIDER, GarmentTaxonomy.KW_ESPATULA_CALIFICADOR)
                 && !texto.contiene(GarmentTaxonomy.KW_ESPATULA_VETO);
+    }
+
+    private static boolean esGabineteDeTaller(TextoClasificable texto) {
+        return lidera(texto, GarmentTaxonomy.KW_GABINETE_DE_TALLER_LIDER)
+                && texto.contiene(GarmentTaxonomy.KW_GABINETE_DE_TALLER_CALIFICADOR);
     }
 
     private static boolean lidera(TextoClasificable texto, String[] keywords) {

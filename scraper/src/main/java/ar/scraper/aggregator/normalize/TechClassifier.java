@@ -46,10 +46,16 @@ final class TechClassifier implements FamiliaClassifier {
                 && (!texto.contiene(GarmentTaxonomy.KW_CABLE_VETO) || texto.contiene(GarmentTaxonomy.KW_CONECTOR)
                     || texto.empiezaLiteralmenteCon(GarmentTaxonomy.KW_CABLE_DE_CARGA_LIDER)))
             return "Cable";
+        if (texto.sinPrefijoDeVentaEmpiezaCon(GarmentTaxonomy.KW_CABLE_MARCA_LIDER)
+                && texto.contiene(" cable ") && texto.contiene(GarmentTaxonomy.KW_ACCESORIO_TELEFONO_CONECTOR)
+                && !texto.contiene(GarmentTaxonomy.KW_POWER_BANK) && !texto.contiene(" portable charger ") && !texto.contiene(" wall charger "))
+            return "Cable";
         if (!texto.sinPrefijoDeVentaEmpiezaCon(GarmentTaxonomy.KW_CARGADOR_LIDER)
+                && !texto.sinPrefijoDeVentaEmpiezaCon(GarmentTaxonomy.KW_NOTEBOOK_BOLSO_LIDER)
                 && (texto.contiene(GarmentTaxonomy.KW_NOTEBOOK) || esFormaDeNotebook(texto)))
             return "Notebook";
-        if (texto.contiene(GarmentTaxonomy.KW_TABLET))                       return "Tablet";
+        if (texto.contiene(GarmentTaxonomy.KW_TABLET))
+            return texto.contiene(GarmentTaxonomy.KW_TABLET_JUGUETE) ? "Juguete" : "Tablet";
         if (texto.contiene(GarmentTaxonomy.KW_CAMARA))                       return "Cámara";
         if (texto.contiene(GarmentTaxonomy.KW_PC))                           return "PC";
         // "Auriculares ... Monitor III de Marshall": the model name is not the device.
