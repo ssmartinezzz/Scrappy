@@ -145,7 +145,7 @@ describe('PicksPanel — sub-category level of the URL', () => {
   it('has chips for every technology category with sub-categories', () => {
     const esperado = {
       CPU: 6, Motherboard: 6, RAM: 4, GPU: 3, Auricular: 4, PC: 2, Almacenamiento: 5, Teclado: 3, Mouse: 2,
-      Cooler: 3, Fuente: 2, Notebook: 1, Monitor: 3, Joystick: 2, Red: 4, Cable: 4, 'Impresión': 3, 'Cámara': 3, Reloj: 2,
+      Cooler: 3, Fuente: 2, Notebook: 1, Monitor: 3, Joystick: 2, Networking: 8, Cable: 3, 'Impresión': 3, 'Cámara': 3, Reloj: 2,
     };
     for (const [categoria, n] of Object.entries(esperado)) {
       expect(subChipsDe('tecnologia', categoria), categoria).toHaveLength(n);

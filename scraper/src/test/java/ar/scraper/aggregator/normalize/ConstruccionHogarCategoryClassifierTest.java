@@ -82,7 +82,7 @@ class ConstruccionHogarCategoryClassifierTest {
             "'Lámpara de Piso Led',                                        Iluminación",
             "'Zapatillas Nike Terra Manta',                                Zapatilla",
             "'Combo ASUS Placa de video RTX 5070 12GB PRIME + Fuente ASUS Prime 750W', GPU",
-            "'PLACA DE RED ETHERNET TP-LINK TX201 2.5 GIGABIT PCIE',       Red",
+            "'PLACA DE RED ETHERNET TP-LINK TX201 2.5 GIGABIT PCIE',       Networking",
             "'Funda para Silla Gamer Cooler Master',                       Silla",
             "'Chomba adidas Performance Estampado Texturado Hombre',       Chomba",
             "'Alfombra Thermaltake Sim Para Cockpits y Simulador Black',   Otros",

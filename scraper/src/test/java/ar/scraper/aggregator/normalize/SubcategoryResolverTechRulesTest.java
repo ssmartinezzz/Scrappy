@@ -37,13 +37,13 @@ class SubcategoryResolverTechRulesTest {
         "'Disco Solido SSD 240GB Kingston A400 SATA III',             Almacenamiento, ssd",
         "'Disco Duro Externo 1Tb Seagate Portable Drive',             Almacenamiento, hdd",
         "'Pendrive 64Gb Kingston DT70 Usb Tipo C',                    Almacenamiento, pendrive",
-        // Red
-        "'Router Wireless Mercusys 300mbps N 3 Antenas',              Red, router",
-        "'Switch Tenda SG108M 8 Puertos Gigabit',                     Red, switch",
-        "'Adaptador de Red Tp-Link Archer TX1U Nano AX300 WIFI 6 USB', Red, adaptador",
+        // Networking
+        "'Router Wireless Mercusys 300mbps N 3 Antenas',              Networking, Router",
+        "'Switch Tenda SG108M 8 Puertos Gigabit',                     Networking, Switch",
+        "'Adaptador de Red Tp-Link Archer TX1U Nano AX300 WIFI 6 USB', Networking, Placa y Adaptador",
         // Cable
         "'Adaptador Display Port M a HDMI H',                         Cable, video",
-        "'Cable de Red RJ-45 2M',                                     Cable, red",
+        "'Cable de Red RJ-45 2M',                                     Networking, Cable de Red",
         "'Cable USB a Micro USB 2A 1m Strong Series Negro',           Cable, usb",
         // Impresión
         "'Impresora Laser Pantum BP2300W Wifi',                       Impresión, impresora",

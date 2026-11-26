@@ -16,14 +16,16 @@ import java.util.Objects;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@DisplayName("V110 — Cetrogar: mixed VTEX seed defaulting to tecnologia, curated leaf mapping, and a contained rollback")
+@DisplayName("V110 — Cetrogar: mixed VTEX seed, curated leaf mapping, and a contained rollback")
 class V110SeedCetrogarTest extends PostgresTestBase {
 
     private static final String MIGRACION = "/db/migration/V110__seed_cetrogar.sql";
+    /** The seed still names the category V141 renamed to Networking; the test puts the old row back inside its own transaction. */
+    private static final String CATEGORIA_VIEJA = "INSERT INTO categoria (nombre) VALUES ('Red') ON CONFLICT (nombre) DO NOTHING";
     private static final String SITIO = "sitio_key = 'cetrogar'";
 
     @Test
-    @DisplayName("Cetrogar is a vtex row, not monomarca, defaulting to tecnologia")
+    @DisplayName("Cetrogar is a vtex row, not monomarca, defaulting to electrodomesticos since V139")
     void seedsTheSite() throws Exception {
         try (Connection c = dataSource().getConnection(); Statement st = c.createStatement();
              ResultSet rs = st.executeQuery("SELECT nombre, plataforma, monomarca, origen, rubro_forzado, rubro_por_defecto "
@@ -34,7 +36,7 @@ class V110SeedCetrogarTest extends PostgresTestBase {
             assertThat(rs.getString("origen")).isEqualTo("config");
             assertThat(rs.getBoolean("monomarca")).isFalse();
             assertThat(rs.getString("rubro_forzado")).isNull();
-            assertThat(rs.getString("rubro_por_defecto")).isEqualTo("tecnologia");
+            assertThat(rs.getString("rubro_por_defecto")).as("V139 moved the default from tecnologia").isEqualTo("electrodomesticos");
         }
     }
 
@@ -42,6 +44,8 @@ class V110SeedCetrogarTest extends PostgresTestBase {
     @DisplayName("125 leaves map to categories that exist in the canon, with the expected spread")
     void mapsLeavesToExistingCategories() throws Exception {
         try (Connection c = dataSource().getConnection(); Statement st = c.createStatement()) {
+            c.setAutoCommit(false);
+            st.executeUpdate(CATEGORIA_VIEJA);
             st.execute(migracion());
             Map<String, Integer> porCategoria = new LinkedHashMap<>();
             try (ResultSet rs = st.executeQuery("SELECT categoria, count(*) FROM sitio_categoria WHERE " + SITIO
@@ -108,6 +112,7 @@ class V110SeedCetrogarTest extends PostgresTestBase {
                     Map.entry("Videojuego", 2)));
             assertThat(count(st, "SELECT count(*) FROM sitio_categoria s LEFT JOIN categoria k ON k.nombre = s.categoria "
                     + "WHERE s." + SITIO + " AND k.nombre IS NULL")).isZero();
+            c.rollback();
         }
     }
 
@@ -117,6 +122,7 @@ class V110SeedCetrogarTest extends PostgresTestBase {
         try (Connection c = dataSource().getConnection()) {
             c.setAutoCommit(false);
             try (Statement st = c.createStatement()) {
+                st.executeUpdate(CATEGORIA_VIEJA);
                 st.execute(migracion());
                 int sitiosAntes = count(st, "SELECT count(*) FROM sitio");
 

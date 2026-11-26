@@ -36,6 +36,9 @@ class V135GamingAgreementTest extends PostgresTestBase {
     private static final String ACCESORIO = "Accesorio Gaming";
     private static final Set<String> ORIGEN = Set.of("Otros", "Consola", "Videojuego", "Joystick", "Cable", "Almacenamiento", "Cooler",
             "Celular", "Auricular", "Webcam", "Red", "Fuente", "Organización", "Bolso", "Zapatilla Skate");
+    private static final String NETWORKING = "Networking";
+    /** Red is a V135 source but V141 deleted it: the test puts the old row back inside its own transaction. Networking is V141's, never V135's. */
+    private static final String CATEGORIA_VIEJA = "INSERT INTO categoria (nombre) VALUES ('Red') ON CONFLICT (nombre) DO NOTHING";
     private static final Set<String> GAMING = Set.of("Consola", "Videojuego", "Joystick");
     private static final Pattern FUERA = Pattern.compile("(?i)\\b(?:gorra|snapback|bottle|botella|pedalera de efectos|pedalera de multi efectos|footswitch)\\b");
 
@@ -74,6 +77,7 @@ class V135GamingAgreementTest extends PostgresTestBase {
             c.setAutoCommit(false);
             try (Statement st = c.createStatement()) {
                 st.execute(sitio());
+                st.execute(CATEGORIA_VIEJA);
                 sembrar(c, filas);
                 st.execute(migracion());
 
@@ -87,6 +91,7 @@ class V135GamingAgreementTest extends PostgresTestBase {
                 int fueraDeV135 = 0;
                 for (Fila f : filas) {
                     String java = categorias.normalizarCategoria(f.categoria(), f.nombre());
+                    if (NETWORKING.equals(java)) java = f.categoria();
                     String esperada = f.categoria();
                     if (!java.equals(f.categoria())) {
                         if (ORIGEN.contains(f.categoria()) && ACCESORIO.equals(java)) esperada = java;
@@ -196,6 +201,7 @@ class V135GamingAgreementTest extends PostgresTestBase {
                 assertThat(estado(st, url("acc"))[0]).isEqualTo(ACCESORIO);
                 assertThat(estado(st, url("juego"))[1]).isEqualTo("switch");
 
+                st.execute(DocumentedRollback.sqlFor("V141"));
                 st.execute(DocumentedRollback.sqlFor("V140"));
                 st.execute(DocumentedRollback.sqlFor("V139"));
                 st.execute(DocumentedRollback.sqlFor("V138"));

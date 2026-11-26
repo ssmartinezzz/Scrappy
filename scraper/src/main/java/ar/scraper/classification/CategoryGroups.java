@@ -47,7 +47,7 @@ public final class CategoryGroups {
         // SSDs de Fullh4rd): era una categoría REAL que el vocabulario no reconocía, no basura de
         // breadcrumb.
         "Almacenamiento",
-        "Cooler","Fuente","Motherboard","Red","Cable","Impresión","Mousepad",
+        "Cooler","Fuente","Motherboard","Networking","Cable","Impresión","Mousepad",
         "Joystick","Micrófono","UPS","Tablet","Cámara","Reloj",
         "Mini PC", "Combo de Actualización", "TV y Audio",
         "Consola", "Videojuego", "Accesorio Apple", "Accesorio Gaming"

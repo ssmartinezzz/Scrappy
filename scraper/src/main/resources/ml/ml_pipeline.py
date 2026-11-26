@@ -78,6 +78,11 @@ def load_trained_models():
 
     return text_model, le
 
+# Categories renamed after a model was trained: the model keeps predicting the old name until the next retrain,
+# and categoria(nombre) no longer has that row.
+ETIQUETAS_RENOMBRADAS = {'Red': 'Networking'}
+
+
 def predict_category(text_model, le, nombre, confianza_min=0.70):
     """Predice categoría con modelo de texto. Retorna (label, confianza) o (None, 0)."""
     if text_model is None or le is None: return None, 0.0
@@ -86,7 +91,8 @@ def predict_category(text_model, le, nombre, confianza_min=0.70):
         best_idx  = probs.argmax()
         best_prob = probs[best_idx]
         if best_prob >= confianza_min:
-            return str(le.classes_[best_idx]), float(best_prob)
+            etiqueta = str(le.classes_[best_idx])
+            return ETIQUETAS_RENOMBRADAS.get(etiqueta, etiqueta), float(best_prob)
     except Exception:
         pass
     return None, 0.0

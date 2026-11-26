@@ -33,9 +33,15 @@ final class TechClassifier implements FamiliaClassifier {
         if (texto.empiezaCon(GarmentTaxonomy.KW_CPU_LIDER))                  return "CPU";
         if (texto.empiezaCon(GarmentTaxonomy.KW_RAM_LIDER) && texto.contiene(GarmentTaxonomy.KW_RAM))
             return "RAM";
-        if (texto.contiene(GarmentTaxonomy.KW_RED)
-                || (texto.contiene(GarmentTaxonomy.KW_RED_SWITCH) && texto.contiene(GarmentTaxonomy.KW_RED_CONTEXTO)))
-            return "Red";
+        if (!texto.empiezaCon(GarmentTaxonomy.KW_RED_VETO_LIDER)
+                && (texto.contiene(GarmentTaxonomy.KW_RED)
+                    || (texto.contiene(GarmentTaxonomy.KW_RED_SWITCH) && texto.contiene(GarmentTaxonomy.KW_RED_CONTEXTO))
+                    || NetworkingReglas.nombraRed(texto)))
+            return "Networking";
+        if ((texto.empiezaLiteralmenteCon(GarmentTaxonomy.KW_CABLE_LIDER)
+                || texto.empiezaLiteralmenteCon(GarmentTaxonomy.KW_CONECTOR_DE_RED_LIDER))
+                && NetworkingReglas.esCableOConector(texto))
+            return "Networking";
         if (texto.empiezaLiteralmenteCon(GarmentTaxonomy.KW_CABLE_LIDER)
                 && (!texto.contiene(GarmentTaxonomy.KW_CABLE_VETO) || texto.contiene(GarmentTaxonomy.KW_CONECTOR)
                     || texto.empiezaLiteralmenteCon(GarmentTaxonomy.KW_CABLE_DE_CARGA_LIDER)))

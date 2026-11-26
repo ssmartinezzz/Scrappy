@@ -20,6 +20,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 class V114SeedOncityTest extends PostgresTestBase {
 
     private static final String MIGRACION = "/db/migration/V114__seed_oncity.sql";
+    /** The seed still names the category V141 renamed to Networking; the test puts the old row back inside its own transaction. */
+    private static final String CATEGORIA_VIEJA = "INSERT INTO categoria (nombre) VALUES ('Red') ON CONFLICT (nombre) DO NOTHING";
     private static final String SITIO = "sitio_key = 'oncity'";
 
     @Test
@@ -42,6 +44,8 @@ class V114SeedOncityTest extends PostgresTestBase {
     @DisplayName("325 leaves map to categories that exist in the canon, with the expected spread")
     void mapsLeavesToExistingCategories() throws Exception {
         try (Connection c = dataSource().getConnection(); Statement st = c.createStatement()) {
+            c.setAutoCommit(false);
+            st.executeUpdate(CATEGORIA_VIEJA);
             st.execute(migracion());
             Map<String, Integer> porCategoria = new LinkedHashMap<>();
             try (ResultSet rs = st.executeQuery("SELECT categoria, count(*) FROM sitio_categoria WHERE " + SITIO
@@ -172,6 +176,7 @@ class V114SeedOncityTest extends PostgresTestBase {
                     Map.entry("Videojuego", 1)));
             assertThat(count(st, "SELECT count(*) FROM sitio_categoria s LEFT JOIN categoria k ON k.nombre = s.categoria "
                     + "WHERE s." + SITIO + " AND k.nombre IS NULL")).isZero();
+            c.rollback();
         }
     }
 
@@ -181,6 +186,7 @@ class V114SeedOncityTest extends PostgresTestBase {
         try (Connection c = dataSource().getConnection()) {
             c.setAutoCommit(false);
             try (Statement st = c.createStatement()) {
+                st.executeUpdate(CATEGORIA_VIEJA);
                 st.execute(migracion());
                 int sitiosAntes = count(st, "SELECT count(*) FROM sitio");
 

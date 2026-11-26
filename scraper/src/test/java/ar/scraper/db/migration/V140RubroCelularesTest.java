@@ -222,6 +222,7 @@ class V140RubroCelularesTest extends PostgresTestBase {
             insertar(st, URL + "banco", "v140libre", "Power Bank Xiaomi 10000 mAh", CELULAR, BATERIA_EXTERNA, CELULARES, true);
             insertar(st, URL + "cargador", "v140libre", "Cargador 20W USB-C para iPhone", CELULAR, CARGADOR, CELULARES, true);
 
+            st.execute(DocumentedRollback.sqlFor("V141"));
             st.execute(DocumentedRollback.sqlFor("V140"));
 
             assertThat(fila(st, "telefono")).isEqualTo(TECNOLOGIA + "/true");

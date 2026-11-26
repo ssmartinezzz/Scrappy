@@ -44,8 +44,9 @@ const CHIPS = {
     c('emulador portátil', 'Emulador portátil'), c('emulador tv', 'Emulador para TV'), c('retro', 'Retro')],
   'tecnologia/Videojuego': [c('ps5', 'PS5'), c('ps4', 'PS4'), c('playstation retro', 'PlayStation retro'), c('switch 2', 'Switch 2'),
     c('switch', 'Switch'), c('xbox', 'Xbox'), c('nintendo 3ds', 'Nintendo 3DS'), c('wii', 'Wii'), c('pc', 'PC'), c('retro', 'Retro')],
-  'tecnologia/Red': [c('adaptador', 'Adaptador'), c('repetidor', 'Repetidor'), c('router', 'Router'), c('switch', 'Switch')],
-  'tecnologia/Cable': [c('poder', 'Poder'), c('red', 'Red'), c('usb', 'USB'), c('video', 'Video')],
+  // V141: Title Case values (NetworkingReglas), so the chip label is the stored value. The network cables left Cable for it.
+  'tecnologia/Networking': ['Router', 'Mesh', 'Access Point', 'Switch', 'Repetidor', 'Placa y Adaptador', 'Cable de Red', 'Conector'],
+  'tecnologia/Cable': [c('poder', 'Poder'), c('usb', 'USB'), c('video', 'Video')],
   'tecnologia/Impresión': [c('impresora', 'Impresora'), c('tinta', 'Tinta'), c('toner', 'Tóner')],
   'tecnologia/Cámara': [c('exterior', 'Exterior'), c('interior', 'Interior'), c('wifi', 'WiFi')],
   'tecnologia/Reloj': [c('deportivo', 'Deportivo'), c('smartwatch', 'Smartwatch')],
