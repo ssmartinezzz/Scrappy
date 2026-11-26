@@ -98,7 +98,8 @@ BEGIN
     UPDATE sitio_categoria SET categoria = nuevo WHERE categoria = viejo;
 
     DELETE FROM categoria_stats s
-     WHERE s.categoria = viejo AND EXISTS (SELECT 1 FROM categoria_stats n WHERE n.categoria = nuevo);
+     USING categoria_stats n
+     WHERE s.categoria = viejo AND n.categoria = nuevo;
     UPDATE categoria_stats SET categoria = nuevo WHERE categoria = viejo;
 
     UPDATE categoria_dismiss SET categoria = nuevo WHERE categoria = viejo;
