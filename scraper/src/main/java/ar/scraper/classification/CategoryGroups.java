@@ -47,7 +47,7 @@ public final class CategoryGroups {
         // SSDs de Fullh4rd): era una categoría REAL que el vocabulario no reconocía, no basura de
         // breadcrumb.
         "Almacenamiento",
-        "Cooler","Fuente","Motherboard","Networking","Cable","Impresión","Mousepad",
+        "Cooler","Fuente","Motherboard","Networking","Cable","Impresión",
         "Joystick","Micrófono","UPS","Tablet","Cámara","Reloj",
         "Mini PC", "Combo de Actualización", "TV y Audio",
         "Consola", "Videojuego", "Accesorio Apple", "Accesorio Gaming"
@@ -71,7 +71,7 @@ public final class CategoryGroups {
 
     private static final Set<String> CATEGORIAS_OFICINA = Set.of(
         "Silla", "Escritorio", "Soporte Monitor", "Soporte Laptop",
-        "Iluminación", "Mat Escritorio", "Organización"
+        "Iluminación", "Mousepad y Mat", "Organización"
     );
 
     private static final Set<String> CATEGORIAS_CONSTRUCCION = Set.of(

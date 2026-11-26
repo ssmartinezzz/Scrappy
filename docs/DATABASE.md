@@ -217,6 +217,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V139` | Rubro `electrodomesticos` (orden 11, IPC, pesa como `hogar`): las 11 categorías de electrodoméstico salen de `hogar`, ocho subs de `TV y Audio` pasan a él en los sitios sin rubro forzado, Cetrogar lo toma por defecto y las partes de repuesto de Samsung entran a `Pequeño Electrodoméstico`; reubica las filas guardadas (activas e inactivas) y bumpea `catalog_version` una vez |
 | `V140` | Rubro `celulares` (orden 12, dólar, `peso_categoria` 0: pesa como `tecnologia` como categoría): `Celular` sale de `tecnologia` en los sitios sin rubro forzado, sub nueva `Batería Externa` (power banks, antes `Cargador`); reubica las filas guardadas (activas e inactivas) y bumpea `catalog_version` una vez |
 | `V141` | Categoría `Networking` reemplaza a `Red` (mismo rubro e índice): router, mesh, access point, switch, repetidor, placa y adaptador, cable de red y conector, con sub-categorías en Title Case; los cables de red, fichas RJ45 y adaptadores a Ethernet salen de `Cable` (que pierde su sub `red`); mueve las filas (activas e inactivas) y todas las referencias en orden de FK, y bumpea `catalog_version` una vez |
+| `V142` | Categoría `Mousepad y Mat` reemplaza a `Mousepad` y `Mat Escritorio`, con rubro `oficina` en toda tienda (`pisa_forzado`, índice en dólares) y siete subs (`Antifatiga`, `Apoyamuñecas`, `Mousepad Ergonómico`, `Mat de Escritorio`, `Mousepad RGB`, `Mousepad XL`, `Mousepad`); `Escritorio` suma la sub `Motorizado` (motor probado en el nombre, también `oficina` y `pisa_forzado`) |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -6506,3 +6507,63 @@ DELETE FROM flyway_schema_history WHERE version = '141';
 ```
 
 Devuelve a `Cable` (sub `red`) las filas `Cable de Red` y `Conector`, y el resto de `Networking` a `Red` con las subs viejas en minúscula (`router`, `switch`, `repetidor`, `adaptador`, vacía si ninguna palabra aparece; las mismas reglas de palabra suelta de antes de `V141`). No es exacto: no guarda qué filas venían de `Cable`, así que un adaptador USB a Ethernet que estaba en `Cable` vuelve a `Red` con sub `adaptador`, y las filas con `bloqueado_por` recalculan su sub por nombre. Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V140`.
+
+
+---
+
+## `V142` — categoría `Mousepad y Mat` y la sub `Motorizado`
+
+`Mousepad y Mat` reemplaza a `Mousepad` (`tecnologia`) y a `Mat Escritorio` (`oficina`): un pad y un mat de escritorio son un solo estante. Su fila de `categoria_rubro` es `oficina` con `pisa_forzado = true` (la columna existe desde `V138`; hasta hoy nunca estuvo en `true`), así que el rubro gana aunque la tienda esté forzada a `tecnologia` (Rockethard, Fullh4rd, Venex, Compragamer). El precio sigue al dólar porque `categoria.indice` se copia del rubro `tecnologia` (`USD_OFICIAL`); el resto de `oficina` deflacta por IPC. `Escritorio` suma una segunda fila de `categoria_rubro`, sub `Motorizado`, también `oficina` con `pisa_forzado = true`. Es una categoría nueva, así que son **dos** cambios: el clasificador la produce y esta migración inserta la fila de `categoria` que la FK `fk_productos_categoria` exige.
+
+Las referencias se mueven en orden de FK: primero las filas nuevas de `categoria` y `categoria_rubro`; después `productos` (activos e inactivos), `sitio_categoria`, `categoria_stats` (si ya existe la fila nueva o la de la otra categoría vieja, la sobrante se borra; si no, se renombra), `categoria_dismiss` y `saved_outfit_item` (estas dos sin FK); al final se borran las filas viejas. `agent_reclassify_audit` es historia y no se toca.
+
+| Sub | Regla (`MousepadReglas.SUBS`, la primera que matchea gana) |
+|---|---|
+| `Antifatiga` | `antifatiga` o `anti fatiga` |
+| `Apoyamuñecas` | `apoyamuñecas`, `reposamuñecas`, `descansamuñecas`, `wrist rest`, `wrist pad` |
+| `Mousepad Ergonómico` | `ergonómico` |
+| `Mat de Escritorio` | `mat de/para escritorio`, `desk mat`, `desk pad`, `alfombrilla de/para escritorio`, `mat board` |
+| `Mousepad RGB` | `rgb`, `chroma`, `led`, `iluminado` |
+| `Mousepad XL` | `xl`, `xxl`, `3xl`, `extended`, `extendido`, `extra grande`, `gigante` |
+| `Mousepad` | `mouse pad`, `mousepad`, `pad mouse`, `alfombrilla mouse`, `mouse mat` o `pad` suelto |
+
+Una sub vacía es un nombre que no dice qué es. Las regex son el mismo texto que `MousepadReglas` sobre los mismos tokens (minúsculas, sin acentos, cada corrida de no `[a-z0-9]` es un espacio, con un espacio a cada lado). `Escritorio` toma `Motorizado` sólo si el nombre dice `motor`, `motores`, `motorizado` o `eléctrico` y no dice `sin motor` ni `manual` (`EscritorioReglas`): "regulable", "ajustable" o "elevable" solos son altura regulable, que también hace una manivela o un pistón. `V142MousepadYMatAgreementTest` corre este SQL y el Java sobre los 727 nombres reales de las tres categorías y exige 0 diferencias en categoría, sub y rubro (el rubro esperado sale de `RubroResolver` en una tienda forzada a `tecnologia`).
+
+Filas guardadas:
+
+- `Mousepad` y `Mat Escritorio`: todas pasan a `Mousepad y Mat`, con su sub y rubro `oficina`. Una fila con `bloqueado_por` también se renombra, porque la fila vieja no puede quedar referenciada, y conserva su sub.
+- `Escritorio`: la fila con motor probado toma la sub `Motorizado` y rubro `oficina` (sólo cambia el rubro en una tienda forzada a `tecnologia`). Una fila con `bloqueado_por` no se toca.
+
+Lo que el clasificador nuevo reclama y vive en otra categoría (apoyamuñecas en `Teclado`, `Otros`, `Silla` o `Puffer`; un desk mat en `Videojuego` u `Otros`) lo mueve el próximo scrape o `renormalizar`, no la migración. Tampoco la migración saca de `Mousepad y Mat` a los kits de teclado, mouse y pad: la regla nueva (`MousepadReglas.esPaquete`: un `+` o una palabra de venta junto a otro periférico) los manda a `Teclado`, `Mouse` o `Auricular` en el próximo `renormalizar`. Mientras tanto esas filas están en `oficina`. `catalog_version` se bumpea una sola vez, al `COMMIT`, por el trigger de `V40`. Es re-ejecutable y vive en un bloque `DO` para escribir los nombres, las regex y la lista de acentos una sola vez (Sonar S1192).
+
+### Rollback
+
+```sql
+-- >>> rollback:V142
+INSERT INTO categoria (nombre, indice) VALUES ('Mousepad', NULL), ('Mat Escritorio', NULL)
+ON CONFLICT (nombre) DO NOTHING;
+INSERT INTO categoria_rubro (categoria, sub_categoria, rubro, pisa_forzado)
+VALUES ('Mousepad', '', 'tecnologia', false), ('Mat Escritorio', '', 'oficina', false)
+ON CONFLICT (categoria, sub_categoria) DO NOTHING;
+UPDATE productos p
+   SET sub_categoria = '',
+       rubro = COALESCE((SELECT NULLIF(btrim(s.rubro_forzado), '') FROM sitio s WHERE s.sitio_key = p.sitio_key), 'oficina')
+ WHERE p.categoria = 'Escritorio' AND p.sub_categoria = 'Motorizado';
+UPDATE productos p
+   SET categoria = CASE WHEN p.sub_categoria IN ('Antifatiga', 'Mat de Escritorio') THEN 'Mat Escritorio' ELSE 'Mousepad' END,
+       rubro = COALESCE((SELECT NULLIF(btrim(s.rubro_forzado), '') FROM sitio s WHERE s.sitio_key = p.sitio_key),
+                        CASE WHEN p.sub_categoria IN ('Antifatiga', 'Mat de Escritorio') THEN 'oficina' ELSE 'tecnologia' END),
+       sub_categoria = ''
+ WHERE p.categoria = 'Mousepad y Mat';
+UPDATE sitio_categoria SET categoria = 'Mousepad' WHERE categoria = 'Mousepad y Mat';
+DELETE FROM categoria_stats WHERE categoria = 'Mousepad y Mat' AND EXISTS (SELECT 1 FROM categoria_stats WHERE categoria = 'Mousepad');
+UPDATE categoria_stats SET categoria = 'Mousepad' WHERE categoria = 'Mousepad y Mat';
+UPDATE categoria_dismiss SET categoria = 'Mousepad' WHERE categoria = 'Mousepad y Mat';
+UPDATE saved_outfit_item SET categoria = 'Mousepad' WHERE categoria = 'Mousepad y Mat';
+DELETE FROM categoria_rubro WHERE categoria = 'Mousepad y Mat' OR (categoria = 'Escritorio' AND sub_categoria = 'Motorizado');
+DELETE FROM categoria WHERE nombre = 'Mousepad y Mat';
+DELETE FROM flyway_schema_history WHERE version = '142';
+-- <<< rollback:V142
+```
+
+Devuelve a `Mat Escritorio` las filas `Antifatiga` y `Mat de Escritorio`, y el resto de `Mousepad y Mat` a `Mousepad`, con la sub vacía que tenían antes; limpia `Motorizado`. El rubro vuelve a ser el de la tienda si está forzada (gana siempre, porque ambas categorías pesan 0) y, si no, `oficina` para `Mat Escritorio` y `tecnologia` para `Mousepad`. No es exacto: no guarda cuáles pads eran `Mat Escritorio` (un `mousepad xl` lo era y vuelve a `Mousepad`), y toda referencia (`sitio_categoria`, `categoria_stats`, `categoria_dismiss`, `saved_outfit_item`) vuelve a `Mousepad`. En una cadena de rollbacks corre **antes** que el de `V141`; las filas de `Networking` no dependen de él.

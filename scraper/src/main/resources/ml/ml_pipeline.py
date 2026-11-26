@@ -80,7 +80,7 @@ def load_trained_models():
 
 # Categories renamed after a model was trained: the model keeps predicting the old name until the next retrain,
 # and categoria(nombre) no longer has that row.
-ETIQUETAS_RENOMBRADAS = {'Red': 'Networking'}
+ETIQUETAS_RENOMBRADAS = {'Red': 'Networking', 'Mousepad': 'Mousepad y Mat', 'Mat Escritorio': 'Mousepad y Mat'}
 
 
 def predict_category(text_model, le, nombre, confianza_min=0.70):

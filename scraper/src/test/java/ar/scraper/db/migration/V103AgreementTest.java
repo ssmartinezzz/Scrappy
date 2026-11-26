@@ -53,6 +53,8 @@ class V103AgreementTest extends PostgresTestBase {
             try (Statement st = c.createStatement()) {
                 st.execute("INSERT INTO sitio (nombre, sitio_key, plataforma, es_premium, rubro_forzado, origen) "
                         + "VALUES ('V103 Test', 'v103test', 'shopify', false, NULL, 'config') ON CONFLICT DO NOTHING");
+                // V142 merged Mousepad into Mousepad y Mat: V103 still writes the old name, so the category it names is put back for this transaction.
+                st.execute("INSERT INTO categoria (nombre) VALUES ('Mousepad') ON CONFLICT DO NOTHING");
                 sembrar(c, filas);
                 st.execute(migracion());
 
@@ -63,6 +65,8 @@ class V103AgreementTest extends PostgresTestBase {
                     String javaCat = clasificador.normalizarCategoria(f.raw(), f.nombre(), null);
                     String javaSub = resolver.resolver(f.nombre(), javaCat);
                     String[] sql = almacenado(st, f.url());
+                    // V142 owns what V103 called Mousepad (kits that list a pad now leave it, the rest get Mousepad y Mat subs).
+                    if ("Mousepad".equals(sql[0])) continue;
                     // V135 owns Accesorio Gaming and the Consola subs (V103 predates both).
                     if ("Accesorio Gaming".equals(javaCat)) continue;
                     boolean compararSub = (CON_SUB_EN_SQL.contains(javaCat) || !javaCat.equals(f.raw())) && !"Consola".equals(javaCat);

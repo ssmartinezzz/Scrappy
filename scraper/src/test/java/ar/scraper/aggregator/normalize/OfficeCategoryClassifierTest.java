@@ -87,12 +87,12 @@ class OfficeCategoryClassifierTest {
                 "'Magnetic Lamp',                             Iluminación",
                 "'Paneles Led RGB Triangulares Smart',        Iluminación",
 
-                // ── Mat Escritorio ─────────────────────────────────────────
-                "'Mat de Escritorio de Ecocuero',             'Mat Escritorio'",
-                "'Mat de Escritorio Edge',                    'Mat Escritorio'",
-                "'Mat Antifatiga',                            'Mat Escritorio'",
-                "'Mat Antifatiga Pro',                        'Mat Escritorio'",
-                "'Mat Board',                                 'Mat Escritorio'",
+                // ── Mousepad y Mat ─────────────────────────────────────────
+                "'Mat de Escritorio de Ecocuero',             'Mousepad y Mat'",
+                "'Mat de Escritorio Edge',                    'Mousepad y Mat'",
+                "'Mat Antifatiga',                            'Mousepad y Mat'",
+                "'Mat Antifatiga Pro',                        'Mousepad y Mat'",
+                "'Mat Board',                                 'Mousepad y Mat'",
 
                 // ── Organización ───────────────────────────────────────────
                 "'Organizador Pasacable Vertebra',            Organización",
@@ -211,7 +211,7 @@ class OfficeCategoryClassifierTest {
 
         @ParameterizedTest(name = "{0} es una categoría canónica")
         @CsvSource({"Silla", "Escritorio", "'Soporte Monitor'", "'Soporte Laptop'",
-                    "Iluminación", "'Mat Escritorio'", "Organización"})
+                    "Iluminación", "'Mousepad y Mat'", "Organización"})
         void categoriaDeOficinaEstaEnElCanon(String categoria) {
             assertThat(CategoryGroups.canonicalCategories()).contains(categoria);
         }

@@ -173,6 +173,12 @@ def test_a_model_trained_before_the_rename_predicts_networking():
     assert ml_pipeline.predict_category(modelo, modelo, 'Router Tp-Link Archer C6') == ('Networking', 1.0)
 
 
+def test_models_trained_before_the_pad_merge_predict_mousepad_y_mat():
+    for etiqueta in ('Mousepad', 'Mat Escritorio'):
+        modelo = _ModeloConUnaClase(etiqueta)
+        assert ml_pipeline.predict_category(modelo, modelo, 'Mouse Pad Fantech MP64') == ('Mousepad y Mat', 1.0)
+
+
 def test_other_labels_pass_through():
     modelo = _ModeloConUnaClase('Cable')
     assert ml_pipeline.predict_category(modelo, modelo, 'Cable HDMI 2 m') == ('Cable', 1.0)

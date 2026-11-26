@@ -155,7 +155,6 @@ class SubcategoryResolverTecnologiaTest {
     @CsvSource({
         "'Procesador Pentium Gold Cycling Edition',        CPU",
         "'Placa de Video Tenis Edition',                    GPU",
-        "'Mouse Pad Running Hockey Padel',                 Mousepad",
         "'Consola Futbol Edition 500 Juegos',              Consola",
     })
     @DisplayName("Una categoría de tecnología nunca recibe un deporte")

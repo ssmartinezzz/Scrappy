@@ -34,7 +34,7 @@ class GroupingSpecsTest {
 
     @Test
     void splitsMousepadSizes() {
-        assertSplit("Mousepad",
+        assertSplit("Mousepad y Mat",
                 "Mouse Pad Raptor Ultra Glide Antideslizante Impermeable S", "",
                 "MOUSEPAD RAPTOR ULTRA GLIDE ANTIDESLIZANTE IMPERMEABLE XL (900x400x3MM)", "");
     }
@@ -96,7 +96,7 @@ class GroupingSpecsTest {
 
     @Test
     void abstainsWhenOneSideIsSilent() {
-        assertGroups("Mousepad", "Mousepad Raptor Ultra Glide", "", "Mousepad Raptor Ultra Glide XL", "");
+        assertGroups("Mousepad y Mat", "Mousepad Raptor Ultra Glide", "", "Mousepad Raptor Ultra Glide XL", "");
     }
 
     @Test
@@ -189,8 +189,8 @@ class GroupingSpecsTest {
 
     @Test
     void splitsSizesWhenACodeSitsBeforeTheLetter() {
-        assertSplit("Mousepad", "Mouse Pad Razer Gigantus V2 L", "", "Mouse Pad Razer Gigantus V2 XXL", "");
-        assertSplit("Mousepad", "Mouse Pad Razer Gigantus V2 Large 450x400mm", "", "Mouse Pad Razer Gigantus V2 XXL", "");
+        assertSplit("Mousepad y Mat", "Mouse Pad Razer Gigantus V2 L", "", "Mouse Pad Razer Gigantus V2 XXL", "");
+        assertSplit("Mousepad y Mat", "Mouse Pad Razer Gigantus V2 Large 450x400mm", "", "Mouse Pad Razer Gigantus V2 XXL", "");
     }
 
     @Test

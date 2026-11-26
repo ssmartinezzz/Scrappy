@@ -1638,8 +1638,19 @@ public final class GarmentTaxonomy {
     };
 
     public static final String[] KW_MAT_ESCRITORIO = {
-        "mat de escritorio","desk mat","mat antifatiga","alfombrilla de escritorio",
-        " mat board ","mousepad xl"
+        "mat de escritorio","mat para escritorio","desk mat","mat antifatiga","alfombrilla de escritorio",
+        "alfombrilla para escritorio"," mat board ","mousepad xl"
+    };
+
+    /** A desk mat says so in the name; it wins over a platform or brand family ("Playstation Heritage Desk Mat"). */
+    public static final String[] KW_DESK_MAT = {
+        "desk mat","mat de escritorio","mat para escritorio","alfombrilla de escritorio","alfombrilla para escritorio"
+    };
+
+    /** A wrist rest sold on its own opens the name with it: "Kit Apoyamuñecas", "Wrist Rest PRO KIT", "Pad Apoya Muñecas Genesis". */
+    public static final String[] KW_APOYAMUNECAS_LIDER = {
+        " apoyamuneca"," apoya muneca"," reposamuneca"," repose muneca"," descansamuneca"," descansa muneca"," wrist rest"," wrist pad",
+        " kit apoyamuneca"," pad apoyamuneca"," pad apoya muneca"," ergonomic wrist rest"
     };
 
     public static final String[] KW_ORGANIZACION = {

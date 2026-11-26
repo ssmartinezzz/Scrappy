@@ -47,6 +47,10 @@ const CHIPS = {
   // V141: Title Case values (NetworkingReglas), so the chip label is the stored value. The network cables left Cable for it.
   'tecnologia/Networking': ['Router', 'Mesh', 'Access Point', 'Switch', 'Repetidor', 'Placa y Adaptador', 'Cable de Red', 'Conector'],
   'tecnologia/Cable': [c('poder', 'Poder'), c('usb', 'USB'), c('video', 'Video')],
+  // V142: pads and desk mats are one shelf and always oficina; the values are Title Case (MousepadReglas), in the order of its rules.
+  'oficina/Mousepad y Mat': ['Antifatiga', 'Apoyamuñecas', 'Mousepad Ergonómico', 'Mat de Escritorio', 'Mousepad RGB', 'Mousepad XL', 'Mousepad'],
+  // V142: only a desk whose name proves a motor; "regulable" alone is height-adjustable and has no chip.
+  'oficina/Escritorio': ['Motorizado'],
   'tecnologia/Impresión': [c('impresora', 'Impresora'), c('tinta', 'Tinta'), c('toner', 'Tóner')],
   'tecnologia/Cámara': [c('exterior', 'Exterior'), c('interior', 'Interior'), c('wifi', 'WiFi')],
   'tecnologia/Reloj': [c('deportivo', 'Deportivo'), c('smartwatch', 'Smartwatch')],

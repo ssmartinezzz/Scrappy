@@ -17,14 +17,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @Epic("Clasificación")
 @Feature("Rubro por tablas")
-@DisplayName("RubroResolver sobre tablas == la cadena de if de antes más las mudanzas de V139 y V140, combinación por combinación")
+@DisplayName("RubroResolver sobre tablas == la cadena de if de antes más las mudanzas de V139, V140 y V142, combinación por combinación")
 class RubroResolverEquivalenceTest {
 
     private static final String ELECTRO = "electrodomesticos";
     private static final String CELULARES = "celulares";
+    private static final String OFICINA = "oficina";
     private static final String TV_Y_AUDIO = "TV y Audio";
     private static final List<String> SUBS = Arrays.asList(
-            null, "", "comedor", "exterior", "infantil", "gamer", "Televisor", "Equipo de Música", "Handy", "Consola y Mixer");
+            null, "", "comedor", "exterior", "infantil", "gamer", "Televisor", "Equipo de Música", "Handy", "Consola y Mixer", "Motorizado");
     private static final List<String> FORZADOS =
             Arrays.asList(null, "", "tecnologia", "suplementos", "oficina", "construccion", "hogar");
     private static final List<String> POR_DEFECTO =
@@ -36,7 +37,7 @@ class RubroResolverEquivalenceTest {
     }
 
     @Test
-    @DisplayName("0 differences over every category x sub x forced x default x stored, apart from the V139 and V140 deltas")
+    @DisplayName("0 differences over every category x sub x forced x default x stored, apart from the V139, V140 and V142 deltas")
     void sameAnswerEverywhere() {
         List<String> categorias = new ArrayList<>(new TreeSet<>(CategoryGroups.canonicalCategories()));
         categorias.addAll(Arrays.asList(null, "", "Categoria Inexistente"));
@@ -106,11 +107,17 @@ class RubroResolverEquivalenceTest {
      * RubroResolverLegacy still reads Celular as tech, so the old answer is the one before both moves.
      */
     private static String conLasMudanzas(String viejo, String categoria, String sub, String forzado) {
+        if (pisaAlSitio(categoria, sub)) return OFICINA;
         if ("hogar".equals(viejo) && CategoryGroups.esCategoriaElectrodomesticos(categoria)) return ELECTRO;
         boolean sitioLibre = forzado == null || forzado.isEmpty();
         if (sitioLibre && "tecnologia".equals(viejo) && CategoryGroups.esCategoriaCelulares(categoria)) return CELULARES;
         if (sitioLibre && TV_Y_AUDIO.equals(categoria) && sub != null && TestRubros.SUBS_ELECTRO_DE_TV_Y_AUDIO.contains(sub)) return ELECTRO;
         return viejo;
+    }
+
+    /** V142: a pad or mat, and a motorized desk, are oficina whatever the site forces; the old chain let a forced site keep them. */
+    private static boolean pisaAlSitio(String categoria, String sub) {
+        return "Mousepad y Mat".equals(categoria) || ("Escritorio".equals(categoria) && "Motorizado".equals(sub));
     }
 
     private static String clave(String forzado, String porDefecto) {

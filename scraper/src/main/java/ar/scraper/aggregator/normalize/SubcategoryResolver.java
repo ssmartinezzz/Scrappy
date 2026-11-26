@@ -294,7 +294,7 @@ public class SubcategoryResolver {
     static {
         TECNOLOGIA_SIN_DEPORTE = Set.of("CPU", "Motherboard", "RAM", "GPU", "Auricular", "PC", "Gabinete",
             "Almacenamiento", "Networking", "Cable", "Impresión", "Cooler", "Fuente", "Teclado", "Mouse", "Monitor",
-            "Notebook", "Joystick", "Cámara", "Videojuego", "Mousepad", "Combo de Actualización", "Silla",
+            "Notebook", "Joystick", "Cámara", "Videojuego", "Combo de Actualización", "Silla",
             "TV y Audio", "Micrófono", "Tablet", "Webcam", "Consola", "Mini PC", "UPS", "Soporte Monitor",
             "Escritorio", "Accesorio Gaming");
     }
@@ -311,6 +311,8 @@ public class SubcategoryResolver {
         if (hardware.handles(categoria)) return hardware.resolver(categoria, nombre);
         if (GamingReglas.handles(categoria)) return GamingReglas.sub(categoria, nombre);
         if (NetworkingReglas.handles(categoria)) return NetworkingReglas.sub(nombre);
+        if (MousepadReglas.handles(categoria)) return MousepadReglas.sub(nombre);
+        if (EscritorioReglas.handles(categoria)) return EscritorioReglas.sub(nombre);
         for (LeadingNounRules reglas : POR_SUSTANTIVO) {
             if (reglas.handles(categoria)) return reglas.resolver(categoria, nombre);
         }

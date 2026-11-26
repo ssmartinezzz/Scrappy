@@ -389,7 +389,7 @@ filas activas (2026-11-19): 0 filas sin sub cambian, 9.729 filas con sub sí (te
 < 9 % salvo libros 24 % y deporte 16 %). `categoria_stats` sigue siendo por categoría (display).
 Nota: `MlEnricher` no manda `rubro` ni `cantidadUnidades`, así que la rama `tech|` y el precio
 unitario por pack no corren en producción; no se tocó.
-`Red` pasó a llamarse `Networking` en `V141`; sus subs son las de `NetworkingReglas` (Title Case), y `norm_cat` las normaliza como a cualquier otra. Un modelo de texto entrenado antes de `V141` sigue prediciendo `Red`: `predict_category` lo traduce con `ETIQUETAS_RENOMBRADAS` hasta el próximo reentrenamiento.
+`Red` pasó a llamarse `Networking` en `V141`; sus subs son las de `NetworkingReglas` (Title Case), y `norm_cat` las normaliza como a cualquier otra. Un modelo de texto entrenado antes de `V141` sigue prediciendo `Red`: `predict_category` lo traduce con `ETIQUETAS_RENOMBRADAS` hasta el próximo reentrenamiento. Lo mismo pasa con `Mousepad` y `Mat Escritorio`, que `V142` unió en `Mousepad y Mat`: `ETIQUETAS_RENOMBRADAS` los traduce igual. La clave `tech|categoría` no cambia nada para los pads: `MlEnricher` no manda el `rubro` y esa rama no corre en producción.
 
 **Badges (multi-badge, no exclusivo):** condiciones independientes, no una cadena
 `elif`. Prioridad (el principal es el primero del set): `all_time_low` >
