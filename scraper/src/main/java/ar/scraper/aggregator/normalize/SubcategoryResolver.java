@@ -117,15 +117,8 @@ public class SubcategoryResolver {
             new String[]{"pendrive",  "pendrive"},
             new String[]{"microsd",   "microsd", "micro sd", "sd"}
         ));
-        SUBCATEG_TIER1.put("Red", Arrays.<String[]>asList(
-            new String[]{"router",     "router"},
-            new String[]{"switch",     "switch"},
-            new String[]{"repetidor",  "repetidor", "extensor"},
-            new String[]{"adaptador",  "adaptador", "placa", "antena"}
-        ));
         SUBCATEG_TIER1.put("Cable", Arrays.<String[]>asList(
             new String[]{"video",   "hdmi", "displayport", "display port", "vga", "dvi"},
-            new String[]{"red",     "rj45", "rj-45", "patchcord", "ethernet"},
             new String[]{"usb",     "usb"},
             new String[]{"poder",   "power", "alimentacion", "poder"}
         ));
@@ -300,7 +293,7 @@ public class SubcategoryResolver {
     static final Set<String> TECNOLOGIA_SIN_DEPORTE;
     static {
         TECNOLOGIA_SIN_DEPORTE = Set.of("CPU", "Motherboard", "RAM", "GPU", "Auricular", "PC", "Gabinete",
-            "Almacenamiento", "Red", "Cable", "Impresión", "Cooler", "Fuente", "Teclado", "Mouse", "Monitor",
+            "Almacenamiento", "Networking", "Cable", "Impresión", "Cooler", "Fuente", "Teclado", "Mouse", "Monitor",
             "Notebook", "Joystick", "Cámara", "Videojuego", "Mousepad", "Combo de Actualización", "Silla",
             "TV y Audio", "Micrófono", "Tablet", "Webcam", "Consola", "Mini PC", "UPS", "Soporte Monitor",
             "Escritorio", "Accesorio Gaming");
@@ -317,6 +310,7 @@ public class SubcategoryResolver {
 
         if (hardware.handles(categoria)) return hardware.resolver(categoria, nombre);
         if (GamingReglas.handles(categoria)) return GamingReglas.sub(categoria, nombre);
+        if (NetworkingReglas.handles(categoria)) return NetworkingReglas.sub(nombre);
         for (LeadingNounRules reglas : POR_SUSTANTIVO) {
             if (reglas.handles(categoria)) return reglas.resolver(categoria, nombre);
         }

@@ -52,13 +52,14 @@ class TechCategoryClassifierTest {
         "'Disco Solido SSD 240GB Kingston A400 SATA III',              Almacenamiento",
         "'HD SSD 120GB HIKSEMI WAVE SATA III 2.5\"',                   Almacenamiento",
         "'Pendrive 64Gb Kingston DT70 Usb Tipo C',                     Almacenamiento",
-        // Red / Cable / Impresión
-        "'Router Wireless Mercusys 300mbps N 3 Antenas',               Red",
-        "'Placa De Red Wifi Usb Archer T2u Ac600 Dual Band',           Red",
-        "'Switch Tenda SG108M 8 Puertos Gigabit',                      Red",
+        // Networking / Cable / Impresión
+        "'Router Wireless Mercusys 300mbps N 3 Antenas',               Networking",
+        "'Placa De Red Wifi Usb Archer T2u Ac600 Dual Band',           Networking",
+        "'Switch Tenda SG108M 8 Puertos Gigabit',                      Networking",
         "'Cable HDMI-HDMI M-M Comun 1.5M',                             Cable",
         "'Adaptador Display Port M a HDMI H',                          Cable",
-        "'Cable de Red RJ-45 2M',                                      Cable",
+        "'Cable de Red RJ-45 2M',                                      Networking",
+        "'Cable USB a Micro USB 2A 1m Strong Series Negro',            Cable",
         "'Impresora Laser Pantum BP2300W Wifi',                        Impresión",
         "'Toner Alternativo Brother TN1060',                           Impresión",
         // El resto
@@ -150,7 +151,7 @@ class TechCategoryClassifierTest {
         // ...y ni siquiera una remera
         assertThat(cat("Remera Boxy ZX Switch Crudo")).isEqualTo("Remera");
         // El switch de red de verdad, que nombra puertos o velocidad, sí entra
-        assertThat(cat("Switch 5p Tp-Link TL-SG1005D Gigabit 10/100/1000")).isEqualTo("Red");
+        assertThat(cat("Switch 5p Tp-Link TL-SG1005D Gigabit 10/100/1000")).isEqualTo("Networking");
     }
 
     @Test

@@ -36,7 +36,7 @@ class ConjuntoBeforeTechTest {
         "PC ARMADA AMD RYZEN 5 8600G+A620+16GB+SSD 480GB+GABINETE KIT                  | PC",
         "PC ARMADA AMD RYZEN 5 5600GT+A520+8GB+500GB M.2 NVME+GABINETE KIT             | PC",
         "Memoria RAM KLEVV FIT V DDR5 32GB Kit (2x16GB) 6000MHz Blanca CL30            | RAM",
-        "Access Point Mesh WIFI Tp-Link Deco S7 Pack 2 Unidades AC1900                 | Red",
+        "Access Point Mesh WIFI Tp-Link Deco S7 Pack 2 Unidades AC1900                 | Networking",
     })
     void unComboDeHardwareEsHardware(String nombre, String esperada) {
         assertThat(cat(nombre.trim())).isEqualTo(esperada);

@@ -15,6 +15,8 @@ tested in isolation, without needing a real/mocked model — the full
 integration (stage 1b actually calling ``ml_embeddings``, writing the new
 score keys) is covered end-to-end in ``test_ml_pipeline_stage1b_e2e.py``.
 """
+import numpy as np
+
 import ml_pipeline
 
 
@@ -156,3 +158,21 @@ def _scaled_reference(precios):
         hist=True, comp=st.composite_score(x), mz=st.z_score_modified(x),
         cheap=st.is_cheap_outlier(x), alta=False, trend='estable',
         exp=st.is_expensive_outlier(x), ratio=0.0, desc_pct=0.0, es_oferta_real=False)
+
+
+class _ModeloConUnaClase:
+    def __init__(self, etiqueta):
+        self.classes_ = [etiqueta]
+
+    def predict_proba(self, _nombres):
+        return np.array([[1.0]])
+
+
+def test_a_model_trained_before_the_rename_predicts_networking():
+    modelo = _ModeloConUnaClase('Red')
+    assert ml_pipeline.predict_category(modelo, modelo, 'Router Tp-Link Archer C6') == ('Networking', 1.0)
+
+
+def test_other_labels_pass_through():
+    modelo = _ModeloConUnaClase('Cable')
+    assert ml_pipeline.predict_category(modelo, modelo, 'Cable HDMI 2 m') == ('Cable', 1.0)

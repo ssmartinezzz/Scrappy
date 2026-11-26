@@ -216,6 +216,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V138` | La taxonomía de rubros pasa a tablas, sin cambio de comportamiento: `rubro` (vocabulario, índice, pesos), `categoria_rubro` (categoría y sub → rubro, `pisa_forzado`), `categoria.indice`; los tres CHECK de rubro se reemplazan por FK a `rubro(clave)` |
 | `V139` | Rubro `electrodomesticos` (orden 11, IPC, pesa como `hogar`): las 11 categorías de electrodoméstico salen de `hogar`, ocho subs de `TV y Audio` pasan a él en los sitios sin rubro forzado, Cetrogar lo toma por defecto y las partes de repuesto de Samsung entran a `Pequeño Electrodoméstico`; reubica las filas guardadas (activas e inactivas) y bumpea `catalog_version` una vez |
 | `V140` | Rubro `celulares` (orden 12, dólar, `peso_categoria` 0: pesa como `tecnologia` como categoría): `Celular` sale de `tecnologia` en los sitios sin rubro forzado, sub nueva `Batería Externa` (power banks, antes `Cargador`); reubica las filas guardadas (activas e inactivas) y bumpea `catalog_version` una vez |
+| `V141` | Categoría `Networking` reemplaza a `Red` (mismo rubro e índice): router, mesh, access point, switch, repetidor, placa y adaptador, cable de red y conector, con sub-categorías en Title Case; los cables de red, fichas RJ45 y adaptadores a Ethernet salen de `Cable` (que pierde su sub `red`); mueve las filas (activas e inactivas) y todas las referencias en orden de FK, y bumpea `catalog_version` una vez |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -6352,7 +6353,7 @@ DELETE FROM flyway_schema_history WHERE version = '138';
 -- <<< rollback:V138
 ```
 
-Restaura los tres CHECK tal como estaban en `V137`. Falla si algún `productos.rubro`, `sitio.rubro_forzado` o `sitio.rubro_por_defecto` usa un rubro que no está en esas listas (por ejemplo uno agregado después de `V138`): hay que moverlo antes. El `DELETE` de `flyway_schema_history` es para que Flyway vuelva a aplicar `V138`. En una cadena de rollbacks corre después de los de `V140` y `V139` y antes que el de `V137` y, por lo tanto, antes que el de `V112` (que re-lista el CHECK de `productos`): los tests de `V6`, `V24`, `V27`, `V45`, `V69`, `V71`, `V74`, `V90`, `V92`, `V93` y `V112` corren el de `V140`, el de `V139` y el de `V138` antes que el suyo.
+Restaura los tres CHECK tal como estaban en `V137`. Falla si algún `productos.rubro`, `sitio.rubro_forzado` o `sitio.rubro_por_defecto` usa un rubro que no está en esas listas (por ejemplo uno agregado después de `V138`): hay que moverlo antes. El `DELETE` de `flyway_schema_history` es para que Flyway vuelva a aplicar `V138`. En una cadena de rollbacks corre después de los de `V141`, `V140` y `V139` y antes que el de `V137` y, por lo tanto, antes que el de `V112` (que re-lista el CHECK de `productos`): los tests de `V6`, `V24`, `V27`, `V45`, `V69`, `V71`, `V74`, `V90`, `V92`, `V93` y `V112` corren el de `V141`, el de `V140`, el de `V139` y el de `V138` antes que el suyo.
 
 
 ---
@@ -6405,7 +6406,7 @@ DELETE FROM flyway_schema_history WHERE version = '139';
 -- <<< rollback:V139
 ```
 
-Devuelve las 11 categorías a `hogar`, `TV y Audio` y lo que Cetrogar leía por defecto a `tecnologia`, y las partes de Samsung a `Otros`. No distingue lo que `V139` movió de lo que ya era `electrodomesticos` por una corrida posterior: toda fila con ese rubro vuelve por categoría, y la que no sea de las 11 queda en `tecnologia`. Falla en el `DELETE FROM rubro` si otro sitio quedó con `rubro_forzado` o `rubro_por_defecto = 'electrodomesticos'`: hay que moverlo antes. En una cadena de rollbacks corre después del de `V140` y antes que el de `V138`.
+Devuelve las 11 categorías a `hogar`, `TV y Audio` y lo que Cetrogar leía por defecto a `tecnologia`, y las partes de Samsung a `Otros`. No distingue lo que `V139` movió de lo que ya era `electrodomesticos` por una corrida posterior: toda fila con ese rubro vuelve por categoría, y la que no sea de las 11 queda en `tecnologia`. Falla en el `DELETE FROM rubro` si otro sitio quedó con `rubro_forzado` o `rubro_por_defecto = 'electrodomesticos'`: hay que moverlo antes. En una cadena de rollbacks corre después de los de `V141` y `V140` y antes que el de `V138`.
 
 ---
 
@@ -6441,4 +6442,67 @@ DELETE FROM flyway_schema_history WHERE version = '140';
 -- <<< rollback:V140
 ```
 
-Devuelve las filas de `celulares` a `tecnologia` y las `Batería Externa` a `Cargador`. No distingue lo que `V140` movió de lo que ya era `celulares` por una corrida posterior: toda fila con ese rubro vuelve a `tecnologia`. Falla en el `DELETE FROM rubro` si otro sitio quedó con `rubro_forzado` o `rubro_por_defecto = 'celulares'`: hay que moverlo antes. Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V139`.
+Devuelve las filas de `celulares` a `tecnologia` y las `Batería Externa` a `Cargador`. No distingue lo que `V140` movió de lo que ya era `celulares` por una corrida posterior: toda fila con ese rubro vuelve a `tecnologia`. Falla en el `DELETE FROM rubro` si otro sitio quedó con `rubro_forzado` o `rubro_por_defecto = 'celulares'`: hay que moverlo antes. En una cadena de rollbacks corre después del de `V141` y antes que el de `V139`.
+
+
+---
+
+## `V141` — categoría `Networking`
+
+`Networking` reemplaza a `Red` en `tecnologia` (misma fila de `categoria_rubro`, mismo `pisa_forzado`, mismo índice de precio) y se lleva los cables de red de `Cable`. `Cable` sigue siendo una categoría (USB, video, audio, poder) y pierde la sub `red`. Es una categoría nueva, así que son **dos** cambios: el clasificador la produce y esta migración inserta la fila de `categoria` que la FK `fk_productos_categoria` exige.
+
+Las referencias se mueven en orden de FK: primero la fila nueva de `categoria` y la de `categoria_rubro`; después `productos` (activos e inactivos), `sitio_categoria` (Oncity y Cetrogar), `categoria_stats` (si ya existía la fila nueva, la vieja se borra; si no, se renombra), `categoria_dismiss` y `saved_outfit_item` (estas dos sin FK); al final se borran las filas viejas. `agent_reclassify_audit` es historia y no se toca.
+
+| Sub | Regla (`NetworkingReglas.SUBS`, la primera que matchea gana) |
+|---|---|
+| `Conector` | el nombre empieza con ficha, conector, plug, jack, keystone o acoplador |
+| `Cable de Red` | empieza con cable, patch cord o UTP, salvo que sea una conversión `USB/Type-C/Thunderbolt a Ethernet` (eso es un adaptador) |
+| `Placa y Adaptador` | empieza con placa, adaptador o tarjeta de red; o, más abajo en la lista, lo nombra en cualquier parte (adapter, dongle, receptor, NIC) |
+| `Mesh` | `deco`, `velop`, `eero`, `orbi`, o `mesh` salvo `One Mesh` / `Easy Mesh` (un router que sólo soporta mesh sigue `Router`) |
+| `Access Point` | `access point`, `AP`, `CPE`, `EAP`, Nanostation, Powerbeam |
+| `Repetidor` | repetidor, extensor, range extender |
+| `Router` | router, modem, XPON, GPON |
+| `Switch` | `switch` sin la palabra `hub` (un hub USB "con switch" no es un switch de red) |
+
+Una sub vacía es un nombre que no dice qué es. `Mesh` le gana a `Router` y a `Access Point`; `Access Point` le gana a `Router`; `Repetidor` le gana a `Router` (un "Router Repetidor" se vende como repetidor). Las regex son el mismo texto que `NetworkingReglas` sobre los mismos tokens (minúsculas, sin acentos, cada corrida de no `[a-z0-9]` es un espacio, con un espacio a cada lado: `Cat.5e` es ` cat 5e `); los keywords de `GarmentTaxonomy.KW_RED` se leen sobre el nombre con su puntuación, como los lee el clasificador. `V141NetworkingAgreementTest` corre este SQL y el Java sobre nombres reales.
+
+Filas guardadas:
+
+- `Red`: todas pasan a `Networking` (es un renombre), con la sub nueva. Una fila con `bloqueado_por` también se renombra, porque la fila vieja no puede quedar referenciada, y conserva su elección: la sub vieja en minúscula pasa a su etiqueta (`router` a `Router`, `adaptador` a `Placa y Adaptador`).
+- `Cable`: la fila que el clasificador ahora manda a `Networking` (un keyword de `KW_RED`, un mesh o extensor, o un cable, ficha o adaptador que abre el nombre y dice RJ45, UTP, patch cord, Cat5 a Cat8 o Ethernet, salvo que nombre HDMI, VGA, telefonía o audio, o sea un hub o dock multipuerto) se mueve con su sub nueva. Un hub o dock multipuerto que lista un RJ45 **se queda en `Cable`** y, si su sub era `red`, toma la que dan las reglas que le quedan (`video`, `usb`, `poder`) o queda vacía. Una fila con `bloqueado_por` no se toca.
+
+El rubro no cambia. Lo que hoy está en `Otros` y el clasificador nuevo reclama (conectores RJ45 sueltos, un mesh sin la palabra `router`) lo mueve el próximo scrape o `renormalizar`, no la migración. `catalog_version` se bumpea una sola vez, al `COMMIT`, por el trigger de `V40`. Es re-ejecutable y vive en un bloque `DO` para escribir los nombres y las regex una sola vez (Sonar S1192).
+
+### Rollback
+
+```sql
+-- >>> rollback:V141
+INSERT INTO categoria (nombre, indice)
+SELECT 'Red', indice FROM categoria WHERE nombre = 'Networking'
+ON CONFLICT (nombre) DO NOTHING;
+INSERT INTO categoria_rubro (categoria, sub_categoria, rubro, pisa_forzado)
+SELECT 'Red', sub_categoria, rubro, pisa_forzado FROM categoria_rubro WHERE categoria = 'Networking'
+ON CONFLICT (categoria, sub_categoria) DO NOTHING;
+UPDATE productos SET categoria = 'Cable', sub_categoria = 'red'
+ WHERE categoria = 'Networking' AND sub_categoria IN ('Cable de Red', 'Conector');
+UPDATE productos
+   SET categoria = 'Red',
+       sub_categoria = CASE
+         WHEN ' ' || lower(translate(nombre, 'áàäéèëíìïóòöúùüñÁÀÄÉÈËÍÌÏÓÒÖÚÙÜÑ', 'aaaeeeiiiooouuunAAAEEEIIIOOOUUUN')) || ' ' ~ ' router ' THEN 'router'
+         WHEN ' ' || lower(translate(nombre, 'áàäéèëíìïóòöúùüñÁÀÄÉÈËÍÌÏÓÒÖÚÙÜÑ', 'aaaeeeiiiooouuunAAAEEEIIIOOOUUUN')) || ' ' ~ ' switch ' THEN 'switch'
+         WHEN ' ' || lower(translate(nombre, 'áàäéèëíìïóòöúùüñÁÀÄÉÈËÍÌÏÓÒÖÚÙÜÑ', 'aaaeeeiiiooouuunAAAEEEIIIOOOUUUN')) || ' ' ~ ' (?:repetidor|extensor) ' THEN 'repetidor'
+         WHEN ' ' || lower(translate(nombre, 'áàäéèëíìïóòöúùüñÁÀÄÉÈËÍÌÏÓÒÖÚÙÜÑ', 'aaaeeeiiiooouuunAAAEEEIIIOOOUUUN')) || ' ' ~ ' (?:adaptador|placa|antena) ' THEN 'adaptador'
+         ELSE '' END
+ WHERE categoria = 'Networking';
+UPDATE sitio_categoria SET categoria = 'Red' WHERE categoria = 'Networking';
+DELETE FROM categoria_stats WHERE categoria = 'Networking' AND EXISTS (SELECT 1 FROM categoria_stats WHERE categoria = 'Red');
+UPDATE categoria_stats SET categoria = 'Red' WHERE categoria = 'Networking';
+UPDATE categoria_dismiss SET categoria = 'Red' WHERE categoria = 'Networking';
+UPDATE saved_outfit_item SET categoria = 'Red' WHERE categoria = 'Networking';
+DELETE FROM categoria_rubro WHERE categoria = 'Networking';
+DELETE FROM categoria WHERE nombre = 'Networking';
+DELETE FROM flyway_schema_history WHERE version = '141';
+-- <<< rollback:V141
+```
+
+Devuelve a `Cable` (sub `red`) las filas `Cable de Red` y `Conector`, y el resto de `Networking` a `Red` con las subs viejas en minúscula (`router`, `switch`, `repetidor`, `adaptador`, vacía si ninguna palabra aparece; las mismas reglas de palabra suelta de antes de `V141`). No es exacto: no guarda qué filas venían de `Cable`, así que un adaptador USB a Ethernet que estaba en `Cable` vuelve a `Red` con sub `adaptador`, y las filas con `bloqueado_por` recalculan su sub por nombre. Es el bloque más nuevo: en una cadena de rollbacks corre PRIMERO, antes que el de `V140`.

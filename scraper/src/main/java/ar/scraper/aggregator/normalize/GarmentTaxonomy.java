@@ -2009,6 +2009,11 @@ public final class GarmentTaxonomy {
         " patchcord ", " conversor ", " prolongador ", " extension usb "
     };
 
+    /** Plugs and jacks that open a network name ("Conector RJ45 Cat6"): {@link #KW_CABLE_LIDER} has only the plain "ficha". */
+    public static final String[] KW_CONECTOR_DE_RED_LIDER = {
+        " conector ", " conectores ", " plug ", " plugs ", " jack ", " jacks ", " keystone ", " modulo keystone ", " acoplador ", " acopladores "
+    };
+
     /** "Cable de carga magnético 4-en-1 ..." es un cable aunque el veto de {@link #KW_CABLE_VETO} lea " magnetico". */
     public static final String[] KW_CABLE_DE_CARGA_LIDER = { " cable de carga ", " cables de carga " };
     /** Un cable que nombra un conector USB o Lightning es un cable aunque el veto de {@link #KW_CABLE_VETO} lea " magnetico". */
@@ -2115,6 +2120,9 @@ public final class GarmentTaxonomy {
         "adaptador de red","adaptador bluetooth","antena wifi","powerline",
         "placa wifi"
     };
+
+    /** A monitor with a Wi-Fi antenna or a USB hub with an on/off switch names a network word without being network gear. */
+    public static final String[] KW_RED_VETO_LIDER = { " monitor ", " hub " };
 
     /** "switch" sólo es de red cuando hay señal de red. */
     public static final String[] KW_RED_SWITCH = { " switch " };
