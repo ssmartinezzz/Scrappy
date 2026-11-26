@@ -218,6 +218,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V140` | Rubro `celulares` (orden 12, dólar, `peso_categoria` 0: pesa como `tecnologia` como categoría): `Celular` sale de `tecnologia` en los sitios sin rubro forzado, sub nueva `Batería Externa` (power banks, antes `Cargador`); reubica las filas guardadas (activas e inactivas) y bumpea `catalog_version` una vez |
 | `V141` | Categoría `Networking` reemplaza a `Red` (mismo rubro e índice): router, mesh, access point, switch, repetidor, placa y adaptador, cable de red y conector, con sub-categorías en Title Case; los cables de red, fichas RJ45 y adaptadores a Ethernet salen de `Cable` (que pierde su sub `red`); mueve las filas (activas e inactivas) y todas las referencias en orden de FK, y bumpea `catalog_version` una vez |
 | `V142` | Categoría `Mousepad y Mat` reemplaza a `Mousepad` y `Mat Escritorio`, con rubro `oficina` en toda tienda (`pisa_forzado`, índice en dólares) y siete subs (`Antifatiga`, `Apoyamuñecas`, `Mousepad Ergonómico`, `Mat de Escritorio`, `Mousepad RGB`, `Mousepad XL`, `Mousepad`); `Escritorio` suma la sub `Motorizado` (motor probado en el nombre, también `oficina` y `pisa_forzado`) |
+| `V143` | Subs `malla` (una correa: sigue siendo accesorio de tecnología) y `analógico` (un reloj sin palabra inteligente ni deportiva; `categoria_rubro` lo manda a `indumentaria`) de `Reloj`, en minúscula como `smartwatch` y `deportivo`; reescribe las filas guardadas. Cargadores y fundas de reloj pasan a `Celular` por el clasificador, no por la migración |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -6567,3 +6568,42 @@ DELETE FROM flyway_schema_history WHERE version = '142';
 ```
 
 Devuelve a `Mat Escritorio` las filas `Antifatiga` y `Mat de Escritorio`, y el resto de `Mousepad y Mat` a `Mousepad`, con la sub vacía que tenían antes; limpia `Motorizado`. El rubro vuelve a ser el de la tienda si está forzada (gana siempre, porque ambas categorías pesan 0) y, si no, `oficina` para `Mat Escritorio` y `tecnologia` para `Mousepad`. No es exacto: no guarda cuáles pads eran `Mat Escritorio` (un `mousepad xl` lo era y vuelve a `Mousepad`), y toda referencia (`sitio_categoria`, `categoria_stats`, `categoria_dismiss`, `saved_outfit_item`) vuelve a `Mousepad`. En una cadena de rollbacks corre **antes** que el de `V141`; las filas de `Networking` no dependen de él.
+
+---
+
+## `V143` — subs `malla` y `analógico` de `Reloj`
+
+`Reloj` tenía dos subs, `smartwatch` y `deportivo`, y 837 de 1.552 filas activas sin ninguna: 477 son correas y 57 son relojes comunes (Casio, Gadnic, los retro de Hadriatica). Esta migración agrega **`malla`** (una correa: sigue en `tecnologia`, es un accesorio) y **`analógico`** (un reloj que no dice nada de inteligente ni deportivo), y una fila de `categoria_rubro` `('Reloj', 'analógico') -> indumentaria` para que un reloj común sea indumentaria en las tiendas sin rubro forzado (en una forzada gana el rubro de la tienda, como siempre). Las subs van en minúscula porque las dos que la categoría ya tenía lo son (`subcategorias.js` pone la etiqueta de cada chip); mezclar casos en una categoría deja chips que no se parecen. Es un cambio de datos, no una categoría nueva: no toca la tabla `categoria`.
+
+| Sub | Regla (`RelojReglas`) |
+|---|---|
+| `malla` | el nombre EMPIEZA con `malla`, `correa` o `strap` (tras `pack`, `kit`, `set`, `x`, `de`, `outlet` o un número), o con `pulsera ... para` ("Pulsera Ocean para Apple Watch"). Gana sobre `smartwatch`: "Malla Para Reloj Xiaomi Mi Smart Band" es una correa |
+| `analógico` | empieza con `reloj` (o dice `casio`), trae una de `casio`, `g shock`, `analogico`, `cuarzo`, `digital`, `gadnic`, `sumergible`, `vintage`, `hombre`, `mujer`, `unisex`, y ninguna de `smart`, `smartwatch`, `inteligente`, `band`, `gps`, `deportivo`, `running`, `watch`, los fabricantes de relojes inteligentes (Garmin, Suunto, Polar, Fitbit, Amazfit, Huawei, Xiaomi, Samsung, Apple, Galaxy, Redmi) ni las que sólo comparten el sustantivo (`radio`, `despertador`, `comparador`, `cargador`, `carga`, `programador`, `horario`, `reparacion`, `perfume`, `clock`, `localizador`, `proyector`). Sólo si la sub era vacía: `smartwatch` y `deportivo` salen primero del vocabulario de `SubcategoryResolver` |
+
+Las regex son el mismo texto que `RelojReglas` sobre los mismos tokens (minúsculas, sin acentos, cada corrida de no `[a-z0-9]` es un espacio, con un espacio a cada lado); `V143RelojAgreementTest` corre este SQL y el Java sobre los nombres reales de `Reloj` y exige 0 diferencias.
+
+Filas guardadas (`Reloj`, activas e inactivas; una con `bloqueado_por` no se toca): la correa toma `malla` sea cual fuere su sub anterior; el reloj común con sub vacía toma `analógico`; y una fila `analógico` en una tienda sin rubro forzado pasa a `indumentaria`. Los cargadores y fundas de reloj (`Cargador Para Reloj ...`, `Funda Para Reloj ...`) no se mueven acá: `RelojReglas.esAccesorio` los manda a `Celular` y `renormalizar` los muda, igual que cualquier cambio de categoría (no hay categoría de accesorio de reloj; los de Apple Watch siguen en `Accesorio Apple`). `catalog_version` se bumpea una vez, al `COMMIT`, por el trigger de `V40`. Es re-ejecutable y vive en un bloque `DO` (Sonar S1192).
+
+### Rollback
+
+```sql
+-- >>> rollback:V143
+UPDATE productos p
+   SET sub_categoria = '',
+       rubro = CASE WHEN p.rubro = 'indumentaria' AND COALESCE((SELECT NULLIF(btrim(s.rubro_forzado), '') FROM sitio s WHERE s.sitio_key = p.sitio_key), '') = ''
+                    THEN 'tecnologia' ELSE p.rubro END
+ WHERE p.categoria = 'Reloj' AND p.sub_categoria = 'analógico';
+UPDATE productos
+   SET sub_categoria = CASE
+         WHEN (' ' || btrim(regexp_replace(' ' || lower(translate(nombre, 'áàäéèëíìïóòöúùüñ', 'aaaeeeiiiooouuun')) || ' ', '[^a-z0-9]+', ' ', 'g')) || ' ') ~ ' (?:smartwatch|smart|inteligente) '
+              THEN 'smartwatch'
+         WHEN (' ' || btrim(regexp_replace(' ' || lower(translate(nombre, 'áàäéèëíìïóòöúùüñ', 'aaaeeeiiiooouuun')) || ' ', '[^a-z0-9]+', ' ', 'g')) || ' ') ~ ' (?:deportivo|running|gps) '
+              THEN 'deportivo'
+         ELSE '' END
+ WHERE categoria = 'Reloj' AND sub_categoria = 'malla';
+DELETE FROM categoria_rubro WHERE categoria = 'Reloj' AND sub_categoria = 'analógico';
+DELETE FROM flyway_schema_history WHERE version = '143';
+-- <<< rollback:V143
+```
+
+Vacía la sub de los relojes comunes y devuelve a `tecnologia` los que `V143` mandó a `indumentaria` (una tienda forzada no se tocó, así que no hay nada que restaurar ahí). Las correas vuelven a `smartwatch` si el nombre lo dice, a `deportivo` si dice `deportivo`, `running` o `gps`, y a vacía si no. No es exacto: el vocabulario de `SubcategoryResolver` busca palabras sueltas sobre el nombre con su puntuación y esto las busca sobre los tokens, y una correa que ya era vacía y decía `smart-band` vuelve a `smartwatch`. En una cadena de rollbacks es el bloque más nuevo: corre PRIMERO, antes que el de `V142`.

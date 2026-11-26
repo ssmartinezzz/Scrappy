@@ -23,7 +23,10 @@ final class ElectrodomesticosClassifier implements FamiliaClassifier {
         if (texto.sinPrefijoDeVentaEmpiezaCon(GarmentTaxonomy.KW_LAVARROPAS_LIDER)) return "Lavarropas";
         if (texto.sinPrefijoDeVentaEmpiezaCon(GarmentTaxonomy.KW_ASPIRADORA_LIDER)) return "Aspiradora";
         if (texto.lideraSinVeto(GarmentTaxonomy.KW_CAMPANA_LIDER, GarmentTaxonomy.KW_CAMPANA_VETO)) return "Campana y Extractor";
-        if (texto.sinPrefijoDeVentaEmpiezaCon(GarmentTaxonomy.KW_PEQUENO_ELECTRO_LIDER)) return "Pequeño Electrodoméstico";
+        if (texto.sinPrefijoDeVentaEmpiezaCon(GarmentTaxonomy.KW_PEQUENO_ELECTRO_LIDER)
+                || texto.lideraSinVeto(GarmentTaxonomy.KW_COSER_LIDER, GarmentTaxonomy.KW_COSER_VETO)
+                || texto.lideraSinVeto(GarmentTaxonomy.KW_BALANZA_LIDER, GarmentTaxonomy.KW_BALANZA_VETO))
+            return "Pequeño Electrodoméstico";
         if (texto.lideraConCalificador(GarmentTaxonomy.KW_COCINA_LIDER, GarmentTaxonomy.KW_COCINA_CALIFICADOR)
                 && !texto.contiene(GarmentTaxonomy.KW_COCINA_VETO)) return "Cocina y Horno";
         if (texto.lideraSinVeto(GarmentTaxonomy.KW_TV_AUDIO_LIDER, GarmentTaxonomy.KW_TV_AUDIO_VETO)) return "TV y Audio";

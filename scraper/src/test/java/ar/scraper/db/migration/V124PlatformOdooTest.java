@@ -37,6 +37,7 @@ class V124PlatformOdooTest extends PostgresTestBase {
             c.setAutoCommit(false);
             try (Statement st = c.createStatement()) {
                 // the two odoo sites sit on top of the platform value: newest first
+                st.execute(DocumentedRollback.sqlFor("V143"));
                 st.execute(DocumentedRollback.sqlFor("V142"));
                 st.execute(DocumentedRollback.sqlFor("V141"));
                 st.execute(DocumentedRollback.sqlFor("V140"));

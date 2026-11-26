@@ -794,10 +794,11 @@ public final class GarmentTaxonomy {
         " modulo"," 10 a"," 10a"," tecla"," monaco"," 250v"," 220v"," de luz"," combinado"
     };
     public static final String[] KW_FICHA_LIDER = {
-        " ficha macho"," ficha hembra"," prolongador"," prolongadores"," alargue"," alargues"
+        " ficha macho"," ficha hembra"," prolongador"," prolongadores"," alargue"," alargues",
+        " adaptador de enchufe"," adaptador de enchufes"," enchufe universal"
     };
     public static final String[] KW_ZAPATILLA_ELECTRICA_LIDER = { " zapatilla "," zapatillas " };
-    public static final String[] KW_ZAPATILLA_ELECTRICA_CALIFICADOR = { " tomas"," toma " };
+    public static final String[] KW_ZAPATILLA_ELECTRICA_CALIFICADOR = { " tomas"," toma "," alargue " };
     public static final String[] KW_CABLECANAL_LIDER = { " cablecanal"," cable canal"," cablecanales" };
     public static final String[] KW_CABLE_ELECTRICO_LIDER = {
         " cable unipolar"," cable bipolar"," cable tripolar"," cable tetrapolar"," cable taller",
@@ -1103,10 +1104,10 @@ public final class GarmentTaxonomy {
         " bibliotecas "," librero "," libreros "," despensero"," bajo mesada"," alacena "," mesa de luz"," mesas de luz",
         " mesita de luz"," mesita de noche"," zapatero "," zapateros "," mueble "," muebles "," arrimo ",
         " aparador"," vitrina "," rinconero"," esquinero "," tocador "," cristalero"," repisero"," centro de trabajo",
-        " centro trabajo"
+        " centro trabajo"," escobero "," escoberos "," porta microondas "
     };
     public static final String[] KW_ESCRITORIO_LIDER = { " escritorio "," escritorios " };
-    public static final String[] KW_MUEBLE_VETO = { " gamer"," camping"," pc gamer"," exhibidor"," vestuario" };
+    public static final String[] KW_MUEBLE_VETO = { " gamer"," camping"," pc gamer"," exhibidor"," vestuario"," cuelga " };
     public static final String[] KW_MESA_LIDER = {
         " mesa "," mesas "," mesa ratona"," mesa de comedor"," comedor "," comedores "," juego de comedor",
         " set mesa"," set de mesa"," set 2 mesas"," set de 2 mesas"," set de mesas"," mesada de"
@@ -1226,7 +1227,7 @@ public final class GarmentTaxonomy {
     public static final String[] KW_BAZAR_LIDER = {
         " frasco "," frascos "," copa de "," copas de "," copa "," copas "," juego de copas"," jarra "," jarras ",
         " vajilla"," juego de vasos"," vasos de vidrio"," juego de platos"," juego de tazas"," vaso "," vasos ",
-        " espatula cocina"," espatula de cocina"," espatula de goma"
+        " espatula cocina"," espatula de cocina"," espatula de goma"," frutero "," fruteros "
     };
     public static final String[] KW_BAZAR_VETO = {
         " shaker"," proteina"," medidora"," gimnasio"," suplemento"," perfume"," mundial"," trofeo"," copa del mundo",
@@ -1345,7 +1346,7 @@ public final class GarmentTaxonomy {
         " salamandra "," salamandras "
     };
     public static final String[] KW_VENTILADOR_LIDER = {
-        " ventilador "," ventiladores "," turboventilador "," enfriador de aire"," enfriadores de aire"
+        " ventilador "," ventiladores "," turboventilador "," turbo ventilador "," enfriador de aire"," enfriadores de aire"
     };
     public static final String[] KW_VENTILADOR_VETO = {
         " pc "," gamer"," rgb"," cpu"," gabinete"," notebook"," fan "," 120mm"," 140mm"," usb"," cooler"
@@ -1388,6 +1389,8 @@ public final class GarmentTaxonomy {
         " molinillo "," picadora "," fondue "," deshidratador "," deshidratadora "," maquina de pan"," fabrica de pastas",
         " plancha de ropa"," plancha a vapor"," exprimidor electrico"," yogurtera "," pequenos electrodomesticos",
         " multiprocesadora"," multiprocesadoras"," minipimer",
+        " afeitadora "," afeitadoras "," exprimidor "," exprimidora "," juguera "," jugueras ",
+        " cortadora de pelo"," cortadora pelo"," cortadora de cabello"," combo barberia",
         " purificador de agua",
         " mixer minipimer"," mixer de mano"
     };
@@ -1715,7 +1718,7 @@ public final class GarmentTaxonomy {
      */
     public static final String[] KW_NO_GPU_LIDER = {
         " cooler "," watercooler "," water cooler "," water cooling "," watercooling "," aio "," pasta ",
-        " gabinete "," fuente "," mouse "
+        " gabinete "," fuente "," mouse "," bota "," botas "," zapatilla "," zapatillas "
     };
 
     /** A seller's own name for the kit: "Combo Actualización ... Ram + SSD" is an upgrade combo, not the RAM it lists. */
@@ -2112,7 +2115,7 @@ public final class GarmentTaxonomy {
     };
 
     public static final String[] KW_CPU_LIDER = {
-        " procesador ", " microprocesador ", " micro amd ", " micro intel "
+        " procesador ", " microprocesador ", " micro procesador ", " micro amd ", " micro intel "
     };
 
     /**
@@ -2144,7 +2147,7 @@ public final class GarmentTaxonomy {
     };
 
     public static final String[] KW_MOTHERBOARD = {
-        "motherboard"," mother ","placa madre","mainboard"," mobo "
+        "motherboard","motehrboard"," mother ","placa madre","mainboard"," mobo "
     };
 
     public static final String[] KW_FUENTE = {
@@ -2229,6 +2232,35 @@ public final class GarmentTaxonomy {
     public static final String[] KW_CAMARA_MARCA = { " sjcam"," insta360"," gopro "," go pro " };
     /** Una tarjeta de memoria con la marca de la cámara sigue siendo Almacenamiento. */
     public static final String[] KW_CAMARA_VETO_LIDER = { " memoria "," tarjeta "," micro sd " };
+
+    /** A cabinet that is a tool cart or a workshop cabinet, not a PC case: "Gabinete Porta Herramienta 8 Cajones". */
+    public static final String[] KW_GABINETE_DE_TALLER_LIDER = { " gabinete "," carro gabinete " };
+    public static final String[] KW_GABINETE_DE_TALLER_CALIFICADOR = { " cajones "," herramienta "," herramientas "," taller "," talleres " };
+    /** Named outright: "Techo 1 agua" would trip the water-tank veto of {@link #KW_DEPOSITO_JARDIN_VETO}. */
+    public static final String[] KW_DEPOSITO_JARDIN_EXPLICITO = { " deposito de jardin"," cobertizo "," cobertizos " };
+    /** A "tablet" that is a children's board or a didactic toy. */
+    public static final String[] KW_TABLET_JUGUETE = { " didactica "," pizarra magica "," de juguete " };
+    /** A bag that names a laptop only to say what it carries. */
+    public static final String[] KW_NOTEBOOK_BOLSO_LIDER = { " cartera "," carteras " };
+    /** Cable makers whose names lead with the brand ("Griffin USB-C to Lightning Cable 6FT"). */
+    public static final String[] KW_CABLE_MARCA_LIDER = { " griffin "," belkin "," anker "," ugreen "," baseus " };
+    /** What is sold for a watch or a band: chargers and covers. A strap is not here, it stays a Reloj. */
+    public static final String[] KW_RELOJ_ACCESORIO_LIDER = {
+        " cargador "," cargadores "," cargadorpara "," funda "," fundas "," protector "," protectores "," vidrio "," film "," mica "
+    };
+    public static final String[] KW_RELOJ_SENAL = {
+        " reloj "," relojes "," smartwatch "," smart watch "," watch "," mi band "," smart band "," galaxy fit "
+    };
+    /** A sewing machine; the toy one is a Juguete. */
+    public static final String[] KW_COSER_LIDER = { " maquina de coser"," maquina para coser"," maquinas de coser"," maquinas para coser" };
+    public static final String[] KW_COSER_VETO = { " infantil "," juguete "," ninos "," nina "," nino " };
+    /** A household scale; a shop, a lab or a jeweller's one is equipment. */
+    public static final String[] KW_BALANZA_LIDER = { " balanza "," balanzas " };
+    public static final String[] KW_BALANZA_VETO = {
+        " comercial "," bascula "," miligramos "," 0.01 "," 0,001 "," joyeria "," industrial "," camionera "," mastil ",
+        " pediatrica "," colgante "
+    };
+    public static final String[] KW_BASE_DE_CARGA_LIDER = { " base de carga " };
 
     public static final String[] KW_RELOJ = {
         "smartwatch","smart watch","reloj inteligente","smart band","smartband",

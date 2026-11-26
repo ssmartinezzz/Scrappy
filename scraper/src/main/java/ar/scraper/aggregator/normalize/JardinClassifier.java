@@ -32,7 +32,9 @@ final class JardinClassifier implements FamiliaClassifier {
         if (texto.lideraSinVeto(GarmentTaxonomy.KW_DECO_JARDIN_LIDER, GarmentTaxonomy.KW_DECO_JARDIN_VETO)) return "Decoración de Jardín";
         if (texto.sinPrefijoDeVentaEmpiezaCon(GarmentTaxonomy.KW_GAZEBO_LIDER)) return "Gazebo y Sombrilla";
         if (texto.lideraSinVeto(GarmentTaxonomy.KW_REPOSERA_LIDER, GarmentTaxonomy.KW_REPOSERA_VETO)) return "Reposera y Hamaca";
-        if (texto.lideraSinVeto(GarmentTaxonomy.KW_DEPOSITO_JARDIN_LIDER, GarmentTaxonomy.KW_DEPOSITO_JARDIN_VETO)) return "Depósito de Jardín";
+        if (texto.sinPrefijoDeVentaEmpiezaCon(GarmentTaxonomy.KW_DEPOSITO_JARDIN_EXPLICITO)
+                || texto.lideraSinVeto(GarmentTaxonomy.KW_DEPOSITO_JARDIN_LIDER, GarmentTaxonomy.KW_DEPOSITO_JARDIN_VETO))
+            return "Depósito de Jardín";
         if (texto.lideraSinVeto(GarmentTaxonomy.KW_MUEBLE_EXTERIOR_LIDER, GarmentTaxonomy.KW_MUEBLE_EXTERIOR_VETO)) return "Mueble de Exterior";
         return "";
     }

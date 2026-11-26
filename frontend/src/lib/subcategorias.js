@@ -53,7 +53,10 @@ const CHIPS = {
   'oficina/Escritorio': ['Motorizado'],
   'tecnologia/Impresión': [c('impresora', 'Impresora'), c('tinta', 'Tinta'), c('toner', 'Tóner')],
   'tecnologia/Cámara': [c('exterior', 'Exterior'), c('interior', 'Interior'), c('wifi', 'WiFi')],
-  'tecnologia/Reloj': [c('deportivo', 'Deportivo'), c('smartwatch', 'Smartwatch')],
+  // V143: lowercase like the two it had; a strap stays tecnologia, a plain watch is indumentaria on a store with no forced rubro
+  // (and stays tecnologia on a forced one, so the chip is under both).
+  'tecnologia/Reloj': [c('deportivo', 'Deportivo'), c('malla', 'Malla'), c('smartwatch', 'Smartwatch'), c('analógico', 'Analógico')],
+  'indumentaria/Reloj': [c('analógico', 'Analógico')],
   // V128: Title Case values, so the chip label is the stored value.
   // V139: eight of the ten moved to electrodomesticos; a forced technology store still holds all ten under tecnologia.
   'tecnologia/TV y Audio': ['Barra de Sonido', 'Consola y Mixer', 'Equipo de Música', 'Handy', 'Parlante', 'Proyector', 'Radio',

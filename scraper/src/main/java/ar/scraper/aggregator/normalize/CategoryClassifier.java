@@ -32,6 +32,7 @@ public class CategoryClassifier {
         new CampingClassifier(),
         new MascotasClassifier(),
         new JardinClassifier(),
+        new BazarCocinaClassifier(),
         new ElectrodomesticosClassifier(),
         new HogarClassifier(),
         new ConstruccionClassifier(),
@@ -73,6 +74,11 @@ public class CategoryClassifier {
         if ("Juguete".equals(categoria) && StringUtils.isNotBlank(nombre)
                 && TextoClasificable.de(nombre).contiene(GarmentTaxonomy.KW_LEGO)) return "LEGO";
         return categoria;
+    }
+
+    /** A charger or cover sold for a watch or a band (it is a {@code Celular} for lack of a better shelf). */
+    public static boolean esAccesorioDeReloj(String nombre) {
+        return StringUtils.isNotBlank(nombre) && RelojReglas.esAccesorio(TextoClasificable.de(nombre));
     }
 
     private String resolverCategoria(String raw, String nombre, String categoriaDelArbol) {

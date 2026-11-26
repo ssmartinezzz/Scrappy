@@ -15,7 +15,7 @@ final class AccesorioDeTelefonoClassifier implements FamiliaClassifier {
     @Override
     public String clasificar(TextoClasificable texto) {
         if (vetado(texto)) return "";
-        return esCargadorOPowerBank(texto) || esSoporte(texto) || esVidrio(texto) ? "Celular" : "";
+        return esCargadorOPowerBank(texto) || esBaseDeCarga(texto) || esSoporte(texto) || esVidrio(texto) ? "Celular" : "";
     }
 
     private static boolean vetado(TextoClasificable texto) {
@@ -35,6 +35,12 @@ final class AccesorioDeTelefonoClassifier implements FamiliaClassifier {
         String n = texto.normalizado();
         int cable = primeraPosicion(n, GarmentTaxonomy.KW_CABLE_MENCIONADO);
         return cable < 0 || primeraPosicion(n, GarmentTaxonomy.KW_POWER_BANK, GarmentTaxonomy.KW_CARGADOR_LIDER) < cable;
+    }
+
+    /** "Base de carga magnética 3-en-1 Qi2": the dock has no "cargador" noun but a wireless standard in the name. */
+    private static boolean esBaseDeCarga(TextoClasificable texto) {
+        return texto.sinPrefijoDeVentaEmpiezaCon(GarmentTaxonomy.KW_BASE_DE_CARGA_LIDER)
+                && texto.contiene(GarmentTaxonomy.KW_CARGADOR_TELEFONO_SENAL);
     }
 
     private static boolean esSoporte(TextoClasificable texto) {

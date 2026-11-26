@@ -225,6 +225,8 @@ class V139RubroElectrodomesticosTest extends PostgresTestBase {
             st.execute("UPDATE productos SET categoria = 'Pequeño Electrodoméstico', sub_categoria = 'Accesorio y Repuesto', rubro = 'electrodomesticos'"
                     + " WHERE url = '" + URL + "repuesto'");
 
+            st.execute(DocumentedRollback.sqlFor("V143"));
+
             st.execute(DocumentedRollback.sqlFor("V142"));
             st.execute(DocumentedRollback.sqlFor("V141"));
             st.execute(DocumentedRollback.sqlFor("V140"));

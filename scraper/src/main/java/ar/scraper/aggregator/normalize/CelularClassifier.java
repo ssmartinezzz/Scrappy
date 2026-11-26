@@ -19,6 +19,7 @@ final class CelularClassifier implements FamiliaClassifier {
 
     @Override
     public String clasificar(TextoClasificable texto) {
+        if (RelojReglas.esAccesorio(texto)) return "Celular";
         boolean accesorio = texto.sinPrefijoDeVentaEmpiezaCon(GarmentTaxonomy.KW_CELULAR_ACCESORIO_LIDER);
         if (!accesorio) {
             String galaxy = otroEquipoGalaxy(texto);
