@@ -27,6 +27,7 @@ class V33RollbackRoundTripTest extends PostgresTestBase {
         try (Connection c = dataSource().getConnection()) {
             c.setAutoCommit(false);
             try (Statement st = c.createStatement()) {
+                st.execute(DocumentedRollback.sqlFor("V145"));
                 st.execute(DocumentedRollback.sqlFor("V144"));
                 st.execute(DocumentedRollback.sqlFor("V143"));
                 st.execute(DocumentedRollback.sqlFor("V142"));

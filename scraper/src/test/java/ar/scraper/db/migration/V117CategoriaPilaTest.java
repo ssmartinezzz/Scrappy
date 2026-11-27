@@ -32,6 +32,7 @@ class V117CategoriaPilaTest extends PostgresTestBase {
             try (Statement st = c.createStatement()) {
                 // V138 moved the rubro CHECKs to foreign keys and the categories are referenced: its rollback goes first,
                 // before any row is written (a pending catalog_version trigger blocks the ALTER).
+                st.execute(DocumentedRollback.sqlFor("V145"));
                 st.execute(DocumentedRollback.sqlFor("V144"));
                 st.execute(DocumentedRollback.sqlFor("V143"));
                 st.execute(DocumentedRollback.sqlFor("V142"));

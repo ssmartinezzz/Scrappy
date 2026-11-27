@@ -30,7 +30,9 @@ public final class ServicioPorNombreDeCategoria implements CriterioDeServicio {
             // A test product ("GEO SIMULATION PRODUCT", $1000) and the warranty nodes under Garantias.
             "cetrogar", Set.of("garantias", "garantia extendida", "compra protegida"),
             // Supermarket aisles (2149 rows): they wait for the supermercado rubro, not for a category guess.
-            "oncity", Set.of("supermercado"));
+            "oncity", Set.of("supermercado"),
+            // Unused or test nodes in the live tree (0 own rows each); "no usar - artículos de oficina" is NOT here: 2 real goods.
+            "fravega", Set.of("cotillón no usar", "bolsas de sucursal", "prueba de categoría", "sugerencias", "mens"));
 
     private final Set<String> nodosExcluidos;
 

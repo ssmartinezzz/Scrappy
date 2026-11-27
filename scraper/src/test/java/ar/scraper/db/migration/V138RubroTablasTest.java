@@ -78,6 +78,7 @@ class V138RubroTablasTest extends PostgresTestBase {
     @DisplayName("the documented rollback restores the three CHECKs of V137 and drops the new objects and the Flyway row")
     void rollbackDocumentadoCorre() throws Exception {
         enTransaccion(st -> {
+            st.execute(DocumentedRollback.sqlFor("V145"));
             st.execute(DocumentedRollback.sqlFor("V144"));
             st.execute(DocumentedRollback.sqlFor("V143"));
             st.execute(DocumentedRollback.sqlFor("V142"));
@@ -98,6 +99,7 @@ class V138RubroTablasTest extends PostgresTestBase {
                     .isInstanceOfSatisfying(SQLException.class, e -> assertThat(e.getSQLState()).isEqualTo(SQLSTATE_CHECK));
         });
         enTransaccion(st -> {
+            st.execute(DocumentedRollback.sqlFor("V145"));
             st.execute(DocumentedRollback.sqlFor("V144"));
             st.execute(DocumentedRollback.sqlFor("V143"));
             st.execute(DocumentedRollback.sqlFor("V142"));
@@ -110,6 +112,7 @@ class V138RubroTablasTest extends PostgresTestBase {
                     .isInstanceOfSatisfying(SQLException.class, e -> assertThat(e.getSQLState()).isEqualTo(SQLSTATE_CHECK));
         });
         enTransaccion(st -> {
+            st.execute(DocumentedRollback.sqlFor("V145"));
             st.execute(DocumentedRollback.sqlFor("V144"));
             st.execute(DocumentedRollback.sqlFor("V143"));
             st.execute(DocumentedRollback.sqlFor("V142"));

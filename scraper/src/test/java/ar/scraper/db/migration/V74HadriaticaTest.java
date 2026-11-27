@@ -65,6 +65,7 @@ class V74HadriaticaTest extends PostgresTestBase {
             try (Statement st = c.createStatement()) {
                 int sitiosAntes = count(st, "SELECT count(*) FROM sitio");
 
+                st.execute(DocumentedRollback.sqlFor("V145"));
                 st.execute(DocumentedRollback.sqlFor("V144"));
                 st.execute(DocumentedRollback.sqlFor("V143"));
 
@@ -76,7 +77,7 @@ class V74HadriaticaTest extends PostgresTestBase {
                 st.execute(DocumentedRollback.sqlFor("V74"));
 
                 assertThat(count(st, "SELECT count(*) FROM sitio WHERE sitio_key = 'hadriatica'")).isZero();
-                assertThat(count(st, "SELECT count(*) FROM sitio")).isEqualTo(sitiosAntes - 1);
+                assertThat(count(st, "SELECT count(*) FROM sitio")).isEqualTo(sitiosAntes - 2); // hadriatica and V145's fravega
                 assertThatThrownBy(() -> st.executeUpdate(
                         "UPDATE sitio SET rubro_por_defecto = 'juguetes' WHERE sitio_key = 'easy'"))
                         .hasMessageContaining("sitio_rubro_por_defecto_check");
@@ -94,6 +95,7 @@ class V74HadriaticaTest extends PostgresTestBase {
             try (Statement st = c.createStatement()) {
                 insertProduct(st, "https://rollback.test/peluche", "Peluche");
 
+                st.execute(DocumentedRollback.sqlFor("V145"));
                 st.execute(DocumentedRollback.sqlFor("V144"));
                 st.execute(DocumentedRollback.sqlFor("V143"));
 
@@ -123,6 +125,7 @@ class V74HadriaticaTest extends PostgresTestBase {
                 insertProduct(st, "https://rollback.test/peluche", "Peluche");
                 int antes = count(st, "SELECT count(*) FROM categoria");
 
+                st.execute(DocumentedRollback.sqlFor("V145"));
                 st.execute(DocumentedRollback.sqlFor("V144"));
                 st.execute(DocumentedRollback.sqlFor("V143"));
 
@@ -158,6 +161,7 @@ class V74HadriaticaTest extends PostgresTestBase {
                         """);
                 st.execute("SET CONSTRAINTS ALL IMMEDIATE");
 
+                st.execute(DocumentedRollback.sqlFor("V145"));
                 st.execute(DocumentedRollback.sqlFor("V144"));
                 st.execute(DocumentedRollback.sqlFor("V143"));
 

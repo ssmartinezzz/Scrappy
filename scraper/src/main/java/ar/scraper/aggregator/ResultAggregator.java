@@ -247,8 +247,37 @@ public class ResultAggregator {
      */
     private List<Product> normalizarYBloquear(List<ScrapeResult> resultados,
                                               Map<String, ClasificacionBloqueada> bloqueos) {
-        List<Product> sorted = deduplicarYOrdenar(productosValidos(resultados));
+        List<Product> sorted = deduplicarYOrdenar(conNombreGuardado(productosValidos(resultados)));
         return aplicarBloqueos(normalizer.normalizar(sorted), bloqueos);
+    }
+
+    /**
+     * A row whose name is only the API's abbreviation ({@link Product#nombreProvisional()}) takes the name
+     * already stored for its url, when there is one. The upsert overwrites the name, so the stored one has
+     * to be put back before it. A failed read keeps the names as they are: it never fails the run.
+     */
+    List<Product> conNombreGuardado(List<Product> todos) {
+        List<String> urls = todos.stream().filter(Product::nombreProvisional).map(Product::url)
+                .filter(StringUtils::isNotBlank).distinct().toList();
+        if (urls.isEmpty()) return todos;
+        Map<String, String> guardados = new HashMap<>();
+        try {
+            for (Product g : productos.cargarProductosPorUrl(urls)) guardados.putIfAbsent(g.url(), g.nombre());
+        } catch (Exception e) {
+            LOG.warn("[AGG] No se pudieron leer los nombres guardados de {} filas, quedan los de la API: {}",
+                    urls.size(), e.getMessage());
+            guardados.clear();
+        }
+        List<Product> out = new ArrayList<>(todos.size());
+        for (Product p : todos) {
+            if (!p.nombreProvisional()) {
+                out.add(p);
+                continue;
+            }
+            String nombre = guardados.get(p.url());
+            out.add(p.toBuilder().nombre(StringUtils.defaultIfBlank(nombre, p.nombre())).nombreProvisional(false).build());
+        }
+        return out;
     }
 
     private static Map<String, String> categoriaPorUrl(List<Product> productos) {
@@ -328,7 +357,7 @@ public class ResultAggregator {
 
     // Normalización rápida sin ML — usada por la actualización progresiva por sitio
     public List<Product> normalizarSolo(List<Product> productos) {
-        return normalizer.normalizar(productos);
+        return normalizer.normalizar(conNombreGuardado(productos));
     }
 
     private List<Product> conHojaDelSitio(List<Product> cargados) {

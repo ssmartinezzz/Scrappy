@@ -36,6 +36,7 @@ export const LOGO_FILES_BY_NAME = {
   "flowin": "flowin.png",
   "forever": "forever.png",
   "foreverbstrd": "foreverbstrd.png",
+  "fravega": "fravega.png",
   "freres": "freres.svg",
   "fuark": "fuark.png",
   "fursten": "fursten.png",

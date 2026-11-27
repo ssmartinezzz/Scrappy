@@ -114,6 +114,7 @@ class V144CategoriasBebeSaludLibreriaTest extends PostgresTestBase {
             st.executeUpdate("UPDATE productos SET sub_categoria = 'Freezer' WHERE url = '" + URL + "heladera'");
             st.executeUpdate("INSERT INTO sitio_categoria (sitio_key, origen_id, nombre, es_servicio, categoria, sub_categoria) VALUES ('v144', 7, 'Cuadernos', false, 'Librería', NULL)");
 
+            st.execute(DocumentedRollback.sqlFor("V145"));
             st.execute(DocumentedRollback.sqlFor("V144"));
 
             assertThat(text(st, "SELECT categoria || '/' || rubro FROM productos WHERE url = '" + URL + "bebe'")).isEqualTo("Otros/indumentaria");
@@ -137,6 +138,7 @@ class V144CategoriasBebeSaludLibreriaTest extends PostgresTestBase {
             st.executeUpdate("INSERT INTO productos (url, sitio, nombre, precio, categoria, sub_categoria, rubro) VALUES ('" + URL
                     + "reloj', 'v144', 'RELOJ CASIO F-91W-1D', 1, 'Reloj', 'analógico', 'indumentaria')");
 
+            st.execute(DocumentedRollback.sqlFor("V145"));
             st.execute(DocumentedRollback.sqlFor("V144"));
             st.execute(DocumentedRollback.sqlFor("V143"));
 

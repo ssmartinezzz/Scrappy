@@ -1,6 +1,7 @@
 package ar.scraper.pages;
 
 import ar.scraper.model.Product;
+import ar.scraper.model.promo.PromoFinanciacion;
 import ar.scraper.promos.ProductPromoExtractor;
 import ar.scraper.promos.VtexPromoExtractor;
 import ar.scraper.model.SitioCategoriaNodo;
@@ -19,7 +20,6 @@ import org.apache.commons.lang3.StringUtils;
 public class VtexPage extends StorePage implements CatalogPage, ArbolDeCategorias {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
-    private static final ProductPromoExtractor PROMOS = new VtexPromoExtractor();
     private static final int PAGE_SIZE = 50;
     /** Techo del path IO (Vaypol y similares) — sin cambios en este fix. */
     private static final int MAX_PRODUCTS = 2500;
@@ -31,7 +31,30 @@ public class VtexPage extends StorePage implements CatalogPage, ArbolDeCategoria
     private static final long ESPERA_REINTENTO_MS = 2_000;
     private static final int PROFUNDIDAD_ARBOL = 3;
 
+    /**
+     * Ajustes de un sitio VTEX que los demás no tienen: vendedor propio ({@code fq=sellerId}), piso de
+     * precio, poda de los nodos de servicio antes de contarlos y pasada por la tienda para el stock y el nombre.
+     */
+    record AjustesVtex(String vendedor, double precioMinimo, boolean podarServicios, boolean pasadaTienda) {
+        static final AjustesVtex NINGUNO = new AjustesVtex("", 0, false, false);
+
+        /** Fravega: la API devuelve 409k filas, 50k con sellerId 1 y 46k de ellas son Servicios; $0, $1 y $99 son filas de prueba. */
+        private static final Map<String, AjustesVtex> POR_SITIO = Map.of(
+                "fravega", new AjustesVtex("1", 1000, true, true));
+
+        static AjustesVtex para(String sitio) {
+            return POR_SITIO.getOrDefault(StringUtils.defaultString(sitio).toLowerCase(Locale.ROOT), NINGUNO);
+        }
+
+        String filtroDeVendedor() {
+            return vendedor.isEmpty() ? "" : "&fq=sellerId:" + vendedor;
+        }
+    }
+
     private final CriterioDeServicio criterioDeServicio;
+    private final AjustesVtex ajustes;
+    /** A site with the storefront pass takes its installments from the listing collection, not from the API. */
+    private final ProductPromoExtractor promos;
     private List<CategoriaVtex> arbolObservado = List.of();
     private Set<Integer> hojasDeServicio = Set.of();
 
@@ -54,10 +77,13 @@ public class VtexPage extends StorePage implements CatalogPage, ArbolDeCategoria
                     CriterioDeServicio criterioDeServicio) {
         super(page, timeoutMs, sitio, baseUrl, precioMin, precioMax);
         this.criterioDeServicio = criterioDeServicio;
+        this.ajustes = AjustesVtex.para(sitio);
+        this.promos = ajustes.pasadaTienda() ? VtexPromoExtractor.SIN_INSTALLMENTS : new VtexPromoExtractor();
     }
 
     public List<Product> scrapeAll() {
         String dom = domain(baseUrl);
+        cantidadPorUrl.clear();
 
         prepararSesion(dom);
 
@@ -69,7 +95,54 @@ public class VtexPage extends StorePage implements CatalogPage, ArbolDeCategoria
             result = scrapeApiIO(dom);
         }
 
-        return result;
+        return ajustes.pasadaTienda() && !result.isEmpty() ? conPasadaDeTienda(dom, result) : result;
+    }
+
+    /** Fravega's Servicios department on the storefront; the API tree prune does not always carry it. */
+    private static final int NODO_SERVICIOS_TIENDA = 1000312;
+    private static final long PAUSA_TIENDA_MS = 150;
+
+    /** The API's AvailableQuantity per url, kept only until the storefront pass has used it. */
+    private final Map<String, Integer> cantidadPorUrl = new HashMap<>();
+
+    /**
+     * Stock, name and installments from the storefront. If the pass fails the rows stay, with unknown stock
+     * (the upsert keeps the stored value), a provisional name (the stored name wins) and no installments
+     * (the API's overclaim them): the run goes on.
+     */
+    private List<Product> conPasadaDeTienda(String dom, List<Product> productos) {
+        PasadaDeTienda.Resultado tienda;
+        try {
+            Set<Integer> excluidos = new HashSet<>(ajustes.podarServicios() ? hojasDeServicio : Set.of());
+            excluidos.add(NODO_SERVICIOS_TIENDA);
+            tienda = new PasadaDeTienda(dom, sitio, this::htmlDe, () -> page.waitForTimeout(PAUSA_TIENDA_MS))
+                    .ejecutar(arbolObservado, excluidos);
+        } catch (Exception e) {
+            log.warn("[{}] Pasada de tienda fallida, {} filas quedan con stock desconocido y nombre provisorio: {}",
+                    sitio, productos.size(), e.getMessage());
+            return productos.stream().map(p -> p.toBuilder().enStock(null).nombreProvisional(true).build()).toList();
+        }
+        return productos.stream().map(p -> conDatosDeTienda(p, tienda)).toList();
+    }
+
+    private Product conDatosDeTienda(Product p, PasadaDeTienda.Resultado tienda) {
+        String codigo = PasadaDeTienda.codigoDe(p.url());
+        String titulo = codigo == null ? null : tienda.titulos().get(codigo);
+        Boolean stock = tienda.stock(codigo, p.sitioCategoriaOrigenId(), cantidadPorUrl.get(p.url()));
+        Product.ProductBuilder b = p.toBuilder().enStock(stock).promos(conCuotas(p, codigo, tienda));
+        return StringUtils.isBlank(titulo) ? b.nombreProvisional(true).build() : b.nombre(titulo).build();
+    }
+
+    private static List<PromoFinanciacion> conCuotas(Product p, String codigo, PasadaDeTienda.Resultado tienda) {
+        Integer cuotas = codigo == null ? null : tienda.cuotas().get(codigo);
+        if (cuotas == null) return p.promos();
+        List<PromoFinanciacion> out = new ArrayList<>(p.promos());
+        out.add(VtexPromoExtractor.cuotasDeColeccion(cuotas));
+        return out;
+    }
+
+    private String htmlDe(String url) {
+        return getText(url);
     }
 
     /** VTEX stores con region-based catalog requieren esto para que la API devuelva productos. */
@@ -129,7 +202,8 @@ public class VtexPage extends StorePage implements CatalogPage, ArbolDeCategoria
             arbolObservado = arbol;
             hojasDeServicio = idsDeServicio(arbol, criterioDeServicio);
             if (!arbol.isEmpty()) {
-                partes = particionar(arbol, path -> totalLegacy(dom, path).orElse(0), VENTANA_LEGACY)
+                partes = particionar(arbol, path -> totalLegacy(dom, path).orElse(0), VENTANA_LEGACY,
+                                ajustes.podarServicios() ? hojasDeServicio : Set.of())
                         .stream().map(path -> "&fq=C:" + path).toList();
             }
         } catch (Exception e) {
@@ -165,7 +239,7 @@ public class VtexPage extends StorePage implements CatalogPage, ArbolDeCategoria
         while (from < (total.isPresent() ? total.getAsInt() : PAGE_SIZE * PAGINAS_SEGURIDAD_SIN_HEADER)) {
             int to = from + PAGE_SIZE - 1;
             String apiUrl = dom + "/api/catalog_system/pub/products/search"
-                    + "?_from=" + from + "&_to=" + to + fq + "&O=OrderByReleaseDateDESC";
+                    + "?_from=" + from + "&_to=" + to + fq + ajustes.filtroDeVendedor() + "&O=OrderByReleaseDateDESC";
             log.debug("[{}] Legacy API from={}", sitio, from);
             try {
                 RespuestaApi resp = get(apiUrl);
@@ -227,7 +301,9 @@ public class VtexPage extends StorePage implements CatalogPage, ArbolDeCategoria
         return result;
     }
 
-    record CategoriaVtex(int id, String nombre, List<CategoriaVtex> hijos) { }
+    record CategoriaVtex(int id, String nombre, List<CategoriaVtex> hijos, String url) {
+        CategoriaVtex(int id, String nombre, List<CategoriaVtex> hijos) { this(id, nombre, hijos, ""); }
+    }
 
     @Override
     public List<SitioCategoriaNodo> arbolDeCategorias() {
@@ -255,13 +331,20 @@ public class VtexPage extends StorePage implements CatalogPage, ArbolDeCategoria
     }
 
     static List<String> particionar(List<CategoriaVtex> arbol, ToIntFunction<String> totalDe, int ventana) {
+        return particionar(arbol, totalDe, ventana, Set.of());
+    }
+
+    /** Los nodos de {@code podadas} (y sus hijos, que ya heredan la marca) no se cuentan ni se crawlean. */
+    static List<String> particionar(List<CategoriaVtex> arbol, ToIntFunction<String> totalDe, int ventana,
+                                    Set<Integer> podadas) {
         List<String> partes = new ArrayList<>();
-        for (CategoriaVtex c : arbol) particionar(c, "/", totalDe, ventana, partes);
+        for (CategoriaVtex c : arbol) particionar(c, "/", totalDe, ventana, podadas, partes);
         return partes;
     }
 
     private static void particionar(CategoriaVtex c, String padre, ToIntFunction<String> totalDe,
-                                    int ventana, List<String> partes) {
+                                    int ventana, Set<Integer> podadas, List<String> partes) {
+        if (podadas.contains(c.id())) return;
         String path = padre + c.id() + "/";
         int total = totalDe.applyAsInt(path);
         if (total == 0) return;
@@ -269,7 +352,7 @@ public class VtexPage extends StorePage implements CatalogPage, ArbolDeCategoria
             partes.add(path);
             return;
         }
-        for (CategoriaVtex h : c.hijos()) particionar(h, path, totalDe, ventana, partes);
+        for (CategoriaVtex h : c.hijos()) particionar(h, path, totalDe, ventana, podadas, partes);
     }
 
     static List<CategoriaVtex> parseArbol(JsonNode arbol) {
@@ -277,13 +360,14 @@ public class VtexPage extends StorePage implements CatalogPage, ArbolDeCategoria
         if (arbol == null || !arbol.isArray()) return out;
         for (JsonNode n : arbol) {
             if (n.hasNonNull("id")) out.add(new CategoriaVtex(n.get("id").asInt(), n.path("name").asText("").trim(),
-                    parseArbol(n.path("children"))));
+                    parseArbol(n.path("children")), n.path("url").asText("")));
         }
         return out;
     }
 
     private OptionalInt totalLegacy(String dom, String path) {
-        RespuestaApi resp = getConReintentoPorLimite(dom + "/api/catalog_system/pub/products/search?_from=0&_to=0&fq=C:" + path);
+        RespuestaApi resp = getConReintentoPorLimite(dom + "/api/catalog_system/pub/products/search?_from=0&_to=0&fq=C:" + path
+                + ajustes.filtroDeVendedor());
         return resp.ok() ? resp.total() : OptionalInt.empty();
     }
 
@@ -483,7 +567,7 @@ public class VtexPage extends StorePage implements CatalogPage, ArbolDeCategoria
             Optional<Oferta> oferta = primeraOferta(items);
             if (oferta.isEmpty()) return Optional.empty();
             double p = oferta.get().precio();
-            if (fueraDeRango(p)) return Optional.empty();
+            if (fueraDeRango(p) || p < ajustes.precioMinimo()) return Optional.empty();
 
             String categoria = segmentoDeLaRutaMasProfunda(prod.path("categories"));
             if (io && categoria.isBlank()) {
@@ -493,10 +577,15 @@ public class VtexPage extends StorePage implements CatalogPage, ArbolDeCategoria
                 }
             }
 
+            JsonNode cantidad = oferta.get().oferta().path("AvailableQuantity");
+            if (ajustes.pasadaTienda() && !url.isEmpty() && cantidad.isNumber()) {
+                cantidadPorUrl.put(url, cantidad.asInt());
+            }
+
             Product producto = producto(nombre, p, oferta.get().original(), url, img, categoria,
                     extraerGeneroVtex(prod, nombre), extraerTallesVtex(prod), hoja, enStock(items));
             return Optional.of(producto.toBuilder()
-                    .promos(PROMOS.extraer(oferta.get().oferta(), LocalDate.now()))
+                    .promos(promos.extraer(oferta.get().oferta(), LocalDate.now()))
                     .build());
         } catch (Exception e) {
             return Optional.empty();

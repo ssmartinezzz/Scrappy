@@ -20,12 +20,30 @@ import java.util.LinkedHashSet;
  */
 public final class VtexPromoExtractor implements ProductPromoExtractor {
 
+    /** For a site whose {@code Installments} overclaim (Fravega: a one-bank 12 shows up as Visa 12): teasers only. */
+    public static final VtexPromoExtractor SIN_INSTALLMENTS = new VtexPromoExtractor(false);
+
+    private final boolean leerInstallments;
+
+    public VtexPromoExtractor() {
+        this(true);
+    }
+
+    private VtexPromoExtractor(boolean leerInstallments) {
+        this.leerInstallments = leerInstallments;
+    }
+
+    /** Installments the site proves with a collection, without saying which card: the generic card. */
+    public static PromoFinanciacion cuotasDeColeccion(int cuotas) {
+        return PromosDeProducto.cuotasSinInteresGenericas(cuotas);
+    }
+
     // The .NET serialization behind some stores leaks the backing-field name instead of "Name".
     private static final List<String> CAMPOS_NOMBRE = List.of("Name", "<Name>k__BackingField");
 
     @Override
     public List<PromoFinanciacion> extraer(JsonNode oferta, LocalDate hoy) {
-        Set<PromoFinanciacion> out = new LinkedHashSet<>(cuotas(oferta.path("Installments")));
+        Set<PromoFinanciacion> out = new LinkedHashSet<>(leerInstallments ? cuotas(oferta.path("Installments")) : List.of());
         for (String campo : List.of("PromotionTeasers", "DiscountHighLight")) {
             for (JsonNode n : oferta.path(campo)) {
                 for (String nombre : CAMPOS_NOMBRE) {

@@ -239,6 +239,7 @@ class V142MousepadYMatAgreementTest extends PostgresTestBase {
             st.executeUpdate("INSERT INTO productos (url, sitio, nombre, precio, categoria, sub_categoria, rubro) VALUES ('"
                     + URL + "desk-tecnologia', 'v142t', 'Escritorio Electrico Evolabs', 1000, 'Escritorio', 'Motorizado', 'oficina')");
 
+            st.execute(DocumentedRollback.sqlFor("V145"));
             st.execute(DocumentedRollback.sqlFor("V144"));
             st.execute(DocumentedRollback.sqlFor("V143"));
 
