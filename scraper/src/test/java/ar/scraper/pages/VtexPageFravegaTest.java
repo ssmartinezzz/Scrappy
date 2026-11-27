@@ -147,4 +147,88 @@ class VtexPageFravegaTest {
 
         assertThat(scrape("Vtex", 100)).extracting(Product::precio).containsExactly(500.0, 999.0);
     }
+
+    private static final String ARBOL_CON_URL =
+            "[{\"id\":7,\"name\":\"Heladeras\",\"url\":\"" + BASE + "/heladeras\",\"children\":[]}]";
+
+    private static String filaApi(int codigo, String nombre, int cantidad) {
+        return """
+                {"productName":"%s","linkText":"heladera-%d","categoryId":"7","items":[{"sellers":[{"commertialOffer":{"Price":5000,"ListPrice":0,"AvailableQuantity":%d}}]}]}"""
+                .formatted(nombre, codigo, cantidad);
+    }
+
+    private static String listado(int total, String... codigosYTitulos) {
+        String results = java.util.stream.IntStream.range(0, codigosYTitulos.length / 2).mapToObj(i ->
+                "{\"code\":\"" + codigosYTitulos[2 * i] + "\",\"item\":{\"title\":\"" + codigosYTitulos[2 * i + 1]
+                        + "\"},\"seller\":{\"id\":\"fravega\"}}").collect(Collectors.joining(","));
+        return "<script id=\"__NEXT_DATA__\" type=\"application/json\">{\"props\":{\"pageProps\":{\"__APOLLO_STATE__\":"
+                + "{\"ROOT_QUERY\":{\"items({})\":{\"total\":" + total + ",\"results({})\":[" + results + "]}}}}}}</script>";
+    }
+
+    private void apiRespondeConTienda(String arbol, String body, String html) {
+        when(api.get(anyString())).thenAnswer(inv -> {
+            String url = inv.getArgument(0);
+            pedidas.add(url);
+            if (url.contains("/l/")) return resp(200, html, Map.of());
+            if (url.contains("category/tree")) return resp(200, arbol, Map.of());
+            if (url.contains("_from=0&_to=0")) return resp(206, "[]", Map.of("resources", "0-0/3"));
+            return resp(206, body, Map.of("resources", "0-49/3"));
+        });
+    }
+
+    @Test
+    @DisplayName("fravega: listed row gets the storefront title and stock; absent rows follow the API quantity")
+    void fravegaUsaLaTienda() {
+        String body = "[" + filaApi(101, "HELA. GAFA", 5) + "," + filaApi(102, "HELA. OTRA", 5) + ","
+                + filaApi(103, "HELA. TERCERA", 50) + "]";
+        apiRespondeConTienda(ARBOL_CON_URL, body, listado(1, "101", " Heladera Gafa 300 L "));
+
+        List<Product> out = scrape("Fravega", 0);
+
+        assertThat(pedidas).contains(BASE + "/l/heladeras/?vendedor=fravega&page=1");
+        assertThat(out).extracting(Product::nombre)
+                .containsExactly("Heladera Gafa 300 L", "HELA. OTRA", "HELA. TERCERA");
+        assertThat(out).extracting(Product::nombreProvisional).containsExactly(false, true, true);
+        assertThat(out).extracting(Product::enStock).containsExactly(true, false, null);
+    }
+
+    @Test
+    @DisplayName("fravega: a complete listing with an absent low-quantity row says out of stock")
+    void fravegaAgotado() {
+        String body = "[" + filaApi(101, "HELA. GAFA", 5) + "," + filaApi(102, "HELA. OTRA", 5) + "]";
+        // announced 1, captured 1 of 1 => complete; 102 is not listed and its quantity is <= 10
+        apiRespondeConTienda(ARBOL_CON_URL, body, listado(1, "101", "Heladera Gafa"));
+
+        assertThat(scrape("Fravega", 0)).extracting(Product::enStock).containsExactly(true, false);
+    }
+
+    @Test
+    @DisplayName("fravega: a failed pass leaves every row with unknown stock and a provisional name, rows kept")
+    void fravegaPasadaFallida() {
+        String body = "[" + filaApi(101, "HELA. GAFA", 5) + "," + filaApi(102, "HELA. OTRA", 0) + "]";
+        apiRespondeConTienda(ARBOL_CON_URL, body, "<html>blocked</html>");
+
+        List<Product> out = scrape("Fravega", 0);
+
+        assertThat(out).extracting(Product::nombre).containsExactly("HELA. GAFA", "HELA. OTRA");
+        assertThat(out).extracting(Product::enStock).containsOnlyNulls();
+        assertThat(out).allMatch(Product::nombreProvisional);
+    }
+
+    @Test
+    @DisplayName("another site: no storefront request at all, same URLs, names and stock from the API")
+    void otroSitioNoHaceLaPasada() {
+        String body = "[" + filaApi(101, "HELA. GAFA", 5) + "]";
+        apiRespondeConTienda(ARBOL_CON_URL, body, listado(1, "101", "Titulo"));
+
+        List<Product> out = scrape("Vtex", 0);
+
+        assertThat(pedidas).containsExactly(
+                BASE + "/api/catalog_system/pub/category/tree/3",
+                BUSQUEDA + "?_from=0&_to=0&fq=C:/7/",
+                BUSQUEDA + "?_from=0&_to=49&fq=C:/7/&O=OrderByReleaseDateDESC");
+        assertThat(out).extracting(Product::nombre).containsExactly("HELA. GAFA");
+        assertThat(out).extracting(Product::enStock).containsExactly(true);
+        assertThat(out).noneMatch(Product::nombreProvisional);
+    }
 }

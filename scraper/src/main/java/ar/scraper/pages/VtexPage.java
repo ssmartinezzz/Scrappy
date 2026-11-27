@@ -33,14 +33,14 @@ public class VtexPage extends StorePage implements CatalogPage, ArbolDeCategoria
 
     /**
      * Ajustes de un sitio VTEX que los demás no tienen: vendedor propio ({@code fq=sellerId}), piso de
-     * precio y poda de los nodos de servicio antes de contarlos.
+     * precio, poda de los nodos de servicio antes de contarlos y pasada por la tienda para el stock y el nombre.
      */
-    record AjustesVtex(String vendedor, double precioMinimo, boolean podarServicios) {
-        static final AjustesVtex NINGUNO = new AjustesVtex("", 0, false);
+    record AjustesVtex(String vendedor, double precioMinimo, boolean podarServicios, boolean pasadaTienda) {
+        static final AjustesVtex NINGUNO = new AjustesVtex("", 0, false, false);
 
         /** Fravega: la API devuelve 409k filas, 50k con sellerId 1 y 46k de ellas son Servicios; $0, $1 y $99 son filas de prueba. */
         private static final Map<String, AjustesVtex> POR_SITIO = Map.of(
-                "fravega", new AjustesVtex("1", 1000, true));
+                "fravega", new AjustesVtex("1", 1000, true, true));
 
         static AjustesVtex para(String sitio) {
             return POR_SITIO.getOrDefault(StringUtils.defaultString(sitio).toLowerCase(Locale.ROOT), NINGUNO);
@@ -80,6 +80,7 @@ public class VtexPage extends StorePage implements CatalogPage, ArbolDeCategoria
 
     public List<Product> scrapeAll() {
         String dom = domain(baseUrl);
+        cantidadPorUrl.clear();
 
         prepararSesion(dom);
 
@@ -91,7 +92,46 @@ public class VtexPage extends StorePage implements CatalogPage, ArbolDeCategoria
             result = scrapeApiIO(dom);
         }
 
-        return result;
+        return ajustes.pasadaTienda() && !result.isEmpty() ? conPasadaDeTienda(dom, result) : result;
+    }
+
+    /** Fravega's Servicios department on the storefront; the API tree prune does not always carry it. */
+    private static final int NODO_SERVICIOS_TIENDA = 1000312;
+    private static final long PAUSA_TIENDA_MS = 150;
+
+    /** The API's AvailableQuantity per url, kept only until the storefront pass has used it. */
+    private final Map<String, Integer> cantidadPorUrl = new HashMap<>();
+
+    /**
+     * Stock and name from the storefront. If the pass fails the rows stay, with unknown stock (the upsert
+     * keeps the stored value) and a provisional name (the stored name wins): the run goes on.
+     */
+    private List<Product> conPasadaDeTienda(String dom, List<Product> productos) {
+        PasadaDeTienda.Resultado tienda;
+        try {
+            Set<Integer> excluidos = new HashSet<>(ajustes.podarServicios() ? hojasDeServicio : Set.of());
+            excluidos.add(NODO_SERVICIOS_TIENDA);
+            tienda = new PasadaDeTienda(dom, sitio, this::htmlDe, () -> page.waitForTimeout(PAUSA_TIENDA_MS))
+                    .ejecutar(arbolObservado, excluidos);
+        } catch (Exception e) {
+            log.warn("[{}] Pasada de tienda fallida, {} filas quedan con stock desconocido y nombre provisorio: {}",
+                    sitio, productos.size(), e.getMessage());
+            return productos.stream().map(p -> p.toBuilder().enStock(null).nombreProvisional(true).build()).toList();
+        }
+        return productos.stream().map(p -> conDatosDeTienda(p, tienda)).toList();
+    }
+
+    private Product conDatosDeTienda(Product p, PasadaDeTienda.Resultado tienda) {
+        String codigo = PasadaDeTienda.codigoDe(p.url());
+        String titulo = codigo == null ? null : tienda.titulos().get(codigo);
+        Boolean stock = tienda.stock(codigo, p.sitioCategoriaOrigenId(), cantidadPorUrl.get(p.url()));
+        return StringUtils.isBlank(titulo)
+                ? p.toBuilder().enStock(stock).nombreProvisional(true).build()
+                : p.toBuilder().nombre(titulo).enStock(stock).build();
+    }
+
+    private String htmlDe(String url) {
+        return getText(url);
     }
 
     /** VTEX stores con region-based catalog requieren esto para que la API devuelva productos. */
@@ -250,7 +290,9 @@ public class VtexPage extends StorePage implements CatalogPage, ArbolDeCategoria
         return result;
     }
 
-    record CategoriaVtex(int id, String nombre, List<CategoriaVtex> hijos) { }
+    record CategoriaVtex(int id, String nombre, List<CategoriaVtex> hijos, String url) {
+        CategoriaVtex(int id, String nombre, List<CategoriaVtex> hijos) { this(id, nombre, hijos, ""); }
+    }
 
     @Override
     public List<SitioCategoriaNodo> arbolDeCategorias() {
@@ -307,7 +349,7 @@ public class VtexPage extends StorePage implements CatalogPage, ArbolDeCategoria
         if (arbol == null || !arbol.isArray()) return out;
         for (JsonNode n : arbol) {
             if (n.hasNonNull("id")) out.add(new CategoriaVtex(n.get("id").asInt(), n.path("name").asText("").trim(),
-                    parseArbol(n.path("children"))));
+                    parseArbol(n.path("children")), n.path("url").asText("")));
         }
         return out;
     }
@@ -522,6 +564,11 @@ public class VtexPage extends StorePage implements CatalogPage, ArbolDeCategoria
                 if (catTree.isArray() && !catTree.isEmpty()) {
                     categoria = catTree.get(catTree.size() - 1).path("name").asText("").trim();
                 }
+            }
+
+            JsonNode cantidad = oferta.get().oferta().path("AvailableQuantity");
+            if (ajustes.pasadaTienda() && !url.isEmpty() && cantidad.isNumber()) {
+                cantidadPorUrl.put(url, cantidad.asInt());
             }
 
             Product producto = producto(nombre, p, oferta.get().original(), url, img, categoria,
