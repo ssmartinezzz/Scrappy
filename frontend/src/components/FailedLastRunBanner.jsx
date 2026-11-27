@@ -10,6 +10,10 @@ function resumenError(error) {
   return linea.length > MAX_ERROR ? `${linea.slice(0, MAX_ERROR - 1)}…` : linea;
 }
 
+function etiqueta(fallido) {
+  return fallido.error ? `${fallido.sitio} (${resumenError(fallido.error)})` : fallido.sitio;
+}
+
 export default function FailedLastRunBanner({ run, busy = false, error = '', onRetry, onDismiss }) {
   if (!run) return null;
 
@@ -29,7 +33,7 @@ export default function FailedLastRunBanner({ run, busy = false, error = '', onR
       </div>
 
       <div className="text-[.75rem] leading-relaxed text-t3">
-        {fallidos.map(f => `${f.sitio}${f.error ? ` (${resumenError(f.error)})` : ''}`).join(', ')}
+        {fallidos.map(etiqueta).join(', ')}
       </div>
 
       {error && <div className="text-[.72rem] text-danger">{error}</div>}
