@@ -66,6 +66,13 @@ const CHIPS = {
   'electrodomesticos/Pequeño Electrodoméstico': ['Accesorio y Repuesto', 'Afeitadora y Cortadora', 'Batidora y Mixer', 'Cafetera', 'Depiladora',
     'Freidora', 'Licuadora y Exprimidor', 'Pava Eléctrica', 'Plancha de Ropa', 'Planchita y Rizador', 'Procesadora', 'Secador de Pelo',
     'Tostadora y Sandwichera'],
+  // V144: Title Case values (GrandesElectroSubcategoryResolver). No forced store holds these categories, so only electrodomesticos has
+  // chips. Artículo de Bebé, Salud and Librería carry no sub: they have no chips, only their category.
+  'electrodomesticos/Lavarropas': ['Lavarropas', 'Lavavajillas', 'Secarropas'],
+  'electrodomesticos/Cocina y Horno': ['Cocina', 'Horno', 'Microondas', 'Anafe'],
+  'electrodomesticos/Heladera': ['Heladera', 'Freezer', 'Cava', 'Exhibidora'],
+  'electrodomesticos/Calefactor': ['Caloventor', 'Convector', 'Estufa', 'Panel', 'Radiador', 'Tiro Balanceado', 'Sin Salida'],
+  'electrodomesticos/Termotanque': ['Eléctrico', 'A Gas'],
   // V140: the phone category has its own rubro; Batería Externa is carved out of Cargador (power banks).
   'celulares/Celular': ['Smartphone', 'Funda', 'Protector', 'Cargador', 'Batería Externa', 'Cable', 'Soporte', 'Repuesto'],
   // V129: Argentine retail words; the chip label is the stored value.

@@ -29,6 +29,7 @@ class V94VinchaBandanaTrajeDeportivoTest extends PostgresTestBase {
                         ('t', 'V94 Test', 'Tracksuit Mocha', 1, 'Traje Deportivo', 'indumentaria', true)
                     """);
 
+            st.execute(DocumentedRollback.sqlFor("V144"));
             st.execute(DocumentedRollback.sqlFor("V143"));
 
             st.execute(DocumentedRollback.sqlFor("V142"));

@@ -64,14 +64,14 @@ public final class CategoryGroups {
 
     private static final Set<String> CATEGORIAS_JUGUETES = Set.of(
         "Juguete","Cama Elástica",
-        "Figura Coleccionable","Peluche","Juego de Mesa","LEGO","TCG"
+        "Figura Coleccionable","Peluche","Juego de Mesa","LEGO","TCG","Artículo de Bebé"
     );
 
     private static final Set<String> CATEGORIAS_LIBROS = Set.of("Libro");
 
     private static final Set<String> CATEGORIAS_OFICINA = Set.of(
         "Silla", "Escritorio", "Soporte Monitor", "Soporte Laptop",
-        "Iluminación", "Mousepad y Mat", "Organización"
+        "Iluminación", "Mousepad y Mat", "Organización", "Librería"
     );
 
     private static final Set<String> CATEGORIAS_CONSTRUCCION = Set.of(
@@ -116,7 +116,7 @@ public final class CategoryGroups {
     /** In the canon but in no rubro group: a keychain is sold by toy, fashion and gaming sites alike, so the rubro follows the site. */
     private static final Set<String> CATEGORIAS_SIN_RUBRO = Set.of("Llavero");
 
-    private static final Set<String> CATEGORIAS_BELLEZA = Set.of("Perfume","Desodorante","Maquillaje","Cuidado de la Piel","Cuidado del Cabello");
+    private static final Set<String> CATEGORIAS_BELLEZA = Set.of("Perfume","Desodorante","Maquillaje","Cuidado de la Piel","Cuidado del Cabello","Salud");
 
     /**
      * Single source of truth injected into the tool schema {@code enum} and the system prompt so

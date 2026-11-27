@@ -200,6 +200,7 @@ class V143RelojAgreementTest extends PostgresTestBase {
             insertar(st, "malla-gps", "Correa Garmin Forerunner Gps 20mm", "malla", "v143", true);
             insertar(st, "malla-nada", "Malla Para Reloj Redmi Watch 4", "malla", "v143", true);
 
+            st.execute(DocumentedRollback.sqlFor("V144"));
             st.execute(DocumentedRollback.sqlFor("V143"));
 
             assertThat(fila(st, "casio")).isEqualTo("/tecnologia/true");

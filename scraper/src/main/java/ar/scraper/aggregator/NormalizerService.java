@@ -63,7 +63,12 @@ public class NormalizerService {
             "Fuente", Set.of("Bazar"),
             "GPU", Set.of("Motherboard", "CPU", "RAM"),
             "Cable", Set.of("Ficha y Prolongador"),
-            "Tablet", Set.of("Juguete"));
+            "Tablet", Set.of("Juguete"),
+            // A leaf the curators left at "Otros" (Oncity "Baby Calls", Naldo "Bebes y Niños") or filed under a security camera or a
+            // monitor says nothing about a baby item, a health device or stationery that the name names outright (V144).
+            "Otros", Set.of("Artículo de Bebé", "Salud", "Librería"),
+            "Cámara", Set.of("Artículo de Bebé"),
+            "Monitor", Set.of("Artículo de Bebé"));
     // Sites whose whole catalogue is one gender, whatever the name says. A toy store sells to kids: its
     // backpacks, shoes and dolls' dresses are not adult picks. Equus is a men's-only shop. Ayrun is women's
     // gymwear whose names carry no gender word ("Musculosa Seamless Animal"). Somos Rex and Sommier Center are
@@ -94,29 +99,42 @@ public class NormalizerService {
     private final SiteRegistry siteRegistry;
     private final SitioCategoriaPort sitioCategorias;
 
+    /** What the curated leaves of one site say: the category of each, and the sub-category of those that carry one. */
+    private record HojasDelSitio(Map<Integer, String> categorias, Map<Integer, String> subCategorias) {}
+
     public List<Product> normalizar(List<Product> productos) {
-        Map<String, Map<Integer, String>> categoriasPorSitio = categoriasDelArbolPorSitio(productos);
+        Map<String, HojasDelSitio> hojasPorSitio = hojasDelArbolPorSitio(productos);
         return productos.stream()
-                .map(p -> normalizarProducto(p, categoriasPorSitio.get(p.sitio())))
+                .map(p -> normalizarProducto(p, hojasPorSitio.get(p.sitio())))
                 .collect(Collectors.toList());
     }
 
-    private Map<String, Map<Integer, String>> categoriasDelArbolPorSitio(List<Product> productos) {
+    private Map<String, HojasDelSitio> hojasDelArbolPorSitio(List<Product> productos) {
         Set<String> sitiosConArbol = productos.stream()
                 .filter(p -> p.sitioCategoriaOrigenId() != null)
                 .map(Product::sitio)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
-        Map<String, Map<Integer, String>> categoriasPorSitio = new HashMap<>();
+        Map<String, HojasDelSitio> hojasPorSitio = new HashMap<>();
         for (String sitio : sitiosConArbol) {
-            categoriasPorSitio.put(sitio, sitioCategorias.categoriaPorOrigen(sitio));
+            hojasPorSitio.put(sitio, new HojasDelSitio(sitioCategorias.categoriaPorOrigen(sitio),
+                    sitioCategorias.subCategoriaPorOrigen(sitio)));
         }
-        return categoriasPorSitio;
+        return hojasPorSitio;
     }
 
-    private static String categoriaDelArbol(Product p, Map<Integer, String> categorias) {
-        if (categorias == null || p.sitioCategoriaOrigenId() == null) return null;
-        return categorias.get(p.sitioCategoriaOrigenId());
+    private static String categoriaDelArbol(Product p, HojasDelSitio hojas) {
+        if (hojas == null || p.sitioCategoriaOrigenId() == null) return null;
+        return hojas.categorias().get(p.sitioCategoriaOrigenId());
+    }
+
+    /**
+     * The sub the curated leaf carries, only when the row ended in the leaf's own category: a leaf that says "Heladera / Freezer"
+     * has nothing to say about a row the name sent to another category. The name's own sub is read first and always wins.
+     */
+    private static String subDeLaHoja(Product p, HojasDelSitio hojas, String categoriaDelArbol, String categoria) {
+        if (hojas == null || p.sitioCategoriaOrigenId() == null || !categoria.equals(categoriaDelArbol)) return "";
+        return hojas.subCategorias().getOrDefault(p.sitioCategoriaOrigenId(), "");
     }
 
     private static boolean hojaJugueteGana(String sitioKey, String categoriaDelArbol) {
@@ -165,17 +183,18 @@ public class NormalizerService {
         return StringUtils.isBlank(p.marca()) ? brandExtractor.extraer(nombre, p.sitio()) : p.marca();
     }
 
-    private Product normalizarProducto(Product p, Map<Integer, String> categoriasDelArbol) {
+    private Product normalizarProducto(Product p, HojasDelSitio hojas) {
         String nombre = StringUtils.defaultString(p.nombre());
         String sitioKey       = sitioKey(p.sitio());
-        String delArbol       = categoriaDelArbol(p, categoriasDelArbol);
+        String delArbol       = categoriaDelArbol(p, hojas);
         String cat            = celularDelArbol(sitioKey, delArbol, hojaJugueteGana(sitioKey, delArbol)
                 ? CategoryClassifier.separarLego(delArbol, nombre)
                 : esOtrosEnSuSitio(sitioKey, nombre)
                         ? "Otros"
                         : soloHogar(sitioKey, categoryClassifier.normalizarCategoria(p.categoria(), nombre, delArbol), delArbol),
                 nombre);
-        String subCategoria   = subcategoryResolver.resolver(nombre, cat);
+        String subDelNombre   = subcategoryResolver.resolver(nombre, cat);
+        String subCategoria   = subDelNombre.isEmpty() ? subDeLaHoja(p, hojas, delArbol, cat) : subDelNombre;
         String rubro          = rubroResolver.resolver(sitioKey, cat, p.rubro(), subCategoria);
         String genero         = generoFijo(sitioKey, p.genero())
                 .orElseGet(() -> genderResolver.resolver(p.genero(), nombre, cat, rubro));

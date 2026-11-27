@@ -58,6 +58,25 @@ class SitioCategoriaRepository implements SitioCategoriaPort {
         return categorias;
     }
 
+    @Override
+    public Map<Integer, String> subCategoriaPorOrigen(String sitio) {
+        Map<Integer, String> subs = new HashMap<>();
+        if (sitio == null) return subs;
+        try {
+            jdbc.query("SELECT c.origen_id, c.sub_categoria FROM sitio_categoria c "
+                            + "JOIN sitio s ON s.sitio_key = c.sitio_key "
+                            + "WHERE s.nombre = ? AND c.categoria IS NOT NULL AND c.sub_categoria IS NOT NULL",
+                    rs -> {
+                        subs.put(rs.getInt(1), rs.getString(2));
+                    },
+                    sitio);
+        } catch (DataAccessException e) {
+            LOG.warn("[SITIO-CATEGORIA] No se pudo leer la sub-categoria de las hojas de {}: {}", sitio, e.getMessage());
+            subs.clear();
+        }
+        return subs;
+    }
+
     private static String nodosJson(List<SitioCategoriaNodo> arbol) {
         ArrayNode nodos = MAPPER.createArrayNode();
         for (SitioCategoriaNodo n : arbol) {

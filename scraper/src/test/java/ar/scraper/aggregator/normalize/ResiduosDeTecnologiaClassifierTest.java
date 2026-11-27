@@ -178,7 +178,7 @@ class ResiduosDeTecnologiaClassifierTest {
         "Afeitadora Philips Qp2724/10 Oneblade Face                           | Pequeño Electrodoméstico",
         "Cortadora de Pelo Profesional Gadnic CP140 Ergonómica                | Pequeño Electrodoméstico",
         "Exprimidor Atma Ex8220n Blanco 0.8 Lts.                              | Pequeño Electrodoméstico",
-        "Balanza de Baño Gadnic Digital con APP Blanca                        | Pequeño Electrodoméstico",
+        "Balanza de Baño Gadnic Digital con APP Blanca                        | Salud",
         "Balanza de Cocina Argenprom 10380                                    | Pequeño Electrodoméstico",
         "Balanza GA.MA SCF 2000                                               | Pequeño Electrodoméstico",
         "Juguera Oster Clasica 600W                                           | Pequeño Electrodoméstico",
