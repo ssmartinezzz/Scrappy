@@ -37,6 +37,7 @@ class V121PlatformSfccTest extends PostgresTestBase {
             c.setAutoCommit(false);
             try (Statement st = c.createStatement()) {
                 // the odoo platform and its two sites sit on top of the sfcc value: newest first
+                st.execute(DocumentedRollback.sqlFor("V144"));
                 st.execute(DocumentedRollback.sqlFor("V143"));
                 st.execute(DocumentedRollback.sqlFor("V142"));
                 st.execute(DocumentedRollback.sqlFor("V141"));

@@ -219,6 +219,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V141` | Categoría `Networking` reemplaza a `Red` (mismo rubro e índice): router, mesh, access point, switch, repetidor, placa y adaptador, cable de red y conector, con sub-categorías en Title Case; los cables de red, fichas RJ45 y adaptadores a Ethernet salen de `Cable` (que pierde su sub `red`); mueve las filas (activas e inactivas) y todas las referencias en orden de FK, y bumpea `catalog_version` una vez |
 | `V142` | Categoría `Mousepad y Mat` reemplaza a `Mousepad` y `Mat Escritorio`, con rubro `oficina` en toda tienda (`pisa_forzado`, índice en dólares) y siete subs (`Antifatiga`, `Apoyamuñecas`, `Mousepad Ergonómico`, `Mat de Escritorio`, `Mousepad RGB`, `Mousepad XL`, `Mousepad`); `Escritorio` suma la sub `Motorizado` (motor probado en el nombre, también `oficina` y `pisa_forzado`) |
 | `V143` | Subs `malla` (una correa: sigue siendo accesorio de tecnología) y `analógico` (un reloj sin palabra inteligente ni deportiva; `categoria_rubro` lo manda a `indumentaria`) de `Reloj`, en minúscula como `smartwatch` y `deportivo`; reescribe las filas guardadas. Cargadores y fundas de reloj pasan a `Celular` por el clasificador, no por la migración |
+| `V144` | Categorías `Artículo de Bebé` (`juguetes`), `Salud` (`belleza`) y `Librería` (`oficina`), las tres por IPC; subs en Title Case de cinco electrodomésticos (`Lavarropas`, `Cocina y Horno`, `Heladera`, `Calefactor`, `Termotanque`) sobre las filas guardadas; `sitio_categoria.sub_categoria` (nullable): la sub que una hoja curada aporta cuando el nombre no dice ninguna |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -6607,3 +6608,64 @@ DELETE FROM flyway_schema_history WHERE version = '143';
 ```
 
 Vacía la sub de los relojes comunes y devuelve a `tecnologia` los que `V143` mandó a `indumentaria` (una tienda forzada no se tocó, así que no hay nada que restaurar ahí). Las correas vuelven a `smartwatch` si el nombre lo dice, a `deportivo` si dice `deportivo`, `running` o `gps`, y a vacía si no. No es exacto: el vocabulario de `SubcategoryResolver` busca palabras sueltas sobre el nombre con su puntuación y esto las busca sobre los tokens, y una correa que ya era vacía y decía `smart-band` vuelve a `smartwatch`. En una cadena de rollbacks es el bloque más nuevo: corre PRIMERO, antes que el de `V142`.
+
+---
+
+## `V144` — categorías `Artículo de Bebé`, `Salud` y `Librería`, subs de cinco electrodomésticos y `sitio_categoria.sub_categoria`
+
+Tres categorías que hasta hoy eran `Otros` (más lo que los clasificadores de ropa y de tecnología leían mal): un cochecito se leía como camisa ("Oxford"), un monitor de bebé como `Monitor`, una carpeta escolar quedaba sin categoría porque `aros` vetaba el nombre. Cada una pesa lo que su rubro y deflacta por IPC (`categoria.indice` queda en `NULL`).
+
+| Categoría | Rubro | Qué entra (por sustantivo líder; `BebeClassifier`, `SaludClassifier`, `LibreriaClassifier`) |
+|---|---|---|
+| `Artículo de Bebé` | `juguetes` | cochecitos, practicunas, cunas, mamaderas, chupetes, baberos, pañales, andadores, sacaleches, esterilizadores, butacas y boosters de auto, monitores y baby calls; también lo que sólo nombra un artículo de bebé (`tetinas`, `lactancia`, `set de alimentación`) o una marca de puericultura (`Bebesit`, `Maxi-Cosi`, `Avent`, `Lansinoh`...) en una fila que ninguna familia reclamó. Un bebote o una muñeca es `Juguete`; el moisés de una mascota, de la mascota |
+| `Salud` | `belleza` | termómetros clínicos, tensiómetros, oxímetros, nebulizadores, glucómetros, balanzas de baño y corporales, masajeadores y pistolas masajeadoras, almohadillas térmicas, pañales de adulto, preservativos, plantillas ortopédicas, correctores posturales, barbijos, botiquín, apósitos. Las rodilleras, tobilleras y muñequeras siguen en `Accesorio Deportivo`; la balanza de cocina, de precisión o comercial, en el electrodoméstico o `Otros` |
+| `Librería` | `oficina` | cuadernos, carpetas, cartucheras, resmas, agendas, libretas, biblioratos, lapiceras, marcadores, calculadoras, abrochadoras, sobres, témperas y papel de oficina. `carpeta`, `block`, `clips`, `lápiz` y `regla` necesitan una palabra de librería al lado (`escolar`, `oficio`, `A4`, `solapas`...) |
+
+Es una categoría nueva, así que son **dos** cambios: los clasificadores la producen y esta migración inserta la fila de `categoria` que la FK `fk_productos_categoria` exige y la de `categoria_rubro` que lee `RubroResolver`. La migración **no** mueve filas: lo que hoy es `Otros` pasa a la categoría nueva en el próximo scrape o `renormalizar`. Los clasificadores corren al final de las familias (sólo nombran lo que ninguna reclamó) salvo tres excepciones: el monitor de bebé y el nombre que *empieza* con cochecito, mamadera, chupete, pañal, andador o cuna (que leen la ropa y `Monitor`/`Cámara`), `Salud` justo antes del electrodoméstico (para que la balanza de baño no sea un `Pequeño Electrodoméstico`) y `Librería` también donde el guard de no-textil se abstiene. En una tienda cuyo árbol curado pisa al nombre (Oncity, Naldo, Cetrogar...) una hoja curada como `Otros`, `Cámara` o `Monitor` cede ante estas tres categorías (`NormalizerService.CATEGORIAS_QUE_PISAN_LA_HOJA`).
+
+### Subs de electrodomésticos
+
+`Lavarropas`, `Cocina y Horno`, `Heladera`, `Calefactor` y `Termotanque` no tenían sub: 100 % vacías. Van en Title Case (como `V141` y `V142`: `V143` quedó en minúscula sólo porque `Reloj` ya tenía dos subs en minúscula). La categoría ya está decidida, así que casi todas las reglas buscan el sustantivo en **cualquier** parte del nombre (el líder `" "` matchea todo): "Carga Superior Lavarropas Digital Inverter" y "Bespoke AI Freezer Inferior Heladera" no empiezan con él. La primera regla que dispara gana, así que el orden es la precedencia.
+
+| Categoría | Subs, en orden de precedencia |
+|---|---|
+| `Lavarropas` | `Secarropas` (si el nombre *empieza* con `secarropas`, `secadora` o `centrífuga`), `Lavavajillas`, `Lavarropas` (también `lavasecarropas`, `lavadora`, `carga frontal/superior`, `semiautomático`), `Secarropas` |
+| `Cocina y Horno` | `Microondas`, `Anafe` (líder), `Cocina` (líder), `Horno`, `Anafe`, `Cocina` |
+| `Heladera` | `Exhibidora`, `Cava` (también `vinoteca`), `Heladera` (también `frigobar`, `side by side`, `combi`: "Heladera con freezer" es `Heladera`), `Freezer` |
+| `Calefactor` | `Tiro Balanceado` (`tiro/tiraje balanceado`, `tbu`, `tb`), `Sin Salida` (`s/salida`, `ss`), `Caloventor`, `Convector` ("Panel Convector" es `Convector`), `Panel`, `Radiador`, `Estufa` (también `cuarzo`, `infrarroja`, `exterior`) |
+| `Termotanque` | `A Gas` (`gas`, `multigas`, `kcal`, `gn`, `ge`: un multigas "con encendido eléctrico" es `A Gas`), `Eléctrico` |
+
+Un nombre que ninguna regla reclama (una chimenea, una salamandra, un calefactor de tiro natural o a leña) queda con la sub vacía. El texto es el mismo de `GrandesElectroSubcategoryResolver.VOCABULARIO` y se normaliza como en `V128` a `V132` (minúsculas, sin acentos, `/:,;+()[]` como espacio, prefijo de venta fuera); `V144GrandesElectroAgreementTest` corre este SQL y el Java sobre los 3.279 nombres reales de las cinco categorías y exige 0 diferencias. Las filas con `bloqueado_por` no se tocan; las inactivas sí; sólo se escribe la fila cuya sub cambia.
+
+### `sitio_categoria.sub_categoria`
+
+Columna `text` nullable: la sub que una hoja curada aporta. `NormalizerService` la lee **sólo** cuando la fila terminó en la categoría de la hoja y el nombre no dio ninguna sub: una sub que sale del nombre gana siempre, y una hoja "Heladera / Freezer" no tiene nada que decir de una fila que el nombre mandó a otra categoría. `renormalizar` recarga la hoja de cada fila, así que la sub sobrevive. `NULL` es "ninguna" (sin centinela), y una sub sin categoría no es una fila válida: `chk_sitio_categoria_sub_con_categoria` exige `categoria IS NOT NULL` y una sub no vacía. La migración no escribe ninguna: las hojas de Frávega serán la primera.
+
+La migración es re-ejecutable (`ADD COLUMN IF NOT EXISTS`, `ON CONFLICT`, las subs sólo si cambian), vive en un bloque `DO` para escribir los nombres y el texto una vez (Sonar S1192) y empieza con `SET CONSTRAINTS ALL IMMEDIATE` para vaciar el trigger diferido de `V40` antes del DDL. `catalog_version` se bumpea una vez, al `COMMIT`.
+
+### Rollback
+
+```sql
+-- >>> rollback:V144
+UPDATE productos
+   SET sub_categoria = ''
+ WHERE categoria IN ('Lavarropas', 'Cocina y Horno', 'Heladera', 'Calefactor', 'Termotanque')
+   AND sub_categoria <> '' AND bloqueado_por IS NULL;
+UPDATE productos p
+   SET categoria = 'Otros', sub_categoria = '',
+       rubro = COALESCE((SELECT COALESCE(NULLIF(btrim(s.rubro_forzado), ''), NULLIF(btrim(s.rubro_por_defecto), ''))
+                           FROM sitio s WHERE s.sitio_key = p.sitio_key), 'indumentaria')
+ WHERE p.categoria IN ('Artículo de Bebé', 'Salud', 'Librería');
+UPDATE sitio_categoria SET categoria = NULL, sub_categoria = NULL WHERE categoria IN ('Artículo de Bebé', 'Salud', 'Librería');
+DELETE FROM categoria_stats WHERE categoria IN ('Artículo de Bebé', 'Salud', 'Librería');
+DELETE FROM categoria_dismiss WHERE categoria IN ('Artículo de Bebé', 'Salud', 'Librería');
+UPDATE saved_outfit_item SET categoria = 'Otros' WHERE categoria IN ('Artículo de Bebé', 'Salud', 'Librería');
+SET CONSTRAINTS ALL IMMEDIATE;
+ALTER TABLE sitio_categoria DROP COLUMN IF EXISTS sub_categoria;
+DELETE FROM categoria_rubro WHERE categoria IN ('Artículo de Bebé', 'Salud', 'Librería');
+DELETE FROM categoria WHERE nombre IN ('Artículo de Bebé', 'Salud', 'Librería');
+DELETE FROM flyway_schema_history WHERE version = '144';
+-- <<< rollback:V144
+```
+
+Vacía las subs de los cinco electrodomésticos (no tenían ninguna antes) y devuelve a `Otros` todo lo que tenga una de las tres categorías, con el rubro de la tienda si está forzada, si no el que tiene por defecto y si no `indumentaria`, que es lo que `RubroResolver` hace con una categoría sin fila. No es exacto: no recuerda de qué categoría venía cada fila (un monitor de bebé era `Monitor` o `Cámara`, una balanza de baño `Pequeño Electrodoméstico`, un cochecito leído como camisa); el siguiente `renormalizar` con el clasificador anterior las reparte otra vez. `categoria_stats` y `categoria_dismiss` de las tres se borran (se regeneran), `saved_outfit_item` pasa a `Otros` y `sitio_categoria.categoria` vuelve a `NULL`. En una cadena de rollbacks es el bloque más nuevo: corre **primero**, antes que el de `V143`, y no depende de él.

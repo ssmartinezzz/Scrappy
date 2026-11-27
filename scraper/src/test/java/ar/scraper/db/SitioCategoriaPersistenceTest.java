@@ -321,4 +321,30 @@ class SitioCategoriaPersistenceTest extends PostgresTestBase {
         assertThat(cantidadDeProductos()).isZero();
         assertThat(cantidadDeNodos()).isZero();
     }
+
+    @Test
+    @DisplayName("V144: a leaf's curated sub is read with its category, survives re-upserting the tree and is not read without a category")
+    void curatedSubOfALeaf() {
+        repositorioDeArbol().upsertArbol(SITIO, ARBOL);
+        jdbc().update("UPDATE sitio_categoria SET categoria = 'Heladera', sub_categoria = 'Freezer' WHERE sitio_key = ? AND origen_id = 133", SITIO_KEY);
+        jdbc().update("UPDATE sitio_categoria SET categoria = 'Lavarropas' WHERE sitio_key = ? AND origen_id = 18", SITIO_KEY);
+
+        repositorioDeArbol().upsertArbol(SITIO, ARBOL);
+
+        assertThat(repositorioDeArbol().subCategoriaPorOrigen(SITIO)).containsExactly(Map.entry(133, "Freezer"));
+        assertThat(repositorioDeArbol().categoriaPorOrigen(SITIO)).containsEntry(133, "Heladera").containsEntry(18, "Lavarropas");
+        assertThat(repositorioDeArbol().subCategoriaPorOrigen(null)).isEmpty();
+        assertThat(repositorioDeArbol().subCategoriaPorOrigen("no-existe")).isEmpty();
+    }
+
+    @Test
+    @DisplayName("V144: the table refuses a sub without a category and a blank sub")
+    void subWithoutCategoryIsRefused() {
+        repositorioDeArbol().upsertArbol(SITIO, ARBOL);
+
+        org.junit.jupiter.api.Assertions.assertThrows(org.springframework.dao.DataIntegrityViolationException.class, () ->
+                jdbc().update("UPDATE sitio_categoria SET sub_categoria = 'Freezer' WHERE sitio_key = ? AND origen_id = 133", SITIO_KEY));
+        org.junit.jupiter.api.Assertions.assertThrows(org.springframework.dao.DataIntegrityViolationException.class, () ->
+                jdbc().update("UPDATE sitio_categoria SET categoria = 'Heladera', sub_categoria = '  ' WHERE sitio_key = ? AND origen_id = 133", SITIO_KEY));
+    }
 }

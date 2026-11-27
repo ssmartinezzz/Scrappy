@@ -69,6 +69,7 @@ class V82ComboDeActualizacionTest extends PostgresTestBase {
             sembrar(st);
             aplicar(st);
 
+            st.execute(DocumentedRollback.sqlFor("V144"));
             st.execute(DocumentedRollback.sqlFor("V143"));
 
             st.execute(DocumentedRollback.sqlFor("V142"));

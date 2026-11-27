@@ -65,6 +65,7 @@ class V74HadriaticaTest extends PostgresTestBase {
             try (Statement st = c.createStatement()) {
                 int sitiosAntes = count(st, "SELECT count(*) FROM sitio");
 
+                st.execute(DocumentedRollback.sqlFor("V144"));
                 st.execute(DocumentedRollback.sqlFor("V143"));
 
                 st.execute(DocumentedRollback.sqlFor("V142"));
@@ -93,6 +94,7 @@ class V74HadriaticaTest extends PostgresTestBase {
             try (Statement st = c.createStatement()) {
                 insertProduct(st, "https://rollback.test/peluche", "Peluche");
 
+                st.execute(DocumentedRollback.sqlFor("V144"));
                 st.execute(DocumentedRollback.sqlFor("V143"));
 
                 st.execute(DocumentedRollback.sqlFor("V142"));
@@ -121,6 +123,7 @@ class V74HadriaticaTest extends PostgresTestBase {
                 insertProduct(st, "https://rollback.test/peluche", "Peluche");
                 int antes = count(st, "SELECT count(*) FROM categoria");
 
+                st.execute(DocumentedRollback.sqlFor("V144"));
                 st.execute(DocumentedRollback.sqlFor("V143"));
 
                 st.execute(DocumentedRollback.sqlFor("V142"));
@@ -131,7 +134,7 @@ class V74HadriaticaTest extends PostgresTestBase {
                 st.execute(DocumentedRollback.sqlFor("V74"));
 
                 assertThat(antes - count(st, "SELECT count(*) FROM categoria"))
-                        .as("V74 drops six; the rollback of V142 puts two categories back and drops one").isEqualTo(5);
+                        .as("V74 drops six; the rollback of V142 puts two categories back and drops one; the rollback of V144 drops three").isEqualTo(8);
                 assertThat(count(st, "SELECT count(*) FROM categoria WHERE nombre IN " + CINCO)).isZero();
                 assertThat(count(st, "SELECT count(*) FROM productos WHERE url = 'https://rollback.test/peluche' "
                         + "AND categoria IS NULL")).isEqualTo(1);
@@ -155,6 +158,7 @@ class V74HadriaticaTest extends PostgresTestBase {
                         """);
                 st.execute("SET CONSTRAINTS ALL IMMEDIATE");
 
+                st.execute(DocumentedRollback.sqlFor("V144"));
                 st.execute(DocumentedRollback.sqlFor("V143"));
 
                 st.execute(DocumentedRollback.sqlFor("V142"));

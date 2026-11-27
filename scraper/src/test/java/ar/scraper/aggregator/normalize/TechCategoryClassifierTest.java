@@ -131,7 +131,9 @@ class TechCategoryClassifierTest {
         assertThat(cat("Fuente Cooler Master 650W 80 Plus Gold MWE V3 ATX 3.1")).isEqualTo("Fuente");
 
         // Cámara ANTES que Monitor: el producto termina en la palabra monitor
-        assertThat(cat("Camara Wifi Ezviz BM1 2mp Baby Call Monitor")).isEqualTo("Cámara");
+        assertThat(cat("Camara Wifi Ezviz C6N 2mp Full HD Monitor")).isEqualTo("Cámara");
+        // ... salvo un baby call: V144 lo manda a Artículo de Bebé antes que a las dos familias.
+        assertThat(cat("Camara Wifi Ezviz BM1 2mp Baby Call Monitor")).isEqualTo("Artículo de Bebé");
 
         // Mousepad ANTES que Mouse
         assertThat(cat("Mouse Pad Venex")).isEqualTo("Mousepad y Mat");

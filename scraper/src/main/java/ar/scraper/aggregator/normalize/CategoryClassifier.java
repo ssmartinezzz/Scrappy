@@ -33,6 +33,7 @@ public class CategoryClassifier {
         new MascotasClassifier(),
         new JardinClassifier(),
         new BazarCocinaClassifier(),
+        new SaludClassifier(),
         new ElectrodomesticosClassifier(),
         new HogarClassifier(),
         new ConstruccionClassifier(),
@@ -55,7 +56,9 @@ public class CategoryClassifier {
         new IndumentariaClassifier(),
         NUTRICION,
         new AccesoriosClassifier(),
-        new CalzadoPorModeloClassifier()
+        new CalzadoPorModeloClassifier(),
+        new BebeClassifier(),
+        new LibreriaClassifier()
     };
 
     public String normalizarCategoria(String raw, String nombre) {
@@ -84,8 +87,10 @@ public class CategoryClassifier {
     private String resolverCategoria(String raw, String nombre, String categoriaDelArbol) {
         String fromName = clasificar(nombre);
         // Beauty words (shampoo, crema, tintura) are the leak-prone ones: a curated leaf that puts the row elsewhere beats them.
+        // Health is the exception: its names lead with the device (a bathroom scale, a thermometer) and a leaf of cleaning or "Otros" is wrong about it.
         if (CategoryGroups.esCategoriaBelleza(fromName) && StringUtils.isNotBlank(categoriaDelArbol)
-                && !CategoryGroups.esCategoriaBelleza(categoriaDelArbol)) return categoriaDelArbol;
+                && !CategoryGroups.esCategoriaBelleza(categoriaDelArbol)
+                && !SaludClassifier.CATEGORIA.equals(fromName)) return categoriaDelArbol;
         if (!fromName.isEmpty()) return fromName;
 
         if (StringUtils.isNotBlank(categoriaDelArbol)) return categoriaDelArbol;
@@ -123,6 +128,8 @@ public class CategoryClassifier {
                 && !clasificable.sinPrefijoDeVentaEmpiezaCon(GarmentTaxonomy.KW_LLAVERO_VETO_LIDER)
                 && !clasificable.contiene(GarmentTaxonomy.KW_LLAVERO_VETO))
             return "Llavero";
+        // Before the families: a baby monitor reads as a Monitor, a baby call as a security Cámara, "Cochecito Oxford" as a shirt.
+        if (BebeClassifier.reclamaAntesDeLasFamilias(clasificable)) return BebeClassifier.CATEGORIA;
         // Before the leisure families: "Playstation Heritage Desk Mat" is a desk mat, not a console product.
         if (MousepadReglas.reclamaAntesDeLasFamilias(clasificable)) return MousepadReglas.CATEGORIA;
         String tiempoLibre = primeraCategoria(FAMILIAS_DE_TIEMPO_LIBRE, clasificable);
@@ -139,7 +146,7 @@ public class CategoryClassifier {
             return "Ropa de Cama";
         // Before the guard too: it vetoes " gel " (cosmetics), and "Iron Gel Turbo" is an energy gel.
         if (clasificable.contiene(GarmentTaxonomy.KW_GEL_ENERGETICO)) return "Suplemento";
-        if (NonTextileGuard.esClaramenteNoTextil(texto)) return "";
+        if (NonTextileGuard.esClaramenteNoTextil(texto)) return LibreriaClassifier.esDeLibreria(clasificable) ? LibreriaClassifier.CATEGORIA : "";
         return primeraCategoria(FAMILIAS_EN_ORDEN, clasificable);
     }
 
