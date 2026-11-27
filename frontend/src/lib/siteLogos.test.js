@@ -11,7 +11,7 @@ const CONFIG = resolve(__dirname, '../../../scraper/src/main/resources/config.pr
 const ARREGLAR = 'Run `node scripts/fetch-site-logos.mjs` from the repo root (see public/brand-logos/README.md).';
 
 // Stores whose WAF answers 403 to a script: the logo has to be dropped in by hand. Remove the key once it has one.
-const SIN_LOGO_POR_WAF = new Set(['fullh4rd', 'venex']);
+const SIN_LOGO_POR_WAF = new Set();
 
 const tieneLogo = key => Boolean(brandLogoFile(SITIO_LOGO_MARCA[key] ?? key));
 

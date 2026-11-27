@@ -111,3 +111,5 @@ result by eye and add white marks to `LOGOS_SOBRE_OSCURO`. Stores behind a WAF (
 | Moov | `moov.png` | https://www.moov.com.ar/on/demandware.static/Sites-Moov-Site/-/default/dw4242d707/images/favicons/favicon-196x196.png | store site |
 | Macstation | `macstation.png` | https://www.macstation.com.ar/web/image/471783-d8ea53cc/LOGO%20MENU%20WEB%20%281%29.png | store site (white mark: `LOGOS_SOBRE_OSCURO`) |
 | Frávega | `fravega.png` | https://www.fravega.com/static/manifest/icons/icon-192x192.png | store site |
+| Venex | `venex.png` | https://www.venex.com.ar/images/logo_venex_chico.png | store site (WAF: dropped in by hand) |
+| Fullh4rd | `fullh4rd.png` | https://fullh4rd.com.ar/img/logo-fh-lg.png | store site (WAF: dropped in by hand) |

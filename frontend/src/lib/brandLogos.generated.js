@@ -39,6 +39,7 @@ export const LOGO_FILES_BY_NAME = {
   "fravega": "fravega.png",
   "freres": "freres.svg",
   "fuark": "fuark.png",
+  "fullh4rd": "fullh4rd.png",
   "fursten": "fursten.png",
   "gamerfactory": "gamerfactory.svg",
   "gentech": "gentech.png",
@@ -100,5 +101,6 @@ export const LOGO_FILES_BY_NAME = {
   "vaypol": "vaypol.webp",
   "vayzenhome": "vayzenhome.png",
   "vcp": "vcp.png",
+  "venex": "venex.png",
   "zentra": "zentra.webp",
 };
