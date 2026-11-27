@@ -31,7 +31,28 @@ public class VtexPage extends StorePage implements CatalogPage, ArbolDeCategoria
     private static final long ESPERA_REINTENTO_MS = 2_000;
     private static final int PROFUNDIDAD_ARBOL = 3;
 
+    /**
+     * Ajustes de un sitio VTEX que los demás no tienen: vendedor propio ({@code fq=sellerId}), piso de
+     * precio y poda de los nodos de servicio antes de contarlos.
+     */
+    record AjustesVtex(String vendedor, double precioMinimo, boolean podarServicios) {
+        static final AjustesVtex NINGUNO = new AjustesVtex("", 0, false);
+
+        /** Fravega: la API devuelve 409k filas, 50k con sellerId 1 y 46k de ellas son Servicios; $0, $1 y $99 son filas de prueba. */
+        private static final Map<String, AjustesVtex> POR_SITIO = Map.of(
+                "fravega", new AjustesVtex("1", 1000, true));
+
+        static AjustesVtex para(String sitio) {
+            return POR_SITIO.getOrDefault(StringUtils.defaultString(sitio).toLowerCase(Locale.ROOT), NINGUNO);
+        }
+
+        String filtroDeVendedor() {
+            return vendedor.isEmpty() ? "" : "&fq=sellerId:" + vendedor;
+        }
+    }
+
     private final CriterioDeServicio criterioDeServicio;
+    private final AjustesVtex ajustes;
     private List<CategoriaVtex> arbolObservado = List.of();
     private Set<Integer> hojasDeServicio = Set.of();
 
@@ -54,6 +75,7 @@ public class VtexPage extends StorePage implements CatalogPage, ArbolDeCategoria
                     CriterioDeServicio criterioDeServicio) {
         super(page, timeoutMs, sitio, baseUrl, precioMin, precioMax);
         this.criterioDeServicio = criterioDeServicio;
+        this.ajustes = AjustesVtex.para(sitio);
     }
 
     public List<Product> scrapeAll() {
@@ -129,7 +151,8 @@ public class VtexPage extends StorePage implements CatalogPage, ArbolDeCategoria
             arbolObservado = arbol;
             hojasDeServicio = idsDeServicio(arbol, criterioDeServicio);
             if (!arbol.isEmpty()) {
-                partes = particionar(arbol, path -> totalLegacy(dom, path).orElse(0), VENTANA_LEGACY)
+                partes = particionar(arbol, path -> totalLegacy(dom, path).orElse(0), VENTANA_LEGACY,
+                                ajustes.podarServicios() ? hojasDeServicio : Set.of())
                         .stream().map(path -> "&fq=C:" + path).toList();
             }
         } catch (Exception e) {
@@ -165,7 +188,7 @@ public class VtexPage extends StorePage implements CatalogPage, ArbolDeCategoria
         while (from < (total.isPresent() ? total.getAsInt() : PAGE_SIZE * PAGINAS_SEGURIDAD_SIN_HEADER)) {
             int to = from + PAGE_SIZE - 1;
             String apiUrl = dom + "/api/catalog_system/pub/products/search"
-                    + "?_from=" + from + "&_to=" + to + fq + "&O=OrderByReleaseDateDESC";
+                    + "?_from=" + from + "&_to=" + to + fq + ajustes.filtroDeVendedor() + "&O=OrderByReleaseDateDESC";
             log.debug("[{}] Legacy API from={}", sitio, from);
             try {
                 RespuestaApi resp = get(apiUrl);
@@ -255,13 +278,20 @@ public class VtexPage extends StorePage implements CatalogPage, ArbolDeCategoria
     }
 
     static List<String> particionar(List<CategoriaVtex> arbol, ToIntFunction<String> totalDe, int ventana) {
+        return particionar(arbol, totalDe, ventana, Set.of());
+    }
+
+    /** Los nodos de {@code podadas} (y sus hijos, que ya heredan la marca) no se cuentan ni se crawlean. */
+    static List<String> particionar(List<CategoriaVtex> arbol, ToIntFunction<String> totalDe, int ventana,
+                                    Set<Integer> podadas) {
         List<String> partes = new ArrayList<>();
-        for (CategoriaVtex c : arbol) particionar(c, "/", totalDe, ventana, partes);
+        for (CategoriaVtex c : arbol) particionar(c, "/", totalDe, ventana, podadas, partes);
         return partes;
     }
 
     private static void particionar(CategoriaVtex c, String padre, ToIntFunction<String> totalDe,
-                                    int ventana, List<String> partes) {
+                                    int ventana, Set<Integer> podadas, List<String> partes) {
+        if (podadas.contains(c.id())) return;
         String path = padre + c.id() + "/";
         int total = totalDe.applyAsInt(path);
         if (total == 0) return;
@@ -269,7 +299,7 @@ public class VtexPage extends StorePage implements CatalogPage, ArbolDeCategoria
             partes.add(path);
             return;
         }
-        for (CategoriaVtex h : c.hijos()) particionar(h, path, totalDe, ventana, partes);
+        for (CategoriaVtex h : c.hijos()) particionar(h, path, totalDe, ventana, podadas, partes);
     }
 
     static List<CategoriaVtex> parseArbol(JsonNode arbol) {
@@ -283,7 +313,8 @@ public class VtexPage extends StorePage implements CatalogPage, ArbolDeCategoria
     }
 
     private OptionalInt totalLegacy(String dom, String path) {
-        RespuestaApi resp = getConReintentoPorLimite(dom + "/api/catalog_system/pub/products/search?_from=0&_to=0&fq=C:" + path);
+        RespuestaApi resp = getConReintentoPorLimite(dom + "/api/catalog_system/pub/products/search?_from=0&_to=0&fq=C:" + path
+                + ajustes.filtroDeVendedor());
         return resp.ok() ? resp.total() : OptionalInt.empty();
     }
 
@@ -483,7 +514,7 @@ public class VtexPage extends StorePage implements CatalogPage, ArbolDeCategoria
             Optional<Oferta> oferta = primeraOferta(items);
             if (oferta.isEmpty()) return Optional.empty();
             double p = oferta.get().precio();
-            if (fueraDeRango(p)) return Optional.empty();
+            if (fueraDeRango(p) || p < ajustes.precioMinimo()) return Optional.empty();
 
             String categoria = segmentoDeLaRutaMasProfunda(prod.path("categories"));
             if (io && categoria.isBlank()) {

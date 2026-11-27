@@ -134,4 +134,19 @@ class ServicioPorNombreDeCategoriaExclusionesTest {
         assertThat(ServicioPorNombreDeCategoria.para("Oncity").esServicio("Cuidado Personal")).isFalse();
         assertThat(ServicioPorNombreDeCategoria.para("Easy").esServicio("Supermercado")).isFalse();
     }
+
+    @Test
+    @DisplayName("Fravega's unused and test nodes are excluded there only, accents and case included")
+    void fravegaJunkNodesAreExcludedOnlyOnFravega() {
+        for (String nodo : List.of("Cotillón NO USAR", "Bolsas de sucursal", "Prueba de categoría", "Sugerencias", "Mens")) {
+            assertThat(ServicioPorNombreDeCategoria.para("Fravega").esServicio(nodo)).as(nodo).isTrue();
+            assertThat(ServicioPorNombreDeCategoria.para("Easy").esServicio(nodo)).as(nodo + " on Easy").isFalse();
+        }
+    }
+
+    @Test
+    @DisplayName("NO USAR - Artículos de Oficina holds real goods on Fravega and stays a category")
+    void fravegaOficinaNoUsarStaysACategory() {
+        assertThat(ServicioPorNombreDeCategoria.para("Fravega").esServicio("NO USAR - Artículos de Oficina")).isFalse();
+    }
 }
