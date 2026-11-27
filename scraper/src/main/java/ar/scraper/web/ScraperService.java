@@ -10,6 +10,7 @@ import ar.scraper.classification.SiteClassification;
 import ar.scraper.classification.SiteRegistry;
 import ar.scraper.classification.SitiosPort;
 import ar.scraper.scrape.ScrapeRunPort;
+import ar.scraper.scrape.UltimaCorrida;
 import ar.scraper.scrape.ScraperStatus;
 import ar.scraper.scrape.StatusEvent;
 import ar.scraper.scrape.StatusEvents;
@@ -589,8 +590,8 @@ public class ScraperService implements CatalogSnapshotPort {
                 if (sp.estado() == SitioEstado.EN_CURSO || sp.estado() == SitioEstado.ESPERANDO) {
                     int idx = indice.de(sp.nombre());
                     if (idx >= 0) actualizarProgreso(progSitios, idx, SitioEstado.ERROR, 0, "Deadline", 0);
-                    resultados.add(new ScrapeResult(sp.nombre(), List.of(), "Deadline global", 0));
-                    registrarSitioTerminado(sp.nombre(), "ERROR", 0, "Deadline global");
+                    resultados.add(new ScrapeResult(sp.nombre(), List.of(), UltimaCorrida.ERROR_DEADLINE_GLOBAL, 0));
+                    registrarSitioTerminado(sp.nombre(), "ERROR", 0, UltimaCorrida.ERROR_DEADLINE_GLOBAL);
                     RUN_LOG.warn("[SITIO]   {} →    0 productos  (deadline global)",
                             String.format("%-15s", sp.nombre()));
                 }
@@ -852,6 +853,11 @@ public class ScraperService implements CatalogSnapshotPort {
 
     public ar.scraper.scrape.CorridaInterrumpida getInterrumpida() {
         return interrumpida.get();
+    }
+
+    /** Newest completed run and its failed sites; backs the "retry the cut sites" offer. */
+    public java.util.Optional<UltimaCorrida> getUltimaCorridaCompletada() {
+        return scrapeRun.ultimaCompletada();
     }
 
     /** Retoma la corrida interrumpida: sólo los sitios que faltan.. */

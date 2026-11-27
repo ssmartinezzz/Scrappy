@@ -79,6 +79,22 @@ public final class ScrapeDtos {
         private List<String> salteados;
     }
 
+    @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public static class UltimaCorridaFallos {
+        private boolean hayCorrida;
+        private String uuid;
+        private String finishedAt;
+        private List<SitioFallido> fallidos;
+    }
+
+    @Getter @Setter @NoArgsConstructor @AllArgsConstructor
+    public static class SitioFallido {
+        private String sitio;
+        private String error;
+        private boolean porDeadline;
+    }
+
     @Getter @Setter @NoArgsConstructor @AllArgsConstructor
     public static class Retomar {
         private boolean retomando;

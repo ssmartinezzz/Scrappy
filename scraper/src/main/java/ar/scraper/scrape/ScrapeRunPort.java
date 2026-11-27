@@ -40,6 +40,12 @@ public interface ScrapeRunPort {
 
     boolean existeCorridaCompletada();
 
+    /**
+     * The newest {@code COMPLETED} run, with the sites that ended in ERROR (deadline cuts first).
+     * Empty when no run has completed.
+     */
+    Optional<UltimaCorrida> ultimaCompletada();
+
     Optional<Instant> startedAtDe(long runId);
 
     /**

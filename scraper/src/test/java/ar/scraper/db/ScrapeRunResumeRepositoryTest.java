@@ -168,6 +168,43 @@ class ScrapeRunResumeRepositoryTest extends PostgresTestBase {
 
     // ── helpers ──────────────────────────────────────────────────────────────
 
+    @Test
+    @DisplayName("the last completed run names its ERROR sites, deadline cuts first")
+    void lastCompletedRunListsFailedSites() throws Exception {
+        long vieja = repo().crear(UUID.randomUUID(), Instant.parse("2026-08-25T09:00:00Z"), null, null,
+                List.of("freres"));
+        repo().marcarSitioTerminado(vieja, "freres", "ERROR", 0, "boom", Instant.now());
+        repo().finalizar(vieja, "COMPLETED", 0, Instant.parse("2026-08-25T09:30:00Z"));
+
+        UUID uuid = UUID.randomUUID();
+        long run = repo().crear(uuid, Instant.parse("2026-08-25T10:00:00Z"), null, null,
+                List.of("freres", "midway", "batuk"));
+        repo().marcarSitioTerminado(run, "freres", "ERROR", 0, "timeout", Instant.now());
+        repo().marcarSitioTerminado(run, "midway", "ERROR", 0, "Deadline global", Instant.now());
+        repo().marcarSitioTerminado(run, "batuk", "DONE", 12, null, Instant.now());
+        repo().finalizar(run, "COMPLETED", 12, Instant.parse("2026-08-25T10:45:00Z"));
+
+        var ultima = repo().ultimaCompletada().orElseThrow();
+
+        assertThat(ultima.uuid()).isEqualTo(uuid);
+        assertThat(ultima.finishedAt()).isEqualTo(Instant.parse("2026-08-25T10:45:00Z"));
+        assertThat(ultima.fallidos()).extracting("sitio", "porDeadline")
+                .as("deadline cuts first, DONE sites absent, and an older run never leaks in")
+                .containsExactly(org.assertj.core.groups.Tuple.tuple("Midway", true),
+                                 org.assertj.core.groups.Tuple.tuple("Freres", false));
+        assertThat(ultima.fallidos().get(1).error()).isEqualTo("timeout");
+    }
+
+    @Test
+    @DisplayName("an interrupted or running run is not the last completed one")
+    void nonCompletedRunsAreIgnored() throws Exception {
+        assertThat(repo().ultimaCompletada()).isEmpty();
+
+        repo().crear(UUID.randomUUID(), Instant.now(), null, null, List.of("freres"));
+
+        assertThat(repo().ultimaCompletada()).isEmpty();
+    }
+
     private String estadoDelRun(long runId) throws Exception {
         return unString("SELECT status FROM scrape_run WHERE id = " + runId);
     }

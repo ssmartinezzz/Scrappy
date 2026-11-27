@@ -314,6 +314,13 @@ corre los tests con JRE 21. El comando completo está en
 [`CONTRIBUTING.md`](../CONTRIBUTING.md). `clean` no es opcional: sin él `mvn test`
 puede pasar contra clases viejas y fingir verde.
 
+**El deadline global no es por sitio.** `timeout.global.min` (80 minutos por
+default) mide desde que empieza la corrida completa; `SCRAPER_TIMEOUT_GLOBAL_MIN`
+lo pisa. Al vencer, el collector drena primero los futures ya terminados: marcar
+un sitio que estaba esperando el callback serial de catálogo como `Deadline global`
+perdería trabajo real. Sólo los que seguían en curso o en cola quedan en `ERROR`;
+`GET /api/scrape/last-run/failed` los expone para reintentar exactamente esos sitios.
+
 **Jar o bundle stale:** el CLI (`start`) ya recompila solo si `scraper/scraper.jar` es más
 viejo que algo bajo `scraper/src/main` o `scraper/pom.xml`, o si `frontend/dist/index.html` es más
 viejo que `frontend/src`, `package.json` o `index.html` (`cli/core/builder.py:is_built`, comparación
