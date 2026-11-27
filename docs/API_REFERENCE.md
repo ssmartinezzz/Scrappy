@@ -589,6 +589,22 @@ puro perdido.
 
 ---
 
+## GET /scrape/last-run/failed
+
+**ADMIN.** Devuelve los sitios que terminaron en `ERROR` en la corrida
+`COMPLETED` más reciente. Es sólo una lectura: no retoma ni modifica la corrida.
+
+`data: { hayCorrida, uuid?, finishedAt?, fallidos? }`. Si nunca terminó una
+corrida, `hayCorrida` es `false`; una corrida limpia devuelve `true` con
+`fallidos: []`. Cada fallo es `{ sitio, error, porDeadline }`; los cortes por
+deadline global aparecen primero. `sitio` conserva el nombre del registro, que
+se puede reenviar sin transformar como `POST /scrape?sitios=...`.
+
+La UI ADMIN usa esa lista para ofrecer **Reintentar estos sitios**. No relanza
+los sitios que sí terminaron ni cambia los límites de precio configurados.
+
+---
+
 ## POST /scrape/discard
 
 **ADMIN.** Descarta la oferta: cierra como `CANCELLED` toda corrida

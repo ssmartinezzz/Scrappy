@@ -751,6 +751,19 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiResponse"
 
+  /api/scrape/last-run/failed:
+    get:
+      tags: [Scraping]
+      summary: Failed sites from the newest completed scrape run. Read-only.
+      x-access: ADMIN
+      responses:
+        "200":
+          description: "`data`: `{ hayCorrida, uuid?, finishedAt?, fallidos?: [{ sitio, error, porDeadline }] }`; deadline cuts come first."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+
   /api/scrape/discard:
     post:
       tags: [Scraping]

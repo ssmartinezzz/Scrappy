@@ -78,6 +78,7 @@ POST /api/scrape
 POST /api/scrape/cancel
 POST /api/scrape/discard
 GET /api/scrape/interrupted
+GET /api/scrape/last-run/failed
 POST /api/scrape/resume
 GET /api/sitios
 POST /api/sitios

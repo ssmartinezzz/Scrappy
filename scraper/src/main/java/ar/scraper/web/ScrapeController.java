@@ -43,6 +43,19 @@ public class ScrapeController {
         return ResponseEntity.ok(ApiResponse.ok(b.build()));
     }
 
+    /** Informs only: the sites of the last completed run that ended in ERROR, deadline cuts first. */
+    @GetMapping("/scrape/last-run/failed")
+    public ResponseEntity<ApiResponse<ScrapeDtos.UltimaCorridaFallos>> ultimaCorridaFallida() {
+        var run = service.getUltimaCorridaCompletada();
+        var b = ScrapeDtos.UltimaCorridaFallos.builder().hayCorrida(run.isPresent());
+        run.ifPresent(r -> b.uuid(r.uuid().toString())
+                .finishedAt(r.finishedAt().toString())
+                .fallidos(r.fallidos().stream()
+                        .map(f -> new ScrapeDtos.SitioFallido(f.sitio(), f.error(), f.porDeadline()))
+                        .toList()));
+        return ResponseEntity.ok(ApiResponse.ok(b.build()));
+    }
+
     @PostMapping("/scrape/resume")
     public ResponseEntity<ApiResponse<ScrapeDtos.Retomar>> retomar() {
         boolean ok = service.reanudar();

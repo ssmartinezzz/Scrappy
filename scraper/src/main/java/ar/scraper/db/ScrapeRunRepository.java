@@ -2,6 +2,7 @@ package ar.scraper.db;
 
 import ar.scraper.scrape.ScrapeRunPort;
 import ar.scraper.scrape.CorridaInterrumpida;
+import ar.scraper.scrape.UltimaCorrida;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -335,6 +336,46 @@ class ScrapeRunRepository implements ScrapeRunPort {
     private boolean existeCorridaCompletadaSql() {
         return jdbc.query("SELECT EXISTS (SELECT 1 FROM scrape_run WHERE status = 'COMPLETED')",
                 rs -> rs.next() && rs.getBoolean(1));
+    }
+
+    @Override
+    public Optional<UltimaCorrida> ultimaCompletada() {
+        return Sql.traducir(() -> ultimaCompletadaSql());
+    }
+
+    private Optional<UltimaCorrida> ultimaCompletadaSql() {
+        String sql = """
+            SELECT id, scrape_uuid, finished_at FROM scrape_run
+             WHERE status = 'COMPLETED'
+             ORDER BY finished_at DESC, id DESC
+             LIMIT 1
+            """;
+        return jdbc.query(sql, rs -> {
+            if (!rs.next()) return Optional.<UltimaCorrida>empty();
+            long runId = rs.getLong(1);
+            UUID uuid = (UUID) rs.getObject(2);
+            Instant finishedAt = rs.getObject(3, OffsetDateTime.class).toInstant();
+            return Optional.of(new UltimaCorrida(uuid, finishedAt, sitiosFallidos(runId)));
+        });
+    }
+
+    private List<UltimaCorrida.SitioFallido> sitiosFallidos(long runId) {
+        // The registry name comes from `sitio`: sitio_key is the lossy normalization and is not
+        // what the scrape selection matches on.
+        String sql = """
+            SELECT s.nombre, rs.error, COALESCE(rs.error = ?, false) AS por_deadline
+              FROM scrape_run_site rs JOIN sitio s ON s.sitio_key = rs.sitio_key
+             WHERE rs.scrape_run_id = ? AND rs.status = 'ERROR'
+             ORDER BY por_deadline DESC, s.nombre
+            """;
+        List<UltimaCorrida.SitioFallido> out = new ArrayList<>();
+        jdbc.query(sql, ps -> {
+            ps.setString(1, UltimaCorrida.ERROR_DEADLINE_GLOBAL);
+            ps.setLong(2, runId);
+        }, rs -> {
+            out.add(new UltimaCorrida.SitioFallido(rs.getString(1), rs.getString(2), rs.getBoolean(3)));
+        });
+        return out;
     }
 
     @Override

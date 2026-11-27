@@ -92,6 +92,7 @@ public final class ApiRoutePolicy {
             // catch-all, termina en denyAll().
             new RoutePolicy(Set.of(HttpMethod.POST), List.of("/api/scrape/cancel"), Access.ADMIN),
             new RoutePolicy(Set.of(HttpMethod.GET),  List.of("/api/scrape/interrupted"), Access.ADMIN),
+            new RoutePolicy(Set.of(HttpMethod.GET),  List.of("/api/scrape/last-run/failed"), Access.ADMIN),
             new RoutePolicy(Set.of(HttpMethod.POST), List.of("/api/scrape/resume"), Access.ADMIN),
             new RoutePolicy(Set.of(HttpMethod.POST), List.of("/api/scrape/discard"), Access.ADMIN),
             new RoutePolicy(Set.of(HttpMethod.PUT), List.of("/api/config"), Access.ADMIN),
