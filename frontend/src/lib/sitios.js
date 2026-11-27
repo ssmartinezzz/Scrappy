@@ -7,7 +7,7 @@ export const LABELS = {
   barnes: 'Barnes', batuk: 'Batuk', bulks: 'Bulks', bullbenny: 'Bullbenny',
   burtonargentina: 'Burton', cetrogar: 'Cetrogar', city: 'City', compragamer: 'CompraGamer', dcshoes: 'DC Shoes',
   dellorean: 'Dellorean', easy: 'Easy', eldon: 'Eldon', elmundodeljuguete: 'El Mundo del Juguete',
-  entreno: 'Entreno', equus: 'Equus', flowin: 'Flowin', forever: 'Forever',
+  entreno: 'Entreno', equus: 'Equus', flowin: 'Flowin', forever: 'Forever', fravega: 'Frávega',
   foreverbstrd: 'Forever BSTRD', freres: 'Freres', fuark: 'Fuark', fullh4rd: 'FullH4rd',
   fursten: 'Fursten', gamerfactory: 'GamerFactory', hadriatica: 'Hadriatica', harvey: 'Harvey',
   inpro: 'Inpro', kevingston: 'Kevingston', kingofthekongo: 'King of the Kongo',
