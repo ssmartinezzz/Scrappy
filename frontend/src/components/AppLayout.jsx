@@ -19,6 +19,8 @@ import { CONFIG_DEFAULT } from '../lib/scrapeDefaults';
 import { useAuth } from '../auth/AuthProvider';
 import { useInterruptedRun } from '../hooks/useInterruptedRun';
 import InterruptedRunBanner from './InterruptedRunBanner';
+import { useFailedLastRun } from '../hooks/useFailedLastRun';
+import FailedLastRunBanner from './FailedLastRunBanner';
 import AvisosBajaPrecio from './AvisosBajaPrecio';
 
 // frontend-perf T3: DetailPanel pulls in @radix-ui/react-dialog, AgentChatPanel
@@ -509,6 +511,7 @@ export default function AppLayout() {
   // and RootGate routes an ADMIN to the catalogue. A banner only /splash
   // carried would never be seen in the one scenario it exists for.
   const interrumpida = useInterruptedRun(isAdmin);
+  const ultimaCorridaFallida = useFailedLastRun(isAdmin);
   const [S, dispatch] = useReducer(reducer, init);
   const set      = payload => dispatch({ type:'SET', payload });
   const setFilter = payload => dispatch({ type:'SET_FILTER', payload });
@@ -821,6 +824,13 @@ export default function AppLayout() {
             error={interrumpida.error}
             onDismiss={interrumpida.dismiss}
             onRetomar={async () => { if (await interrumpida.retomar()) navigate('/splash'); }}
+          />
+          <FailedLastRunBanner
+            run={ultimaCorridaFallida.run}
+            busy={ultimaCorridaFallida.busy}
+            error={ultimaCorridaFallida.error}
+            onDismiss={ultimaCorridaFallida.dismiss}
+            onRetry={async () => { if (await ultimaCorridaFallida.reintentar()) navigate('/splash'); }}
           />
 
           <Suspense fallback={<RouteFallback/>}>

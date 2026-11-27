@@ -20,6 +20,7 @@ import {
   savePcPreferencia,
   savePreferenciaAvisos,
   startScrape,
+  fetchUltimaCorridaFallida,
 } from '@/api';
 
 /** Last URL that was passed to fetch(). */
@@ -535,6 +536,25 @@ describe('startScrape', () => {
     await startScrape({ precioMin: 0, precioMax: 1, sitios: [] });
 
     expect(global.fetch.mock.calls.at(-1)[1]).toMatchObject({ method: 'POST' });
+  });
+
+  it('can retry named sites without replacing the configured price bounds', async () => {
+    await startScrape({ sitios: ['city', 'freres'] });
+
+    const params = calledUrl().searchParams;
+    expect(params.getAll('sitios')).toEqual(['city', 'freres']);
+    expect(params.has('precioMin')).toBe(false);
+    expect(params.has('precioMax')).toBe(false);
+  });
+});
+
+describe('last completed run failures', () => {
+  it('reads the last completed run failure offer', async () => {
+    global.fetch.mockResolvedValue(envelope({ hayCorrida: true, fallidos: [] }));
+
+    await fetchUltimaCorridaFallida();
+
+    expect(calledUrl().pathname).toBe('/api/scrape/last-run/failed');
   });
 });
 

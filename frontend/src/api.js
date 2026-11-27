@@ -92,8 +92,10 @@ export function openEventStream(init) {
   return authedFetch(`${BASE}/api/events`, init);
 }
 
-export async function startScrape({ precioMin, precioMax, sitios, forceRetrain = false }) {
-  const p = new URLSearchParams({ precioMin, precioMax });
+export async function startScrape({ precioMin, precioMax, sitios = [], forceRetrain = false }) {
+  const p = new URLSearchParams();
+  if (precioMin !== undefined && precioMin !== null) p.set('precioMin', precioMin);
+  if (precioMax !== undefined && precioMax !== null) p.set('precioMax', precioMax);
   sitios.forEach(s => p.append('sitios', s));
   if (forceRetrain) p.set('forceRetrain', 'true');
   const r = await authedFetch(`${BASE}/api/scrape?${p}`, { method: 'POST' });
@@ -104,6 +106,13 @@ export async function startScrape({ precioMin, precioMax, sitios, forceRetrain =
 // interrupted run, and neither may take down the page the banner sits on.
 export async function fetchInterrumpida() {
   const r = await authedFetch(`${BASE}/api/scrape/interrupted`);
+  return softUnwrap(r);
+}
+
+// Like the interrupted-run offer, this is an ADMIN-only read. It is deliberately
+// separate: a completed run may have failed sites without being interrupted.
+export async function fetchUltimaCorridaFallida() {
+  const r = await authedFetch(`${BASE}/api/scrape/last-run/failed`);
   return softUnwrap(r);
 }
 
