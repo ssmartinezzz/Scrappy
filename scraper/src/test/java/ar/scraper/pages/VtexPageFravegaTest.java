@@ -231,4 +231,55 @@ class VtexPageFravegaTest {
         assertThat(out).extracting(Product::enStock).containsExactly(true);
         assertThat(out).noneMatch(Product::nombreProvisional);
     }
+
+    /** A row whose API Installments claim Visa 12 interest-free: the overclaim the storefront collection replaces. */
+    private static String filaConInstallments(int codigo) {
+        return """
+                {"productName":"Heladera %d","linkText":"heladera-%d","categoryId":"7","items":[{"sellers":[{"commertialOffer":{"Price":5000,"ListPrice":0,"AvailableQuantity":5,"Installments":[{"PaymentSystemName":"Visa","NumberOfInstallments":12,"InterestRate":0}]}}]}]}"""
+                .formatted(codigo, codigo);
+    }
+
+    private static String listadoConColeccion(String... codigosYSlugs) {
+        String results = java.util.stream.IntStream.range(0, codigosYSlugs.length / 2).mapToObj(i ->
+                "{\"code\":\"" + codigosYSlugs[2 * i] + "\",\"item\":{\"title\":\"T\"},\"seller\":{\"id\":\"fravega\"},"
+                        + "\"collections\":[" + (codigosYSlugs[2 * i + 1].isEmpty() ? "" : "{\"slug\":\"" + codigosYSlugs[2 * i + 1] + "\"}")
+                        + "]}").collect(Collectors.joining(","));
+        return "<script id=\"__NEXT_DATA__\" type=\"application/json\">{\"props\":{\"pageProps\":{\"__APOLLO_STATE__\":"
+                + "{\"ROOT_QUERY\":{\"items({})\":{\"total\":" + codigosYSlugs.length / 2 + ",\"results({})\":[" + results
+                + "]}}}}}}</script>";
+    }
+
+    private static List<String> cuotas(Product p) {
+        return p.promos().stream().map(x -> x.medioPago() + " " + x.cuotas()).toList();
+    }
+
+    @Test
+    @DisplayName("fravega: installments come from the collection as the generic card; the API's Visa 12 is ignored")
+    void fravegaCuotasDeLaColeccion() {
+        String body = "[" + filaConInstallments(101) + "," + filaConInstallments(102) + "," + filaConInstallments(103) + "]";
+        apiRespondeConTienda(ARBOL_CON_URL, body,
+                listadoConColeccion("101", "9-cuotas-sin-interes", "102", "", "103", "18-cuotas-sin-interes"));
+
+        List<Product> out = scrape("Fravega", 0);
+
+        assertThat(out).extracting(VtexPageFravegaTest::cuotas)
+                .containsExactly(List.of("Tarjeta de crédito 9"), List.of(), List.of());
+    }
+
+    @Test
+    @DisplayName("fravega: a failed pass leaves no installments, never the API's")
+    void fravegaPasadaFallidaSinCuotas() {
+        apiRespondeConTienda(ARBOL_CON_URL, "[" + filaConInstallments(101) + "]", "<html>blocked</html>");
+
+        assertThat(scrape("Fravega", 0)).allMatch(p -> p.promos().isEmpty());
+    }
+
+    @Test
+    @DisplayName("another site: installments still come from the API")
+    void otroSitioCuotasDeLaApi() {
+        apiRespondeConTienda(ARBOL_CON_URL, "[" + filaConInstallments(101) + "]",
+                listadoConColeccion("101", "3-cuotas-sin-interes"));
+
+        assertThat(scrape("Vtex", 0)).extracting(VtexPageFravegaTest::cuotas).containsExactly(List.of("Visa 12"));
+    }
 }

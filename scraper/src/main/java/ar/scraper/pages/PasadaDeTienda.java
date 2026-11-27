@@ -20,7 +20,8 @@ import java.util.regex.Pattern;
 /**
  * Reads the storefront listings ({@code /l/<path>/?vendedor=...&page=N}) of a VTEX site whose API stock is
  * unreliable. The listing is the stock signal (listed = in stock) and its {@code item.title} is the full
- * product name. Any failure throws: the caller then treats every row as "unknown".
+ * product name. Its {@code N-cuotas-sin-interes} collection is the installments the common cards get. Any
+ * failure throws: the caller then treats every row as "unknown".
  */
 final class PasadaDeTienda {
 
@@ -29,6 +30,9 @@ final class PasadaDeTienda {
     private static final Pattern NEXT_DATA =
             Pattern.compile("<script id=\"__NEXT_DATA__\"[^>]*>(.*?)</script>", Pattern.DOTALL);
     private static final Pattern CODIGO_EN_URL = Pattern.compile("-(\\d+)/p$");
+    private static final Pattern COLECCION_CUOTAS = Pattern.compile("^(\\d+)-cuotas-sin-interes$");
+    /** Only the collections checked against the product page (2026-11-27, 3 pages each); any other N is ignored. */
+    static final Set<Integer> CUOTAS_VERIFICADAS = Set.of(3, 6, 9, 12);
 
     /** The storefront window: a listing never shows more than this many items. */
     static final int VENTANA = 1_000;
@@ -43,8 +47,8 @@ final class PasadaDeTienda {
         boolean incompleto() { return capturados < anunciados * COBERTURA_MINIMA; }
     }
 
-    /** What the pass saw: code -> storefront title, and the listings that cover each category. */
-    record Resultado(Map<String, String> titulos, List<Listado> listados, int paginas) {
+    /** What the pass saw: code -> storefront title, code -> verified collection installments, and the listings. */
+    record Resultado(Map<String, String> titulos, Map<String, Integer> cuotas, List<Listado> listados, int paginas) {
 
         /** Seen on the storefront: in stock. Absent: only a complete covering listing plus a low API quantity says out. */
         Boolean stock(String codigo, Integer hoja, Integer cantidadApi) {
@@ -71,6 +75,7 @@ final class PasadaDeTienda {
     private final Function<String, String> lector;
     private final Runnable pausa;
     private final Map<String, String> titulos = new HashMap<>();
+    private final Map<String, Integer> cuotas = new HashMap<>();
     private final List<Listado> listados = new ArrayList<>();
     private int paginas;
 
@@ -90,9 +95,10 @@ final class PasadaDeTienda {
     Resultado ejecutar(List<CategoriaVtex> arbol, Set<Integer> excluidos) {
         if (arbol.isEmpty()) throw new IllegalStateException("sin árbol de categorías: no hay listados que leer");
         for (CategoriaVtex c : arbol) leer(c, excluidos);
-        Resultado r = new Resultado(Map.copyOf(titulos), List.copyOf(listados), paginas);
-        LOG.info("[{}] Pasada de tienda: {} listados, {} páginas, {} anunciados, {} capturados, {} códigos",
-                sitio, r.listados().size(), r.paginas(), r.anunciados(), r.capturados(), r.titulos().size());
+        Resultado r = new Resultado(Map.copyOf(titulos), Map.copyOf(cuotas), List.copyOf(listados), paginas);
+        LOG.info("[{}] Pasada de tienda: {} listados, {} páginas, {} anunciados, {} capturados, {} códigos, {} con cuotas",
+                sitio, r.listados().size(), r.paginas(), r.anunciados(), r.capturados(), r.titulos().size(),
+                r.cuotas().size());
         return r;
     }
 
@@ -145,9 +151,23 @@ final class PasadaDeTienda {
             String codigo = n.path("code").asText("");
             if (!codigo.isEmpty() && VENDEDOR.equals(n.path("seller").path("id").asText(""))) {
                 titulos.put(codigo, n.path("item").path("title").asText("").trim());
+                Integer c = cuotasDeColeccion(n.path("collections"));
+                if (c != null) cuotas.put(codigo, c);
             }
         }
         return resultados.size();
+    }
+
+    /** The largest verified {@code N-cuotas-sin-interes} the item carries; null when it carries none. */
+    static Integer cuotasDeColeccion(JsonNode colecciones) {
+        Integer max = null;
+        for (JsonNode c : colecciones) {
+            Matcher m = COLECCION_CUOTAS.matcher(c.path("slug").asText(""));
+            if (!m.matches()) continue;
+            int n = Integer.parseInt(m.group(1));
+            if (CUOTAS_VERIFICADAS.contains(n) && (max == null || n > max)) max = n;
+        }
+        return max;
     }
 
     private Pagina pagina(String ruta, int n) {

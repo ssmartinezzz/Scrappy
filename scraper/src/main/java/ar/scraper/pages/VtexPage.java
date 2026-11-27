@@ -1,6 +1,7 @@
 package ar.scraper.pages;
 
 import ar.scraper.model.Product;
+import ar.scraper.model.promo.PromoFinanciacion;
 import ar.scraper.promos.ProductPromoExtractor;
 import ar.scraper.promos.VtexPromoExtractor;
 import ar.scraper.model.SitioCategoriaNodo;
@@ -19,7 +20,6 @@ import org.apache.commons.lang3.StringUtils;
 public class VtexPage extends StorePage implements CatalogPage, ArbolDeCategorias {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
-    private static final ProductPromoExtractor PROMOS = new VtexPromoExtractor();
     private static final int PAGE_SIZE = 50;
     /** Techo del path IO (Vaypol y similares) — sin cambios en este fix. */
     private static final int MAX_PRODUCTS = 2500;
@@ -53,6 +53,8 @@ public class VtexPage extends StorePage implements CatalogPage, ArbolDeCategoria
 
     private final CriterioDeServicio criterioDeServicio;
     private final AjustesVtex ajustes;
+    /** A site with the storefront pass takes its installments from the listing collection, not from the API. */
+    private final ProductPromoExtractor promos;
     private List<CategoriaVtex> arbolObservado = List.of();
     private Set<Integer> hojasDeServicio = Set.of();
 
@@ -76,6 +78,7 @@ public class VtexPage extends StorePage implements CatalogPage, ArbolDeCategoria
         super(page, timeoutMs, sitio, baseUrl, precioMin, precioMax);
         this.criterioDeServicio = criterioDeServicio;
         this.ajustes = AjustesVtex.para(sitio);
+        this.promos = ajustes.pasadaTienda() ? VtexPromoExtractor.SIN_INSTALLMENTS : new VtexPromoExtractor();
     }
 
     public List<Product> scrapeAll() {
@@ -103,8 +106,9 @@ public class VtexPage extends StorePage implements CatalogPage, ArbolDeCategoria
     private final Map<String, Integer> cantidadPorUrl = new HashMap<>();
 
     /**
-     * Stock and name from the storefront. If the pass fails the rows stay, with unknown stock (the upsert
-     * keeps the stored value) and a provisional name (the stored name wins): the run goes on.
+     * Stock, name and installments from the storefront. If the pass fails the rows stay, with unknown stock
+     * (the upsert keeps the stored value), a provisional name (the stored name wins) and no installments
+     * (the API's overclaim them): the run goes on.
      */
     private List<Product> conPasadaDeTienda(String dom, List<Product> productos) {
         PasadaDeTienda.Resultado tienda;
@@ -125,9 +129,16 @@ public class VtexPage extends StorePage implements CatalogPage, ArbolDeCategoria
         String codigo = PasadaDeTienda.codigoDe(p.url());
         String titulo = codigo == null ? null : tienda.titulos().get(codigo);
         Boolean stock = tienda.stock(codigo, p.sitioCategoriaOrigenId(), cantidadPorUrl.get(p.url()));
-        return StringUtils.isBlank(titulo)
-                ? p.toBuilder().enStock(stock).nombreProvisional(true).build()
-                : p.toBuilder().nombre(titulo).enStock(stock).build();
+        Product.ProductBuilder b = p.toBuilder().enStock(stock).promos(conCuotas(p, codigo, tienda));
+        return StringUtils.isBlank(titulo) ? b.nombreProvisional(true).build() : b.nombre(titulo).build();
+    }
+
+    private static List<PromoFinanciacion> conCuotas(Product p, String codigo, PasadaDeTienda.Resultado tienda) {
+        Integer cuotas = codigo == null ? null : tienda.cuotas().get(codigo);
+        if (cuotas == null) return p.promos();
+        List<PromoFinanciacion> out = new ArrayList<>(p.promos());
+        out.add(VtexPromoExtractor.cuotasDeColeccion(cuotas));
+        return out;
     }
 
     private String htmlDe(String url) {
@@ -574,7 +585,7 @@ public class VtexPage extends StorePage implements CatalogPage, ArbolDeCategoria
             Product producto = producto(nombre, p, oferta.get().original(), url, img, categoria,
                     extraerGeneroVtex(prod, nombre), extraerTallesVtex(prod), hoja, enStock(items));
             return Optional.of(producto.toBuilder()
-                    .promos(PROMOS.extraer(oferta.get().oferta(), LocalDate.now()))
+                    .promos(promos.extraer(oferta.get().oferta(), LocalDate.now()))
                     .build());
         } catch (Exception e) {
             return Optional.empty();

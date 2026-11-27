@@ -118,7 +118,7 @@ class PasadaDeTiendaTest {
     void matrizDeStock() {
         var completo = new PasadaDeTienda.Listado(Set.of(7), 100, 97);
         var incompleto = new PasadaDeTienda.Listado(Set.of(8), 100, 96);
-        var r = new PasadaDeTienda.Resultado(Map.of("1", "titulo"), List.of(completo, incompleto), 2);
+        var r = new PasadaDeTienda.Resultado(Map.of("1", "titulo"), Map.of(), List.of(completo, incompleto), 2);
 
         assertThat(r.stock("1", 99, 0)).isTrue();            // listed, even in an uncovered category
         assertThat(r.stock("2", 7, 0)).isFalse();             // absent, quantity 0
@@ -162,5 +162,36 @@ class PasadaDeTiendaTest {
 
         assertThatThrownBy(() -> pasada(u -> pagina).ejecutar(List.of(nodo(7, "x")), Set.of()))
                 .hasMessageContaining("páginas");
+    }
+
+    private static String itemConColecciones(String code, String seller, String... slugs) {
+        String cols = java.util.Arrays.stream(slugs).map(x -> "{\"slug\":\"" + x + "\"}").collect(Collectors.joining(","));
+        return "{\"code\":\"" + code + "\",\"item\":{\"title\":\"t" + code + "\"},\"seller\":{\"id\":\"" + seller
+                + "\"},\"collections\":[" + cols + "]}";
+    }
+
+    @Test
+    @DisplayName("cuotas: a verified N-cuotas-sin-interes collection is read; unverified N, other slugs and other sellers are not")
+    void leeLasCuotasDeLaColeccion() {
+        String h = html(6,
+                itemConColecciones("1", "fravega", "3-cuotas-sin-interes", "descuento-1-pago-10-off"),
+                itemConColecciones("2", "fravega", "9-cuotas-sin-interes"),
+                itemConColecciones("3", "fravega", "18-cuotas-sin-interes"),
+                itemConColecciones("4", "fravega", "ofertas-en-12-cuotas"),
+                item("5", "sin colecciones", "fravega"),
+                itemConColecciones("6", "otro", "12-cuotas-sin-interes"));
+
+        var r = pasada(u -> h).ejecutar(List.of(nodo(7, "x")), Set.of());
+
+        assertThat(r.cuotas()).containsOnly(Map.entry("1", 3), Map.entry("2", 9));
+        assertThat(r.titulos()).containsOnlyKeys("1", "2", "3", "4", "5");
+    }
+
+    @Test
+    @DisplayName("cuotas: of two verified collections the larger wins")
+    void dosColeccionesGanaLaMayor() {
+        String h = html(1, itemConColecciones("1", "fravega", "6-cuotas-sin-interes", "12-cuotas-sin-interes"));
+
+        assertThat(pasada(u -> h).ejecutar(List.of(nodo(7, "x")), Set.of()).cuotas()).containsOnly(Map.entry("1", 12));
     }
 }
