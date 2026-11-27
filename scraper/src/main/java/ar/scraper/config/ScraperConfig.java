@@ -49,6 +49,27 @@ public class ScraperConfig {
     public String getMoneda()        { return props.getProperty("moneda", "ARS"); }
     public int getThreadsParalelos() { return Integer.parseInt(props.getProperty("threads.paralelos", "8")); }
     public int getTimeoutMs()        { return Integer.parseInt(props.getProperty("timeout.ms", "30000")); }
+    static final int TIMEOUT_GLOBAL_MIN_DEFAULT = 80;
+
+    /** Global budget of one run, in minutes. {@code SCRAPER_TIMEOUT_GLOBAL_MIN} pisa la property
+     *  {@code timeout.global.min}; a value that is not a positive integer falls back to the default. */
+    public int getTimeoutGlobalMin() {
+        return getTimeoutGlobalMin(System.getenv("SCRAPER_TIMEOUT_GLOBAL_MIN"));
+    }
+
+    int getTimeoutGlobalMin(String envOverride) {
+        String raw = StringUtils.defaultIfBlank(StringUtils.trim(envOverride),
+                props.getProperty("timeout.global.min", String.valueOf(TIMEOUT_GLOBAL_MIN_DEFAULT)));
+        try {
+            int min = Integer.parseInt(raw.trim());
+            if (min >= 1) return min;
+        } catch (NumberFormatException ignored) {
+            // falls through to the warning below
+        }
+        LOG.warn("timeout global '{}' no es un entero >= 1, se usa el default {}", raw, TIMEOUT_GLOBAL_MIN_DEFAULT);
+        return TIMEOUT_GLOBAL_MIN_DEFAULT;
+    }
+
     public boolean isHeadless()      { return Boolean.parseBoolean(props.getProperty("headless", "true")); }
 
     /** URL del FlareSolverr. {@code SCRAPER_FLARESOLVERR_URL} pisa la property: en Docker el jar

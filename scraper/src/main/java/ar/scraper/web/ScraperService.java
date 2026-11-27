@@ -47,7 +47,6 @@ public class ScraperService implements CatalogSnapshotPort {
     private static final Logger LOG     = LoggerFactory.getLogger(ScraperService.class);
     private static final Logger RUN_LOG = LoggerFactory.getLogger("ar.scraper.run");
 
-    private static final int TIMEOUT_GLOBAL_MIN  = 45;
     private static final int TIMEOUT_POR_SITIO_S = 600;
 
     /**
@@ -543,7 +542,10 @@ public class ScraperService implements CatalogSnapshotPort {
             }
             exec.shutdown();
 
-            long deadline = System.currentTimeMillis() + TIMEOUT_GLOBAL_MIN * 60_000L;
+            // ScraperConfig rejects non-positive values. Keep this defensive floor here too: mocks
+            // and alternate config implementations must not turn a normal run into an immediate cut.
+            long timeoutGlobalMin = Math.max(1, config.getTimeoutGlobalMin());
+            long deadline = System.currentTimeMillis() + timeoutGlobalMin * 60_000L;
             resultados = SiteResultCollector.recolectar(
                     ecs, totalSitios, deadline, TIMEOUT_POR_SITIO_S, POLL_GRANULARIDAD_MS, GRACIA_SITIO_MS,
                     cancelado,

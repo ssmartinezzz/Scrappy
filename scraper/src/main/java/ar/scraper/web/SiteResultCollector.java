@@ -65,6 +65,35 @@ final class SiteResultCollector {
                 RUN_LOG.warn("Error en completionService: {}", e.getMessage());
             }
         }
+
+        // Sites that finished while the collector was busy (onResultado runs serially and does
+        // DB work) sit in the queue. Leaving them there would report a completed site as cut.
+        if (!cancelado.get() && !Thread.currentThread().isInterrupted()) {
+            drenarTerminados(ecs, resultados, onResultado);
+        }
         return resultados;
+    }
+
+    private static void drenarTerminados(
+            ExecutorCompletionService<ScrapeResult> ecs, List<ScrapeResult> resultados,
+            Consumer<ScrapeResult> onResultado) {
+        int drenados = 0;
+        Future<ScrapeResult> f;
+        while ((f = ecs.poll()) != null) {
+            drenados++;
+            try {
+                ScrapeResult r = f.get();
+                resultados.add(r);
+                onResultado.accept(r);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            } catch (Exception e) {
+                RUN_LOG.warn("Error en completionService: {}", e.getMessage());
+            }
+        }
+        if (drenados > 0) {
+            RUN_LOG.info("[DEADLINE] {} sitio(s) ya habian terminado y se recogieron", drenados);
+        }
     }
 }
