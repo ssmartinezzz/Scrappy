@@ -220,6 +220,7 @@ abajo, donde además lo **ejecutan** los `V*RollbackRoundTripTest` (vía
 | `V142` | Categoría `Mousepad y Mat` reemplaza a `Mousepad` y `Mat Escritorio`, con rubro `oficina` en toda tienda (`pisa_forzado`, índice en dólares) y siete subs (`Antifatiga`, `Apoyamuñecas`, `Mousepad Ergonómico`, `Mat de Escritorio`, `Mousepad RGB`, `Mousepad XL`, `Mousepad`); `Escritorio` suma la sub `Motorizado` (motor probado en el nombre, también `oficina` y `pisa_forzado`) |
 | `V143` | Subs `malla` (una correa: sigue siendo accesorio de tecnología) y `analógico` (un reloj sin palabra inteligente ni deportiva; `categoria_rubro` lo manda a `indumentaria`) de `Reloj`, en minúscula como `smartwatch` y `deportivo`; reescribe las filas guardadas. Cargadores y fundas de reloj pasan a `Celular` por el clasificador, no por la migración |
 | `V144` | Categorías `Artículo de Bebé` (`juguetes`), `Salud` (`belleza`) y `Librería` (`oficina`), las tres por IPC; subs en Title Case de cinco electrodomésticos (`Lavarropas`, `Cocina y Horno`, `Heladera`, `Calefactor`, `Termotanque`) sobre las filas guardadas; `sitio_categoria.sub_categoria` (nullable): la sub que una hoja curada aporta cuando el nombre no dice ninguna |
+| `V145` | Seed de Fravega (VTEX, tienda por departamentos de electro y tecnología, `rubro_por_defecto = 'electrodomesticos'`) y 360 de sus 366 hojas curadas, 123 con `sub_categoria`; la hoja gana sobre el nombre |
 | `R__sp_upsert_run` | **La** definición de la función. Repetible: se edita acá |
 | `R__sp_soft_delete_ausentes` | Ídem |
 | `R__sp_upsert_sitio_categoria` | `sp_upsert_sitio_categoria` (el árbol) y `sp_vincular_sitio_categoria` (producto → hoja). Repetible |
@@ -6607,7 +6608,7 @@ DELETE FROM flyway_schema_history WHERE version = '143';
 -- <<< rollback:V143
 ```
 
-Vacía la sub de los relojes comunes y devuelve a `tecnologia` los que `V143` mandó a `indumentaria` (una tienda forzada no se tocó, así que no hay nada que restaurar ahí). Las correas vuelven a `smartwatch` si el nombre lo dice, a `deportivo` si dice `deportivo`, `running` o `gps`, y a vacía si no. No es exacto: el vocabulario de `SubcategoryResolver` busca palabras sueltas sobre el nombre con su puntuación y esto las busca sobre los tokens, y una correa que ya era vacía y decía `smart-band` vuelve a `smartwatch`. En una cadena de rollbacks es el bloque más nuevo: corre PRIMERO, antes que el de `V142`.
+Vacía la sub de los relojes comunes y devuelve a `tecnologia` los que `V143` mandó a `indumentaria` (una tienda forzada no se tocó, así que no hay nada que restaurar ahí). Las correas vuelven a `smartwatch` si el nombre lo dice, a `deportivo` si dice `deportivo`, `running` o `gps`, y a vacía si no. No es exacto: el vocabulario de `SubcategoryResolver` busca palabras sueltas sobre el nombre con su puntuación y esto las busca sobre los tokens, y una correa que ya era vacía y decía `smart-band` vuelve a `smartwatch`. Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V144` y antes que el de `V142`.
 
 ---
 
@@ -6668,4 +6669,23 @@ DELETE FROM flyway_schema_history WHERE version = '144';
 -- <<< rollback:V144
 ```
 
-Vacía las subs de los cinco electrodomésticos (no tenían ninguna antes) y devuelve a `Otros` todo lo que tenga una de las tres categorías, con el rubro de la tienda si está forzada, si no el que tiene por defecto y si no `indumentaria`, que es lo que `RubroResolver` hace con una categoría sin fila. No es exacto: no recuerda de qué categoría venía cada fila (un monitor de bebé era `Monitor` o `Cámara`, una balanza de baño `Pequeño Electrodoméstico`, un cochecito leído como camisa); el siguiente `renormalizar` con el clasificador anterior las reparte otra vez. `categoria_stats` y `categoria_dismiss` de las tres se borran (se regeneran), `saved_outfit_item` pasa a `Otros` y `sitio_categoria.categoria` vuelve a `NULL`. En una cadena de rollbacks es el bloque más nuevo: corre **primero**, antes que el de `V143`, y no depende de él.
+Vacía las subs de los cinco electrodomésticos (no tenían ninguna antes) y devuelve a `Otros` todo lo que tenga una de las tres categorías, con el rubro de la tienda si está forzada, si no el que tiene por defecto y si no `indumentaria`, que es lo que `RubroResolver` hace con una categoría sin fila. No es exacto: no recuerda de qué categoría venía cada fila (un monitor de bebé era `Monitor` o `Cámara`, una balanza de baño `Pequeño Electrodoméstico`, un cochecito leído como camisa); el siguiente `renormalizar` con el clasificador anterior las reparte otra vez. `categoria_stats` y `categoria_dismiss` de las tres se borran (se regeneran), `saved_outfit_item` pasa a `Otros` y `sitio_categoria.categoria` vuelve a `NULL`. Ya no es el bloque más nuevo: en una cadena de rollbacks corre después del de `V145` y antes que el de `V143`, y no depende de él. El de `V145` va antes porque borra las filas de `sitio_categoria` que usan la columna `sub_categoria` que este quita.
+
+---
+
+## `V145` — seed de Fravega y su mapeo de hojas
+
+Fravega (`www.fravega.com`, VTEX, electro y tecnología): sólo se lee lo que vende Fravega mismo. La API legacy lista 409 mil filas (marketplace) y 46.702 son `Servicios > Plan Canje`; con `sellerId = 1` (`AjustesVtex`), sin los nodos de servicio ni de prueba y con el precio mínimo, quedan unos **3.480 productos** en **366 hojas** con filas. `rubro_forzado` en `NULL` y `rubro_por_defecto = 'electrodomesticos'`, como Cetrogar desde `V139`: lo que ninguna categoría decide (repuestos, accesorios sueltos) es electro y no tecnología. 360 de las 366 hojas van curadas (el mapa se revisó a mano: 198 hojas donde el nombre y la hoja discrepan, 13 corregidas), en un solo texto `sitio_key|origen_id|nombre|categoria|sub` partido por el `INSERT` (Sonar S1192 y CPD), sin categorías nuevas (`V144` agregó `Artículo de Bebé`, `Salud` y `Librería`); la hoja gana sobre el nombre (`NormalizerService.SITIOS_DONDE_LA_HOJA_GANA`). Las seis hojas sin categoría (`PC Gamer`, `Accesorios de jardín`, `Porteros eléctricos`, `Accesorios de camping`, `Linternas y faroles` y la hoja `NO USAR`) no tienen fila: decide el nombre.
+
+`sitio_categoria.sub_categoria` (`V144`) lleva la sub de la hoja en 123 hojas: Fravega abrevia ("FREI.", "LAV."), así que el nombre sólo da sub en ~26 % de las filas y la hoja completa el resto (una sub del nombre gana siempre). Una sub en blanco es `NULL`, nunca un centinela. La simulación con el mapa curado da `categoria != Otros` **96,2 %** (el nombre solo, 47,9 %).
+
+### Rollback
+
+```sql
+-- >>> rollback:V145
+DELETE FROM sitio s WHERE s.sitio_key = 'fravega'
+  AND NOT EXISTS (SELECT 1 FROM productos p WHERE p.sitio_key = s.sitio_key);
+-- <<< rollback:V145
+```
+
+`sitio_categoria` cae en cascada con el sitio; con productos ya scrapeados no borra nada. Es el bloque más nuevo: en una cadena de rollbacks corre **primero**, antes que el de `V144`, que quita la columna `sub_categoria`.

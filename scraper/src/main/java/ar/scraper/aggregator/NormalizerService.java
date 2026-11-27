@@ -55,7 +55,7 @@ public class NormalizerService {
             "Accesorio Apple", "Accesorio Gaming");
     // Stores whose tree is curated end to end: the leaf outranks the name (a fridge drawer is not an office organizer,
     // a Mini LED TV is not a bag), except where the name says another device.
-    private static final Set<String> SITIOS_DONDE_LA_HOJA_GANA = Set.of("samsung", "prestigio", "naldo", "cetrogar", "oncity", "dexter", "moov");
+    private static final Set<String> SITIOS_DONDE_LA_HOJA_GANA = Set.of("samsung", "prestigio", "naldo", "cetrogar", "oncity", "dexter", "moov", "fravega");
     // Where such a leaf also holds what only shares its noun, the name wins when it says one of these: bakeware under "Fuentes y
     // recipientes", a motherboard under "Placas de video", a power strip under "Cables". A watch charger under "Smartwatches" is
     // checked apart (esAccesorioDeReloj): a strap that names "Redmi 5" reads as a phone, and must stay a Reloj.
