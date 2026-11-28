@@ -597,8 +597,11 @@ puro perdido.
 `data: { hayCorrida, uuid?, finishedAt?, fallidos? }`. Si nunca terminó una
 corrida, `hayCorrida` es `false`; una corrida limpia devuelve `true` con
 `fallidos: []`. Cada fallo es `{ sitio, error, porDeadline }`; los cortes por
-deadline global aparecen primero. `sitio` conserva el nombre del registro, que
-se puede reenviar sin transformar como `POST /scrape?sitios=...`.
+deadline global aparecen primero. `sitio` es el nombre del registro de scrape
+(`config.properties`), no el de la tabla `sitio`: se puede reenviar sin
+transformar como `POST /scrape?sitios=...`. Los dos difieren en algún sitio
+(`Under Armour` en la tabla, `Underarmour` en el registro) y la selección
+ignora en silencio un nombre que no matchea.
 
 La UI ADMIN usa esa lista para ofrecer **Reintentar estos sitios**. No relanza
 los sitios que sí terminaron ni cambia los límites de precio configurados.
