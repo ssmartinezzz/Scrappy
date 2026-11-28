@@ -190,4 +190,58 @@ class SiteYieldGuardTest {
         assertThat(SiteYieldGuard.fusionarEnErrores(Map.of("a", "b"), null))
                 .containsEntry("a", "b");
     }
+
+    // ── Anti-bot blocks ──────────────────────────────────────────────────────
+    // A 403/429 is the store refusing the egress IP, not a selector that stopped matching.
+
+    @Test
+    void aSiteBlockedByTheStoreIsReportedAsABlockNotABrokenScraper() {
+        List<SiteYieldGuard.Alerta> alertas = SiteYieldGuard.evaluar(
+                Map.of("allbirds", 300), Map.of("allbirds", 0), Set.of("allbirds"),
+                Map.of("allbirds", "paginación cortada en p1: bloqueado por la tienda (HTTP 403)"));
+
+        assertThat(alertas).singleElement().satisfies(a -> {
+            assertThat(a.severidad()).isEqualTo(SiteYieldGuard.Severidad.BLOQUEO);
+            assertThat(a.mensaje()).isEqualTo(
+                    "allbirds bloqueado por la tienda (HTTP 403); sin productos esta corrida.")
+                    .doesNotContain("Probable scraper roto");
+        });
+    }
+
+    @Test
+    void aThrottledSiteNamesTheHttp429() {
+        SiteYieldGuard.Alerta a = SiteYieldGuard.evaluar(
+                Map.of("venex", 2779), Map.of("venex", 0), Set.of("venex"),
+                Map.of("venex", "catálogo cortado en inicio: bloqueado por la tienda (HTTP 429)")).get(0);
+
+        assertThat(a.mensaje()).contains("venex").contains("HTTP 429");
+    }
+
+    @Test
+    void aNonBlockErrorKeepsTheBrokenScraperWording() {
+        List<SiteYieldGuard.Alerta> alertas = SiteYieldGuard.evaluar(
+                Map.of("midway", 800), Map.of("midway", 0), Set.of("midway"),
+                Map.of("midway", "paginación cortada en p1: HTTP 500"));
+
+        assertThat(alertas).singleElement().satisfies(a -> {
+            assertThat(a.severidad()).isEqualTo(SiteYieldGuard.Severidad.CAIDA_TOTAL);
+            assertThat(a.mensaje()).contains("Probable scraper roto");
+        });
+    }
+
+    @Test
+    void anEmptyOrNullErrorMapBehavesAsBefore() {
+        assertThat(SiteYieldGuard.evaluar(Map.of("midway", 800), Map.of("midway", 0), Set.of("midway"), null))
+                .singleElement().satisfies(a ->
+                        assertThat(a.severidad()).isEqualTo(SiteYieldGuard.Severidad.CAIDA_TOTAL));
+    }
+
+    @Test
+    void statusDeBloqueoOnlyMatchesTheStoreRefusals() {
+        assertThat(SiteYieldGuard.statusDeBloqueo("x: HTTP 403")).isEqualTo("403");
+        assertThat(SiteYieldGuard.statusDeBloqueo("HTTP 429 en https://a")).isEqualTo("429");
+        assertThat(SiteYieldGuard.statusDeBloqueo("HTTP 4030")).isNull();
+        assertThat(SiteYieldGuard.statusDeBloqueo("HTTP 404")).isNull();
+        assertThat(SiteYieldGuard.statusDeBloqueo(null)).isNull();
+    }
 }

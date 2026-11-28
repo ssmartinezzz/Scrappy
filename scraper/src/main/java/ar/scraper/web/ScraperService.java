@@ -726,7 +726,11 @@ public class ScraperService implements CatalogSnapshotPort {
                     SiteClassification.sitioKey(r.sitio()), 0));
             actual.put(r.sitio(), r.productos());
         }
-        return SiteYieldGuard.evaluar(previo, actual, actual.keySet());
+        Map<String, String> errores = new HashMap<>();
+        for (RendimientoDeSitio r : resultados) {
+            if (StringUtils.isNotBlank(r.error())) errores.put(r.sitio(), r.error());
+        }
+        return SiteYieldGuard.evaluar(previo, actual, actual.keySet(), errores);
     }
 
     /** The browser lifecycle of one attempt; registered before use so a stop always finds it. */

@@ -1,5 +1,6 @@
 package ar.scraper.pages;
 
+import ar.scraper.health.SiteYieldGuard;
 import com.microsoft.playwright.ElementHandle;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Response;
@@ -46,12 +47,19 @@ public abstract class BasePage {
         private final int status;
 
         RespuestaHttpException(int status) {
-            super("HTTP " + status);
+            super(mensaje(status));
             this.status = status;
         }
 
         int status() {
             return status;
+        }
+
+        /** 403/429 is the store refusing us, which a retry minutes later will not change. */
+        private static String mensaje(int status) {
+            return status == 403 || status == 429
+                    ? SiteYieldGuard.MARCA_BLOQUEO + " (HTTP " + status + ")"
+                    : "HTTP " + status;
         }
     }
 

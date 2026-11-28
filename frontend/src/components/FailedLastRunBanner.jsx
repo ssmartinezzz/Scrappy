@@ -1,3 +1,4 @@
+import { clasificarFallidos } from '../lib/blockedSites';
 import { cn } from '../lib/utils';
 
 const MAX_ERROR = 80;
@@ -19,6 +20,7 @@ export default function FailedLastRunBanner({ run, busy = false, error = '', onR
 
   const fallidos = run.fallidos || [];
   const porDeadline = fallidos.filter(f => f.porDeadline);
+  const { bloqueados, reintentables } = clasificarFallidos(fallidos);
 
   return (
     <div
@@ -32,19 +34,29 @@ export default function FailedLastRunBanner({ run, busy = false, error = '', onR
         )}
       </div>
 
-      <div className="text-[.75rem] leading-relaxed text-t3">
-        {fallidos.map(etiqueta).join(', ')}
-      </div>
+      {reintentables.length > 0 && (
+        <div className="text-[.75rem] leading-relaxed text-t3">
+          {reintentables.map(etiqueta).join(', ')}
+        </div>
+      )}
+
+      {bloqueados.length > 0 && (
+        <div className="text-[.72rem] leading-relaxed text-t4">
+          Bloqueados por la tienda (HTTP 403/429) — probá en unas horas: {bloqueados.map(f => f.sitio).join(', ')}
+        </div>
+      )}
 
       {error && <div className="text-[.72rem] text-danger">{error}</div>}
 
       <div className="flex flex-wrap gap-2">
-        <button
-          type="button" onClick={onRetry} disabled={busy}
-          className={cn('btn-sm border-none bg-primary text-on-accent', busy && 'cursor-not-allowed opacity-60')}
-        >
-          {busy ? 'Reintentando…' : '↻ Reintentar estos sitios'}
-        </button>
+        {reintentables.length > 0 && (
+          <button
+            type="button" onClick={onRetry} disabled={busy}
+            className={cn('btn-sm border-none bg-primary text-on-accent', busy && 'cursor-not-allowed opacity-60')}
+          >
+            {busy ? 'Reintentando…' : '↻ Reintentar estos sitios'}
+          </button>
+        )}
         <button
           type="button" onClick={onDismiss} disabled={busy}
           className={cn('btn-sm btn-ghost text-t4', busy && 'cursor-not-allowed opacity-60')}
