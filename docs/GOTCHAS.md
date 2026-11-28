@@ -321,6 +321,13 @@ un sitio que estaba esperando el callback serial de catálogo como `Deadline glo
 perdería trabajo real. Sólo los que seguían en curso o en cola quedan en `ERROR`;
 `GET /api/scrape/last-run/failed` los expone para reintentar exactamente esos sitios.
 
+**`sitio.nombre` no es el nombre que acepta `POST /api/scrape?sitios=`.** La
+selección compara contra el registro (`config.properties`: `sitio.underarmour` →
+`Underarmour`) y descarta en silencio lo que no matchea; la tabla `sitio` puede
+decir otra cosa (`Under Armour`, sembrado por V95). La corrida abre con un sitio
+menos y nada falla. Para mandar un nombre desde la base, mapealo por
+`SiteClassification.sitioKey` al del registro, como hace `UltimaCorrida.conNombresDelRegistro`.
+
 **Jar o bundle stale:** el CLI (`start`) ya recompila solo si `scraper/scraper.jar` es más
 viejo que algo bajo `scraper/src/main` o `scraper/pom.xml`, o si `frontend/dist/index.html` es más
 viejo que `frontend/src`, `package.json` o `index.html` (`cli/core/builder.py:is_built`, comparación

@@ -857,7 +857,8 @@ public class ScraperService implements CatalogSnapshotPort {
 
     /** Newest completed run and its failed sites; backs the "retry the cut sites" offer. */
     public java.util.Optional<UltimaCorrida> getUltimaCorridaCompletada() {
-        return scrapeRun.ultimaCompletada();
+        List<String> registro = buildSiteList(null).stream().map(ScraperConfig.SiteConfig::nombre).toList();
+        return scrapeRun.ultimaCompletada().map(u -> u.conNombresDelRegistro(registro));
     }
 
     /** Retoma la corrida interrumpida: sólo los sitios que faltan.. */
