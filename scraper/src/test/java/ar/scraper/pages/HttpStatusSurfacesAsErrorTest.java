@@ -66,6 +66,17 @@ class HttpStatusSurfacesAsErrorTest {
 
         assertThat(shopify.scrapeAll()).isEmpty();
         assertThat(shopify.truncamiento()).startsWith("paginación cortada en p1: ").contains("HTTP 403");
+        assertThat(shopify.truncamiento()).isEqualTo("paginación cortada en p1: bloqueado por la tienda (HTTP 403)");
+    }
+
+    @Test
+    @DisplayName("a 500 is not a block: the message stays a bare HTTP status")
+    void serverErrorIsNotMarkedAsABlock() {
+        Page page = conRespuestas(respuesta(500, null));
+        ShopifyPage shopify = new ShopifyPage(page, 1000, "Shop", BASE, 0, MAX);
+
+        assertThat(shopify.scrapeAll()).isEmpty();
+        assertThat(shopify.truncamiento()).isEqualTo("paginación cortada en p1: HTTP 500");
     }
 
     @Test
@@ -77,7 +88,7 @@ class HttpStatusSurfacesAsErrorTest {
         assertThat(shopify.scrapeAll()).isEmpty();
 
         assertThat(esperas(page)).containsExactly(60_000L, 60_000L);
-        assertThat(shopify.truncamiento()).contains("HTTP 429");
+        assertThat(shopify.truncamiento()).contains("HTTP 429").contains("bloqueado por la tienda");
     }
 
     @Test
