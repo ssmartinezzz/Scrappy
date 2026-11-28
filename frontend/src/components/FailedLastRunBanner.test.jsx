@@ -60,4 +60,30 @@ describe('FailedLastRunBanner', () => {
     expect(screen.getByRole('button', { name: /reintentando/i })).toBeDisabled();
     expect(screen.getByRole('button', { name: /ocultar/i })).toBeDisabled();
   });
+
+  it('lists blocked sites on their own muted line and keeps them out of the retry list', () => {
+    renderBanner({ run: { fallidos: [
+      { sitio: 'allbirds', error: 'paginación cortada en p1: bloqueado por la tienda (HTTP 403)', porDeadline: false },
+      { sitio: 'venex', error: 'HTTP 429', porDeadline: false },
+      { sitio: 'freres', error: 'timeout', porDeadline: false },
+    ] } });
+    const alert = screen.getByRole('alert');
+
+    expect(alert).toHaveTextContent('Bloqueados por la tienda (HTTP 403/429) — probá en unas horas: allbirds, venex');
+    expect(alert).toHaveTextContent('freres (timeout)');
+    expect(alert).not.toHaveTextContent('allbirds (');
+    expect(screen.getByRole('button', { name: /reintentar/i })).toBeInTheDocument();
+  });
+
+  it('offers no retry when every failed site was blocked, only Ocultar', () => {
+    renderBanner({ run: { fallidos: [{ sitio: 'allbirds', error: 'HTTP 403', porDeadline: false }] } });
+
+    expect(screen.queryByRole('button', { name: /reintentar/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /ocultar/i })).toBeInTheDocument();
+  });
+
+  it('shows no blocked line when nothing was blocked', () => {
+    renderBanner();
+    expect(screen.getByRole('alert')).not.toHaveTextContent(/bloqueados por la tienda/i);
+  });
 });

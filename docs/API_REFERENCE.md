@@ -605,6 +605,13 @@ ignora en silencio un nombre que no matchea.
 
 La UI ADMIN usa esa lista para ofrecer **Reintentar estos sitios**. No relanza
 los sitios que sí terminaron ni cambia los límites de precio configurados.
+Un `error` con `HTTP 403` o `HTTP 429` (el backend lo escribe como `bloqueado
+por la tienda (HTTP 403)`) es un bloqueo anti-bot: la UI lo lista aparte
+(*Bloqueados por la tienda — probá en unas horas*) y **no** lo incluye en el
+reintento; si todos los fallos son bloqueos no ofrece reintentar. *Ocultar*
+recuerda el `uuid` de la corrida en `localStorage`: la oferta vuelve con una
+corrida fallida nueva. La alerta `[SALUD]` de un sitio bloqueado dice que fue
+bloqueado, no "Probable scraper roto".
 
 ---
 
